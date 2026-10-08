@@ -2,6 +2,8 @@
 
 import argparse
 import logging
+import sys
+import threading
 
 from abdoh import __version__
 from abdoh.config import Config, load_config, setup_logging
@@ -68,14 +70,48 @@ def cmd_list_commands(cfg: Config, args: argparse.Namespace) -> int:
 
 def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.daemon import Daemon
+    from abdoh.events import Bus
+    from abdoh.instance import InstanceLock, ask_running_instance_to_show
 
-    daemon = Daemon.create(cfg)
-    print('Abdoh is listening. Say "Hey Abdoh" and a request. Press Ctrl+C to quit.')
+    lock = InstanceLock()
+    if not lock.acquire():
+        shown = ask_running_instance_to_show()
+        print("Abdoh is already running." + (" Showing its window." if shown else ""))
+        return 0
+    bus = Bus(ui_attached=not args.headless)
+    lock.serve(on_show=lambda: bus.emit("show"))
     try:
-        daemon.run()
-    except KeyboardInterrupt:
-        daemon.stop()
-    return 0
+        if args.headless:
+            daemon = Daemon.create(cfg, bus)
+            threading.Thread(target=daemon.serve_requests, daemon=True).start()
+            print('Abdoh is listening. Say "Hey Abdoh" and a request. Press Ctrl+C to quit.')
+            try:
+                daemon.run()
+            except KeyboardInterrupt:
+                daemon.stop()
+            return 0
+
+        from abdoh.ui.window import Window
+
+        window = Window(bus, start_hidden=args.minimized)
+        started: list[Daemon] = []
+
+        def background() -> None:
+            daemon = Daemon.create(cfg, bus)
+            started.append(daemon)
+            threading.Thread(target=daemon.serve_requests, daemon=True).start()
+            daemon.run()
+
+        threading.Thread(target=background, name="abdoh-daemon", daemon=True).start()
+        try:
+            window.mainloop()
+        except KeyboardInterrupt:
+            pass
+        for daemon in started:
+            daemon.stop()
+        return 0
+    finally:
+        lock.release()
 
 
 def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
@@ -100,7 +136,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
-    p = sub.add_parser("run", help="start Abdoh")
+    p = sub.add_parser("run", help="start Abdoh (opens its window)")
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument("--minimized", action="store_true", help="start with the window hidden")
+    mode.add_argument("--headless", action="store_true", help="no window at all")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("say", help="speak some text")
@@ -134,5 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
     cfg = load_config()
-    setup_logging(cfg, console=True, level=logging.DEBUG if args.verbose else logging.INFO)
+    # pythonw (used for autostart) has no console: sys.stderr is None there.
+    console = sys.stderr is not None
+    setup_logging(cfg, console=console, level=logging.DEBUG if args.verbose else logging.INFO)
     return args.func(cfg, args)
