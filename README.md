@@ -24,8 +24,19 @@ python scripts/download_models.py
 ## Run
 
 ```
-python -m abdoh run      # listens until Ctrl+C. Try "Good morning Abdoh" or "Hey Abdoh, what time is it"
+python -m abdoh run              # opens Abdoh's window and starts listening
+python -m abdoh run --minimized  # starts with the window hidden
+python -m abdoh run --headless   # no window at all (Ctrl+C to quit)
 ```
+
+Try "Good morning Abdoh" or "Hey Abdoh, what time is it".
+
+The window shows what Abdoh is doing (status, Claude connection, recent history). You can type
+requests (they go through the same commands and Claude as voice), pause listening, edit or reload
+commands, turn voice replies off, and set your Claude API key.
+
+Closing the window only hides it; Abdoh keeps listening. Bring it back by saying
+"Abdoh, show window" or running `python -m abdoh run` again. Quit from the window's **Abdoh** menu.
 
 ## Try the parts
 
