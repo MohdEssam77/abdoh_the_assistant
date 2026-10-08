@@ -2,6 +2,7 @@
 
 import argparse
 import logging
+import os
 import sys
 import threading
 
@@ -78,10 +79,20 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         shown = ask_running_instance_to_show()
         print("Abdoh is already running." + (" Showing its window." if shown else ""))
         return 0
-    bus = Bus(ui_attached=not args.headless)
+    window = None
+    if not args.headless:
+        from abdoh.ui.window import Window
+
+        try:
+            bus = Bus()
+            window = Window(bus, start_hidden=args.minimized)
+        except Exception as e:  # e.g. no display available
+            logging.getLogger(__name__).warning("No window (%s); running headless.", e)
+    if window is None:
+        bus = Bus(ui_attached=False)
     lock.serve(on_show=lambda: bus.emit("show"))
     try:
-        if args.headless:
+        if window is None:
             daemon = Daemon.create(cfg, bus)
             threading.Thread(target=daemon.serve_requests, daemon=True).start()
             print('Abdoh is listening. Say "Hey Abdoh" and a request. Press Ctrl+C to quit.')
@@ -91,9 +102,6 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
                 daemon.stop()
             return 0
 
-        from abdoh.ui.window import Window
-
-        window = Window(bus, start_hidden=args.minimized)
         started: list[Daemon] = []
 
         def background() -> None:
@@ -173,7 +181,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
     cfg = load_config()
-    # pythonw (used for autostart) has no console: sys.stderr is None there.
+    # pythonw (used for autostart) has no console: sys.stdout/stderr are None there, which
+    # crashes libraries that print progress bars (e.g. the first Whisper model download).
     console = sys.stderr is not None
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w")  # noqa: SIM115
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w")  # noqa: SIM115
     setup_logging(cfg, console=console, level=logging.DEBUG if args.verbose else logging.INFO)
     return args.func(cfg, args)

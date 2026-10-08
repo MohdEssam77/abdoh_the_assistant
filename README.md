@@ -38,6 +38,27 @@ commands, turn voice replies off, and set your Claude API key.
 Closing the window only hides it; Abdoh keeps listening. Bring it back by saying
 "Abdoh, show window" or running `python -m abdoh run` again. Quit from the window's **Abdoh** menu.
 
+### Voice controls
+
+- "Abdoh, stop listening": Abdoh ignores everything until "Abdoh, start listening"
+- "Abdoh, reload commands": re-reads `commands.yaml` (it also reloads automatically on change)
+- "Abdoh, show window": brings the window back
+
+## Start at login
+
+```
+python scripts/install_autostart.py     # run with the Python where abdoh is installed
+python scripts/uninstall_autostart.py
+```
+
+Abdoh then starts at login with its window hidden (`run --minimized`). Only one copy ever runs.
+
+- **Windows:** a Task Scheduler task "Abdoh" running `pythonw -m abdoh run --minimized` (no console
+  window). Creating logon tasks needs admin rights on many PCs; without them the script adds Abdoh
+  to your user's startup programs instead (`HKCU\...\Run`), which works the same way.
+- **macOS:** `~/Library/LaunchAgents/com.abdoh.agent.plist` (restarted if it crashes, not after Quit).
+- **Linux:** `~/.config/systemd/user/abdoh.service`, enabled with `systemctl --user enable --now abdoh`.
+
 ## Try the parts
 
 ```
