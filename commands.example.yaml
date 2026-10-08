@@ -1,0 +1,29 @@
+# Each command: one or more trigger phrases, and one or more actions run in order.
+# The wake word ("Abdoh" / "Hey Abdoh") is stripped before matching, so don't include it.
+#
+# Actions:
+#   say: <text>            speak text ({time} and {date} are replaced)
+#   open_url: <url>        open in the default browser
+#   open_app: <name/path>  open an application
+#   run: <shell command>   run a command (only if allow_run: true in config.yaml)
+
+- name: good_morning
+  triggers: ["good morning"]
+  actions:
+    - say: "Good morning! Here's your playlist."
+    - open_url: "https://www.youtube.com/watch?v=REPLACE_ME"
+
+- name: open_mail
+  triggers: ["open my mail", "open email"]
+  actions:
+    - open_url: "https://mail.google.com"
+
+- name: open_vscode
+  triggers: ["open code", "open vs code"]
+  actions:
+    - open_app: "Visual Studio Code"
+
+- name: what_time
+  triggers: ["what time is it", "time"]
+  actions:
+    - say: "It is {time}."        # supported placeholders: {time}, {date}
