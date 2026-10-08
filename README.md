@@ -33,6 +33,28 @@ python -m abdoh listen-once          # say "Hey Abdoh, what time is it" → prin
 words (`wake_word_aliases` in `config.yaml`, e.g. "abdo", "ab doe", "abdul"). If it doesn't wake up,
 run `calibrate` and add the words it prints to `wake_word_aliases`.
 
+## Commands
+
+Edit `commands.yaml` to add your own commands. Each command has trigger phrases and actions
+that run in order (`say`, `open_url`, `open_app`, `run`). Changes are picked up automatically.
+
+```yaml
+- name: good_morning
+  triggers: ["good morning"]
+  actions:
+    - say: "Good morning! Here's your playlist."
+    - open_url: "https://www.youtube.com/watch?v=REPLACE_ME"
+```
+
+- `say` supports `{time}` and `{date}`.
+- `open_app` takes an app name ("Visual Studio Code", "notepad") or a path.
+- `run` runs a shell command and only works with `allow_run: true` in `config.yaml`.
+
+```
+python -m abdoh list-commands
+python -m abdoh test-command "good morning abdoh"   # runs the command without voice
+```
+
 ## Configuration
 
 On first run Abdoh copies `config.example.yaml` → `config.yaml` and `commands.example.yaml` →
