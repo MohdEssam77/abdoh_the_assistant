@@ -73,6 +73,15 @@ def read_api_key(app_dir: Path) -> str | None:
     return key.strip() if key and key.strip() else None
 
 
+def save_api_key(env_path: Path, key: str) -> None:
+    """Write ANTHROPIC_API_KEY into the .env file, keeping any other lines."""
+    env_path = Path(env_path)
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    lines = [ln for ln in lines if not ln.strip().startswith("ANTHROPIC_API_KEY")]
+    lines.append(f"ANTHROPIC_API_KEY={key.strip()}")
+    env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def load_config(app_dir: Path | None = None) -> Config:
     """Load config.yaml from app_dir; create it and commands.yaml from the examples if missing."""
     app_dir = Path(app_dir or DEFAULT_APP_DIR)

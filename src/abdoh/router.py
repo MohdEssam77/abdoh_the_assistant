@@ -8,7 +8,7 @@ from abdoh.claude.client import NOT_CONNECTED, ClaudeError
 from abdoh.claude.screen import ScreenCaptureError, capture_screen
 from abdoh.commands.actions import ActionError, run_actions
 from abdoh.commands.matcher import match, strip_wake_words
-from abdoh.commands.registry import CommandRegistry
+from abdoh.commands.registry import Command, CommandRegistry
 from abdoh.config import Config
 
 log = logging.getLogger(__name__)
@@ -34,6 +34,19 @@ class Router:
         self.notify = notify  # says interim messages like "One sec..."
         self._run = run
         self._capture = capture
+        self._builtins: dict[str, Callable[[], str]] = {}
+        self._builtin_commands: list[Command] = []
+
+    def add_builtin(self, name: str, triggers: list[str], handler: Callable[[], str]) -> None:
+        """Register a built-in voice command (checked before commands.yaml)."""
+        self._builtins[name] = handler
+        self._builtin_commands.append(Command(name, triggers, []))
+
+    def builtin_name(self, text: str) -> str | None:
+        """Name of the built-in command this text asks for, if any."""
+        request = strip_wake_words(text, self.cfg.wake_words + self.cfg.wake_word_aliases)
+        found = match(request, self._builtin_commands, self.cfg.match_threshold)
+        return found[0].name if found else None
 
     def handle(self, text: str) -> str:
         """Route one request. Returns the reply text ("" means nothing to say)."""
@@ -46,6 +59,12 @@ class Router:
         return (prefix + self._route(request)).strip()
 
     def _route(self, request: str) -> str:
+        # 0. Built-in commands (show window, pause, ...)
+        builtin = match(request, self._builtin_commands, self.cfg.match_threshold)
+        if builtin:
+            log.info("Built-in command %r", builtin[0].name)
+            return self._builtins[builtin[0].name]()
+
         # 1. Commands from commands.yaml
         found = match(request, self.registry.commands, self.cfg.match_threshold)
         if found:
