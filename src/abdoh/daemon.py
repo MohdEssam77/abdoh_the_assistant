@@ -36,9 +36,18 @@ class Daemon:
         self.transcriber = transcriber
         self.mic_retry_seconds = mic_retry_seconds
         self.stop_event = threading.Event()
+        router.notify = self.say
 
     def stop(self) -> None:
         self.stop_event.set()
+
+    def say(self, text: str) -> None:
+        """Speak text. Never raises."""
+        log.info("Abdoh: %s", text)
+        try:
+            self.speaker.say(text)
+        except Exception:
+            log.exception("Could not speak")
 
     def handle_text(self, text: str) -> str:
         """Route one request and speak the reply. Never raises."""
@@ -49,11 +58,7 @@ class Daemon:
             log.exception("Error handling %r", text)
             reply = SORRY
         if reply:
-            log.info("Abdoh: %s", reply)
-            try:
-                self.speaker.say(reply)
-            except Exception:
-                log.exception("Could not speak reply")
+            self.say(reply)
         return reply
 
     def run(self) -> None:

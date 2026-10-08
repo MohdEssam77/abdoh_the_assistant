@@ -72,6 +72,15 @@ python -m abdoh claude-check    # verifies the key with a tiny request
 python -m abdoh test-command "what's the capital of Japan"
 ```
 
+With Claude connected you can also say:
+
+- "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
+  "translate my screen to Arabic"
+- "Abdoh, summarize my screen"
+
+On macOS, the app running Abdoh (Terminal or Python) needs **Screen Recording** permission
+(System Settings → Privacy & Security). Without it the screenshot is black and Abdoh tells you so.
+
 The model is set in `config.yaml` (`claude.model`). Without a key, everything else still works and
 Abdoh tells you Claude isn't connected.
 

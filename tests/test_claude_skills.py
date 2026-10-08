@@ -1,12 +1,17 @@
 """Claude client and skills, with the Anthropic SDK mocked (no network, no API key)."""
 
+import base64
+import io
 from types import SimpleNamespace
 
 import anthropic
 import httpx2 as httpx
 import pytest
+from PIL import Image
 
 from abdoh.claude.client import ClaudeClient, ClaudeError, clean_for_speech
+from abdoh.claude.screen import ScreenCaptureError, capture_screen
+from abdoh.claude.skills import parse_target_language, summarize_screen, translate_screen
 from abdoh.config import ClaudeConfig, Config
 
 
@@ -86,6 +91,59 @@ def test_errors_become_friendly_messages(error, spoken):
     client, _ = make_client(error=error)
     with pytest.raises(ClaudeError, match=spoken):
         client.ask("q")
+
+
+def fake_screenshot(color="white", size=(3200, 1800)):
+    return lambda: Image.new("RGB", size, color)
+
+
+def test_capture_downscales_to_1600():
+    png = capture_screen(grab=fake_screenshot())
+    img = Image.open(io.BytesIO(png))
+    assert img.format == "PNG"
+    assert img.size == (1600, 900)
+
+
+def test_small_screens_are_not_enlarged():
+    img = Image.open(io.BytesIO(capture_screen(grab=fake_screenshot(size=(800, 600)))))
+    assert img.size == (800, 600)
+
+
+def test_black_capture_is_reported():
+    with pytest.raises(ScreenCaptureError, match="black"):
+        capture_screen(grab=fake_screenshot("black"))
+
+
+def test_capture_failure_is_reported():
+    def broken():
+        raise OSError("no display")
+
+    with pytest.raises(ScreenCaptureError, match="couldn't capture"):
+        capture_screen(grab=broken)
+
+
+@pytest.mark.parametrize(
+    "request_text, target",
+    [
+        ("translate my screen to arabic", "Arabic"),
+        ("translate whats on my screen into french", "French"),
+        ("translate whats on my screen", None),
+        ("translate my screen", None),
+    ],
+)
+def test_parse_target_language(request_text, target):
+    assert parse_target_language(request_text) == target
+
+
+def test_translate_and_summarize_send_screenshot():
+    client, messages = make_client(text="Hello world.")
+    capture = lambda: b"PNGDATA"  # noqa: E731
+    assert translate_screen(client, "Arabic", capture) == "Hello world."
+    assert summarize_screen(client, capture) == "Hello world."
+    translate, summarize = (c["messages"][0]["content"] for c in messages.calls)
+    assert "into Arabic" in translate[1]["text"]
+    assert "Summarize the main content" in summarize[1]["text"]
+    assert translate[0]["source"]["data"] == base64.standard_b64encode(b"PNGDATA").decode()
 
 
 def test_clean_for_speech():

@@ -3,10 +3,11 @@ import os
 import pytest
 
 from abdoh.claude.client import NOT_CONNECTED, ClaudeError
+from abdoh.claude.screen import ScreenCaptureError
 from abdoh.commands.actions import ActionError
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import Config
-from abdoh.router import COMMANDS_FILE_ERROR, UNKNOWN, Router
+from abdoh.router import COMMANDS_FILE_ERROR, ONE_SEC, UNKNOWN, Router
 
 COMMANDS = """
 - name: good_morning
@@ -86,6 +87,60 @@ def test_commands_win_over_claude(setup):
     router.claude = FakeClaude()
     assert router.handle("good morning abdoh") == "Good morning!"
     assert router.claude.asked == []
+
+
+@pytest.fixture
+def screen_router(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text(COMMANDS, encoding="utf-8")
+    notes = []
+    router = Router(
+        Config(app_dir=tmp_path),
+        CommandRegistry(path),
+        claude=FakeClaude("Here is the text."),
+        run=FakeRun(),
+        capture=lambda: b"PNG",
+        notify=notes.append,
+    )
+    return router, notes
+
+
+def test_translate_screen_default_target(screen_router):
+    router, notes = screen_router
+    assert router.handle("Abdoh, translate what's on my screen") == "Here is the text."
+    prompt, image = router.claude.asked[0]
+    assert "into English" in prompt and image == b"PNG"
+    assert notes == [ONE_SEC]
+
+
+def test_translate_screen_to_language(screen_router):
+    router, _ = screen_router
+    router.handle("Hey Abdoh, translate my screen to Arabic")
+    assert "into Arabic" in router.claude.asked[0][0]
+
+
+def test_summarize_screen(screen_router):
+    router, _ = screen_router
+    router.handle("Abdoh, summarize my screen")
+    assert "Summarize" in router.claude.asked[0][0]
+    assert router.claude.asked[0][1] == b"PNG"
+
+
+def test_screen_skill_without_claude(screen_router):
+    router, notes = screen_router
+    router.claude = None
+    assert router.handle("summarize my screen") == NOT_CONNECTED
+    assert notes == []
+
+
+def test_screen_capture_error_is_spoken(screen_router):
+    router, _ = screen_router
+
+    def broken():
+        raise ScreenCaptureError("Your screenshot came out completely black.")
+
+    router._capture = broken
+    assert "black" in router.handle("summarize my screen")
 
 
 def test_claude_error_is_spoken(setup):
