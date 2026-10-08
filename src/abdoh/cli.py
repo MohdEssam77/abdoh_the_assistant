@@ -40,6 +40,41 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
+    from abdoh.commands.actions import ActionError, run_actions
+    from abdoh.commands.matcher import match
+    from abdoh.commands.registry import CommandRegistry
+
+    registry = CommandRegistry(cfg.commands_path)
+    if registry.error:
+        print(f"Your commands file has an error: {registry.error}")
+    found = match(args.text, registry.commands, cfg.match_threshold, cfg.wake_words)
+    if not found:
+        print("No command matched.")
+        return 1
+    command, score = found
+    print(f"Matched {command.name!r} (score {score:.0f})")
+    try:
+        for line in run_actions(command, cfg.allow_run):
+            print(f"Abdoh: {line}")
+    except ActionError as e:
+        print(f"Abdoh: {e}")
+        return 1
+    return 0
+
+
+def cmd_list_commands(cfg: Config, args: argparse.Namespace) -> int:
+    from abdoh.commands.registry import CommandRegistry
+
+    registry = CommandRegistry(cfg.commands_path)
+    if registry.error:
+        print(f"Your commands file has an error: {registry.error}")
+    print(f"Commands from {registry.path}:")
+    for c in registry.commands:
+        print(f"  {c.name}: {', '.join(repr(t) for t in c.triggers)}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="abdoh", description="Abdoh, your voice assistant.")
     parser.add_argument("--version", action="version", version=f"abdoh {__version__}")
@@ -56,6 +91,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("listen-once", help="wait for the wake word, then print the transcript")
     p.set_defaults(func=cmd_listen_once)
+
+    p = sub.add_parser("test-command", help="match text to a command and run it (no voice)")
+    p.add_argument("text")
+    p.set_defaults(func=cmd_test_command)
+
+    p = sub.add_parser("list-commands", help="list the commands in commands.yaml")
+    p.set_defaults(func=cmd_list_commands)
 
     return parser
 
