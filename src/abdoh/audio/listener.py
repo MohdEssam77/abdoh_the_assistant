@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -35,10 +36,17 @@ def listen_for_request(
     if not wait_for_wake_word(mic.read, engine, should_stop):
         return None
     on_wake()
+    t_wake = time.perf_counter()
     before = mic.recent()
     threshold = estimate_threshold(before)
     after = record_until_silence(mic.read, threshold, cfg.silence_seconds, cfg.max_record_seconds)
+    t_recorded = time.perf_counter()
     text = transcriber.transcribe(before + after)
+    log.debug(
+        "Latency: recording %.2fs, transcription %.2fs",
+        t_recorded - t_wake,
+        time.perf_counter() - t_recorded,
+    )
     wake_words = cfg.wake_words + cfg.wake_word_aliases
 
     if not has_wake_word(text, wake_words):
