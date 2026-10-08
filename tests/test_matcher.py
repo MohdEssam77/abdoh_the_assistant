@@ -1,6 +1,6 @@
 import pytest
 
-from abdoh.commands.matcher import match, normalize, strip_wake_words
+from abdoh.commands.matcher import has_wake_word, match, normalize, strip_wake_words
 from abdoh.commands.registry import Command
 
 WAKE = ["abdoh", "hey abdoh"]
@@ -30,6 +30,21 @@ def test_strip_wake_words_start_and_end():
 
 def test_strip_wake_words_whole_words_only():
     assert strip_wake_words("abdohs house", WAKE) == "abdohs house"
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Hey Abdoh, what time is it?", True),
+        ("Good morning, Abdo.", True),
+        ("Hey Abdou, open my mail", True),
+        ("So, um, yeah, we should be doing this.", False),
+        ("What about the dog?", False),
+        ("", False),
+    ],
+)
+def test_has_wake_word(text, expected):
+    assert has_wake_word(text, WAKE + ["abdo", "ab doe", "abdul"]) is expected
 
 
 @pytest.mark.parametrize(
