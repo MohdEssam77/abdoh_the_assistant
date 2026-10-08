@@ -5,6 +5,7 @@ Also serves requests from the UI (typed text, pause, set key, ...) on a second t
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 
 from abdoh.audio.listener import listen_for_request
@@ -46,6 +47,7 @@ class Daemon:
         self.stop_event = threading.Event()
         self.paused = False
         self.voice_enabled = True
+        self._woke = time.perf_counter()
         self._handle_lock = threading.Lock()
         router.notify = self.say
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
@@ -109,11 +111,13 @@ class Daemon:
             log.info("You: %s", text)
             self.bus.emit("history", f"You: {text}")
             self.bus.emit("status", "Thinking...")
+            started = time.perf_counter()
             try:
                 reply = self.router.handle(text)
             except Exception:
                 log.exception("Error handling %r", text)
                 reply = SORRY
+            log.debug("Latency: reply ready in %.2fs", time.perf_counter() - started)
             if reply:
                 self.say(reply)
             self._status_idle()
@@ -202,6 +206,10 @@ class Daemon:
         self.bus.emit("status", "Error: microphone not available, retrying")
         self.stop_event.wait(self.mic_retry_seconds)
 
+    def _on_wake(self) -> None:
+        self._woke = time.perf_counter()
+        self.bus.emit("status", "Thinking...")
+
     def _listen_once(self, mic) -> None:
         try:
             text = listen_for_request(
@@ -211,7 +219,7 @@ class Daemon:
                 self,  # speaks "Yes?" through say(), respecting the voice toggle
                 self.cfg,
                 should_stop=self.stop_event.is_set,
-                on_wake=lambda: self.bus.emit("status", "Thinking..."),
+                on_wake=self._on_wake,
             )
         except MicrophoneError:
             raise
@@ -227,6 +235,7 @@ class Daemon:
                 log.info("Paused; ignoring %r", text)
         elif text:
             self.handle_text(text)
+            log.debug("Latency: wake word to reply spoken %.2fs", time.perf_counter() - self._woke)
         self._status_idle()
         mic.clear()  # don't react to our own voice
         self.engine.reset()
