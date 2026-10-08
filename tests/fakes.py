@@ -23,6 +23,12 @@ class FakeMic:
         self.history: list[bytes] = []
         self.cleared = 0
 
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
     def read(self) -> bytes:
         block = self.blocks.pop(0) if self.blocks else silent_block()
         self.history.append(block)

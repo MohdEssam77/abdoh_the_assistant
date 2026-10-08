@@ -21,7 +21,13 @@ Download the offline wake word model (Whisper downloads its own model on first u
 python scripts/download_models.py
 ```
 
-## Try it
+## Run
+
+```
+python -m abdoh run      # listens until Ctrl+C. Try "Good morning Abdoh" or "Hey Abdoh, what time is it"
+```
+
+## Try the parts
 
 ```
 python -m abdoh say "hello"          # test the voice

@@ -59,6 +59,15 @@ def test_listen_includes_audio_before_wake_word():
     assert stt.calls[0].startswith(tone_block() * 3)
 
 
+def test_listen_ignores_false_wake_up():
+    mic = FakeMic([tone_block()] * 3 + [silent_block()] * 20)
+    stt = FakeTranscriber(["So, um, yeah."])
+    speaker = FakeSpeaker()
+    text = listen_for_request(mic, FakeWakeWord(fire_on=3), stt, speaker, Config())
+    assert text == ""
+    assert speaker.said == []
+
+
 def test_listen_asks_yes_when_only_wake_word():
     mic = FakeMic([tone_block()] * 2 + [silent_block()] * 12 + [tone_block()] * 5)
     stt = FakeTranscriber(["Hey Abdoh.", "what time is it"])
