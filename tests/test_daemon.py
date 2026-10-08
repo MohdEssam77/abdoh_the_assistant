@@ -172,6 +172,32 @@ def test_show_window_by_voice(tmp_path):
     assert ("show", None) in bus.pending_events()
 
 
+def test_stop_and_start_listening_by_voice(tmp_path):
+    cfg, router = real_router(tmp_path)
+    daemon = make_daemon(router, cfg=cfg)
+    assert "stop listening" in daemon.handle_text("Abdoh, stop listening")
+    assert daemon.paused
+    assert router.builtin_name("Hey Abdoh, start listening") == "start_listening"
+    assert router.builtin_name("Abdoh, good morning") is None
+    assert daemon.handle_text("Abdoh, start listening") == "I'm listening again."
+    assert not daemon.paused
+
+
+def test_paused_honors_start_listening_by_voice(tmp_path):
+    cfg, router = real_router(tmp_path)
+    daemon = make_daemon(router, cfg=cfg, transcriber=FakeTranscriber(["Abdoh, start listening"]))
+    daemon.set_paused(True)
+    run_until(daemon, lambda: not daemon.paused)
+    assert not daemon.paused
+    assert daemon.speaker.said == ["I'm listening again."]
+
+
+def test_reload_commands_by_voice(tmp_path):
+    cfg, router = real_router(tmp_path)
+    daemon = make_daemon(router, cfg=cfg)
+    assert daemon.handle_text("Abdoh, reload commands") == "Reloaded 1 commands."
+
+
 def test_reload_request(tmp_path):
     cfg, router = real_router(tmp_path)
     bus = Bus()

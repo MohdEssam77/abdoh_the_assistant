@@ -49,6 +49,11 @@ class Daemon:
         self._handle_lock = threading.Lock()
         router.notify = self.say
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
+        router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
+        router.add_builtin("start_listening", ["start listening"], self._start_listening)
+        router.add_builtin(
+            "reload_commands", ["reload commands", "reload my commands"], self._reload_commands
+        )
 
     # ----- state -----
 
@@ -69,6 +74,20 @@ class Daemon:
     def _show_window(self) -> str:
         self.bus.emit("show")
         return ""
+
+    def _stop_listening(self) -> str:
+        self.set_paused(True)
+        return "Okay, I'll stop listening. Say Abdoh, start listening, when you need me."
+
+    def _start_listening(self) -> str:
+        self.set_paused(False)
+        return "I'm listening again."
+
+    def _reload_commands(self) -> str:
+        error = self.router.registry.refresh(force=True)
+        if error:
+            return "Your commands file has an error."
+        return f"Reloaded {len(self.router.registry.commands)} commands."
 
     # ----- speaking and handling requests -----
 
