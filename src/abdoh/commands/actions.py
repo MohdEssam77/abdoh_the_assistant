@@ -68,6 +68,23 @@ def open_app(name: str) -> None:
         raise ActionError(f"I couldn't open {name}.") from e
 
 
+def open_in_editor(path: Path) -> None:
+    """Open a text file in the default editor (Notepad on Windows if .yaml has no app)."""
+    try:
+        if sys.platform == "win32":
+            try:
+                os.startfile(path)  # type: ignore[attr-defined]
+            except OSError:
+                subprocess.Popen(["notepad", str(path)])
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", "-t", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+    except OSError as e:
+        log.error("Could not open %s: %s", path, e)
+        raise ActionError(f"I couldn't open {Path(path).name}.") from e
+
+
 def run_actions(
     command: Command,
     allow_run: bool = False,
