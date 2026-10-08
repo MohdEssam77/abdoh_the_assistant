@@ -2,6 +2,7 @@
 
 import logging
 
+from abdoh.claude.client import NOT_CONNECTED, ClaudeError
 from abdoh.commands.actions import ActionError, run_actions
 from abdoh.commands.matcher import match, strip_wake_words
 from abdoh.commands.registry import CommandRegistry
@@ -14,9 +15,10 @@ COMMANDS_FILE_ERROR = "Your commands file has an error."
 
 
 class Router:
-    def __init__(self, cfg: Config, registry: CommandRegistry, run=run_actions):
+    def __init__(self, cfg: Config, registry: CommandRegistry, claude=None, run=run_actions):
         self.cfg = cfg
         self.registry = registry
+        self.claude = claude  # ClaudeClient or None; may be replaced at runtime
         self._run = run
 
     def handle(self, text: str) -> str:
@@ -40,6 +42,17 @@ class Router:
             except ActionError as e:
                 return str(e)
 
-        # 2-3. Claude skills and questions (Stories 6-7)
+        # 2. Claude skills (Story 7)
+
+        # 3. Ask Claude
+        if self.claude is not None:
+            return self._claude(lambda: self.claude.ask(request))
+
         # 4. Nothing matched
-        return UNKNOWN
+        return f"{UNKNOWN} {NOT_CONNECTED}"
+
+    def _claude(self, call) -> str:
+        try:
+            return call()
+        except ClaudeError as e:
+            return str(e)
