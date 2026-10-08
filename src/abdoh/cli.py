@@ -41,25 +41,15 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
-    from abdoh.commands.actions import ActionError, run_actions
-    from abdoh.commands.matcher import match
+    from abdoh.claude.client import make_claude
     from abdoh.commands.registry import CommandRegistry
+    from abdoh.router import Router
 
     registry = CommandRegistry(cfg.commands_path)
     if registry.error:
         print(f"Your commands file has an error: {registry.error}")
-    found = match(args.text, registry.commands, cfg.match_threshold, cfg.wake_words)
-    if not found:
-        print("No command matched.")
-        return 1
-    command, score = found
-    print(f"Matched {command.name!r} (score {score:.0f})")
-    try:
-        for line in run_actions(command, cfg.allow_run):
-            print(f"Abdoh: {line}")
-    except ActionError as e:
-        print(f"Abdoh: {e}")
-        return 1
+    reply = Router(cfg, registry, claude=make_claude(cfg)).handle(args.text)
+    print(f"Abdoh: {reply or '(done)'}")
     return 0
 
 
@@ -84,6 +74,22 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         daemon.run()
     except KeyboardInterrupt:
         daemon.stop()
+    return 0
+
+
+def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
+    from abdoh.claude.client import NOT_CONNECTED, ClaudeError, make_claude
+
+    claude = make_claude(cfg)
+    if claude is None:
+        print(NOT_CONNECTED)
+        return 1
+    try:
+        reply = claude.ask("Reply with just the word OK.", max_tokens=10)
+    except ClaudeError as e:
+        print(e)
+        return 1
+    print(f"Claude is connected (model {cfg.claude.model}). Reply: {reply}")
     return 0
 
 
@@ -113,6 +119,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("list-commands", help="list the commands in commands.yaml")
     p.set_defaults(func=cmd_list_commands)
+
+    p = sub.add_parser("claude-check", help="verify the Anthropic API key with a tiny request")
+    p.set_defaults(func=cmd_claude_check)
 
     return parser
 

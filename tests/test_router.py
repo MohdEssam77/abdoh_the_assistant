@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from abdoh.claude.client import NOT_CONNECTED, ClaudeError
 from abdoh.commands.actions import ActionError
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import Config
@@ -53,10 +54,44 @@ def test_silent_command(setup):
     assert run.ran == ["open_mail"]
 
 
-def test_unknown_phrase(setup):
+def test_unknown_phrase_without_claude(setup):
     router, run, _ = setup
-    assert router.handle("Abdoh, juggle three oranges").startswith(UNKNOWN)
+    reply = router.handle("Abdoh, juggle three oranges")
+    assert reply == f"{UNKNOWN} {NOT_CONNECTED}"
     assert run.ran == []
+
+
+class FakeClaude:
+    def __init__(self, reply="Tokyo is the capital of Japan.", error=None):
+        self.reply = reply
+        self.error = error
+        self.asked = []
+
+    def ask(self, text, image_png=None):
+        self.asked.append((text, image_png))
+        if self.error:
+            raise self.error
+        return self.reply
+
+
+def test_question_goes_to_claude(setup):
+    router, run, _ = setup
+    router.claude = FakeClaude()
+    assert router.handle("Abdoh, what's the capital of Japan?") == "Tokyo is the capital of Japan."
+    assert router.claude.asked == [("whats the capital of japan", None)]
+
+
+def test_commands_win_over_claude(setup):
+    router, run, _ = setup
+    router.claude = FakeClaude()
+    assert router.handle("good morning abdoh") == "Good morning!"
+    assert router.claude.asked == []
+
+
+def test_claude_error_is_spoken(setup):
+    router, _, _ = setup
+    router.claude = FakeClaude(error=ClaudeError("I couldn't reach Claude right now."))
+    assert router.handle("what's the capital of japan") == "I couldn't reach Claude right now."
 
 
 def test_only_wake_word(setup):

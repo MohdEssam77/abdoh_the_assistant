@@ -82,13 +82,14 @@ class Daemon:
         from abdoh.audio.mic import Microphone
         from abdoh.audio.stt import Transcriber
         from abdoh.audio.wakeword import VoskWakeWord
+        from abdoh.claude.client import make_claude
         from abdoh.commands.registry import CommandRegistry
         from abdoh.speech.tts import Pyttsx3Speaker
 
         engine = VoskWakeWord(cfg.resolve(cfg.vosk_model), cfg.wake_words + cfg.wake_word_aliases)
         transcriber = Transcriber(cfg.whisper_model, cfg.language)
         transcriber.transcribe(b"\0\0" * 1600)  # load the model now, not on the first request
-        router = Router(cfg, CommandRegistry(cfg.commands_path))
+        router = Router(cfg, CommandRegistry(cfg.commands_path), claude=make_claude(cfg))
         speaker = speaker or Pyttsx3Speaker(cfg.tts_rate)
         return cls(cfg, router, speaker, Microphone, engine, transcriber)
 
