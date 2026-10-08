@@ -1,0 +1,19 @@
+# Abdoh configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
+
+wake_words: ["abdoh", "hey abdoh"]
+# Words Vosk might hear instead of "Abdoh". Run `python -m abdoh calibrate` to find yours.
+wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
+vosk_model: "models/vosk-model-small-en-us-0.15"
+whisper_model: "base"            # base | small
+language: "en"                   # whisper language hint; null = auto
+match_threshold: 85
+silence_seconds: 1.0
+max_record_seconds: 10
+tts_rate: 175
+allow_run: false
+claude:
+  model: "claude-sonnet-4-5"     # any current Claude model id
+  max_tokens: 400
+  translate_target: "English"
+  voice_reply_max_sentences: 4
+log_file: "~/.abdoh/abdoh.log"

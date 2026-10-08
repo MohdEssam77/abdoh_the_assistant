@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "abdoh"
+version = "0.1.0"
+description = "A simple, voice-first personal assistant for your laptop."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "sounddevice>=0.4",
+    "numpy>=1.26",
+    "vosk>=0.3.45",
+    "faster-whisper>=1.0",
+    "pyttsx3>=2.90",
+    "rapidfuzz>=3.0",
+    "PyYAML>=6.0",
+    "mss>=9.0",
+    "Pillow>=10.0",
+    "anthropic>=0.40",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+abdoh = "abdoh.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "models"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
