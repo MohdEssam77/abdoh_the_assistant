@@ -75,11 +75,26 @@ def cmd_list_commands(cfg: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
+    from abdoh.daemon import Daemon
+
+    daemon = Daemon.create(cfg)
+    print('Abdoh is listening. Say "Hey Abdoh" and a request. Press Ctrl+C to quit.')
+    try:
+        daemon.run()
+    except KeyboardInterrupt:
+        daemon.stop()
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="abdoh", description="Abdoh, your voice assistant.")
     parser.add_argument("--version", action="version", version=f"abdoh {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
+
+    p = sub.add_parser("run", help="start Abdoh")
+    p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("say", help="speak some text")
     p.add_argument("text")
