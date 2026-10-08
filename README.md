@@ -15,6 +15,13 @@ pip install -e .[dev]
 python -m abdoh --help
 ```
 
+## Configuration
+
+On first run Abdoh copies `config.example.yaml` → `config.yaml` and `commands.example.yaml` →
+`commands.yaml` in the project folder (set `ABDOH_HOME` to use another folder). Edit those copies.
+For Claude features, copy `.env.example` to `.env` and set `ANTHROPIC_API_KEY`.
+Logs go to `~/.abdoh/abdoh.log` by default.
+
 ## Development
 
 ```
