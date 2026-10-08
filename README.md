@@ -61,6 +61,20 @@ python -m abdoh list-commands
 python -m abdoh test-command "good morning abdoh"   # runs the command without voice
 ```
 
+## Claude (optional)
+
+Abdoh can answer any question with Claude. A Claude.ai subscription can't be used from code, so
+you need an **Anthropic API key** from https://console.anthropic.com:
+
+```
+copy .env.example .env          # then edit .env: ANTHROPIC_API_KEY=sk-ant-...
+python -m abdoh claude-check    # verifies the key with a tiny request
+python -m abdoh test-command "what's the capital of Japan"
+```
+
+The model is set in `config.yaml` (`claude.model`). Without a key, everything else still works and
+Abdoh tells you Claude isn't connected.
+
 ## Configuration
 
 On first run Abdoh copies `config.example.yaml` → `config.yaml` and `commands.example.yaml` →
