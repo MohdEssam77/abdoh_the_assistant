@@ -12,14 +12,32 @@ PAGE = (
 )
 
 
+# The newer page format: a mix (stacked thumbnails) and a Short come before the first video.
+NEW_PAGE = (
+    b'<html><script>var ytInitialData = {"shortsLockupViewModel":{"entityId":"x",'
+    b'"onTap":{"reelWatchEndpoint":{"videoId":"BBBBBBBBBBB"}}},'
+    b'"lockupViewModel":{"contentImage":{"collectionThumbnailViewModel":{"primaryThumbnail":'
+    b'{"thumbnailViewModel":{"image":{"sources":[{"url":"https://i.ytimg.com/vi/MMMMMMMMMMM/'
+    b'hqdefault.jpg"}]}}}}},"contentId":"RDMMMMMMMMMMM"},'
+    b'"lockupViewModel":{"contentImage":{"thumbnailViewModel":{"image":{"sources":[{"url":'
+    b'"https://i.ytimg.com/vi/fJ9rUzIMcZQ/hqdefault.jpg?sqp=abc","width":480}]}}},'
+    b'"contentId":"fJ9rUzIMcZQ"}};</script></html>'
+)
+
+
 def test_first_search_result_is_picked_not_ads_or_shorts():
     assert youtube.first_video_id([PAGE]) == "fJ9rUzIMcZQ"
 
 
+def test_newer_page_format_skips_mixes_and_shorts():
+    assert youtube.first_video_id([NEW_PAGE]) == "fJ9rUzIMcZQ"
+
+
 def test_result_split_across_chunks_is_found():
-    at = PAGE.index(b"fJ9r")
-    for cut in range(at - 30, at + 12):
-        assert youtube.first_video_id([PAGE[:cut], PAGE[cut:]]) == "fJ9rUzIMcZQ"
+    for page in (PAGE, NEW_PAGE):
+        match = youtube._VIDEO.search(page)  # cut everywhere inside the result's marker
+        for cut in range(match.start() - 5, match.end() + 5):
+            assert youtube.first_video_id([page[:cut], page[cut:]]) == "fJ9rUzIMcZQ"
 
 
 def test_no_results():

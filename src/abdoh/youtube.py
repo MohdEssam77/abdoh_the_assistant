@@ -1,8 +1,9 @@
 """Find the top YouTube video for a search, so "play X on YouTube" starts the video itself.
 
-One request for YouTube's results page, read only until the first result shows up. Search
-results are marked "videoRenderer" in the page; ads and Shorts use other markers, so they are
-skipped. No API key or extra library needed.
+One request for YouTube's results page, read only until the first video result shows up. YouTube
+serves two page formats: video results are "videoRenderer" entries, or "lockupViewModel" entries
+whose single thumbnail's address holds the video id. Mixes and playlists (a stack of thumbnails),
+ads and Shorts are marked differently, so they are skipped. No API key or extra library needed.
 """
 
 import http.client
@@ -23,8 +24,12 @@ HEADERS = {
     "Cookie": "SOCS=CAI",  # skips the cookie-consent page YouTube shows in Europe
 }
 CHUNK_BYTES = 64 * 1024
-MAX_BYTES = 3_000_000  # the first result is normally within the first few hundred KB
-_VIDEO = re.compile(rb'"videoRenderer":\{"videoId":"([\w-]{11})"')
+MAX_BYTES = 3_000_000  # the first result is normally within the first megabyte
+_VIDEO = re.compile(
+    rb'"videoRenderer":\{"videoId":"([\w-]{11})"'
+    rb'|"lockupViewModel":\{"contentImage":\{"thumbnailViewModel":\{"image":\{"sources":\[\{'
+    rb'"url":"[^"]{0,100}?/vi(?:_webp)?/([\w-]{11})/'
+)
 
 
 def search_url(query: str) -> str:
@@ -42,8 +47,8 @@ def first_video_id(chunks: Iterable[bytes]) -> str | None:
         text = tail + chunk
         found = _VIDEO.search(text)
         if found:
-            return found.group(1).decode()
-        tail = text[-64:]  # a match can straddle two chunks
+            return (found.group(1) or found.group(2)).decode()
+        tail = text[-512:]  # a match can straddle two chunks
     return None
 
 
