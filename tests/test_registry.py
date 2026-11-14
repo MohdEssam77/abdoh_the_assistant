@@ -89,6 +89,7 @@ def test_slots_and_new_actions_are_valid():
     assert c.triggers[0] == "search youtube for {query}"
     parse_commands(cmd(["focus mode"], [{"media": "play_pause"}, {"timer": "25 minutes"}]))
     parse_commands(cmd(["what time"], [{"say": "It is {time} on {date}."}]))
+    parse_commands(cmd(["play {query} on youtube"], [{"play_youtube": "{query}"}]))
 
 
 @pytest.mark.parametrize(

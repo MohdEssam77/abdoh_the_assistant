@@ -1,4 +1,5 @@
-"""Command actions: say, open_url, open_app, run, media, timer; and Claude's (stricter) actions."""
+"""Command actions: say, open_url, open_app, play_youtube, run, media, timer; and Claude's
+(stricter) actions."""
 
 import logging
 import os
@@ -111,12 +112,14 @@ def run_action(
     log.info("Action %s: %s", kind, arg)
     if kind == "say":
         return arg
-    if kind in ("media", "timer") and computer is None:
+    if kind in ("media", "timer", "play_youtube") and computer is None:
         raise ActionError("That isn't available here.")
     if kind == "media":
         computer.media(arg)
     elif kind == "timer":
         return computer.timer(arg)
+    elif kind == "play_youtube":
+        return computer.play_youtube(arg) or None
     elif kind == "open_url":
         if not open_url(arg):
             raise ActionError("I couldn't open that link.")
@@ -175,6 +178,8 @@ def claude_action(kind: str, arg: str, computer) -> None:
         computer.open_url(arg)
     elif kind == "open_app":
         computer.open_app(arg)
+    elif kind == "play_youtube":
+        computer.play_youtube(arg)
     elif kind == "media":
         computer.media(arg)
     elif kind == "timer":

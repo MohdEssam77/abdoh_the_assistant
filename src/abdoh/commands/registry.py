@@ -9,7 +9,7 @@ import yaml
 
 log = logging.getLogger(__name__)
 
-ACTION_TYPES = ("say", "open_url", "open_app", "run", "media", "timer")
+ACTION_TYPES = ("say", "open_url", "open_app", "play_youtube", "run", "media", "timer")
 PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
 BUILTIN_PLACEHOLDERS = {"time", "date"}
 
