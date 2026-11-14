@@ -56,26 +56,35 @@ the occasional false wake-up before anything is sent to Claude.
 ## 3. Run
 
 ```
-python -m abdoh run              # opens Abdoh's window and starts listening
-python -m abdoh run --minimized  # starts with the window hidden
-python -m abdoh run --headless   # no window at all (Ctrl+C to quit)
+python -m abdoh run              # starts Abdoh in the system tray and starts listening
+python -m abdoh run --show       # same, with the window open
+python -m abdoh run --headless   # no window or tray icon at all (Ctrl+C to quit)
 ```
 
 On first run Abdoh creates `config.yaml` and `commands.yaml` from the example files. Try:
 
 - "Good morning Abdoh"
 - "Hey Abdoh, what time is it"
+- Press **Ctrl+Alt+Space** and say "what time is it" (no wake word needed)
 
-The window shows what Abdoh is doing (status, Claude connection, recent history). You can type
-requests (they go through the same commands and Claude as voice), stop a reply with **Stop**,
-pause listening, edit or reload commands, turn voice replies off, and set your Claude API key.
+**The tray icon** shows Abdoh's state by color: green = listening, blue = thinking or speaking,
+gray = paused, red = a problem. Click it to open the window; right-click for the menu: pause or
+resume listening, stop speaking, voice replies on/off, edit commands, start at login, and quit.
 
-Closing the window only hides it; Abdoh keeps listening. Bring it back by saying
-"Abdoh, show window" or running `python -m abdoh run` again. Quit from the window's **Abdoh** menu.
+**The hotkey** (`Ctrl+Alt+Space`, set `hotkey` in `config.yaml`) works from any app: press it
+and talk, no wake word needed (it works even while listening is paused). Press it while Abdoh
+is talking to stop it. Windows only for now.
+
+**The window** shows what Abdoh is doing (status, Claude connection, wake word, recent history).
+You can type requests (they go through the same commands and Claude as voice), stop a reply
+with **Stop**, pause listening, edit or reload commands, turn voice replies off, and set your
+Claude API key. Closing it only hides it; Abdoh keeps listening. Bring it back from the tray, by
+saying "Abdoh, show window", or by running `python -m abdoh run` again. Quit from the tray menu
+or the window's **Abdoh** menu.
 
 ### Voice controls
 
-- "Abdoh, stop listening": Abdoh ignores everything until "Abdoh, start listening"
+- "Abdoh, stop listening": Abdoh ignores everything until "Abdoh, start listening" (or the hotkey)
 - "Abdoh, reload commands": re-reads `commands.yaml` (it also reloads automatically on change)
 - "Abdoh, show window": brings the window back
 
@@ -208,7 +217,8 @@ python scripts/install_autostart.py     # run with the Python where abdoh is ins
 python scripts/uninstall_autostart.py
 ```
 
-Abdoh then starts at login with its window hidden. Only one copy ever runs.
+Abdoh then starts at login in the tray. Only one copy ever runs. You can also turn this on
+and off with **Start at login** in the tray menu.
 
 - **Windows:** a Task Scheduler task "Abdoh" running `pythonw -m abdoh run --minimized` (no console
   window). Creating logon tasks needs admin rights on many PCs; without them the script adds Abdoh
@@ -225,6 +235,7 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 | `wake_words` | `["abdoh", "hey abdoh"]` | What you say to wake Abdoh; removed from requests before matching |
 | `wake_word_model` | `models/hey_abdoh.onnx` | Your openWakeWord model; without it, Vosk is used |
 | `wake_word_threshold` | `0.5` | openWakeWord: higher means fewer false wake-ups |
+| `hotkey` | `ctrl+alt+space` | Press to talk without the wake word, or to stop a reply (`""` = off) |
 | `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Vosk only: similar words it listens for (see Troubleshooting) |
 | `whisper_model` | `base` | `base` is faster, `small` is more accurate (English-only `.en` models are used when `language` is `en`) |
 | `language` | `en` | Whisper language hint (`null` = auto-detect) |
@@ -291,5 +302,5 @@ plan (`ABDOH_EPIC.md`, v1, is done) and `CLAUDE.md` has the working rules.
 - TODO(blocked): **the "Hey Abdoh" wake word model isn't trained yet.** Training happens in Google
   Colab with your Google account (section 2). Until `models/hey_abdoh.onnx` exists, Abdoh uses
   the Vosk fallback, which doesn't know the word "Abdoh": it misses some wake-ups and wakes up on
-  similar words (those are ignored after transcription). The hotkey (coming in `ABDOH_EPIC_2.md`)
-  works without any wake word.
+  similar words (those are ignored after transcription). The hotkey (`Ctrl+Alt+Space`) works
+  without any wake word.
