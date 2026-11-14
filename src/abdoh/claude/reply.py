@@ -20,6 +20,8 @@ ACTION_HELP: dict[str, str] = {
     "open_url": "ACTION open_url: <url>   (a website, or a search such as "
     "https://www.youtube.com/results?search_query=lofi+music)",
     "open_app": "ACTION open_app: <app name>   (an installed program, e.g. Spotify)",
+    "media": "ACTION media: <play_pause, next, previous, volume_up, volume_down or mute>",
+    "timer": "ACTION timer: <duration>   (e.g. 10 minutes; Abdoh announces when it's done)",
 }
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")

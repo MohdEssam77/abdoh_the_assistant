@@ -1,6 +1,7 @@
 """Load, validate and hot-reload commands.yaml."""
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,7 +9,9 @@ import yaml
 
 log = logging.getLogger(__name__)
 
-ACTION_TYPES = ("say", "open_url", "open_app", "run")
+ACTION_TYPES = ("say", "open_url", "open_app", "run", "media", "timer")
+PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+BUILTIN_PLACEHOLDERS = {"time", "date"}
 
 
 class CommandsFileError(ValueError):
@@ -59,8 +62,43 @@ def parse_commands(data) -> list[Command]:
             if not isinstance(arg, str | int | float) or not str(arg).strip():
                 raise CommandsFileError(f"{where}: action '{kind}' needs a text value.")
             actions.append((kind, str(arg)))
+        _check_slots(where, triggers, actions)
         commands.append(Command(name.strip(), [t.strip() for t in triggers], actions))
     return commands
+
+
+def trigger_slots(trigger: str) -> list[str]:
+    """'search youtube for {query}' -> ['query']."""
+    return PLACEHOLDER.findall(trigger)
+
+
+def _check_slots(where: str, triggers: list[str], actions: list[tuple[str, str]]) -> None:
+    from abdoh.computer import MEDIA_KEYS, parse_duration  # here, to avoid an import cycle
+
+    slot_sets = []
+    for trigger in triggers:
+        slots = trigger_slots(trigger)
+        bad = [s for s in slots if not s.isidentifier()]
+        if bad:
+            raise CommandsFileError(f"{where}: slot names must be single words, not {{{bad[0]}}}.")
+        if len(set(slots)) != len(slots):
+            raise CommandsFileError(f"{where}: a trigger can't use the same slot twice.")
+        slot_sets.append(set(slots))
+    for kind, arg in actions:
+        used = set(PLACEHOLDER.findall(arg)) - BUILTIN_PLACEHOLDERS
+        if kind == "run" and used & set().union(*slot_sets):
+            raise CommandsFileError(f"{where}: 'run' actions can't use slots (that's unsafe).")
+        for slots in slot_sets:
+            missing = (used & set().union(*slot_sets)) - slots
+            if missing:
+                name = sorted(missing)[0]
+                raise CommandsFileError(f"{where}: every trigger needs {{{name}}}.")
+        if kind == "media" and arg.strip().lower() not in MEDIA_KEYS:
+            raise CommandsFileError(
+                f"{where}: media must be one of {', '.join(MEDIA_KEYS)} (not '{arg}')."
+            )
+        if kind == "timer" and parse_duration(arg) is None:
+            raise CommandsFileError(f"{where}: timer needs a duration like '5 minutes'.")
 
 
 class CommandRegistry:

@@ -1,10 +1,12 @@
 """Text normalization, wake word stripping, and fuzzy matching against command triggers."""
 
 import re
+from dataclasses import dataclass, field
+from functools import lru_cache
 
 from rapidfuzz import fuzz
 
-from abdoh.commands.registry import Command
+from abdoh.commands.registry import PLACEHOLDER, Command
 
 _PUNCT = re.compile(r"[^\w\s']")
 _SPACES = re.compile(r"\s+")
@@ -70,7 +72,52 @@ def match(
     best: tuple[Command, float] | None = None
     for command in commands:
         for trigger in command.triggers:
+            if PLACEHOLDER.search(trigger):
+                continue  # triggers with {slots} are matched by pattern, in match_command
             s = score(text, trigger)
             if best is None or s > best[1]:
                 best = (command, s)
     return best if best and best[1] >= threshold else None
+
+
+@lru_cache(maxsize=512)
+def slot_pattern(trigger: str) -> re.Pattern | None:
+    """'play {query} on youtube' -> a regex with a named group per slot (None without slots)."""
+    parts = PLACEHOLDER.split(trigger)  # literal, slot, literal, slot, ...
+    if len(parts) == 1:
+        return None
+    pieces = []
+    for i, part in enumerate(parts):
+        if i % 2:
+            pieces.append(f"(?P<{part}>.+?)")
+        else:
+            pieces += [re.escape(w) for w in normalize(part).split()]
+    return re.compile(r"(?:^|\s)" + r"\s+".join(pieces) + "$")
+
+
+@dataclass
+class CommandMatch:
+    command: Command
+    score: float
+    slots: dict[str, str] = field(default_factory=dict)
+
+
+def match_command(
+    text: str, commands: list[Command], threshold: float, wake_words: list[str] = ()
+) -> CommandMatch | None:
+    """Best command for text: an exact trigger, then a trigger with {slots}, then fuzzy."""
+    text = strip_wake_words(text, list(wake_words))
+    if not text:
+        return None
+    fuzzy = match(text, commands, threshold)
+    if fuzzy and fuzzy[1] >= 100:
+        return CommandMatch(*fuzzy)
+    for command in commands:
+        for trigger in command.triggers:
+            pattern = slot_pattern(trigger)
+            found = pattern.search(text) if pattern else None
+            if found:
+                return CommandMatch(
+                    command, 99.0, {k: v.strip() for k, v in found.groupdict().items()}
+                )
+    return CommandMatch(*fuzzy) if fuzzy else None

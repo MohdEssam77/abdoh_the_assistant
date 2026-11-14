@@ -49,13 +49,18 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
 def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.claude.brain import make_brain
     from abdoh.commands.registry import CommandRegistry
+    from abdoh.computer import Computer
     from abdoh.router import Router
 
     registry = CommandRegistry(cfg.commands_path)
     if registry.error:
         print(f"Your commands file has an error: {registry.error}")
     router = Router(
-        cfg, registry, brain=make_brain(cfg), on_thinking=lambda: print("Abdoh: (thinking...)")
+        cfg,
+        registry,
+        brain=make_brain(cfg),
+        on_thinking=lambda: print("Abdoh: (thinking...)"),
+        computer=Computer(),
     )
     reply = router.handle(args.text)
     if isinstance(reply, str):

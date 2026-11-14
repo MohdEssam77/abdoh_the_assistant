@@ -19,7 +19,7 @@ def test_example_file_is_valid(tmp_path):
     reg = CommandRegistry(tmp_path / "commands.yaml")
     assert reg.error is None
     names = [c.name for c in reg.commands]
-    assert names == ["good_morning", "open_mail", "open_vscode", "what_time"]
+    assert names == ["good_morning", "open_mail", "youtube_search", "open_vscode", "what_time"]
     assert reg.commands[0].actions[1][0] == "open_url"
 
 
@@ -73,3 +73,35 @@ def test_hot_reload_on_change(tmp_path):
 def test_missing_file(tmp_path):
     reg = CommandRegistry(tmp_path / "nope.yaml")
     assert reg.commands == []
+
+
+def cmd(triggers, actions):
+    return [{"name": "c", "triggers": triggers, "actions": actions}]
+
+
+def test_slots_and_new_actions_are_valid():
+    (c,) = parse_commands(
+        cmd(
+            ["search youtube for {query}", "play {query} on youtube"],
+            [{"open_url": "https://www.youtube.com/results?search_query={query}"}],
+        )
+    )
+    assert c.triggers[0] == "search youtube for {query}"
+    parse_commands(cmd(["focus mode"], [{"media": "play_pause"}, {"timer": "25 minutes"}]))
+    parse_commands(cmd(["what time"], [{"say": "It is {time} on {date}."}]))
+
+
+@pytest.mark.parametrize(
+    "triggers, actions, message",
+    [
+        (["search for {two words}"], [{"say": "x"}], "single words"),
+        (["{a} and {a}"], [{"say": "{a}"}], "same slot twice"),
+        (["search {query}", "search"], [{"say": "{query}"}], "every trigger needs"),
+        (["run {thing}"], [{"run": "echo {thing}"}], "unsafe"),
+        (["louder"], [{"media": "louder"}], "media must be one of"),
+        (["egg"], [{"timer": "soon"}], "duration"),
+    ],
+)
+def test_slot_and_action_errors(triggers, actions, message):
+    with pytest.raises(CommandsFileError, match=message):
+        parse_commands(cmd(triggers, actions))

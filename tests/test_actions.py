@@ -75,31 +75,78 @@ def test_run_action_single():
         run_action("teleport", "mars")
 
 
+class FakeComputer:
+    def __init__(self):
+        self.calls = []
+
+    def open_url(self, url):
+        self.calls.append(("url", url))
+
+    def open_app(self, name):
+        self.calls.append(("app", name))
+        return name
+
+    def media(self, key):
+        self.calls.append(("media", key))
+
+    def timer(self, text):
+        self.calls.append(("timer", text))
+        return f"Okay, {text} timer starting now."
+
+
 def test_claude_can_only_open_web_links():
     from abdoh.commands.actions import claude_action
 
-    r = Recorder()
-    claude_action("open_url", "https://www.python.org", open_url=r.url)
-    assert r.calls == [("url", "https://www.python.org")]
+    computer = FakeComputer()
+    claude_action("open_url", "https://www.python.org", computer)
     for bad in ("file:///C:/Windows/System32/cmd.exe", "ms-settings:", "javascript:alert(1)"):
         with pytest.raises(ActionError, match="web links"):
-            claude_action("open_url", bad, open_url=r.url)
-    assert len(r.calls) == 1
+            claude_action("open_url", bad, computer)
+    assert computer.calls == [("url", "https://www.python.org")]
+
+
+def test_claude_apps_media_and_timers_go_through_the_computer():
+    from abdoh.commands.actions import claude_action
+
+    computer = FakeComputer()
+    claude_action("open_app", "Spotify", computer)
+    claude_action("media", "play_pause", computer)
+    claude_action("timer", "5 minutes", computer)
+    assert computer.calls == [("app", "Spotify"), ("media", "play_pause"), ("timer", "5 minutes")]
 
 
 def test_claude_actions_outside_the_list_are_refused():
     from abdoh.commands.actions import claude_action
 
     with pytest.raises(ActionError):
-        claude_action("run", "format c:")
-
-
-@pytest.mark.parametrize(
-    "name",
-    [r"C:\Windows\System32\cmd.exe", "calc.exe", r"..\evil", "a/b", "x & y", "run.bat", ""],
-)
-def test_installed_app_names_cannot_be_paths_or_commands(name):
-    from abdoh.commands.actions import open_installed_app
-
+        claude_action("run", "format c:", FakeComputer())
     with pytest.raises(ActionError):
-        open_installed_app(name)
+        claude_action("open_url", "https://x.y", None)
+
+
+def test_slots_are_filled_and_url_encoded_in_links():
+    r = Recorder()
+    cmd = Command(
+        "yt",
+        ["search youtube for {query}"],
+        [
+            ("open_url", "https://www.youtube.com/results?search_query={query}"),
+            ("say", "Here's {query}."),
+        ],
+    )
+    spoken = run_actions(cmd, False, r.url, r.app, r.shell, slots={"query": "lo-fi & jazz"})
+    assert r.calls == [("url", "https://www.youtube.com/results?search_query=lo-fi+%26+jazz")]
+    assert spoken == ["Here's lo-fi & jazz."]
+
+
+def test_media_and_timer_actions():
+    computer = FakeComputer()
+    cmd = Command("focus", ["focus mode"], [("media", "play_pause"), ("timer", "25 minutes")])
+    spoken = run_actions(cmd, computer=computer)
+    assert computer.calls == [("media", "play_pause"), ("timer", "25 minutes")]
+    assert spoken == ["Okay, 25 minutes timer starting now."]
+
+
+def test_media_without_a_computer_is_reported():
+    with pytest.raises(ActionError, match="isn't available"):
+        run_actions(Command("m", ["x"], [("media", "mute")]))

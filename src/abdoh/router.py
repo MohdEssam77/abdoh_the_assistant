@@ -14,9 +14,10 @@ from abdoh.claude.brain import NOT_CONNECTED, BrainError
 from abdoh.claude.reply import speakable
 from abdoh.claude.screen import ScreenCaptureError, capture_screen
 from abdoh.commands.actions import ActionError, claude_action, run_actions
-from abdoh.commands.matcher import match, remove_wake_words, strip_wake_words
+from abdoh.commands.matcher import match, match_command, remove_wake_words, strip_wake_words
 from abdoh.commands.registry import Command, CommandRegistry
 from abdoh.config import Config
+from abdoh.local_skills import LocalSkills
 
 log = logging.getLogger(__name__)
 
@@ -46,10 +47,12 @@ class Router:
         act=claude_action,
         capture=capture_screen,
         on_thinking: Callable[[], None] = lambda: None,
+        computer=None,
     ):
         self.cfg = cfg
         self.registry = registry
         self.brain = brain  # Claude (Brain) or None; may be replaced at runtime
+        self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.last_turn: ClaudeTurn | None = None
         self._run = run
@@ -57,6 +60,15 @@ class Router:
         self._capture = capture
         self._builtins: dict[str, Callable[[], str]] = {}
         self._builtin_commands: list[Command] = []
+
+    @property
+    def computer(self):
+        return self._computer
+
+    @computer.setter
+    def computer(self, computer) -> None:
+        self._computer = computer
+        self.local = LocalSkills(computer) if computer is not None else None
 
     @property
     def wake_words(self) -> list[str]:
@@ -92,16 +104,25 @@ class Router:
             return self._builtins[builtin[0].name]()
 
         # 2. Commands from commands.yaml
-        found = match(request, self.registry.commands, self.cfg.match_threshold)
+        found = match_command(request, self.registry.commands, self.cfg.match_threshold)
         if found:
-            command, score = found
-            log.info("Matched command %r (score %.0f)", command.name, score)
+            log.info("Matched command %r (score %.0f)", found.command.name, found.score)
             try:
-                return " ".join(self._run(command, self.cfg.allow_run))
+                spoken = self._run(
+                    found.command, self.cfg.allow_run, computer=self.computer, slots=found.slots
+                )
+                return " ".join(spoken)
             except ActionError as e:
                 return str(e)
 
-        # 3. Screen skills
+        # 3. Built-in skills that need no Claude (timers, media keys, open an app, ...)
+        if self.local is not None:
+            reply = self.local.handle(request)
+            if reply is not None:
+                log.info("Local skill handled %r", request)
+                return reply
+
+        # 4. Screen skills
         words = set(request.split())
         if skills.is_translate_request(words):
             target = skills.parse_target_language(request) or self.cfg.claude.translate_target
@@ -110,11 +131,11 @@ class Router:
         if skills.is_summarize_request(words):
             return self._ask(skills.SUMMARIZE_PROMPT, original, screen=True)
 
-        # 4. Ask Claude
+        # 5. Ask Claude
         if self.brain is not None:
             return self._ask(original, original)
 
-        # 5. Nothing matched
+        # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"
 
     def _ask(self, prompt: str, request: str, screen: bool = False) -> Reply:
@@ -132,7 +153,7 @@ class Router:
         def act(kind: str, arg: str) -> None:
             turn.actions.append((kind, arg))
             try:
-                self._act(kind, arg)
+                self._act(kind, arg, self.computer)
             except ActionError as e:
                 problems.append(str(e))
 

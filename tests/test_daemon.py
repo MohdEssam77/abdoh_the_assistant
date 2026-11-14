@@ -414,3 +414,15 @@ def test_no_claude_is_reported():
     daemon = make_daemon(StubRouter([]), bus=bus)
     daemon._report_claude()
     assert ("claude", "not connected") in bus.pending_events()
+
+
+def test_timer_announcement_plays_the_alarm_then_speaks(monkeypatch):
+    monkeypatch.setattr(Daemon, "ALARM_SECONDS", 0)
+    earcons = RecordingEarcons()
+    daemon = Daemon(Config(), StubRouter([]), FakeSpeaker(), None, None, None, earcons=earcons)
+    daemon.handle_request("voice", False)  # the alarm still sounds with voice replies off
+    daemon.announce("Your 5 minute timer is done.")
+    assert ("play", "alarm") in earcons.events
+    daemon.handle_request("voice", True)
+    daemon.announce("Your 1 minute timer is done.")
+    assert daemon.speaker.said == ["Your 1 minute timer is done."]

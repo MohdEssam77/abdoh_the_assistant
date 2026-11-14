@@ -89,3 +89,27 @@ def test_remove_wake_words_keeps_your_wording():
     assert remove_wake_words("What is abdominal pain, Abdoh?", w) == "What is abdominal pain?"
     assert remove_wake_words("Abdoh. Open Spotify.", w) == "Open Spotify."
     assert remove_wake_words("Abdoh", w) == ""
+
+
+def test_slot_triggers_capture_words():
+    from abdoh.commands.matcher import match_command
+    from abdoh.commands.registry import Command
+
+    yt = Command("yt", ["search youtube for {query}", "play {query} on youtube"], [])
+    exact = Command("cats", ["search youtube for cats"], [])
+    commands = [yt, exact]
+    found = match_command("search youtube for lofi music", commands, 85)
+    assert found.command is yt and found.slots == {"query": "lofi music"}
+    found = match_command("please play daft punk on youtube", commands, 85)
+    assert found.command is yt and found.slots == {"query": "daft punk"}
+    found = match_command("search youtube for cats", commands, 85)  # exact trigger wins
+    assert found.command is exact and found.slots == {}
+    assert match_command("search youtube", [yt], 85) is None  # the slot needs words
+
+
+def test_slot_triggers_are_not_fuzzy_matched():
+    from abdoh.commands.matcher import match
+    from abdoh.commands.registry import Command
+
+    yt = Command("yt", ["search youtube for {query}"], [])
+    assert match("search youtube for", [yt], 50) is None

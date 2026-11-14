@@ -139,6 +139,19 @@ Small transcription mistakes are tolerated. Changes are picked up automatically.
   actions:
     - say: "Today is {date}."
 
+# {slots} catch whatever you say in that spot: "search youtube for lo-fi beats"
+- name: youtube_search
+  triggers: ["search youtube for {query}", "play {query} on youtube"]
+  actions:
+    - open_url: "https://www.youtube.com/results?search_query={query}"
+
+- name: focus
+  triggers: ["focus mode"]
+  actions:
+    - media: play_pause
+    - timer: "25 minutes"
+    - say: "Focus mode on."
+
 - name: backup
   triggers: ["back up my notes"]
   actions:
@@ -148,10 +161,28 @@ Small transcription mistakes are tolerated. Changes are picked up automatically.
 
 | Action | What it does |
 |---|---|
-| `say: <text>` | Speaks the text. `{time}` and `{date}` are filled in. |
-| `open_url: <url>` | Opens the link in your default browser. |
+| `say: <text>` | Speaks the text. `{time}`, `{date}` and your `{slots}` are filled in. |
+| `open_url: <url>` | Opens the link in your default browser (`{slots}` are made safe for links). |
 | `open_app: <name or path>` | Opens an app, e.g. "Visual Studio Code", "notepad", or a full path. |
-| `run: <shell command>` | Runs a command. Off by default: set `allow_run: true` in `config.yaml`. |
+| `media: <key>` | Presses a media key: `play_pause`, `next`, `previous`, `volume_up`, `volume_down`, `mute`. |
+| `timer: <duration>` | Starts a timer, e.g. `"25 minutes"`; Abdoh tells you when it's done. |
+| `run: <shell command>` | Runs a command. Off by default: set `allow_run: true` in `config.yaml`. Can't use `{slots}`. |
+
+Every trigger of a command must have the slots its actions use. A trigger without slots that
+matches exactly wins over one with slots.
+
+### What Abdoh does by itself
+
+These work instantly, without Claude (your own commands still come first):
+
+- Timers: "Abdoh, set a timer for 10 minutes", "cancel the timer"
+- Volume and music: "volume up", "turn it down", "mute", "pause", "play", "next song",
+  "previous song"
+- "Abdoh, lock my computer"
+- "Abdoh, open {any installed app}", e.g. "open calculator", "open chrome", "open vs code". If no
+  installed app matches, the request goes to Claude (so "open YouTube" still works).
+
+Media keys, locking and opening installed apps are Windows-only for now.
 
 If the file has a mistake, Abdoh says "Your commands file has an error" and keeps using the last
 working version. Check your commands without speaking:

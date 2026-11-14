@@ -24,6 +24,8 @@ SORRY = "Sorry, something went wrong."
 
 
 class Daemon:
+    ALARM_SECONDS = 0.7
+
     def __init__(
         self,
         cfg: Config,
@@ -139,6 +141,15 @@ class Daemon:
             log.info("Abdoh: %s", text)
             self.bus.emit("history", f"Abdoh: {text}")
         return text
+
+    def announce(self, text: str) -> None:
+        """Something finished on its own (a timer): get attention, then say it."""
+        with self._handle_lock:
+            self._interrupted.clear()
+            self.earcons.play("alarm")  # even when voice replies are off
+            self.stop_event.wait(self.ALARM_SECONDS)  # let the alarm finish before speaking
+            self.say(text)
+            self._status_idle()
 
     def stop_speaking(self) -> None:
         """Interrupt the current reply (from the window, tray or hotkey)."""
@@ -343,6 +354,7 @@ class Daemon:
         from abdoh.audio.wakeword import load_wake_engine
         from abdoh.claude.brain import make_brain
         from abdoh.commands.registry import CommandRegistry
+        from abdoh.computer import AppIndex, Computer, Timers
         from abdoh.speech.tts import Pyttsx3Speaker
 
         speaker = speaker or Pyttsx3Speaker(cfg.tts_rate)
@@ -358,7 +370,7 @@ class Daemon:
             log.exception("Could not set up voice input")
             listen_error = str(e)
         router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
-        return cls(
+        daemon = cls(
             cfg,
             router,
             speaker,
@@ -370,3 +382,6 @@ class Daemon:
             earcons=Earcons(),
             vad=load_vad(),
         )
+        router.computer = Computer(timers=Timers(announce=daemon.announce), apps=AppIndex())
+        router.computer.apps.load_in_background()
+        return daemon
