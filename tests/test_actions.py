@@ -150,3 +150,13 @@ def test_media_and_timer_actions():
 def test_media_without_a_computer_is_reported():
     with pytest.raises(ActionError, match="isn't available"):
         run_actions(Command("m", ["x"], [("media", "mute")]))
+
+
+def test_open_app_uses_the_computer_when_there_is_one():
+    class Launcher(FakeComputer):
+        def launch(self, target):
+            self.calls.append(("launch", target))
+
+    computer = Launcher()
+    run_actions(Command("c", ["x"], [("open_app", "Spotify")]), computer=computer)
+    assert computer.calls == [("launch", "Spotify")]

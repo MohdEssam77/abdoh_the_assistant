@@ -172,3 +172,16 @@ def test_computer_delegates():
     assert pressed == ["volume_up"] and locked == [1] and urls == ["https://a.b"]
     with pytest.raises(ActionError):
         Computer(apps=idx, open_url=lambda u: False).open_url("https://a.b")
+
+
+def test_launch_for_your_own_commands(tmp_path):
+    started = []
+    idx, launched, _ = index()
+    computer = Computer(apps=idx, start_app=started.append)
+    computer.launch("calculator")  # an installed app (Store apps too)
+    assert launched == [App("Calculator", "Microsoft.WindowsCalculator!App")]
+    exe = tmp_path / "tool.exe"
+    exe.write_text("")
+    computer.launch(str(exe))  # a path is started as-is
+    computer.launch("some-unknown-thing")  # left to Windows, like v1
+    assert started == [str(exe), "some-unknown-thing"]

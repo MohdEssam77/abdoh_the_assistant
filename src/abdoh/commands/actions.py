@@ -121,7 +121,7 @@ def run_action(
         if not open_url(arg):
             raise ActionError("I couldn't open that link.")
     elif kind == "open_app":
-        open_application(arg)
+        computer.launch(arg) if computer is not None else open_application(arg)
     elif kind == "run":
         if not allow_run:
             return "Running programs is turned off. Set allow_run to true in config."
