@@ -180,6 +180,14 @@ def test_play_youtube_fallback_is_spoken():
     assert run_actions(cmd, computer=NoVideo()) == ["Here are the YouTube results."]
 
 
+def test_open_url_uses_the_computer_when_there_is_one():
+    computer, r = FakeComputer(), Recorder()
+    cmd = Command("yt", ["search youtube for {query}"], [("open_url", "https://y.t/?q={query}")])
+    run_actions(cmd, False, r.url, r.app, r.shell, computer=computer, slots={"query": "a b"})
+    assert computer.calls == [("url", "https://y.t/?q=a+b")]
+    assert r.calls == []
+
+
 def test_open_app_uses_the_computer_when_there_is_one():
     class Launcher(FakeComputer):
         def launch(self, target):

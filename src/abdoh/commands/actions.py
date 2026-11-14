@@ -121,7 +121,9 @@ def run_action(
     elif kind == "play_youtube":
         return computer.play_youtube(arg) or None
     elif kind == "open_url":
-        if not open_url(arg):
+        if computer is not None:
+            computer.open_url(arg)
+        elif not open_url(arg):
             raise ActionError("I couldn't open that link.")
     elif kind == "open_app":
         computer.launch(arg) if computer is not None else open_application(arg)
