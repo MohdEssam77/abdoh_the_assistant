@@ -6,6 +6,7 @@
 #   say: <text>            speak text ({time}, {date} and your {slots} are replaced)
 #   open_url: <url>        open in the default browser ({slots} are URL-encoded)
 #   open_app: <name/path>  open an application
+#   play_youtube: <words>  play the top YouTube video for those words
 #   media: <key>           play_pause, next, previous, volume_up, volume_down or mute
 #   timer: <duration>      e.g. "25 minutes"; Abdoh tells you when it's done
 #   run: <shell command>   run a command (only if allow_run: true in config.yaml; no {slots})
@@ -22,9 +23,14 @@
     - open_url: "https://mail.google.com"
 
 - name: youtube_search
-  triggers: ["search youtube for {query}", "play {query} on youtube"]
+  triggers: ["search youtube for {query}"]
   actions:
     - open_url: "https://www.youtube.com/results?search_query={query}"
+
+- name: youtube_play
+  triggers: ["play {query} on youtube"]
+  actions:
+    - play_youtube: "{query}"
 
 - name: open_vscode
   triggers: ["open code", "open vs code"]

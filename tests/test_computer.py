@@ -174,6 +174,28 @@ def test_computer_delegates():
         Computer(apps=idx, open_url=lambda u: False).open_url("https://a.b")
 
 
+def test_play_youtube_starts_the_top_video():
+    urls = []
+    computer = Computer(
+        open_url=lambda u: urls.append(u) or True, find_video=lambda q: "abcdefghijk"
+    )
+    assert computer.play_youtube("bohemian rhapsody") == ""  # the video speaks for itself
+    assert urls == ["https://www.youtube.com/watch?v=abcdefghijk"]
+
+
+def test_play_youtube_falls_back_to_the_results_page():
+    urls, searched = [], []
+    computer = Computer(
+        open_url=lambda u: urls.append(u) or True,
+        find_video=lambda q: searched.append(q),  # finds nothing
+    )
+    assert computer.play_youtube(" lo-fi beats ") == "Here are the YouTube results."
+    assert searched == ["lo-fi beats"]
+    assert urls == ["https://www.youtube.com/results?search_query=lo-fi+beats"]
+    with pytest.raises(ActionError):
+        computer.play_youtube("  ")
+
+
 def test_launch_for_your_own_commands(tmp_path):
     started = []
     idx, launched, _ = index()

@@ -78,6 +78,7 @@ On first run Abdoh creates `config.yaml` and `commands.yaml` from the example fi
 
 - "Good morning Abdoh"
 - "Hey Abdoh, what time is it"
+- "Hey Abdoh, play Bohemian Rhapsody on YouTube" (starts the top video)
 - Press **Ctrl+Alt+Space** and say "what time is it" (no wake word needed)
 
 **The tray icon** shows Abdoh's state by color: green = listening, blue = thinking or speaking,
@@ -119,6 +120,7 @@ Then you can say:
 
 - "Abdoh, what's the capital of Japan?"
 - "Abdoh, open the Python website" (Claude can open web pages and installed apps for you)
+- "Abdoh, put on some relaxing jazz" (Claude can start YouTube videos too)
 - "Abdoh, what's the weather in Cairo today?" (Claude can search the web; turn this off with
   `claude.allow_web: false`)
 - "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
@@ -172,9 +174,14 @@ Small transcription mistakes are tolerated. Changes are picked up automatically.
 
 # {slots} catch whatever you say in that spot: "search youtube for lo-fi beats"
 - name: youtube_search
-  triggers: ["search youtube for {query}", "play {query} on youtube"]
+  triggers: ["search youtube for {query}"]
   actions:
     - open_url: "https://www.youtube.com/results?search_query={query}"
+
+- name: youtube_play
+  triggers: ["play {query} on youtube"]
+  actions:
+    - play_youtube: "{query}"
 
 - name: focus
   triggers: ["focus mode"]
@@ -195,6 +202,7 @@ Small transcription mistakes are tolerated. Changes are picked up automatically.
 | `say: <text>` | Speaks the text. `{time}`, `{date}` and your `{slots}` are filled in. |
 | `open_url: <url>` | Opens the link in your default browser (`{slots}` are made safe for links). |
 | `open_app: <name or path>` | Opens an app, e.g. "Visual Studio Code", "notepad", or a full path. |
+| `play_youtube: <words>` | Plays the top YouTube video for those words (about a second to find it). If none is found, opens the search results. |
 | `media: <key>` | Presses a media key: `play_pause`, `next`, `previous`, `volume_up`, `volume_down`, `mute`. |
 | `timer: <duration>` | Starts a timer, e.g. `"25 minutes"`; Abdoh tells you when it's done. |
 | `run: <shell command>` | Runs a command. Off by default: set `allow_run: true` in `config.yaml`. Can't use `{slots}`. |

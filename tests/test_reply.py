@@ -34,6 +34,12 @@ def test_action_lines_run_and_are_not_spoken():
     assert sentences == ["Opening Python's site."]
 
 
+def test_claude_can_play_youtube():
+    sentences, actions = run(["ACTION play_youtube: lofi hip hop radio\n", "Playing it now."])
+    assert actions == [("play_youtube", "lofi hip hop radio")]
+    assert sentences == ["Playing it now."]
+
+
 def test_action_split_across_chunks():
     sentences, actions = run(["ACT", "ION open_app: Spot", "ify\nDone."])
     assert actions == [("open_app", "Spotify")]

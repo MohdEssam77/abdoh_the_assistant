@@ -19,8 +19,16 @@ def test_example_file_is_valid(tmp_path):
     reg = CommandRegistry(tmp_path / "commands.yaml")
     assert reg.error is None
     names = [c.name for c in reg.commands]
-    assert names == ["good_morning", "open_mail", "youtube_search", "open_vscode", "what_time"]
+    assert names == [
+        "good_morning",
+        "open_mail",
+        "youtube_search",
+        "youtube_play",
+        "open_vscode",
+        "what_time",
+    ]
     assert reg.commands[0].actions[1][0] == "open_url"
+    assert reg.commands[3].actions == [("play_youtube", "{query}")]
 
 
 @pytest.mark.parametrize(
@@ -89,6 +97,7 @@ def test_slots_and_new_actions_are_valid():
     assert c.triggers[0] == "search youtube for {query}"
     parse_commands(cmd(["focus mode"], [{"media": "play_pause"}, {"timer": "25 minutes"}]))
     parse_commands(cmd(["what time"], [{"say": "It is {time} on {date}."}]))
+    parse_commands(cmd(["play {query} on youtube"], [{"play_youtube": "{query}"}]))
 
 
 @pytest.mark.parametrize(

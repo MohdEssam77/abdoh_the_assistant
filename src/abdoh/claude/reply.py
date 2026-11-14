@@ -18,7 +18,9 @@ log = logging.getLogger(__name__)
 # What Claude is allowed to do, with the help text shown to it in the system prompt.
 ACTION_HELP: dict[str, str] = {
     "open_url": "ACTION open_url: <url>   (a website, or a search such as "
-    "https://www.youtube.com/results?search_query=lofi+music)",
+    "https://www.google.com/search?q=weather+tomorrow)",
+    "play_youtube": "ACTION play_youtube: <what to play>   (starts the top YouTube video for "
+    "that search, e.g. lofi hip hop radio)",
     "open_app": "ACTION open_app: <app name>   (an installed program, e.g. Spotify)",
     "media": "ACTION media: <play_pause, next, previous, volume_up, volume_down or mute>",
     "timer": "ACTION timer: <duration>   (e.g. 10 minutes; Abdoh announces when it's done)",

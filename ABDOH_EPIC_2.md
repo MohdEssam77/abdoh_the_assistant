@@ -126,7 +126,7 @@ Still the v1 format. Two additions:
 ```yaml
 # Triggers can have {slots}; a slot captures the rest of the words at that spot.
 - name: youtube_search
-  triggers: ["search youtube for {query}", "play {query} on youtube"]
+  triggers: ["search youtube for {query}"]   # "play {query} on youtube": see story 21
   actions:
     - open_url: "https://www.youtube.com/results?search_query={query}"   # URL-encoded
     - say: "Here's {query} on YouTube."
@@ -139,9 +139,9 @@ Still the v1 format. Two additions:
     - timer: "25 minutes"        # spoken when it's done
 ```
 
-Supported actions: `say`, `open_url`, `open_app`, `run` (only with `allow_run: true`), `media`,
-`timer`. Learned commands ("remember that") are appended at the end of the file without touching
-the rest of it.
+Supported actions: `say`, `open_url`, `open_app`, `play_youtube` (story 21), `run` (only with
+`allow_run: true`), `media`, `timer`. Learned commands ("remember that") are appended at the end
+of the file without touching the rest of it.
 
 ---
 
@@ -278,6 +278,41 @@ Every story: tests with fakes (no mic, speakers, network, API key, or Claude Cod
 - README: setup checklist, including the steps only I can do (§9).
 - Tick this epic's definition of done.
 - **Done when:** a fresh clone can be set up from the README alone.
+
+### Added 2026-11-15: ideas from the UdS Operator hackathon project
+
+UdS Operator was a typed agent that drove a browser, files and the shell. Three of its ideas fit
+Abdoh without making it heavier:
+
+### Story 21: "Play X on YouTube" plays the video
+- `youtube.py`: one request for YouTube's results page (standard library, no API key), read until
+  the first search result (`videoRenderer`, so ads and Shorts are skipped).
+  `Computer.play_youtube(query)` opens that video, or the results page if none is found
+  ("Here are the YouTube results.").
+- New action `play_youtube: <what to play>` in `commands.yaml` and for Claude
+  (`ACTION play_youtube: …`). The example "play {query} on youtube" command uses it.
+- **Done when:** tests cover finding the result (ads/Shorts skipped, split reads), the fallback
+  and both kinds of actions with fakes; a live lookup finds the right video in about a second.
+
+### Story 22: Answer Claude's questions without the wake word
+- When Claude's reply to a spoken request ends with a question, Abdoh plays the listening chime
+  and listens for up to 5 s, as if the hotkey was pressed; the answer goes to Claude with the
+  previous exchange as context. Not after typed requests, or when you stopped the reply.
+  `claude.listen_after_question: true` (false turns it off).
+- **Done when:** tests with a fake mic cover answering without the wake word, and no extra
+  listening after a statement, a typed request, a stopped reply, or with the setting off.
+
+### Story 23: Claude can work with your files
+- `claude.allow_files: true` (default): Claude Code also gets `Write`, `Edit`, `Glob`, `Grep` and
+  `PowerShell` (`Bash` elsewhere), and `--add-dir` for your home folder (plus any of your main
+  folders that live outside it). `--restricted` stays on: your settings files are ignored, file
+  tools stay inside those folders, and writes to settings and git files are refused.
+- The system prompt names your Desktop, Documents, Downloads and Pictures folders (following
+  OneDrive), and tells Claude to ask before deleting or overwriting files and to delete to the
+  Recycle Bin. With story 22 you just answer "yes".
+- `claude.timeout_seconds` default 120 (file jobs take longer than questions).
+- **Done when:** tests cover the command line and prompt with and without file access; manually,
+  Claude counts, converts and (after asking) deletes test files in a scratch folder.
 
 ---
 

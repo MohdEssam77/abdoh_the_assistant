@@ -1,4 +1,5 @@
-"""Everything Abdoh does to the computer itself: media keys, lock screen, timers, opening apps.
+"""Everything Abdoh does to the computer itself: media keys, lock screen, timers, opening apps
+and YouTube videos.
 
 Kept in one place so tests can replace it with a fake. Windows-first: media keys, lock screen and
 the installed-app list are Windows features; elsewhere they say so politely.
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from rapidfuzz import fuzz
 
+from abdoh import youtube
 from abdoh.commands.actions import ActionError, open_app
 from abdoh.commands.matcher import normalize
 
@@ -259,6 +261,7 @@ class Computer:
         lock: Callable[[], None] = lock_screen,
         open_url: Callable[[str], object] = webbrowser.open,
         start_app: Callable[[str], None] = open_app,
+        find_video: Callable[[str], str | None] = youtube.find_video,
     ):
         self.timers = timers or Timers(announce=lambda text: log.info(text))
         self.apps = apps or AppIndex()
@@ -266,10 +269,25 @@ class Computer:
         self._lock = lock
         self._open_url = open_url
         self._start_app = start_app
+        self._find_video = find_video
 
     def open_url(self, url: str) -> None:
         if not self._open_url(url):
             raise ActionError("I couldn't open that link.")
+
+    def play_youtube(self, query: str) -> str:
+        """Start the top YouTube video for a search. If none is found (or YouTube can't be
+        reached), open the results page instead and say so. Returns what to say ("" = nothing)."""
+        query = query.strip()
+        if not query:
+            raise ActionError("What should I play?")
+        video = self._find_video(query)
+        if video:
+            log.info("Playing YouTube video %s for %r", video, query)
+            self.open_url(youtube.watch_url(video))
+            return ""
+        self.open_url(youtube.search_url(query))
+        return "Here are the YouTube results."
 
     def open_app(self, name: str) -> str:
         """For Claude: only apps from the installed-app list."""

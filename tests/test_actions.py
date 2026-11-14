@@ -93,6 +93,10 @@ class FakeComputer:
         self.calls.append(("timer", text))
         return f"Okay, {text} timer starting now."
 
+    def play_youtube(self, query):
+        self.calls.append(("youtube", query))
+        return ""
+
 
 def test_claude_can_only_open_web_links():
     from abdoh.commands.actions import claude_action
@@ -112,7 +116,13 @@ def test_claude_apps_media_and_timers_go_through_the_computer():
     claude_action("open_app", "Spotify", computer)
     claude_action("media", "play_pause", computer)
     claude_action("timer", "5 minutes", computer)
-    assert computer.calls == [("app", "Spotify"), ("media", "play_pause"), ("timer", "5 minutes")]
+    claude_action("play_youtube", "lofi hip hop radio", computer)
+    assert computer.calls == [
+        ("app", "Spotify"),
+        ("media", "play_pause"),
+        ("timer", "5 minutes"),
+        ("youtube", "lofi hip hop radio"),
+    ]
 
 
 def test_claude_actions_outside_the_list_are_refused():
@@ -150,6 +160,32 @@ def test_media_and_timer_actions():
 def test_media_without_a_computer_is_reported():
     with pytest.raises(ActionError, match="isn't available"):
         run_actions(Command("m", ["x"], [("media", "mute")]))
+    with pytest.raises(ActionError, match="isn't available"):
+        run_actions(Command("y", ["x"], [("play_youtube", "jazz")]))
+
+
+def test_play_youtube_gets_the_slot_as_plain_words():
+    computer = FakeComputer()
+    cmd = Command("yt", ["play {query} on youtube"], [("play_youtube", "{query}")])
+    assert run_actions(cmd, computer=computer, slots={"query": "lo-fi & jazz"}) == []
+    assert computer.calls == [("youtube", "lo-fi & jazz")]  # not URL-encoded
+
+
+def test_play_youtube_fallback_is_spoken():
+    class NoVideo(FakeComputer):
+        def play_youtube(self, query):
+            return "Here are the YouTube results."
+
+    cmd = Command("yt", ["x"], [("play_youtube", "jazz")])
+    assert run_actions(cmd, computer=NoVideo()) == ["Here are the YouTube results."]
+
+
+def test_open_url_uses_the_computer_when_there_is_one():
+    computer, r = FakeComputer(), Recorder()
+    cmd = Command("yt", ["search youtube for {query}"], [("open_url", "https://y.t/?q={query}")])
+    run_actions(cmd, False, r.url, r.app, r.shell, computer=computer, slots={"query": "a b"})
+    assert computer.calls == [("url", "https://y.t/?q=a+b")]
+    assert r.calls == []
 
 
 def test_open_app_uses_the_computer_when_there_is_one():
