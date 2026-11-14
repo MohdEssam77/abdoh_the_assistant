@@ -15,7 +15,6 @@ log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
 COMMANDS_FILE_ERROR = "Your commands file has an error."
-ONE_SEC = "One sec..."
 
 
 class Router:
@@ -26,12 +25,12 @@ class Router:
         claude=None,
         run=run_actions,
         capture=capture_screen,
-        notify: Callable[[str], None] = lambda text: None,
+        on_thinking: Callable[[], None] = lambda: None,
     ):
         self.cfg = cfg
         self.registry = registry
         self.claude = claude  # ClaudeClient or None; may be replaced at runtime
-        self.notify = notify  # says interim messages like "One sec..."
+        self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self._run = run
         self._capture = capture
         self._builtins: dict[str, Callable[[], str]] = {}
@@ -94,7 +93,7 @@ class Router:
         claude = self.claude
         if claude is None:
             return NOT_CONNECTED
-        self.notify(ONE_SEC)
+        self.on_thinking()
         try:
             return call(claude)
         except (ClaudeError, ScreenCaptureError) as e:

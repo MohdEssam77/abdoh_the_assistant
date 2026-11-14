@@ -3,7 +3,8 @@
 daemon → UI events:   ("status", str), ("claude", bool), ("history", str), ("show", None),
                       ("quit", None)
 UI → daemon requests: ("text", str), ("pause", None), ("resume", None), ("reload", None),
-                      ("edit_commands", None), ("voice", bool), ("set_key", str), ("quit", None)
+                      ("edit_commands", None), ("voice", bool), ("set_key", str),
+                      ("stop_speaking", None), ("quit", None)
 """
 
 import queue
