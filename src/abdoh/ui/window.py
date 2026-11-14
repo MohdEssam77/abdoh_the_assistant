@@ -27,9 +27,11 @@ class Window:
 
         self.status = tk.StringVar(value="Status: Starting...")
         self.claude = tk.StringVar(value="Claude: ...")
+        self.wake = tk.StringVar(value="Wake word: ...")
         status_label = tk.Label(self.root, textvariable=self.status, anchor="w")
         status_label.pack(fill="x", padx=8, pady=(8, 0))
         tk.Label(self.root, textvariable=self.claude, anchor="w").pack(fill="x", padx=8)
+        tk.Label(self.root, textvariable=self.wake, anchor="w").pack(fill="x", padx=8)
 
         self.history = scrolledtext.ScrolledText(
             self.root, height=12, state="disabled", wrap="word"
@@ -120,6 +122,8 @@ class Window:
                     )
             elif kind == "claude":
                 self.claude.set(f"Claude: {value}")
+            elif kind == "wake":
+                self.wake.set(f"Wake word: {value}")
             elif kind == "history":
                 self.append_history(value)
             elif kind == "show":

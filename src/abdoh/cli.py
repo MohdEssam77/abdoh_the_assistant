@@ -31,10 +31,11 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.audio.mic import Microphone
     from abdoh.audio.stt import Transcriber
     from abdoh.audio.vad import load_vad
-    from abdoh.audio.wakeword import VoskWakeWord
+    from abdoh.audio.wakeword import load_wake_engine
     from abdoh.speech.tts import Pyttsx3Speaker
 
-    engine = VoskWakeWord(cfg.resolve(cfg.vosk_model), cfg.wake_words + cfg.wake_word_aliases)
+    engine = load_wake_engine(cfg)
+    print(f"Wake word: {engine.label}")
     transcriber = Transcriber(cfg.whisper_model, cfg.language)
     transcriber.transcribe(b"\0\0" * 1600)  # load the model before listening
     with Microphone() as mic:

@@ -37,6 +37,8 @@ class ClaudeConfig:
 class Config:
     wake_words: list[str] = field(default_factory=lambda: ["abdoh", "hey abdoh"])
     wake_word_aliases: list[str] = field(default_factory=lambda: ["abdo", "ab doe", "abdul"])
+    wake_word_model: str = "models/hey_abdoh.onnx"  # openWakeWord; missing -> Vosk fallback
+    wake_word_threshold: float = 0.5
     vosk_model: str = "models/vosk-model-small-en-us-0.15"
     whisper_model: str = "base"
     language: str | None = "en"

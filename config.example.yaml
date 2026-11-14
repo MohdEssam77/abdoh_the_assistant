@@ -1,7 +1,10 @@
 # Abdoh configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
 
 wake_words: ["abdoh", "hey abdoh"]
-# Words Vosk might hear instead of "Abdoh". Run `python -m abdoh calibrate` to find yours.
+# Your openWakeWord model (see README: train the wake word). Without it, Vosk is used.
+wake_word_model: "models/hey_abdoh.onnx"
+wake_word_threshold: 0.5         # higher = fewer false wake-ups, lower = wakes more easily
+# Vosk only: words it might hear instead of "Abdoh". `python -m abdoh calibrate` finds yours.
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
 vosk_model: "models/vosk-model-small-en-us-0.15"
 whisper_model: "base"            # base | small

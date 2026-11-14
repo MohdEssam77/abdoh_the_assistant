@@ -263,6 +263,8 @@ class Daemon:
     def run(self) -> None:
         """Listen forever (until stop()). Reopens the mic every few seconds if it goes away."""
         self._report_claude()
+        if self.engine is not None:
+            self.bus.emit("wake", self.engine.label)
         self._status_idle()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
@@ -338,7 +340,7 @@ class Daemon:
         from abdoh.audio.mic import Microphone
         from abdoh.audio.stt import Transcriber
         from abdoh.audio.vad import load_vad
-        from abdoh.audio.wakeword import VoskWakeWord
+        from abdoh.audio.wakeword import load_wake_engine
         from abdoh.claude.brain import make_brain
         from abdoh.commands.registry import CommandRegistry
         from abdoh.speech.tts import Pyttsx3Speaker
@@ -349,8 +351,7 @@ class Daemon:
         engine = transcriber = None
         listen_error = None
         try:
-            phrases = cfg.wake_words + cfg.wake_word_aliases
-            engine = VoskWakeWord(cfg.resolve(cfg.vosk_model), phrases)
+            engine = load_wake_engine(cfg)
             transcriber = Transcriber(cfg.whisper_model, cfg.language)
             transcriber.transcribe(b"\0\0" * 1600)  # load the model now, not on first request
         except Exception as e:

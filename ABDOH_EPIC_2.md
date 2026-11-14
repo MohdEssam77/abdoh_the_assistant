@@ -226,8 +226,8 @@ Every story: tests with fakes (no mic, speakers, network, API key, or Claude Cod
   (checked once against the official package with `scripts/check_wakeword.py`).
 - `scripts/download_models.py` also fetches the two openWakeWord feature models.
 - `Daemon.create`: use openWakeWord when `wake_word_model` exists, otherwise Vosk (current
-  behavior) and log how to train a model. The Whisper "did it really say Abdoh" check stays only
-  for Vosk.
+  behavior) and log how to train a model. The Whisper "did it really say Abdoh" check stays for
+  both engines: it costs little and stops a rare false wake-up from starting a Claude request.
 - README: how to train "Hey Abdoh" with the official Google Colab notebook (under an hour) and
   where to put the `.onnx` file; how to tune `wake_word_threshold`.
 - **Done when:** tests pass with fake ONNX sessions; the parity check matches the official

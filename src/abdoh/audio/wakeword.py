@@ -12,6 +12,8 @@ log = logging.getLogger(__name__)
 
 
 class WakeWordEngine(ABC):
+    label = "wake word"  # shown in the window
+
     @abstractmethod
     def detect(self, block: bytes) -> bool:
         """Feed one audio block; True when the wake word was heard."""
@@ -43,6 +45,8 @@ class VoskWakeWord(WakeWordEngine):
     Anything else is recognized as "[unk]". Phrases with words Vosk doesn't know (like "abdoh")
     are skipped, otherwise Vosk would silently shorten "hey abdoh" to "hey".
     """
+
+    label = "Vosk (fallback until you train a Hey Abdoh model)"
 
     def __init__(self, model_path: Path, phrases: list[str]):
         import vosk
@@ -76,6 +80,26 @@ class VoskWakeWord(WakeWordEngine):
 
     def reset(self) -> None:
         self._rec.Reset()
+
+
+def load_wake_engine(cfg, oww=None, vosk=None) -> WakeWordEngine:
+    """openWakeWord with your model if it exists, otherwise Vosk (the v1 engine)."""
+    model = cfg.resolve(cfg.wake_word_model)
+    if model.exists():
+        if oww is None:
+            from abdoh.audio.oww import FEATURES_DIR, OpenWakeWord
+
+            oww = lambda m, t: OpenWakeWord(m, cfg.resolve(FEATURES_DIR), t)  # noqa: E731
+        try:
+            engine = oww(model, cfg.wake_word_threshold)
+            engine.label = f"openWakeWord ({model.stem})"
+            return engine
+        except FileNotFoundError as e:
+            log.warning("%s. Run: python scripts/download_models.py. Using Vosk for now.", e)
+    else:
+        log.info("No wake word model at %s; using Vosk. See README: train the wake word.", model)
+    vosk = vosk or (lambda path, phrases: VoskWakeWord(path, phrases))
+    return vosk(cfg.resolve(cfg.vosk_model), cfg.wake_words + cfg.wake_word_aliases)
 
 
 def wait_for_wake_word(
