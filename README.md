@@ -1,12 +1,25 @@
 # Abdoh
 
-A simple, voice-first personal assistant for your laptop. Say "Hey Abdoh" and a request:
-Abdoh runs your own commands (open a link, open an app, tell the time), and with an Anthropic
-API key it can answer questions and translate or summarize what's on your screen. It replies by
-voice and lives in the background with one plain window.
+A simple, voice-first personal assistant for your laptop. Say "Hey Abdoh" (or press
+Ctrl+Alt+Space) and a request: Abdoh runs your own commands (open a link, open an app, tell the
+time), handles everyday things by itself (timers, volume and music, opening any app), and sends
+everything else to Claude, using your Claude subscription through Claude Code. It replies by
+voice and lives in the system tray.
 
-Speech recognition runs offline on your machine (Vosk for the wake word, Whisper for requests).
-Only Claude requests go over the network.
+Speech recognition runs offline on your machine (openWakeWord or Vosk for the wake word, Whisper
+for requests). Only Claude requests go over the network.
+
+## Setup checklist
+
+1. Install Abdoh and download the models (sections 1 and 2).
+2. Make sure Claude Code is signed in with your Claude account: `python -m abdoh claude-check`
+   (section 4).
+3. Train your "Hey Abdoh" wake word in Google Colab and save it as `models/hey_abdoh.onnx`
+   (section 2). Until then the hotkey works without any wake word.
+4. Put your own links and apps in `commands.yaml`, e.g. replace `REPLACE_ME` in `good_morning`
+   (section 5).
+5. `python -m abdoh install --login` to add Abdoh to the Start Menu and start it at login
+   (section 6). Restart your computer and check that the tray icon appears and Abdoh answers.
 
 ## 1. Install
 
@@ -254,6 +267,28 @@ first start), and a model you put in `%APPDATA%\Abdoh\models` is used instead of
 The Whisper model downloads on the first start, as usual. `Abdoh.exe install` adds the built app
 to the Start Menu.
 
+## How fast and how light
+
+Measured on my laptop (Windows 11), from the end of your speech to the start of Abdoh's reply:
+
+| | Version 1 | Now |
+|---|---|---|
+| "What time is it" (a command) | about 3 s | about 1.3 s |
+| A question for Claude (first words) | API key only; waited for the whole answer | about 3.3 s |
+| Start-up | about 9 s | about 2.5 s |
+| Memory while idle | about 410 MB | about 320 MB with your openWakeWord model (410 MB with Vosk) |
+| CPU while idle | about 2% of one core | about 1.5% of one core |
+
+Where the time goes for a command: 0.6 s to be sure you stopped talking (`silence_seconds`),
+about 0.5 s to transcribe (Whisper `base.en`), and 0.1 s to start speaking. Claude adds about
+2 s to start Claude Code and get the first sentence; the rest of the answer is spoken while it
+arrives. To make commands snappier, try `silence_seconds: 0.5`, or `whisper_model: tiny` (about
+0.25 s faster to transcribe, a bit less accurate). Most of the memory is Whisper's speech engine
+(about 170 MB whatever the model size).
+
+Developers can measure this themselves without a microphone:
+`python scripts/measure_latency.py "Hey Abdoh, what time is it?"`.
+
 ## Configuration
 
 `config.yaml` (created from `config.example.yaml`; set `ABDOH_HOME` to keep these files elsewhere):
@@ -322,11 +357,20 @@ for each stage (recording, transcription, reply), run `python -m abdoh -v run`.
 ruff check . --fix && ruff format . && pytest -q
 ```
 
-Unit tests never need a microphone, speakers, network or API key. `ABDOH_EPIC_2.md` is the current
-plan (`ABDOH_EPIC.md`, v1, is done) and `CLAUDE.md` has the working rules.
+Unit tests never need a microphone, speakers, network, API key or Claude Code. `ABDOH_EPIC_2.md`
+is the current plan (`ABDOH_EPIC.md`, v1, is done) and `CLAUDE.md` has the working rules.
+
+Developer scripts:
+
+- `scripts/measure_latency.py`: time from the end of a spoken request to Abdoh's reply.
+- `scripts/check_wakeword.py`: checks Abdoh's openWakeWord code against the official package
+  (needs `pip install openwakeword`).
+- `scripts/build_app.py`: builds `dist/Abdoh/Abdoh.exe` (needs `pip install -e .[build]`).
 
 ## Known issues
 
+- **Memory while idle is about 320 MB**, more than the 250 MB goal: Whisper's speech engine
+  (CTranslate2) takes about 170 MB by itself, even with the smallest model.
 - TODO(blocked): **the "Hey Abdoh" wake word model isn't trained yet.** Training happens in Google
   Colab with your Google account (section 2). Until `models/hey_abdoh.onnx` exists, Abdoh uses
   the Vosk fallback, which doesn't know the word "Abdoh": it misses some wake-ups and wakes up on

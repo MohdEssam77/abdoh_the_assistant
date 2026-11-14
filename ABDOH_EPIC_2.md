@@ -286,6 +286,9 @@ Every story: tests with fakes (no mic, speakers, network, API key, or Claude Cod
 - Letting Claude run shell commands, with spoken confirmation.
 - A nicer local voice (Piper) and Arabic wake word and replies.
 - Hotkey and installer for macOS/Linux; auto-update.
+- Whisper on onnxruntime (already loaded for the wake word and VAD) or whisper.cpp, to cut
+  ~150 MB of idle RAM and reach the 250 MB goal.
+- Keep one Claude Code process warm to save ~0.6 s per Claude answer (costs memory).
 
 ---
 
@@ -300,10 +303,15 @@ Every story: tests with fakes (no mic, speakers, network, API key, or Claude Cod
 
 ## 10. Definition of done (whole epic)
 - [ ] Abdoh runs as a tray app, starts at login, and opens from the Start Menu.
+      Built (tray, `abdoh install`, start at login); the after-reboot check is mine to do.
 - [ ] "Hey Abdoh" (openWakeWord) or the hotkey starts a request; false wake-ups are rare.
-- [ ] Hardcoded commands and built-in skills start answering ~1 s after I stop talking.
-- [ ] Everything else goes to Claude through my Pro subscription, answered by voice, first words
+      Built; waiting for my trained `hey_abdoh.onnx` (the hotkey works without it).
+- [x] Hardcoded commands and built-in skills start answering ~1 s after I stop talking.
+      Measured 1.25 s plus ~0.1 s to start speaking (was ~3 s).
+- [x] Everything else goes to Claude through my Pro subscription, answered by voice, first words
       within ~3 s for simple questions; Claude can open links and apps for me.
-- [ ] "Remember that" turns what Claude did into an instant command.
-- [ ] Idle RAM ≤ 250 MB.
-- [ ] All tests pass; `main` is pushed and up to date.
+      Measured 3.3 s to the first words; most of it is Claude Code itself (~2 s).
+- [x] "Remember that" turns what Claude did into an instant command.
+- [ ] Idle RAM ≤ 250 MB. Not met: ~320 MB with openWakeWord (was ~410 MB). Whisper's
+      CTranslate2 runtime alone is ~170 MB whatever the model size (see Later).
+- [x] All tests pass; `main` is pushed and up to date.
