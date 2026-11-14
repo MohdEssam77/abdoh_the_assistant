@@ -55,6 +55,7 @@ class Daemon:
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self._listen_now = threading.Event()  # the hotkey was pressed
         self._via_hotkey = False
+        self._awaiting_answer = False  # Claude asked a question: listen for the answer next
         self._recording = False
         self.paused = False
         self.voice_enabled = True
@@ -191,8 +192,12 @@ class Daemon:
         if self.voice_enabled:
             self.earcons.start_ticking("thinking")
 
-    def handle_text(self, text: str) -> str:
-        """Route one request and speak the reply. Never raises."""
+    def handle_text(self, text: str, voice: bool = False) -> str:
+        """Route one request and speak the reply. Never raises.
+
+        `voice`: the request was spoken, so if Claude's reply ends with a question, Abdoh
+        listens for the answer next (no wake word needed).
+        """
         with self._handle_lock:
             self._interrupted.clear()
             log.info("You: %s", text)
@@ -210,9 +215,19 @@ class Daemon:
                     self.say(reply)
             else:
                 reply = self._speak_stream(reply, started)
+                if voice:
+                    self._awaiting_answer = self._asked_question(reply)
             self.earcons.stop_ticking()
             self._status_idle()
             return reply
+
+    def _asked_question(self, reply: str) -> bool:
+        """Did Claude end its reply with a question (and you didn't stop it)?"""
+        return (
+            self.cfg.claude.listen_after_question
+            and not self._interrupted.is_set()
+            and reply.rstrip(" \"'”’)").endswith("?")
+        )
 
     def handle_request(self, kind: str, value=None) -> None:
         """One request from the UI."""
@@ -327,6 +342,7 @@ class Daemon:
                 mic.stop()
 
     def _mic_problem(self, error: Exception) -> None:
+        self._awaiting_answer = False  # too late to answer once the mic is back
         log.warning("%s. Retrying in %.0f s.", error, self.mic_retry_seconds)
         self.bus.emit("status", "Error: microphone not available, retrying")
         self.stop_event.wait(self.mic_retry_seconds)
@@ -338,6 +354,7 @@ class Daemon:
         self.bus.emit("status", "Thinking...")
 
     def _listen_once(self, mic) -> None:
+        answer, self._awaiting_answer = self._awaiting_answer, False
         try:
             text = listen_for_request(
                 mic,
@@ -350,6 +367,7 @@ class Daemon:
                 vad=self.vad,
                 pressed=self._take_listen_now,
                 on_listen=self._on_listen,
+                answer=answer,
             )
         except MicrophoneError:
             raise
@@ -360,16 +378,16 @@ class Daemon:
         finally:
             self._recording = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
-        if text and via_hotkey:
-            self.handle_text(text)  # the hotkey works even while paused
+        if text and (via_hotkey or answer):
+            self.handle_text(text, voice=True)  # the hotkey and answers work even while paused
         elif text and self.paused:
             # While paused, only the built-in "start listening" command is honored.
             if self.router.builtin_name(text) == "start_listening":
-                self.handle_text(text)
+                self.handle_text(text, voice=True)
             else:
                 log.info("Paused; ignoring %r", text)
         elif text:
-            self.handle_text(text)
+            self.handle_text(text, voice=True)
             log.debug("Latency: wake word to reply spoken %.2fs", time.perf_counter() - self._woke)
         self._status_idle()
         mic.clear()  # don't react to our own voice

@@ -23,6 +23,8 @@ VAD_WARMUP_SECONDS = 0.5
 # After the hotkey: how long to wait for you to start talking, and for the chime to finish.
 PUSH_TO_TALK_WAIT_SECONDS = 4.0
 CHIME_SECONDS = 0.15
+# After Claude asks you something: how long to wait for you to start answering.
+ANSWER_WAIT_SECONDS = 5.0
 
 
 def listen_for_request(
@@ -36,6 +38,7 @@ def listen_for_request(
     vad=None,
     pressed: Callable[[], bool] = lambda: False,
     on_listen: Callable[[], None] = lambda: None,
+    answer: bool = False,
 ) -> str | None:
     """Wait for the wake word and return what was said (wake word included), or None if stopped.
 
@@ -44,12 +47,18 @@ def listen_for_request(
     Returns "" if Whisper's transcript doesn't contain the wake word (a false wake-up).
     With a `vad` (SileroVad), the end of speech is found by voice activity, else by loudness.
     If `pressed()` turns true (the hotkey), one request is recorded with no wake word needed.
+    With `answer` (Claude just asked you something), one reply is recorded right away, the same
+    way; "" if you don't start talking within ANSWER_WAIT_SECONDS.
     """
+    if answer:
+        return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen, ANSWER_WAIT_SECONDS)
     trigger = wait_for_trigger(mic.read, engine, should_stop, pressed)
     if trigger is None:
         return None
     if trigger == "hotkey":
-        return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen)
+        return _push_to_talk(
+            mic, engine, transcriber, cfg, vad, on_listen, PUSH_TO_TALK_WAIT_SECONDS
+        )
     on_wake()
     t_wake = time.perf_counter()
     before = mic.recent()
@@ -92,17 +101,19 @@ def listen_for_request(
     return text
 
 
-def _push_to_talk(mic, engine, transcriber, cfg: Config, vad, on_listen) -> str:
+def _push_to_talk(
+    mic, engine, transcriber, cfg: Config, vad, on_listen, wait_seconds: float
+) -> str:
     on_listen()  # the "listening" chime
     time.sleep(CHIME_SECONDS)
-    mic.clear()  # start fresh, without the chime
+    mic.clear()  # start fresh, without the chime (or the end of Abdoh's own reply)
     is_speech = _speech_detector(vad, b"")
     audio = record_until_silence(
         mic.read,
         is_speech,
         cfg.silence_seconds,
         cfg.max_record_seconds,
-        wait_seconds=PUSH_TO_TALK_WAIT_SECONDS,
+        wait_seconds=wait_seconds,
     )
     text = transcriber.transcribe(audio) if audio else ""
     mic.clear()
