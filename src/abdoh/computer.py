@@ -14,10 +14,11 @@ import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from rapidfuzz import fuzz
 
-from abdoh.commands.actions import ActionError
+from abdoh.commands.actions import ActionError, open_app
 from abdoh.commands.matcher import normalize
 
 log = logging.getLogger(__name__)
@@ -257,19 +258,30 @@ class Computer:
         press_key: Callable[[str], None] = press_media_key,
         lock: Callable[[], None] = lock_screen,
         open_url: Callable[[str], object] = webbrowser.open,
+        start_app: Callable[[str], None] = open_app,
     ):
         self.timers = timers or Timers(announce=lambda text: log.info(text))
         self.apps = apps or AppIndex()
         self._press_key = press_key
         self._lock = lock
         self._open_url = open_url
+        self._start_app = start_app
 
     def open_url(self, url: str) -> None:
         if not self._open_url(url):
             raise ActionError("I couldn't open that link.")
 
     def open_app(self, name: str) -> str:
+        """For Claude: only apps from the installed-app list."""
         return self.apps.open(name)
+
+    def launch(self, target: str) -> None:
+        """For your own commands: an installed app by name (Store apps too), or a path or
+        anything else Windows can start."""
+        if not Path(target).expanduser().exists() and self.apps.find(target):
+            self.apps.open(target)
+        else:
+            self._start_app(target)
 
     def media(self, key: str) -> None:
         self._press_key(key.strip().lower())

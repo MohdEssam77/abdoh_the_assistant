@@ -29,6 +29,7 @@ class ClaudeConfig:
     effort: str = "low"
     allow_web: bool = True  # Claude Code may search the web
     timeout_seconds: float = 60
+    followup_seconds: float = 60  # a follow-up within this time gets the last exchange as context
     translate_target: str = "English"
     voice_reply_max_sentences: int = 4
 

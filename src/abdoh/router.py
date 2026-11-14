@@ -5,6 +5,7 @@ answering; the daemon speaks each one as soon as it comes.
 """
 
 import logging
+import re
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
@@ -14,7 +15,14 @@ from abdoh.claude.brain import NOT_CONNECTED, BrainError
 from abdoh.claude.reply import speakable
 from abdoh.claude.screen import ScreenCaptureError, capture_screen
 from abdoh.commands.actions import ActionError, claude_action, run_actions
-from abdoh.commands.matcher import match, match_command, remove_wake_words, strip_wake_words
+from abdoh.commands.learn import append_command
+from abdoh.commands.matcher import (
+    match,
+    match_command,
+    normalize,
+    remove_wake_words,
+    strip_wake_words,
+)
 from abdoh.commands.registry import Command, CommandRegistry
 from abdoh.config import Config
 from abdoh.local_skills import LocalSkills
@@ -23,6 +31,17 @@ log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
 COMMANDS_FILE_ERROR = "Your commands file has an error."
+NOTHING_TO_REMEMBER = (
+    "There's nothing to remember yet. Ask me to do something, then say: remember that."
+)
+FOLLOW_UP = """For context, the previous exchange was:
+User: {request}
+Abdoh: {answer}
+
+The user now says: {text}"""
+_REMEMBER = re.compile(
+    r"(?:please )?(?:remember|save) (?:that|this|it)(?: (?:as|for) (?P<phrase>.+?))?(?: please)?"
+)
 
 Reply = str | Iterator[str]
 
@@ -97,6 +116,11 @@ class Router:
         return _prepend(prefix, reply) if prefix else reply
 
     def _route(self, request: str, original: str) -> Reply:
+        # 0. "Remember that": save what Claude just did as a command
+        remember = _REMEMBER.fullmatch(request)
+        if remember:
+            return self._remember(remember.group("phrase"))
+
         # 1. Built-in commands (show window, pause, ...)
         builtin = match(request, self._builtin_commands, self.cfg.match_threshold)
         if builtin:
@@ -131,9 +155,9 @@ class Router:
         if skills.is_summarize_request(words):
             return self._ask(skills.SUMMARIZE_PROMPT, original, screen=True)
 
-        # 5. Ask Claude
+        # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
-            return self._ask(original, original)
+            return self._ask(self._with_context(original), original)
 
         # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"
@@ -151,9 +175,9 @@ class Router:
         spoken: list[str] = []
 
         def act(kind: str, arg: str) -> None:
-            turn.actions.append((kind, arg))
             try:
                 self._act(kind, arg, self.computer)
+                turn.actions.append((kind, arg))  # only what worked can be remembered
             except ActionError as e:
                 problems.append(str(e))
 
@@ -175,6 +199,36 @@ class Router:
             turn.answer = " ".join(spoken)
             turn.finished_at = time.monotonic()
             self.last_turn = turn
+
+    def _with_context(self, text: str) -> str:
+        turn = self.last_turn
+        window = self.cfg.claude.followup_seconds
+        if turn and turn.answer and window > 0 and time.monotonic() - turn.finished_at <= window:
+            return FOLLOW_UP.format(request=turn.request, answer=turn.answer, text=text)
+        return text
+
+    def _remember(self, phrase: str | None) -> str:
+        turn = self.last_turn
+        if turn is None or not turn.actions:
+            return NOTHING_TO_REMEMBER
+        if self.registry.error:
+            return f"{COMMANDS_FILE_ERROR} Fix it first, then try again."
+        if phrase in ("a command", "command", "a shortcut"):
+            phrase = None
+        trigger = normalize(phrase or turn.request)
+        existing = match_command(trigger, self.registry.commands, 100)
+        if existing:
+            return f"You already have a command for {trigger}."
+        taken = {c.name for c in self.registry.commands}
+        try:
+            name = append_command(self.registry.path, trigger, turn.actions, turn.request, taken)
+        except (ValueError, OSError) as e:
+            log.error("Couldn't save the command: %s", e)
+            return "Sorry, I couldn't save that to your commands file."
+        log.info("Saved command %r for %r: %s", name, trigger, turn.actions)
+        self.registry.refresh(force=True)
+        self.last_turn = None  # remembered; don't save it twice
+        return f"Saved. Next time just say: {trigger}."
 
 
 def _drain(items: list[str]) -> Iterator[str]:
