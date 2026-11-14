@@ -62,3 +62,44 @@ def test_run_when_allowed():
 def test_open_url_failure_raises():
     with pytest.raises(ActionError):
         run_actions(Command("c", ["x"], [("open_url", "u")]), open_url=lambda u: False)
+
+
+def test_run_action_single():
+    r = Recorder()
+    from abdoh.commands.actions import run_action
+
+    assert run_action("say", "hi", open_url=r.url) == "hi"
+    assert run_action("open_url", "https://a.b", open_url=r.url) is None
+    assert r.calls == [("url", "https://a.b")]
+    with pytest.raises(ActionError):
+        run_action("teleport", "mars")
+
+
+def test_claude_can_only_open_web_links():
+    from abdoh.commands.actions import claude_action
+
+    r = Recorder()
+    claude_action("open_url", "https://www.python.org", open_url=r.url)
+    assert r.calls == [("url", "https://www.python.org")]
+    for bad in ("file:///C:/Windows/System32/cmd.exe", "ms-settings:", "javascript:alert(1)"):
+        with pytest.raises(ActionError, match="web links"):
+            claude_action("open_url", bad, open_url=r.url)
+    assert len(r.calls) == 1
+
+
+def test_claude_actions_outside_the_list_are_refused():
+    from abdoh.commands.actions import claude_action
+
+    with pytest.raises(ActionError):
+        claude_action("run", "format c:")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [r"C:\Windows\System32\cmd.exe", "calc.exe", r"..\evil", "a/b", "x & y", "run.bat", ""],
+)
+def test_installed_app_names_cannot_be_paths_or_commands(name):
+    from abdoh.commands.actions import open_installed_app
+
+    with pytest.raises(ActionError):
+        open_installed_app(name)
