@@ -30,8 +30,28 @@ On Linux you may also need PortAudio, Tk and a speech engine:
 python scripts/download_models.py
 ```
 
-This downloads the small offline wake word model (about 40 MB) into `models/`. The Whisper
-speech model downloads itself the first time Abdoh starts (about 150 MB for `base`).
+This downloads into `models/` the two small openWakeWord feature models (about 2 MB) and the
+Vosk wake word model (about 40 MB, the fallback until you train your own wake word, below). The
+Whisper speech model downloads itself the first time Abdoh starts (about 150 MB for `base`).
+
+### Train your "Hey Abdoh" wake word (recommended)
+
+The general-purpose Vosk model doesn't know the word "Abdoh", so out of the box Abdoh listens for
+similar words and sometimes misses you or wakes up by itself. A custom openWakeWord model fixes
+that, and it's lighter. Training is free and takes under an hour, with no setup on your computer:
+
+1. Open the official openWakeWord training notebook in Google Colab:
+   https://colab.research.google.com/drive/1q1oe2zOyZp7UsB3jJiQ1IFn8z5YfjwEb?usp=sharing
+2. Enter your wake phrase. It is spoken by a synthetic voice, so spell it the way it sounds
+   ("hey abdo" or "hey ab doe") and use the notebook's sample playback to check that it sounds
+   like you saying "Hey Abdoh".
+3. Run the notebook and download the `.onnx` model it produces.
+4. Save it as `models/hey_abdoh.onnx` (or point `wake_word_model` in `config.yaml` at it).
+5. Restart Abdoh. The window shows `Wake word: openWakeWord (hey_abdoh)`.
+
+If it misses you, lower `wake_word_threshold` (e.g. 0.4); if it wakes up by itself, raise it
+(e.g. 0.6). Keep "abdoh" in `wake_words`: Abdoh checks the transcript for it, which filters out
+the occasional false wake-up before anything is sent to Claude.
 
 ## 3. Run
 
@@ -162,8 +182,10 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `wake_words` | `["abdoh", "hey abdoh"]` | Words removed from requests before matching |
-| `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | What the wake word engine listens for (see Troubleshooting) |
+| `wake_words` | `["abdoh", "hey abdoh"]` | What you say to wake Abdoh; removed from requests before matching |
+| `wake_word_model` | `models/hey_abdoh.onnx` | Your openWakeWord model; without it, Vosk is used |
+| `wake_word_threshold` | `0.5` | openWakeWord: higher means fewer false wake-ups |
+| `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Vosk only: similar words it listens for (see Troubleshooting) |
 | `whisper_model` | `base` | `base` is faster, `small` is more accurate (English-only `.en` models are used when `language` is `en`) |
 | `language` | `en` | Whisper language hint (`null` = auto-detect) |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
@@ -184,14 +206,16 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 
 ## Troubleshooting
 
-**Abdoh doesn't wake up.** "Abdoh" isn't a word in the offline wake word model, so Abdoh listens
-for similar-sounding words. Run `python -m abdoh calibrate`, say "Abdoh" five times, and add the
-words it prints to `wake_word_aliases` in `config.yaml`. Then `python -m abdoh listen-once`
-should print your request.
+**Abdoh doesn't wake up.** The window's `Wake word:` line shows which engine is used. With your
+openWakeWord model, lower `wake_word_threshold`. With Vosk (no model yet), which doesn't know the
+word "Abdoh": run `python -m abdoh calibrate`, say "Abdoh" five times, and add the words it
+prints to `wake_word_aliases`, or better, train a model (see section 2). Either way,
+`python -m abdoh listen-once` should print your request.
 
 **Abdoh wakes up by itself.** False wake-ups are checked against the Whisper transcript and
 ignored silently (you'll see "Ignoring false wake-up" in the log). If it still reacts too often,
-remove short or common words from `wake_word_aliases`.
+raise `wake_word_threshold` (openWakeWord) or remove short or common words from
+`wake_word_aliases` (Vosk).
 
 **No microphone / mic permission.** Check your OS privacy settings allow microphone access for
 Python (Windows: Settings → Privacy & security → Microphone, "Let desktop apps access your
@@ -223,8 +247,8 @@ plan (`ABDOH_EPIC.md`, v1, is done) and `CLAUDE.md` has the working rules.
 
 ## Known issues
 
-These are being fixed in `ABDOH_EPIC_2.md`:
-
-- **The wake word model doesn't know "Abdoh".** Vosk listens for similar words instead
-  ("abdo", "abdul"), so it misses some wake-ups and wakes up on others (those are ignored after
-  transcription). Epic 2 switches to a custom openWakeWord model.
+- TODO(blocked): **the "Hey Abdoh" wake word model isn't trained yet.** Training happens in Google
+  Colab with your Google account (section 2). Until `models/hey_abdoh.onnx` exists, Abdoh uses
+  the Vosk fallback, which doesn't know the word "Abdoh": it misses some wake-ups and wakes up on
+  similar words (those are ignored after transcription). The hotkey (coming in `ABDOH_EPIC_2.md`)
+  works without any wake word.
