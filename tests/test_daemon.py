@@ -467,6 +467,66 @@ def test_hotkey_request_works_while_paused(monkeypatch):
     assert daemon.speaker.said == ["It is noon."]
 
 
+def question_daemon(replies, texts, cfg=None):
+    """A daemon whose mic hears: a request (with the wake word), a pause, then an answer."""
+    mic = FakeMic(
+        [tone_block()] * 2 + [silent_block()] * 12 + [tone_block()] * 3 + [silent_block()] * 20
+    )
+    return Daemon(
+        cfg or Config(),
+        StubRouter(replies),
+        FakeSpeaker(),
+        lambda: mic,
+        FakeWakeWord(fire_on=2),  # fires once, for the first request only
+        FakeTranscriber(texts),
+        mic_retry_seconds=0.01,
+    )
+
+
+def test_claude_question_is_answered_without_the_wake_word(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    daemon = question_daemon(
+        [["Sure.", "Which city?"], ["It's sunny in Cairo."]],  # streamed, like Claude
+        ["Abdoh, what's the weather?", "Cairo."],
+    )
+    run_until(daemon, lambda: len(daemon.speaker.said) >= 3)
+    assert daemon.router.requests == ["Abdoh, what's the weather?", "Cairo."]
+    assert daemon.speaker.said == ["Sure.", "Which city?", "It's sunny in Cairo."]
+
+
+def test_no_extra_listening_after_a_statement(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    daemon = question_daemon([["It's sunny."], ["should not run"]], ["Abdoh, weather?", "x"])
+    run_until(daemon, lambda: daemon.engine.count > 80)  # long past where an answer would be
+    assert daemon.router.requests == ["Abdoh, weather?"]
+
+
+def test_no_extra_listening_when_turned_off(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    cfg = Config(claude=ClaudeConfig(listen_after_question=False))
+    daemon = question_daemon([["Which city?"], ["should not run"]], ["Abdoh, weather?", "x"], cfg)
+    run_until(daemon, lambda: daemon.engine.count > 80)
+    assert daemon.router.requests == ["Abdoh, weather?"]
+
+
+def test_typed_requests_and_fixed_replies_dont_listen_for_an_answer():
+    daemon = make_daemon(StubRouter([["Which city?"], "Which city?", ["Which city?"]]))
+    daemon.handle_request("text", "what's the weather")  # typed: answer by typing
+    assert daemon._awaiting_answer is False
+    daemon.handle_text("weather", voice=True)  # not Claude (a command's say: text)
+    assert daemon._awaiting_answer is False
+    daemon.handle_text("weather", voice=True)
+    assert daemon._awaiting_answer is True
+
+
+def test_a_stopped_question_isnt_waited_for():
+    speaker = StoppingSpeaker()
+    daemon = Daemon(Config(), StreamingRouter(["Which city?"]), speaker, None, None, None)
+    speaker.daemon = daemon
+    daemon.handle_text("weather", voice=True)
+    assert daemon._awaiting_answer is False
+
+
 def test_hotkey_without_voice_input_says_why():
     bus = Bus()
     daemon = Daemon(Config(), StubRouter([]), FakeSpeaker(), None, None, None, bus,

@@ -161,6 +161,7 @@ claude:
   allow_web: true          # let Claude search the web (Claude Code backend)
   timeout_seconds: 60
   followup_seconds: 60     # a follow-up within this time gets the previous exchange as context
+  listen_after_question: true  # story 22: answer Claude's questions without the wake word
 ```
 
 When `language` is `en`, Whisper uses the English-only model (`base.en`), which is more accurate at

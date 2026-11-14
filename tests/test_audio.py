@@ -156,6 +156,36 @@ def test_hotkey_records_without_a_wake_word(monkeypatch):
     assert stt.calls[0].count(tone_block()) == 4  # only what was said after the key press
 
 
+def test_answer_is_recorded_without_the_wake_word(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    mic = FakeMic([silent_block()] * 30 + [tone_block()] * 4 + [silent_block()] * 20)
+    stt = FakeTranscriber(["Cairo."])
+    engine = FakeWakeWord(fire_on=1)
+    chimes = []
+    text = listen_for_request(
+        mic,
+        engine,
+        stt,
+        FakeSpeaker(),
+        Config(silence_seconds=0.6),
+        on_listen=lambda: chimes.append("listening"),
+        answer=True,
+    )
+    assert text == "Cairo."
+    assert engine.count == 0  # the wake word engine wasn't needed
+    assert chimes == ["listening"]
+    assert stt.calls[0].count(tone_block()) == 4  # 3 s of thinking is fine (up to 5 s)
+
+
+def test_no_answer_means_nothing(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    stt = FakeTranscriber(["should not be used"])
+    text = listen_for_request(
+        FakeMic([]), FakeWakeWord(fire_on=99), stt, FakeSpeaker(), Config(), answer=True
+    )
+    assert text == "" and stt.calls == []
+
+
 def test_hotkey_with_nothing_said(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
     stt = FakeTranscriber(["should not be used"])

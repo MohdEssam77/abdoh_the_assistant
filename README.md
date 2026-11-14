@@ -136,6 +136,11 @@ of your file is left as it is.
 tomorrow?"); Abdoh gives Claude the previous question and answer. Change the window with
 `claude.followup_seconds` (0 turns it off).
 
+**When Claude asks you something** ("Which city?"), just answer: after a question Abdoh plays
+the listening chime and listens for about 5 seconds, no wake word needed. If you say nothing, it
+goes back to waiting for "Hey Abdoh". This only happens after spoken requests, not typed ones;
+`claude.listen_after_question: false` turns it off.
+
 Abdoh plays a soft tick while Claude works and starts speaking as soon as the first sentence of
 the answer arrives. Each request runs Claude Code in a separate empty folder (`~/.abdoh/claude`)
 with only the tools Abdoh allows, and nothing is added to your Claude Code history. Claude can
@@ -323,6 +328,7 @@ Developers can measure this themselves without a microphone:
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.timeout_seconds` | `60` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | A question this soon after an answer can follow up on it (0 = off) |
+| `claude.listen_after_question` | `true` | When Claude asks you something, listen for your answer without the wake word |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |
 | `log_file` | `~/.abdoh/abdoh.log` | Log file |
