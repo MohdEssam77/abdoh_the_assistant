@@ -40,6 +40,7 @@ class Config:
     wake_word_aliases: list[str] = field(default_factory=lambda: ["abdo", "ab doe", "abdul"])
     wake_word_model: str = "models/hey_abdoh.onnx"  # openWakeWord; missing -> Vosk fallback
     wake_word_threshold: float = 0.5
+    hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
     vosk_model: str = "models/vosk-model-small-en-us-0.15"
     whisper_model: str = "base"
     language: str | None = "en"
@@ -127,7 +128,7 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
     root.setLevel(level)
     for h in list(root.handlers):
         root.removeHandler(h)
-    for noisy in ("comtypes", "httpx", "httpcore", "anthropic", "faster_whisper"):
+    for noisy in ("comtypes", "httpx", "httpcore", "anthropic", "faster_whisper", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     log_path = config.resolve(config.log_file)

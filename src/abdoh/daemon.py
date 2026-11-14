@@ -53,6 +53,9 @@ class Daemon:
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.stop_event = threading.Event()
         self._interrupted = threading.Event()  # "stop speaking" for the current request
+        self._listen_now = threading.Event()  # the hotkey was pressed
+        self._via_hotkey = False
+        self._recording = False
         self.paused = False
         self.voice_enabled = True
         self._woke = time.perf_counter()
@@ -151,6 +154,30 @@ class Daemon:
             self.say(text)
             self._status_idle()
 
+    def push_to_talk(self) -> None:
+        """The hotkey: stop a reply that's being spoken, otherwise listen for one request."""
+        if self._handle_lock.locked():
+            self.stop_speaking()
+        elif self._recording:
+            return  # already listening to you
+        elif self.listen_error:
+            self.bus.emit("history", f"Abdoh: Voice input isn't available ({self.listen_error}).")
+        else:
+            self._listen_now.set()
+
+    def _take_listen_now(self) -> bool:
+        if self._listen_now.is_set():
+            self._listen_now.clear()
+            self._via_hotkey = True
+            return True
+        return False
+
+    def _on_listen(self) -> None:
+        self._recording = True
+        self._interrupted.clear()
+        self.bus.emit("status", "Listening to you...")
+        self.earcons.play("listening")
+
     def stop_speaking(self) -> None:
         """Interrupt the current reply (from the window, tray or hotkey)."""
         log.info("Stop speaking")
@@ -212,6 +239,7 @@ class Daemon:
             self.stop_speaking()
         elif kind == "voice":
             self.voice_enabled = bool(value)
+            self.bus.emit("voice", self.voice_enabled)
         elif kind == "set_key":
             self._set_key(value or "")
         elif kind == "quit":
@@ -305,6 +333,7 @@ class Daemon:
 
     def _on_wake(self) -> None:
         self._woke = time.perf_counter()
+        self._recording = True
         self._interrupted.clear()
         self.bus.emit("status", "Thinking...")
 
@@ -319,6 +348,8 @@ class Daemon:
                 should_stop=self.stop_event.is_set,
                 on_wake=self._on_wake,
                 vad=self.vad,
+                pressed=self._take_listen_now,
+                on_listen=self._on_listen,
             )
         except MicrophoneError:
             raise
@@ -326,7 +357,12 @@ class Daemon:
             log.exception("Error while listening")
             self._status_idle()
             return
-        if text and self.paused:
+        finally:
+            self._recording = False
+        via_hotkey, self._via_hotkey = self._via_hotkey, False
+        if text and via_hotkey:
+            self.handle_text(text)  # the hotkey works even while paused
+        elif text and self.paused:
             # While paused, only the built-in "start listening" command is honored.
             if self.router.builtin_name(text) == "start_listening":
                 self.handle_text(text)

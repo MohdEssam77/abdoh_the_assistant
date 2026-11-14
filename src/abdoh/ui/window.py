@@ -10,8 +10,9 @@ POLL_MS = 100
 
 
 class Window:
-    def __init__(self, bus: Bus, start_hidden: bool = False):
+    def __init__(self, bus: Bus, start_hidden: bool = False, tray=None):
         self.bus = bus
+        self.tray = tray  # the tray icon also shows status and voice state
         self.root = tk.Tk()
         self.root.title("Abdoh")
         self.root.geometry("520x420")
@@ -80,9 +81,7 @@ class Window:
         self.bus.request("resume" if self.paused else "pause")
 
     def toggle_voice(self) -> None:
-        self.voice_on = not self.voice_on
-        self.voice_button.config(text=f"Voice replies: {'On' if self.voice_on else 'Off'}")
-        self.bus.request("voice", self.voice_on)
+        self.bus.request("voice", not self.voice_on)  # the daemon confirms with a "voice" event
 
     def set_key(self) -> None:
         key = simpledialog.askstring(
@@ -115,6 +114,8 @@ class Window:
         for kind, value in self.bus.pending_events():
             if kind == "status":
                 self.status.set(f"Status: {value}")
+                if self.tray:
+                    self.tray.show_status(value)
                 if value in ("Listening", "Paused"):
                     self.paused = value == "Paused"
                     self.pause_button.config(
@@ -124,6 +125,11 @@ class Window:
                 self.claude.set(f"Claude: {value}")
             elif kind == "wake":
                 self.wake.set(f"Wake word: {value}")
+            elif kind == "voice":
+                self.voice_on = bool(value)
+                self.voice_button.config(text=f"Voice replies: {'On' if value else 'Off'}")
+                if self.tray:
+                    self.tray.show_voice(self.voice_on)
             elif kind == "history":
                 self.append_history(value)
             elif kind == "show":
