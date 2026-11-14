@@ -18,7 +18,7 @@ DEFAULT_APP_DIR = Path(os.environ.get("ABDOH_HOME", Path(__file__).resolve().par
 
 @dataclass
 class ClaudeConfig:
-    model: str = "claude-sonnet-4-5"
+    model: str = "claude-opus-5-5"
     max_tokens: int = 400
     translate_target: str = "English"
     voice_reply_max_sentences: int = 4
