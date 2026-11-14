@@ -7,7 +7,7 @@ from abdoh.claude.screen import ScreenCaptureError
 from abdoh.commands.actions import ActionError
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import Config
-from abdoh.router import COMMANDS_FILE_ERROR, UNKNOWN, Router
+from abdoh.router import COMMANDS_FILE_ERROR, NOTHING_TO_REMEMBER, UNKNOWN, Router
 
 COMMANDS = """
 - name: good_morning
@@ -298,3 +298,92 @@ def test_your_commands_win_over_local_skills(setup):
     router.computer = FakeLocalComputer()
     assert router.handle("good morning") == "Good morning!"
     assert router.computer.pressed == []
+
+
+@pytest.fixture
+def learning(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text(COMMANDS, encoding="utf-8")
+    run = FakeRun()
+    brain = FakeBrain(["ACTION open_url: https://www.python.org\n", "Opening it."])
+    router = Router(
+        Config(app_dir=tmp_path), CommandRegistry(path), brain=brain, run=run, act=FakeAct()
+    )
+    return router, run, path
+
+
+def test_remember_that_saves_what_claude_did(learning):
+    router, run, path = learning
+    text_of(router.handle("Abdoh, open the Python website"))
+    reply = router.handle("Abdoh, remember that")
+    assert reply == "Saved. Next time just say: open the python website."
+    assert "learned_open_the_python_website" in path.read_text(encoding="utf-8")
+    # Now it's an instant command: no Claude
+    router.brain.asked.clear()
+    assert router.handle("open the Python website") == ""
+    assert run.ran == ["learned_open_the_python_website"]
+    assert router.brain.asked == []
+
+
+def test_remember_that_as_a_phrase(learning):
+    router, run, _ = learning
+    text_of(router.handle("open the Python website"))
+    assert router.handle("remember that as python time") == (
+        "Saved. Next time just say: python time."
+    )
+    router.handle("python time")
+    assert run.ran == ["learned_python_time"]
+
+
+def test_remember_needs_something_claude_did(learning):
+    router, _, _ = learning
+    assert router.handle("remember that") == NOTHING_TO_REMEMBER
+    router.brain = FakeBrain(["Tokyo is the capital."])  # an answer, but no action
+    text_of(router.handle("capital of japan"))
+    assert router.handle("remember that") == NOTHING_TO_REMEMBER
+
+
+def test_failed_actions_are_not_remembered(learning):
+    router, _, _ = learning
+    router._act = FakeAct(fail="I couldn't open that link.")
+    text_of(router.handle("open the Python website"))
+    assert router.handle("remember that") == NOTHING_TO_REMEMBER
+
+
+def test_remember_twice_does_not_duplicate(learning):
+    router, _, path = learning
+    text_of(router.handle("open the Python website"))
+    router.handle("remember that")
+    assert router.handle("save that") == NOTHING_TO_REMEMBER
+    assert path.read_text(encoding="utf-8").count("- name: learned_") == 1
+
+
+def test_remember_refuses_when_the_file_has_an_error(learning):
+    router, _, path = learning
+    text_of(router.handle("open the Python website"))
+    path.write_text("- name: [broken", encoding="utf-8")
+    st = path.stat()
+    os.utime(path, (st.st_atime, st.st_mtime + 5))
+    router.registry.refresh()
+    assert "Fix it first" in router.handle("remember that")
+    assert path.read_text(encoding="utf-8") == "- name: [broken"
+
+
+def test_follow_up_gets_the_previous_exchange(learning):
+    router, _, _ = learning
+    router.brain = FakeBrain(["It's sunny in Cairo."])
+    text_of(router.handle("what's the weather in Cairo?"))
+    text_of(router.handle("and what about tomorrow?"))
+    prompt = router.brain.asked[1][0]
+    assert "User: what's the weather in Cairo?" in prompt
+    assert "Abdoh: It's sunny in Cairo." in prompt
+    assert prompt.endswith("The user now says: and what about tomorrow?")
+
+
+def test_follow_up_context_expires(learning, monkeypatch):
+    router, _, _ = learning
+    router.brain = FakeBrain(["It's sunny in Cairo."])
+    text_of(router.handle("what's the weather in Cairo?"))
+    router.last_turn.finished_at -= router.cfg.claude.followup_seconds + 1
+    text_of(router.handle("tell me a joke"))
+    assert router.brain.asked[1][0] == "tell me a joke"

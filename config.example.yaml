@@ -24,6 +24,7 @@ claude:
   effort: "low"                  # low = quickest answers
   allow_web: true                # let Claude search the web (Claude Code)
   timeout_seconds: 60
+  followup_seconds: 60           # a question within this time can follow up on the last answer
   translate_target: "English"
   voice_reply_max_sentences: 4
 log_file: "~/.abdoh/abdoh.log"
