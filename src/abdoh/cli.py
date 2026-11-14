@@ -187,6 +187,26 @@ def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_install(cfg: Config, args: argparse.Namespace) -> int:
+    from abdoh.shortcut import install
+
+    try:
+        for line in install(login=args.login):
+            print(line)
+    except Exception as e:
+        print(f"Could not install: {e}")
+        return 1
+    return 0
+
+
+def cmd_uninstall(cfg: Config, args: argparse.Namespace) -> int:
+    from abdoh.shortcut import uninstall
+
+    for line in uninstall():
+        print(line)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="abdoh", description="Abdoh, your voice assistant.")
     parser.add_argument("--version", action="version", version=f"abdoh {__version__}")
@@ -221,12 +241,21 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("claude-check", help="check the Claude connection with a tiny request")
     p.set_defaults(func=cmd_claude_check)
 
+    p = sub.add_parser("install", help="add Abdoh to the Start Menu (Windows)")
+    p.add_argument("--login", action="store_true", help="also start Abdoh at login")
+    p.set_defaults(func=cmd_install)
+
+    p = sub.add_parser("uninstall", help="remove the Start Menu shortcut and start at login")
+    p.set_defaults(func=cmd_uninstall)
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command is None and getattr(sys, "frozen", False):
+        args = parser.parse_args(["run", "--show"])  # double-clicking Abdoh.exe
     if args.command is None:
         parser.print_help()
         return 0
