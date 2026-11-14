@@ -4,6 +4,7 @@ import logging
 import logging.handlers
 import os
 import shutil
+import sys
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
@@ -12,8 +13,21 @@ from dotenv import dotenv_values
 
 log = logging.getLogger(__name__)
 
-# The folder holding config.yaml, commands.yaml and .env (the project root by default).
-DEFAULT_APP_DIR = Path(os.environ.get("ABDOH_HOME", Path(__file__).resolve().parents[2]))
+# Files that ship with Abdoh (example files, bundled models): the project folder, or the
+# inside of the built Abdoh.exe.
+BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
+
+
+def _default_app_dir() -> Path:
+    """The folder holding config.yaml, commands.yaml, .env and models/."""
+    if os.environ.get("ABDOH_HOME"):
+        return Path(os.environ["ABDOH_HOME"])
+    if getattr(sys, "frozen", False):  # the built Abdoh.exe keeps your files in your profile
+        return Path(os.environ.get("APPDATA", Path.home())) / "Abdoh"
+    return Path(__file__).resolve().parents[2]  # the project folder
+
+
+DEFAULT_APP_DIR = _default_app_dir()
 
 
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
@@ -68,15 +82,23 @@ class Config:
         return self.app_dir / ".env"
 
     def resolve(self, path: str) -> Path:
-        """Resolve a path from config relative to the app dir (and expand ~)."""
+        """Resolve a path from config relative to the app dir (and expand ~). If it isn't
+        there, a copy that ships with Abdoh (e.g. models bundled in Abdoh.exe) is used."""
         p = Path(path).expanduser()
-        return p if p.is_absolute() else self.app_dir / p
+        if p.is_absolute():
+            return p
+        own, bundled = self.app_dir / p, BUNDLE_DIR / p
+        return bundled if not own.exists() and bundled.exists() else own
 
 
-def _ensure_copy(target: Path, example: Path) -> None:
+def _ensure_copy(target: Path, example_name: str) -> None:
+    example = target.parent / example_name
+    if not example.exists():
+        example = BUNDLE_DIR / example_name
     if not target.exists() and example.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(example, target)
-        log.info("Created %s from %s", target.name, example.name)
+        log.info("Created %s from %s", target, example)
 
 
 def read_api_key(app_dir: Path) -> str | None:
@@ -98,8 +120,8 @@ def save_api_key(env_path: Path, key: str) -> None:
 def load_config(app_dir: Path | None = None) -> Config:
     """Load config.yaml from app_dir; create it and commands.yaml from the examples if missing."""
     app_dir = Path(app_dir or DEFAULT_APP_DIR)
-    _ensure_copy(app_dir / "config.yaml", app_dir / "config.example.yaml")
-    _ensure_copy(app_dir / "commands.yaml", app_dir / "commands.example.yaml")
+    _ensure_copy(app_dir / "config.yaml", "config.example.yaml")
+    _ensure_copy(app_dir / "commands.yaml", "commands.example.yaml")
 
     raw: dict = {}
     config_path = app_dir / "config.yaml"

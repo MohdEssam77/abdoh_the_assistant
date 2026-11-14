@@ -22,8 +22,16 @@ def python_for_background() -> str:
     return str(exe)
 
 
+def launch_command(show: bool = False) -> list[str]:
+    """How to start Abdoh: the built Abdoh.exe, or pythonw -m abdoh. Window hidden unless show."""
+    args = ["run", "--show"] if show else ["run", "--minimized"]
+    if getattr(sys, "frozen", False):
+        return [sys.executable, *args]
+    return [python_for_background(), "-m", "abdoh", *args]
+
+
 def windows_command() -> str:
-    return subprocess.list2cmdline([python_for_background(), *RUN_ARGS])
+    return subprocess.list2cmdline(launch_command())
 
 
 def plist_path() -> Path:

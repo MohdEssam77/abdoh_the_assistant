@@ -26,6 +26,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.5"]
+build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 abdoh = "abdoh.cli:main"

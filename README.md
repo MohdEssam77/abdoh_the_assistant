@@ -210,21 +210,49 @@ python -m abdoh list-commands
 python -m abdoh test-command "good morning abdoh"
 ```
 
-## 6. Start at login
+## 6. Install it like an app
 
 ```
-python scripts/install_autostart.py     # run with the Python where abdoh is installed
+python -m abdoh install            # adds "Abdoh" to the Start Menu, with its own icon
+python -m abdoh install --login    # ...and starts it at login, in the tray
+python -m abdoh uninstall          # removes both
+```
+
+Run these with the Python where Abdoh is installed (the `.venv`). The shortcut starts Abdoh
+with `pythonw` (no console window) and opens its window; if Abdoh is already running, it just
+shows the window.
+
+You can also turn start at login on and off with **Start at login** in the tray menu, or with
+the scripts (they do the same):
+
+```
+python scripts/install_autostart.py
 python scripts/uninstall_autostart.py
 ```
 
-Abdoh then starts at login in the tray. Only one copy ever runs. You can also turn this on
-and off with **Start at login** in the tray menu.
+Only one copy of Abdoh ever runs.
 
 - **Windows:** a Task Scheduler task "Abdoh" running `pythonw -m abdoh run --minimized` (no console
   window). Creating logon tasks needs admin rights on many PCs; without them the script adds Abdoh
   to your user's startup programs instead (`HKCU\...\Run`), which works the same way.
 - **macOS:** `~/Library/LaunchAgents/com.abdoh.agent.plist` (restarted if it crashes, not after Quit).
 - **Linux:** `~/.config/systemd/user/abdoh.service`, enabled with `systemctl --user enable --now abdoh`.
+
+### A standalone Abdoh.exe (Windows)
+
+To get an app folder that runs without Python (for example to copy to another PC):
+
+```
+pip install -e .[build]
+python scripts/build_app.py        # about 3 minutes; creates dist/Abdoh/Abdoh.exe
+```
+
+The folder (about 400 MB) contains Abdoh and the models in your `models/` folder (the
+openWakeWord files, your `hey_abdoh.onnx`, and the Vosk fallback). Double-click `Abdoh.exe` to
+start it. It keeps your `config.yaml`, `commands.yaml` and `.env` in `%APPDATA%\Abdoh` (created on
+first start), and a model you put in `%APPDATA%\Abdoh\models` is used instead of the bundled one.
+The Whisper model downloads on the first start, as usual. `Abdoh.exe install` adds the built app
+to the Start Menu.
 
 ## Configuration
 
