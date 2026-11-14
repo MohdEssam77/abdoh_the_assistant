@@ -83,7 +83,25 @@ WantedBy=default.target
 
 
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True)
+    # No console window flashing when this runs from the tray (pythonw).
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    return subprocess.run(cmd, capture_output=True, text=True, creationflags=flags)
+
+
+def is_installed() -> bool:
+    """Whether Abdoh is set to start at login."""
+    if sys.platform == "win32":
+        if _run(["schtasks", "/Query", "/TN", TASK_NAME]).returncode == 0:
+            return True
+        import winreg
+
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as key:
+                winreg.QueryValueEx(key, TASK_NAME)
+            return True
+        except FileNotFoundError:
+            return False
+    return (plist_path() if sys.platform == "darwin" else unit_path()).exists()
 
 
 def install() -> str:
