@@ -32,10 +32,11 @@ class FakeRun:
         self.ran = []
         self.fail = fail
 
-    def __call__(self, command, allow_run):
+    def __call__(self, command, allow_run, computer=None, slots=None):
         if self.fail:
             raise ActionError("I couldn't open that link.")
         self.ran.append(command.name)
+        self.slots = slots
         return [text for kind, text in command.actions if kind == "say"]
 
 
@@ -61,7 +62,7 @@ class FakeAct:
         self.done = []
         self.fail = fail
 
-    def __call__(self, kind, arg):
+    def __call__(self, kind, arg, computer=None):
         if self.fail:
             raise ActionError(self.fail)
         self.done.append((kind, arg))
@@ -246,3 +247,54 @@ def test_commands_file_error_before_a_claude_answer(setup):
     st = path.stat()
     os.utime(path, (st.st_atime, st.st_mtime + 5))
     assert list(router.handle("capital of japan")) == [COMMANDS_FILE_ERROR, "Tokyo."]
+
+
+def test_command_with_slots(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text(
+        '- name: yt\n  triggers: ["search youtube for {query}"]\n'
+        '  actions:\n    - open_url: "https://youtube.com/results?search_query={query}"\n',
+        encoding="utf-8",
+    )
+    run = FakeRun()
+    router = Router(Config(app_dir=tmp_path), CommandRegistry(path), run=run)
+    assert router.handle("Abdoh, search YouTube for lo-fi beats") == ""
+    assert run.ran == ["yt"] and run.slots == {"query": "lo fi beats"}
+
+
+class FakeLocalComputer:
+    class Apps:
+        @staticmethod
+        def find(name):
+            return None
+
+    def __init__(self):
+        self.pressed = []
+        self.apps = self.Apps()
+
+    def media(self, key):
+        self.pressed.append(key)
+
+
+def test_local_skills_before_claude(setup):
+    router, _, _ = setup
+    router.brain = FakeBrain()
+    router.computer = FakeLocalComputer()
+    assert router.handle("Abdoh, next song") == ""
+    assert router.computer.pressed == ["next"]
+    assert router.brain.asked == []
+
+
+def test_local_skill_that_cant_help_falls_through_to_claude(setup):
+    router, _, _ = setup
+    router.brain = FakeBrain(["Opening YouTube."])
+    router.computer = FakeLocalComputer()
+    assert text_of(router.handle("open youtube")) == "Opening YouTube."
+    assert router.brain.asked == [("open youtube", None)]
+
+
+def test_your_commands_win_over_local_skills(setup):
+    router, _, _ = setup
+    router.computer = FakeLocalComputer()
+    assert router.handle("good morning") == "Good morning!"
+    assert router.computer.pressed == []
