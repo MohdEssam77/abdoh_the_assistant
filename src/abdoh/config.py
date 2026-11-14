@@ -16,10 +16,19 @@ log = logging.getLogger(__name__)
 DEFAULT_APP_DIR = Path(os.environ.get("ABDOH_HOME", Path(__file__).resolve().parents[2]))
 
 
+CLAUDE_BACKENDS = ("auto", "code", "api", "off")
+
+
 @dataclass
 class ClaudeConfig:
-    model: str = "claude-opus-5-5"
-    max_tokens: int = 400
+    backend: str = "auto"  # auto: Claude Code if installed (subscription), else the API key
+    code_path: str = ""  # claude.exe; empty = find it
+    code_model: str = ""  # empty = your Claude Code default
+    model: str = "claude-opus-5-5"  # API key only
+    max_tokens: int = 4000  # API key only
+    effort: str = "low"
+    allow_web: bool = True  # Claude Code may search the web
+    timeout_seconds: float = 60
     translate_target: str = "English"
     voice_reply_max_sentences: int = 4
 
@@ -43,7 +52,7 @@ class Config:
     anthropic_api_key: str | None = None
 
     @property
-    def claude_enabled(self) -> bool:
+    def has_api_key(self) -> bool:
         return bool(self.anthropic_api_key)
 
     @property
@@ -101,6 +110,9 @@ def load_config(app_dir: Path | None = None) -> Config:
     claude_raw = raw.get("claude") or {}
     claude_known = {f.name for f in fields(ClaudeConfig)}
     claude = ClaudeConfig(**{k: v for k, v in claude_raw.items() if k in claude_known})
+    if claude.backend not in CLAUDE_BACKENDS:
+        log.warning("Unknown claude.backend %r; using 'auto'", claude.backend)
+        claude.backend = "auto"
 
     return Config(**kwargs, claude=claude, app_dir=app_dir, anthropic_api_key=read_api_key(app_dir))
 

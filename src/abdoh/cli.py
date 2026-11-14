@@ -46,7 +46,7 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
-    from abdoh.claude.client import make_claude
+    from abdoh.claude.brain import make_brain
     from abdoh.commands.registry import CommandRegistry
     from abdoh.router import Router
 
@@ -54,10 +54,14 @@ def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
     if registry.error:
         print(f"Your commands file has an error: {registry.error}")
     router = Router(
-        cfg, registry, claude=make_claude(cfg), on_thinking=lambda: print("Abdoh: (thinking...)")
+        cfg, registry, brain=make_brain(cfg), on_thinking=lambda: print("Abdoh: (thinking...)")
     )
     reply = router.handle(args.text)
-    print(f"Abdoh: {reply or '(done)'}")
+    if isinstance(reply, str):
+        print(f"Abdoh: {reply or '(done)'}")
+    else:
+        for sentence in reply:  # Claude's answer, as it arrives
+            print(f"Abdoh: {sentence}", flush=True)
     return 0
 
 
@@ -127,18 +131,19 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
-    from abdoh.claude.client import NOT_CONNECTED, ClaudeError, make_claude
+    from abdoh.claude.brain import NOT_CONNECTED, BrainError, make_brain
 
-    claude = make_claude(cfg)
-    if claude is None:
+    brain = make_brain(cfg)
+    if brain is None:
         print(NOT_CONNECTED)
         return 1
+    print(f"Claude: {brain.status()}")
     try:
-        reply = claude.ask("Reply with just the word OK.", max_tokens=10)
-    except ClaudeError as e:
+        reply = "".join(brain.stream("Reply with just the word OK.")).strip()
+    except BrainError as e:
         print(e)
         return 1
-    print(f"Claude is connected (model {cfg.claude.model}). Reply: {reply}")
+    print(f"Claude is connected. Reply: {reply}")
     return 0
 
 
@@ -172,7 +177,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("list-commands", help="list the commands in commands.yaml")
     p.set_defaults(func=cmd_list_commands)
 
-    p = sub.add_parser("claude-check", help="verify the Anthropic API key with a tiny request")
+    p = sub.add_parser("claude-check", help="check the Claude connection with a tiny request")
     p.set_defaults(func=cmd_claude_check)
 
     return parser

@@ -119,7 +119,7 @@ class Window:
                         text="Resume listening" if self.paused else "Pause listening"
                     )
             elif kind == "claude":
-                self.claude.set(f"Claude: {'connected' if value else 'not connected'}")
+                self.claude.set(f"Claude: {value}")
             elif kind == "history":
                 self.append_history(value)
             elif kind == "show":
