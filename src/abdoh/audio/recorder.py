@@ -1,4 +1,4 @@
-"""Record until silence, using simple energy (RMS) detection."""
+"""Record until silence. Speech is detected by the VAD, or by loudness (RMS) as a fallback."""
 
 from collections.abc import Callable
 
@@ -25,9 +25,14 @@ def estimate_threshold(audio: bytes, block_bytes: int = 3200) -> float:
     return min(MAX_THRESHOLD, max(MIN_THRESHOLD, noise_floor * 3))
 
 
+def energy_detector(threshold: float) -> Callable[[bytes], bool]:
+    """Fallback speech detector: a block is speech if it's louder than threshold."""
+    return lambda block: rms(block) >= threshold
+
+
 def record_until_silence(
     read: Callable[[], bytes],
-    threshold: float,
+    is_speech: Callable[[bytes], bool],
     silence_seconds: float = 1.0,
     max_seconds: float = 10.0,
     wait_seconds: float | None = None,
@@ -49,7 +54,7 @@ def record_until_silence(
         block = read()
         chunks.append(block)
         total += len(block)
-        if rms(block) >= threshold:
+        if is_speech(block):
             heard_speech = True
             quiet = 0
         else:

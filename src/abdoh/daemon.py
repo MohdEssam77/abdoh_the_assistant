@@ -36,6 +36,7 @@ class Daemon:
         mic_retry_seconds: float = MIC_RETRY_SECONDS,
         listen_error: str | None = None,
         earcons: Earcons | None = None,
+        vad=None,
     ):
         self.cfg = cfg
         self.router = router
@@ -47,6 +48,7 @@ class Daemon:
         self.mic_retry_seconds = mic_retry_seconds
         self.listen_error = listen_error  # set when voice input couldn't be set up
         self.earcons = earcons or Earcons.silent()
+        self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.stop_event = threading.Event()
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self.paused = False
@@ -257,6 +259,7 @@ class Daemon:
                 self.cfg,
                 should_stop=self.stop_event.is_set,
                 on_wake=self._on_wake,
+                vad=self.vad,
             )
         except MicrophoneError:
             raise
@@ -288,6 +291,7 @@ class Daemon:
         """
         from abdoh.audio.mic import Microphone
         from abdoh.audio.stt import Transcriber
+        from abdoh.audio.vad import load_vad
         from abdoh.audio.wakeword import VoskWakeWord
         from abdoh.claude.client import make_claude
         from abdoh.commands.registry import CommandRegistry
@@ -317,4 +321,5 @@ class Daemon:
             bus,
             listen_error=listen_error,
             earcons=Earcons(),
+            vad=load_vad(),
         )

@@ -32,7 +32,7 @@ class Config:
     whisper_model: str = "base"
     language: str | None = "en"
     match_threshold: int = 85
-    silence_seconds: float = 1.0
+    silence_seconds: float = 0.6
     max_record_seconds: float = 10
     tts_rate: int = 175
     allow_run: bool = False
