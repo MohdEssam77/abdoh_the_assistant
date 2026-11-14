@@ -93,21 +93,15 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         shown = ask_running_instance_to_show()
         print("Abdoh is already running." + (" Showing its window." if shown else ""))
         return 0
-    window = None
+    window = tray = None
     if not args.headless:
-        from abdoh.ui.window import Window
-
-        try:
-            bus = Bus()
-            window = Window(bus, start_hidden=args.minimized)
-        except Exception as e:  # e.g. no display available
-            logging.getLogger(__name__).warning("No window (%s); running headless.", e)
-    if window is None:
-        bus = Bus(ui_attached=False)
+        window, tray = _make_ui(args)
+    bus = window.bus if window else Bus(ui_attached=False)
     lock.serve(on_show=lambda: bus.emit("show"))
     try:
         if window is None:
             daemon = Daemon.create(cfg, bus)
+            _start_hotkey(cfg, daemon)
             threading.Thread(target=daemon.serve_requests, daemon=True).start()
             print('Abdoh is listening. Say "Hey Abdoh" and a request. Press Ctrl+C to quit.')
             try:
@@ -121,19 +115,59 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         def background() -> None:
             daemon = Daemon.create(cfg, bus)
             started.append(daemon)
+            _start_hotkey(cfg, daemon)
             threading.Thread(target=daemon.serve_requests, daemon=True).start()
             daemon.run()
 
         threading.Thread(target=background, name="abdoh-daemon", daemon=True).start()
+        if tray:
+            tray.start()
+            if sys.stderr is not None and not args.show:
+                print("Abdoh is running in the system tray. Click its icon to open the window.")
         try:
             window.mainloop()
         except KeyboardInterrupt:
             pass
         for daemon in started:
             daemon.stop()
+        if tray:
+            tray.stop()
         return 0
     finally:
         lock.release()
+
+
+def _make_ui(args: argparse.Namespace):
+    """The window and the tray icon. With a tray icon the window starts hidden unless --show."""
+    from abdoh.events import Bus
+    from abdoh.ui.window import Window
+
+    log = logging.getLogger(__name__)
+    bus = Bus()
+    tray = None
+    try:
+        from abdoh.ui.tray import Tray
+
+        tray = Tray(bus)
+    except Exception as e:
+        log.warning("No tray icon (%s); showing the window instead.", e)
+    try:
+        hidden = args.minimized or (tray is not None and not args.show)
+        return Window(bus, start_hidden=hidden, tray=tray), tray
+    except Exception as e:  # e.g. no display available
+        log.warning("No window (%s); running headless.", e)
+        return None, None
+
+
+def _start_hotkey(cfg: Config, daemon) -> None:
+    if not cfg.hotkey:
+        return
+    from abdoh.hotkey import Hotkey
+
+    try:
+        Hotkey(cfg.hotkey, daemon.push_to_talk).start()
+    except ValueError as e:
+        logging.getLogger(__name__).warning("Hotkey %r not used: %s", cfg.hotkey, e)
 
 
 def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
@@ -159,10 +193,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
-    p = sub.add_parser("run", help="start Abdoh (opens its window)")
+    p = sub.add_parser("run", help="start Abdoh (in the system tray)")
     mode = p.add_mutually_exclusive_group()
+    mode.add_argument("--show", action="store_true", help="open the window right away")
     mode.add_argument("--minimized", action="store_true", help="start with the window hidden")
-    mode.add_argument("--headless", action="store_true", help="no window at all")
+    mode.add_argument("--headless", action="store_true", help="no window or tray icon at all")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("say", help="speak some text")

@@ -134,3 +134,38 @@ def test_vad_resets_before_the_follow_up():
     vad = FakeVad()
     listen_for_request(mic, FakeWakeWord(fire_on=2), stt, FakeSpeaker(), Config(), vad=vad)
     assert vad.resets == 2
+
+
+def test_hotkey_records_without_a_wake_word(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    mic = FakeMic([silent_block()] * 3 + [tone_block()] * 4 + [silent_block()] * 20)
+    stt = FakeTranscriber(["what time is it"])
+    chimes = []
+    presses = iter([True])
+    text = listen_for_request(
+        mic,
+        FakeWakeWord(fire_on=99),
+        stt,
+        FakeSpeaker(),
+        Config(silence_seconds=0.6),
+        pressed=lambda: next(presses, False),
+        on_listen=lambda: chimes.append("listening"),
+    )
+    assert text == "what time is it"  # no wake word needed, and no "Yes?"
+    assert chimes == ["listening"]
+    assert stt.calls[0].count(tone_block()) == 4  # only what was said after the key press
+
+
+def test_hotkey_with_nothing_said(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    stt = FakeTranscriber(["should not be used"])
+    presses = iter([True])
+    text = listen_for_request(
+        FakeMic([]),
+        FakeWakeWord(fire_on=99),
+        stt,
+        FakeSpeaker(),
+        Config(),
+        pressed=lambda: next(presses, False),
+    )
+    assert text == "" and stt.calls == []

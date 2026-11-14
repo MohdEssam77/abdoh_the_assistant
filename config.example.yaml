@@ -4,6 +4,7 @@ wake_words: ["abdoh", "hey abdoh"]
 # Your openWakeWord model (see README: train the wake word). Without it, Vosk is used.
 wake_word_model: "models/hey_abdoh.onnx"
 wake_word_threshold: 0.5         # higher = fewer false wake-ups, lower = wakes more easily
+hotkey: "ctrl+alt+space"         # press to talk without the wake word, or to stop a reply; "" = off
 # Vosk only: words it might hear instead of "Abdoh". `python -m abdoh calibrate` finds yours.
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
 vosk_model: "models/vosk-model-small-en-us-0.15"

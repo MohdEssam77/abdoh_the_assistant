@@ -8,7 +8,7 @@ from pathlib import Path
 
 from abdoh.audio.mic import BYTES_PER_SECOND, SAMPLE_RATE
 from abdoh.audio.recorder import energy_detector, estimate_threshold, record_until_silence
-from abdoh.audio.wakeword import WakeWordEngine, load_vosk_model, wait_for_wake_word
+from abdoh.audio.wakeword import WakeWordEngine, load_vosk_model, wait_for_trigger
 from abdoh.commands.matcher import has_wake_word, strip_wake_words
 from abdoh.config import Config
 from abdoh.speech.tts import Speaker
@@ -20,6 +20,9 @@ FOLLOW_UP_WAIT_SECONDS = 5.0
 START_WAIT_SECONDS = 0.8
 # Audio from before the wake word fed to the VAD, so it knows if you were mid-sentence.
 VAD_WARMUP_SECONDS = 0.5
+# After the hotkey: how long to wait for you to start talking, and for the chime to finish.
+PUSH_TO_TALK_WAIT_SECONDS = 4.0
+CHIME_SECONDS = 0.15
 
 
 def listen_for_request(
@@ -31,6 +34,8 @@ def listen_for_request(
     should_stop: Callable[[], bool] = lambda: False,
     on_wake: Callable[[], None] = lambda: None,
     vad=None,
+    pressed: Callable[[], bool] = lambda: False,
+    on_listen: Callable[[], None] = lambda: None,
 ) -> str | None:
     """Wait for the wake word and return what was said (wake word included), or None if stopped.
 
@@ -38,9 +43,13 @@ def listen_for_request(
     If only the wake word was said, Abdoh asks "Yes?" and records one more utterance.
     Returns "" if Whisper's transcript doesn't contain the wake word (a false wake-up).
     With a `vad` (SileroVad), the end of speech is found by voice activity, else by loudness.
+    If `pressed()` turns true (the hotkey), one request is recorded with no wake word needed.
     """
-    if not wait_for_wake_word(mic.read, engine, should_stop):
+    trigger = wait_for_trigger(mic.read, engine, should_stop, pressed)
+    if trigger is None:
         return None
+    if trigger == "hotkey":
+        return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen)
     on_wake()
     t_wake = time.perf_counter()
     before = mic.recent()
@@ -78,6 +87,24 @@ def listen_for_request(
         )
         text = transcriber.transcribe(audio)
 
+    mic.clear()
+    engine.reset()
+    return text
+
+
+def _push_to_talk(mic, engine, transcriber, cfg: Config, vad, on_listen) -> str:
+    on_listen()  # the "listening" chime
+    time.sleep(CHIME_SECONDS)
+    mic.clear()  # start fresh, without the chime
+    is_speech = _speech_detector(vad, b"")
+    audio = record_until_silence(
+        mic.read,
+        is_speech,
+        cfg.silence_seconds,
+        cfg.max_record_seconds,
+        wait_seconds=PUSH_TO_TALK_WAIT_SECONDS,
+    )
+    text = transcriber.transcribe(audio) if audio else ""
     mic.clear()
     engine.reset()
     return text

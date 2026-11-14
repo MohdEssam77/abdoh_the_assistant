@@ -426,3 +426,57 @@ def test_timer_announcement_plays_the_alarm_then_speaks(monkeypatch):
     daemon.handle_request("voice", True)
     daemon.announce("Your 1 minute timer is done.")
     assert daemon.speaker.said == ["Your 1 minute timer is done."]
+
+
+def test_hotkey_while_idle_listens_once():
+    daemon = make_daemon(StubRouter([]))
+    daemon.push_to_talk()
+    assert daemon._take_listen_now() is True
+    assert daemon._take_listen_now() is False  # one press, one request
+
+
+def test_hotkey_while_replying_stops_speaking():
+    speaker = BlockingSpeaker()
+    daemon = Daemon(Config(), StubRouter(["a long answer"]), speaker, None, None, None)
+    t = threading.Thread(target=daemon.handle_text, args=("story",), daemon=True)
+    t.start()
+    assert speaker.speaking.wait(2)
+    daemon.push_to_talk()
+    t.join(2)
+    assert speaker.stops == 1
+    assert daemon._take_listen_now() is False
+
+
+def test_hotkey_request_works_while_paused(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    router = StubRouter(["It is noon."])
+    mic = FakeMic([tone_block()] * 3 + [silent_block()] * 20)
+    daemon = Daemon(
+        Config(),
+        router,
+        FakeSpeaker(),
+        lambda: mic,
+        FakeWakeWord(fire_on=999),
+        FakeTranscriber(["what time is it"]),
+        mic_retry_seconds=0.01,
+    )
+    daemon.set_paused(True)
+    daemon.push_to_talk()
+    run_until(daemon, lambda: daemon.speaker.said)
+    assert router.requests == ["what time is it"]
+    assert daemon.speaker.said == ["It is noon."]
+
+
+def test_hotkey_without_voice_input_says_why():
+    bus = Bus()
+    daemon = Daemon(Config(), StubRouter([]), FakeSpeaker(), None, None, None, bus,
+                    listen_error="no model")  # fmt: skip
+    daemon.push_to_talk()
+    assert ("history", "Abdoh: Voice input isn't available (no model).") in bus.pending_events()
+
+
+def test_voice_toggle_is_announced_to_the_ui():
+    bus = Bus()
+    daemon = make_daemon(StubRouter([]), bus=bus)
+    daemon.handle_request("voice", False)
+    assert ("voice", False) in bus.pending_events()

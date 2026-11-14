@@ -102,13 +102,26 @@ def load_wake_engine(cfg, oww=None, vosk=None) -> WakeWordEngine:
     return vosk(cfg.resolve(cfg.vosk_model), cfg.wake_words + cfg.wake_word_aliases)
 
 
+def wait_for_trigger(
+    read: Callable[[], bytes],
+    engine: WakeWordEngine,
+    should_stop: Callable[[], bool] = lambda: False,
+    pressed: Callable[[], bool] = lambda: False,
+) -> str | None:
+    """Read blocks until the wake word is heard ("wake") or the hotkey was pressed ("hotkey").
+    None if should_stop() turned true."""
+    while not should_stop():
+        if pressed():
+            return "hotkey"
+        if engine.detect(read()):
+            return "wake"
+    return None
+
+
 def wait_for_wake_word(
     read: Callable[[], bytes],
     engine: WakeWordEngine,
     should_stop: Callable[[], bool] = lambda: False,
 ) -> bool:
     """Read blocks until the wake word is heard (True) or should_stop() is true (False)."""
-    while not should_stop():
-        if engine.detect(read()):
-            return True
-    return False
+    return wait_for_trigger(read, engine, should_stop) == "wake"
