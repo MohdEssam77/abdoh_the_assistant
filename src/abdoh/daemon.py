@@ -14,6 +14,7 @@ from abdoh.audio.wakeword import WakeWordEngine
 from abdoh.config import Config, save_api_key
 from abdoh.events import Bus
 from abdoh.router import Router
+from abdoh.speech.earcons import Earcons
 from abdoh.speech.tts import Speaker
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class Daemon:
         bus: Bus | None = None,
         mic_retry_seconds: float = MIC_RETRY_SECONDS,
         listen_error: str | None = None,
+        earcons: Earcons | None = None,
     ):
         self.cfg = cfg
         self.router = router
@@ -44,12 +46,14 @@ class Daemon:
         self.bus = bus or Bus(ui_attached=False)
         self.mic_retry_seconds = mic_retry_seconds
         self.listen_error = listen_error  # set when voice input couldn't be set up
+        self.earcons = earcons or Earcons.silent()
         self.stop_event = threading.Event()
+        self._interrupted = threading.Event()  # "stop speaking" for the current request
         self.paused = False
         self.voice_enabled = True
         self._woke = time.perf_counter()
         self._handle_lock = threading.Lock()
-        router.notify = self.say
+        router.on_thinking = self._thinking
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
@@ -97,7 +101,8 @@ class Daemon:
         """Show text in the history and speak it (if voice replies are on). Never raises."""
         log.info("Abdoh: %s", text)
         self.bus.emit("history", f"Abdoh: {text}")
-        if not self.voice_enabled:
+        self.earcons.stop_ticking()
+        if not self.voice_enabled or self._interrupted.is_set():
             return
         self.bus.emit("status", "Speaking")
         try:
@@ -105,9 +110,23 @@ class Daemon:
         except Exception:
             log.exception("Could not speak")
 
+    def stop_speaking(self) -> None:
+        """Interrupt the current reply (from the window, tray or hotkey)."""
+        log.info("Stop speaking")
+        self._interrupted.set()
+        self.earcons.stop_ticking()
+        self.speaker.stop()
+
+    def _thinking(self) -> None:
+        """A slow request (Claude) started: show it and tick until the answer comes."""
+        self.bus.emit("status", "Thinking...")
+        if self.voice_enabled:
+            self.earcons.start_ticking("thinking")
+
     def handle_text(self, text: str) -> str:
         """Route one request and speak the reply. Never raises."""
         with self._handle_lock:
+            self._interrupted.clear()
             log.info("You: %s", text)
             self.bus.emit("history", f"You: {text}")
             self.bus.emit("status", "Thinking...")
@@ -117,6 +136,8 @@ class Daemon:
             except Exception:
                 log.exception("Error handling %r", text)
                 reply = SORRY
+            finally:
+                self.earcons.stop_ticking()
             log.debug("Latency: reply ready in %.2fs", time.perf_counter() - started)
             if reply:
                 self.say(reply)
@@ -144,6 +165,8 @@ class Daemon:
                 open_in_editor(self.cfg.commands_path)
             except ActionError as e:
                 self.bus.emit("history", f"Abdoh: {e}")
+        elif kind == "stop_speaking":
+            self.stop_speaking()
         elif kind == "voice":
             self.voice_enabled = bool(value)
         elif kind == "set_key":
@@ -165,14 +188,27 @@ class Daemon:
         )
 
     def serve_requests(self) -> None:
-        """Process UI requests until stop()."""
+        """Process UI requests until stop().
+
+        Typed requests run on their own thread, so "stop speaking" and "pause" are handled
+        right away even while a reply is being spoken.
+        """
         while not self.stop_event.is_set():
             message = self.bus.next_request(timeout=0.2)
-            if message:
-                try:
-                    self.handle_request(*message)
-                except Exception:
-                    log.exception("Error handling UI request %r", message)
+            if not message:
+                continue
+            if message[0] == "text":
+                threading.Thread(
+                    target=self._safe_request, args=message, name="abdoh-typed", daemon=True
+                ).start()
+            else:
+                self._safe_request(*message)
+
+    def _safe_request(self, kind: str, value=None) -> None:
+        try:
+            self.handle_request(kind, value)
+        except Exception:
+            log.exception("Error handling UI request %r", (kind, value))
 
     # ----- listening -----
 
@@ -208,6 +244,7 @@ class Daemon:
 
     def _on_wake(self) -> None:
         self._woke = time.perf_counter()
+        self._interrupted.clear()
         self.bus.emit("status", "Thinking...")
 
     def _listen_once(self, mic) -> None:
@@ -256,6 +293,9 @@ class Daemon:
         from abdoh.commands.registry import CommandRegistry
         from abdoh.speech.tts import Pyttsx3Speaker
 
+        speaker = speaker or Pyttsx3Speaker(cfg.tts_rate)
+        getattr(speaker, "warm_up", lambda: None)()  # the first reply shouldn't pay for it
+
         engine = transcriber = None
         listen_error = None
         try:
@@ -267,7 +307,14 @@ class Daemon:
             log.exception("Could not set up voice input")
             listen_error = str(e)
         router = Router(cfg, CommandRegistry(cfg.commands_path), claude=make_claude(cfg))
-        speaker = speaker or Pyttsx3Speaker(cfg.tts_rate)
         return cls(
-            cfg, router, speaker, Microphone, engine, transcriber, bus, listen_error=listen_error
+            cfg,
+            router,
+            speaker,
+            Microphone,
+            engine,
+            transcriber,
+            bus,
+            listen_error=listen_error,
+            earcons=Earcons(),
         )

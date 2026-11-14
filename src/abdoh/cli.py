@@ -51,7 +51,9 @@ def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
     registry = CommandRegistry(cfg.commands_path)
     if registry.error:
         print(f"Your commands file has an error: {registry.error}")
-    router = Router(cfg, registry, claude=make_claude(cfg), notify=lambda t: print(f"Abdoh: {t}"))
+    router = Router(
+        cfg, registry, claude=make_claude(cfg), on_thinking=lambda: print("Abdoh: (thinking...)")
+    )
     reply = router.handle(args.text)
     print(f"Abdoh: {reply or '(done)'}")
     return 0

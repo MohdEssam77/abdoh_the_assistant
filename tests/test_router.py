@@ -7,7 +7,7 @@ from abdoh.claude.screen import ScreenCaptureError
 from abdoh.commands.actions import ActionError
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import Config
-from abdoh.router import COMMANDS_FILE_ERROR, ONE_SEC, UNKNOWN, Router
+from abdoh.router import COMMANDS_FILE_ERROR, UNKNOWN, Router
 
 COMMANDS = """
 - name: good_morning
@@ -100,7 +100,7 @@ def screen_router(tmp_path):
         claude=FakeClaude("Here is the text."),
         run=FakeRun(),
         capture=lambda: b"PNG",
-        notify=notes.append,
+        on_thinking=lambda: notes.append("thinking"),
     )
     return router, notes
 
@@ -110,7 +110,7 @@ def test_translate_screen_default_target(screen_router):
     assert router.handle("Abdoh, translate what's on my screen") == "Here is the text."
     prompt, image = router.claude.asked[0]
     assert "into English" in prompt and image == b"PNG"
-    assert notes == [ONE_SEC]
+    assert notes == ["thinking"]
 
 
 def test_translate_screen_to_language(screen_router):

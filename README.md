@@ -47,8 +47,8 @@ On first run Abdoh creates `config.yaml` and `commands.yaml` from the example fi
 - "Hey Abdoh, what time is it"
 
 The window shows what Abdoh is doing (status, Claude connection, recent history). You can type
-requests (they go through the same commands and Claude as voice), pause listening, edit or reload
-commands, turn voice replies off, and set your Claude API key.
+requests (they go through the same commands and Claude as voice), stop a reply with **Stop**,
+pause listening, edit or reload commands, turn voice replies off, and set your Claude API key.
 
 Closing the window only hides it; Abdoh keeps listening. Bring it back by saying
 "Abdoh, show window" or running `python -m abdoh run` again. Quit from the window's **Abdoh** menu.
@@ -78,7 +78,8 @@ Then you can say:
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"
 
-Abdoh says "One sec..." while Claude works. The model is set in `config.yaml` (`claude.model`).
+Abdoh plays a soft tick every few seconds while Claude works. The model is set in `config.yaml`
+(`claude.model`).
 Without a key, everything else still works and Abdoh tells you Claude isn't connected.
 
 ## 5. Your commands

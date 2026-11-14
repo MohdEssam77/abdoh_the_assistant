@@ -218,3 +218,99 @@ def test_headless_bus_drops_events():
     bus = Bus(ui_attached=False)
     bus.emit("status", "Listening")
     assert bus.pending_events() == []
+
+
+class RecordingEarcons:
+    def __init__(self):
+        self.events = []
+
+    def play(self, name):
+        self.events.append(("play", name))
+
+    def start_ticking(self, name="thinking", every=3.0):
+        self.events.append(("tick", name))
+
+    def stop_ticking(self):
+        self.events.append(("stop", None))
+
+
+class ThinkingRouter(StubRouter):
+    """Calls on_thinking like the real router does before a Claude request."""
+
+    def handle(self, text):
+        self.on_thinking()
+        return super().handle(text)
+
+
+def test_thinking_ticks_until_the_reply():
+    earcons = RecordingEarcons()
+    bus = Bus()
+    daemon = Daemon(
+        Config(), ThinkingRouter(["Tokyo."]), FakeSpeaker(), None, None, None, bus, earcons=earcons
+    )
+    daemon.handle_text("capital of japan")
+    assert earcons.events[0] == ("tick", "thinking")
+    assert ("stop", None) in earcons.events
+    assert daemon.speaker.said == ["Tokyo."]
+    assert ("status", "Thinking...") in bus.pending_events()
+
+
+def test_no_ticking_when_voice_replies_are_off():
+    earcons = RecordingEarcons()
+    daemon = Daemon(
+        Config(), ThinkingRouter(["Tokyo."]), FakeSpeaker(), None, None, None, earcons=earcons
+    )
+    daemon.handle_request("voice", False)
+    daemon.handle_text("capital of japan")
+    assert ("tick", "thinking") not in earcons.events
+
+
+def test_stop_speaking_silences_the_rest_of_the_reply():
+    bus = Bus()
+    daemon = make_daemon(StubRouter([]), bus=bus)
+    daemon._interrupted.clear()
+    daemon.stop_speaking()
+    daemon.say("this is not spoken")
+    assert daemon.speaker.stops == 1
+    assert daemon.speaker.said == []
+    assert ("history", "Abdoh: this is not spoken") in bus.pending_events()
+
+
+def test_new_request_speaks_again_after_a_stop():
+    daemon = make_daemon(StubRouter(["Hi"]))
+    daemon.stop_speaking()
+    daemon.handle_text("hello")
+    assert daemon.speaker.said == ["Hi"]
+
+
+class BlockingSpeaker(FakeSpeaker):
+    """say() blocks until stop() is called, like a long reply being spoken."""
+
+    def __init__(self):
+        super().__init__()
+        self.speaking = threading.Event()
+        self.released = threading.Event()
+
+    def say(self, text):
+        super().say(text)
+        self.speaking.set()
+        self.released.wait(5)
+
+    def stop(self):
+        super().stop()
+        self.released.set()
+
+
+def test_stop_request_is_handled_while_a_typed_reply_is_spoken():
+    bus = Bus()
+    speaker = BlockingSpeaker()
+    daemon = Daemon(Config(), StubRouter(["a long answer"]), speaker, None, None, None, bus)
+    server = threading.Thread(target=daemon.serve_requests, daemon=True)
+    server.start()
+    bus.request("text", "tell me a story")
+    assert speaker.speaking.wait(2)
+    bus.request("stop_speaking")
+    assert speaker.released.wait(2)
+    daemon.stop()
+    server.join(2)
+    assert speaker.stops == 1

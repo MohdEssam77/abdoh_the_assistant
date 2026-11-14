@@ -42,6 +42,9 @@ class Window:
         self.entry.pack(side="left", fill="x", expand=True)
         self.entry.bind("<Return>", lambda e: self.send())
         tk.Button(entry_row, text="Send", command=self.send).pack(side="left", padx=(4, 0))
+        tk.Button(entry_row, text="Stop", command=lambda: bus.request("stop_speaking")).pack(
+            side="left", padx=(4, 0)
+        )
 
         buttons = tk.Frame(self.root)
         buttons.pack(fill="x", padx=8, pady=8)
