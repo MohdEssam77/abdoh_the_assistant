@@ -103,6 +103,15 @@ Then you can say:
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"
 
+**Make it instant next time.** When Claude did something for you ("open the Python website"),
+say **"Abdoh, remember that"** (or "remember that as python time"). Abdoh adds it to
+`commands.yaml` as a normal command, so next time it happens instantly, without Claude. The rest
+of your file is left as it is.
+
+**Follow-up questions.** Within a minute of an answer you can follow up ("and what about
+tomorrow?"); Abdoh gives Claude the previous question and answer. Change the window with
+`claude.followup_seconds` (0 turns it off).
+
 Abdoh plays a soft tick while Claude works and starts speaking as soon as the first sentence of
 the answer arrives. Each request runs Claude Code in a separate empty folder (`~/.abdoh/claude`)
 with only the tools Abdoh allows, and nothing is added to your Claude Code history. Claude can
@@ -231,6 +240,7 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.timeout_seconds` | `60` | Give up on an answer after this long |
+| `claude.followup_seconds` | `60` | A question this soon after an answer can follow up on it (0 = off) |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |
 | `log_file` | `~/.abdoh/abdoh.log` | Log file |
