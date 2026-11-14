@@ -1,8 +1,7 @@
-"""The four command actions: say, open_url, open_app, run."""
+"""Command actions: say, open_url, open_app, run, media, timer; and Claude's (stricter) actions."""
 
 import logging
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -10,6 +9,7 @@ import webbrowser
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from abdoh.commands.registry import Command
 
@@ -20,12 +20,17 @@ class ActionError(RuntimeError):
     """An action failed; the message is safe to speak."""
 
 
-def render(text: str, now: datetime | None = None) -> str:
-    """Fill in {time} and {date} placeholders."""
+def render(
+    text: str, now: datetime | None = None, slots: dict[str, str] | None = None, url: bool = False
+) -> str:
+    """Fill in {time}, {date} and the trigger's {slots} (URL-encoded inside links)."""
     now = now or datetime.now()
     time = f"{now.hour % 12 or 12}:{now.minute:02d} {'AM' if now.hour < 12 else 'PM'}"
     date = f"{now:%A}, {now:%B} {now.day}"
-    return text.replace("{time}", time).replace("{date}", date)
+    text = text.replace("{time}", time).replace("{date}", date)
+    for name, value in (slots or {}).items():
+        text = text.replace("{" + name + "}", quote_plus(value) if url else value)
+    return text
 
 
 def _windows_start_menu_shortcut(name: str) -> Path | None:
@@ -97,12 +102,22 @@ def run_action(
     open_url: Callable[[str], object] = webbrowser.open,
     open_application: Callable[[str], None] = open_app,
     run_shell: Callable[[str], object] = _shell,
+    *,
+    computer=None,
+    slots: dict[str, str] | None = None,
 ) -> str | None:
     """Run one action from commands.yaml. Returns text to speak, if any. Raises ActionError."""
+    arg = render(arg, slots=slots, url=kind == "open_url")
     log.info("Action %s: %s", kind, arg)
     if kind == "say":
-        return render(arg)
-    if kind == "open_url":
+        return arg
+    if kind in ("media", "timer") and computer is None:
+        raise ActionError("That isn't available here.")
+    if kind == "media":
+        computer.media(arg)
+    elif kind == "timer":
+        return computer.timer(arg)
+    elif kind == "open_url":
         if not open_url(arg):
             raise ActionError("I couldn't open that link.")
     elif kind == "open_app":
@@ -125,56 +140,44 @@ def run_actions(
     open_url: Callable[[str], object] = webbrowser.open,
     open_application: Callable[[str], None] = open_app,
     run_shell: Callable[[str], object] = _shell,
+    *,
+    computer=None,
+    slots: dict[str, str] | None = None,
 ) -> list[str]:
     """Run a command's actions in order. Returns the lines to speak."""
     spoken: list[str] = []
     for kind, arg in command.actions:
-        text = run_action(kind, arg, allow_run, open_url, open_application, run_shell)
+        text = run_action(
+            kind,
+            arg,
+            allow_run,
+            open_url,
+            open_application,
+            run_shell,
+            computer=computer,
+            slots=slots,
+        )
         if text:
             spoken.append(text)
     return spoken
 
 
-# No paths, drive letters, shell characters or runnable file names: just an app's name.
-_UNSAFE_APP_NAME = re.compile(r'[\\/:;&|<>"%^]|\.(exe|bat|cmd|com|ps1|vbs|js|lnk|msi|scr)$', re.I)
-
-
-def open_installed_app(name: str) -> None:
-    """Open an app by its name only (no paths, files or commands). Used for Claude's actions."""
-    if not name.strip() or _UNSAFE_APP_NAME.search(name):
-        raise ActionError(f"I couldn't open {name}.")
-    if sys.platform == "win32":
-        lnk = _windows_start_menu_shortcut(name)
-        if lnk is None:
-            raise ActionError(f"I couldn't find an app called {name}.")
-        try:
-            os.startfile(lnk)  # type: ignore[attr-defined]
-        except OSError as e:
-            raise ActionError(f"I couldn't open {name}.") from e
-        return
-    # Desktop apps only (never a program found on PATH, which could be any command).
-    args = ["open", "-a", name] if sys.platform == "darwin" else ["gtk-launch", name]
-    try:
-        subprocess.run(args, check=True, timeout=10)
-    except (OSError, subprocess.SubprocessError) as e:
-        raise ActionError(f"I couldn't open {name}.") from e
-
-
-def claude_action(
-    kind: str,
-    arg: str,
-    open_url: Callable[[str], object] = webbrowser.open,
-    open_application: Callable[[str], None] = open_installed_app,
-) -> None:
-    """Run an action Claude asked for, with stricter rules than your own commands:
-    only web links, and only installed apps by name. Raises ActionError."""
+def claude_action(kind: str, arg: str, computer) -> None:
+    """Run an action Claude asked for, with stricter rules than your own commands: only web
+    links, and only apps from the installed-app list (never a path or a command). Raises
+    ActionError."""
     log.info("Claude action %s: %s", kind, arg)
+    if computer is None:
+        raise ActionError("I can't do that here.")
     if kind == "open_url":
         if not arg.lower().startswith(("http://", "https://")):
             raise ActionError("I can only open web links.")
-        if not open_url(arg):
-            raise ActionError("I couldn't open that link.")
+        computer.open_url(arg)
     elif kind == "open_app":
-        open_application(arg)
+        computer.open_app(arg)
+    elif kind == "media":
+        computer.media(arg)
+    elif kind == "timer":
+        computer.timer(arg)
     else:
-        raise ActionError(f"I can't do {kind} yet.")
+        raise ActionError(f"I can't do {kind}.")
