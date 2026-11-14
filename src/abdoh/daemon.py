@@ -103,6 +103,9 @@ class Daemon:
         """Show text in the history and speak it (if voice replies are on). Never raises."""
         log.info("Abdoh: %s", text)
         self.bus.emit("history", f"Abdoh: {text}")
+        self._speak(text)
+
+    def _speak(self, text: str) -> None:
         self.earcons.stop_ticking()
         if not self.voice_enabled or self._interrupted.is_set():
             return
@@ -111,6 +114,31 @@ class Daemon:
             self.speaker.say(text)
         except Exception:
             log.exception("Could not speak")
+
+    def _speak_stream(self, sentences, started: float) -> str:
+        """Speak a streamed (Claude) reply sentence by sentence; show it in the history once."""
+        spoken: list[str] = []
+        try:
+            for sentence in sentences:
+                if not spoken:
+                    log.debug("Latency: first sentence after %.2fs", time.perf_counter() - started)
+                spoken.append(sentence)
+                self._speak(sentence)
+                if self._interrupted.is_set():
+                    break  # don't wait for (or read) the rest of the answer
+        except Exception:
+            log.exception("Error while speaking a streamed reply")
+            spoken.append(SORRY)
+            self._speak(SORRY)
+        finally:
+            close = getattr(sentences, "close", None)
+            if close:
+                close()  # stops Claude if we were interrupted
+        text = " ".join(spoken)
+        if text:
+            log.info("Abdoh: %s", text)
+            self.bus.emit("history", f"Abdoh: {text}")
+        return text
 
     def stop_speaking(self) -> None:
         """Interrupt the current reply (from the window, tray or hotkey)."""
@@ -138,11 +166,13 @@ class Daemon:
             except Exception:
                 log.exception("Error handling %r", text)
                 reply = SORRY
-            finally:
-                self.earcons.stop_ticking()
-            log.debug("Latency: reply ready in %.2fs", time.perf_counter() - started)
-            if reply:
-                self.say(reply)
+            if isinstance(reply, str):
+                log.debug("Latency: reply ready in %.2fs", time.perf_counter() - started)
+                if reply:
+                    self.say(reply)
+            else:
+                reply = self._speak_stream(reply, started)
+            self.earcons.stop_ticking()
             self._status_idle()
             return reply
 
@@ -178,16 +208,32 @@ class Daemon:
             self.bus.emit("quit")
 
     def _set_key(self, key: str) -> None:
-        from abdoh.claude.client import make_claude
+        from abdoh.claude.brain import make_brain
 
         key = key.strip()
         save_api_key(self.cfg.env_path, key)
         self.cfg.anthropic_api_key = key or None
-        self.router.claude = make_claude(self.cfg)
-        self.bus.emit("claude", self.cfg.claude_enabled)
+        self.router.brain = make_brain(self.cfg)
+        self._report_claude()
         self.bus.emit(
             "history", "Abdoh: Claude key saved." if key else "Abdoh: Claude key removed."
         )
+
+    def _report_claude(self) -> None:
+        """Show how Claude is connected. Claude Code's sign-in is checked in the background."""
+        brain = self.router.brain
+        if brain is None:
+            self.bus.emit("claude", "not connected")
+            return
+        self.bus.emit("claude", brain.name)
+
+        def check() -> None:
+            try:
+                self.bus.emit("claude", brain.status())
+            except Exception:
+                log.exception("Couldn't check the Claude connection")
+
+        threading.Thread(target=check, name="abdoh-claude-status", daemon=True).start()
 
     def serve_requests(self) -> None:
         """Process UI requests until stop().
@@ -216,7 +262,7 @@ class Daemon:
 
     def run(self) -> None:
         """Listen forever (until stop()). Reopens the mic every few seconds if it goes away."""
-        self.bus.emit("claude", self.cfg.claude_enabled)
+        self._report_claude()
         self._status_idle()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
@@ -293,7 +339,7 @@ class Daemon:
         from abdoh.audio.stt import Transcriber
         from abdoh.audio.vad import load_vad
         from abdoh.audio.wakeword import VoskWakeWord
-        from abdoh.claude.client import make_claude
+        from abdoh.claude.brain import make_brain
         from abdoh.commands.registry import CommandRegistry
         from abdoh.speech.tts import Pyttsx3Speaker
 
@@ -310,7 +356,7 @@ class Daemon:
         except Exception as e:
             log.exception("Could not set up voice input")
             listen_error = str(e)
-        router = Router(cfg, CommandRegistry(cfg.commands_path), claude=make_claude(cfg))
+        router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
         return cls(
             cfg,
             router,

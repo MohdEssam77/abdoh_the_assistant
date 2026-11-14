@@ -1,8 +1,6 @@
-"""Built-in Claude skills that look at the screen."""
+"""Built-in Claude skills that look at the screen: how to recognize them and what to ask."""
 
 import re
-
-from abdoh.claude.screen import capture_screen
 
 TRANSLATE_PROMPT = (
     "Translate the main text visible in this screenshot into {target}. "
@@ -25,11 +23,3 @@ def is_translate_request(words: set[str]) -> bool:
 
 def is_summarize_request(words: set[str]) -> bool:
     return bool(words & {"summarize", "summarise", "summary"}) and "screen" in words
-
-
-def translate_screen(claude, target: str, capture=capture_screen) -> str:
-    return claude.ask(TRANSLATE_PROMPT.format(target=target), image_png=capture())
-
-
-def summarize_screen(claude, capture=capture_screen) -> str:
-    return claude.ask(SUMMARIZE_PROMPT, image_png=capture())

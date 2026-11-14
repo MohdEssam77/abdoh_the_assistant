@@ -4,7 +4,7 @@ from fakes import FakeMic, FakeTranscriber, FakeWakeWord, silent_block, tone_blo
 
 from abdoh.audio.mic import MicrophoneError
 from abdoh.commands.registry import CommandRegistry
-from abdoh.config import Config
+from abdoh.config import ClaudeConfig, Config
 from abdoh.daemon import SORRY, Daemon
 from abdoh.events import Bus
 from abdoh.router import Router
@@ -16,7 +16,7 @@ class StubRouter:
         self.replies = list(replies)
         self.requests = []
         self.builtin = builtin
-        self.claude = None
+        self.brain = None
         self.registry = None
 
     def add_builtin(self, name, triggers, handler):
@@ -155,13 +155,14 @@ def test_typed_text_uses_same_router(tmp_path):
 
 def test_set_key_saves_env_and_connects(tmp_path):
     cfg, router = real_router(tmp_path)
+    cfg.claude = ClaudeConfig(backend="api")  # don't depend on Claude Code being installed
     (tmp_path / ".env").write_text("OTHER=1\nANTHROPIC_API_KEY=old\n")
     bus = Bus()
     daemon = make_daemon(router, cfg=cfg, bus=bus)
     daemon.handle_request("set_key", "sk-new")
     assert (tmp_path / ".env").read_text() == "OTHER=1\nANTHROPIC_API_KEY=sk-new\n"
-    assert cfg.claude_enabled and router.claude is not None
-    assert ("claude", True) in bus.pending_events()
+    assert cfg.has_api_key and router.brain is not None
+    assert ("claude", "API key") in bus.pending_events()
 
 
 def test_show_window_by_voice(tmp_path):
@@ -314,3 +315,102 @@ def test_stop_request_is_handled_while_a_typed_reply_is_spoken():
     daemon.stop()
     server.join(2)
     assert speaker.stops == 1
+
+
+class StreamingRouter(StubRouter):
+    """Returns Claude-style streamed replies (generators of sentences)."""
+
+    def __init__(self, sentences):
+        super().__init__([])
+        self.sentences = sentences
+        self.closed = False
+        self.read = 0
+
+    def handle(self, text):
+        self.requests.append(text)
+        return self._gen()
+
+    def _gen(self):
+        try:
+            for s in self.sentences:
+                self.read += 1
+                yield s
+        finally:
+            self.closed = True
+
+
+def test_streamed_reply_is_spoken_sentence_by_sentence():
+    bus = Bus()
+    router = StreamingRouter(["Tokyo is the capital.", "It's big."])
+    daemon = make_daemon(router, bus=bus)
+    assert daemon.handle_text("capital of japan") == "Tokyo is the capital. It's big."
+    assert daemon.speaker.said == ["Tokyo is the capital.", "It's big."]
+    history = [v for k, v in bus.pending_events() if k == "history"]
+    assert history == ["You: capital of japan", "Abdoh: Tokyo is the capital. It's big."]
+    assert router.closed
+
+
+class StoppingSpeaker(FakeSpeaker):
+    """Simulates the user pressing Stop while the first sentence is spoken."""
+
+    def __init__(self):
+        super().__init__()
+        self.daemon = None
+
+    def say(self, text):
+        super().say(text)
+        self.daemon.stop_speaking()
+
+
+def test_stop_during_a_streamed_reply_stops_reading_claude():
+    speaker = StoppingSpeaker()
+    router = StreamingRouter(["One.", "Two.", "Three."])
+    daemon = Daemon(Config(), router, speaker, None, None, None)
+    speaker.daemon = daemon
+    assert daemon.handle_text("count") == "One."
+    assert speaker.said == ["One."]
+    assert router.read == 1 and router.closed
+
+
+def test_error_while_streaming_is_spoken():
+    class Broken(StubRouter):
+        def handle(self, text):
+            def gen():
+                yield "Starting."
+                raise RuntimeError("boom")
+
+            return gen()
+
+    daemon = make_daemon(Broken([]))
+    assert daemon.handle_text("x") == f"Starting. {SORRY}"
+    assert daemon.speaker.said == ["Starting.", SORRY]
+
+
+class FakeStatusBrain:
+    name = "Claude Code"
+
+    def status(self):
+        return "Pro subscription (Claude Code)"
+
+
+def test_claude_status_is_reported_then_refined():
+    bus = Bus()
+    router = StubRouter([])
+    router.brain = FakeStatusBrain()
+    daemon = make_daemon(router, bus=bus)
+    daemon._report_claude()
+    events = []
+    for _ in range(200):
+        events += bus.pending_events()
+        if ("claude", "Pro subscription (Claude Code)") in events:
+            break
+        threading.Event().wait(0.01)
+    assert events[0] == ("claude", "Claude Code")
+    assert ("claude", "Pro subscription (Claude Code)") in events
+
+
+def test_no_claude_is_reported():
+    bus = Bus()
+    daemon = make_daemon(StubRouter([]), bus=bus)
+    daemon._report_claude()
+    assert ("claude", "not connected") in bus.pending_events()

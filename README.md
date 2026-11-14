@@ -61,26 +61,40 @@ Closing the window only hides it; Abdoh keeps listening. Bring it back by saying
 
 ## 4. Connect Claude (optional)
 
-Abdoh can answer any question with Claude. A Claude.ai subscription can't be used from code, so
-you need an **Anthropic API key** from https://console.anthropic.com.
+Anything that isn't one of your commands goes to Claude. Abdoh uses **your Claude subscription**
+(Pro or Max) through **Claude Code**, so there's nothing to pay for beyond your plan:
 
-Either click **Set Claude key** in the window, or:
+1. Have Claude Code installed and signed in with your Claude account. Abdoh finds it on your
+   `PATH`, in `~/.local/bin`, or inside the VS Code extension. If it's somewhere else, set
+   `claude.code_path` in `config.yaml`.
+2. Check it:
 
-```
-copy .env.example .env          # Windows (cp on macOS / Linux); then set ANTHROPIC_API_KEY=sk-ant-...
-python -m abdoh claude-check    # verifies the key with a tiny request
-```
+   ```
+   python -m abdoh claude-check    # shows e.g. "Claude: Pro subscription (Claude Code)" and asks one tiny question
+   ```
 
 Then you can say:
 
 - "Abdoh, what's the capital of Japan?"
+- "Abdoh, open the Python website" (Claude can open web pages and installed apps for you)
+- "Abdoh, what's the weather in Cairo today?" (Claude can search the web; turn this off with
+  `claude.allow_web: false`)
 - "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"
 
-Abdoh plays a soft tick every few seconds while Claude works. The model is set in `config.yaml`
-(`claude.model`).
-Without a key, everything else still works and Abdoh tells you Claude isn't connected.
+Abdoh plays a soft tick while Claude works and starts speaking as soon as the first sentence of
+the answer arrives. Each request runs Claude Code in a separate empty folder (`~/.abdoh/claude`)
+with only the tools Abdoh allows, and nothing is added to your Claude Code history. Claude can
+only open web links (`http`/`https`) and apps by name; it can't run commands.
+Your Claude plan's usage limits apply; if you hit one, Abdoh tells you when it resets.
+
+**No subscription?** Abdoh can use an Anthropic API key from https://console.anthropic.com
+instead: click **Set Claude key** in the window (or put `ANTHROPIC_API_KEY=...` in `.env`, see
+`.env.example`). Claude Code is used first when it's installed; set `claude.backend: api` to
+always use the key.
+
+Without Claude, everything else still works and Abdoh tells you Claude isn't connected.
 
 ## 5. Your commands
 
@@ -157,7 +171,13 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 | `max_record_seconds` | `10` | Longest request |
 | `tts_rate` | `175` | Speaking speed |
 | `allow_run` | `false` | Allow `run:` actions |
-| `claude.model` | `claude-opus-5-5` | Claude model id (API key) |
+| `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key), `code`, `api`, or `off` |
+| `claude.code_path` | `""` | Where `claude.exe` is; empty means find it automatically |
+| `claude.code_model` | `""` | Claude Code model (e.g. `sonnet`); empty means your Claude Code default |
+| `claude.model` | `claude-opus-5-5` | Model when using an API key |
+| `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
+| `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
+| `claude.timeout_seconds` | `60` | Give up on an answer after this long |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |
 | `log_file` | `~/.abdoh/abdoh.log` | Log file |
@@ -181,8 +201,10 @@ mic is unplugged, Abdoh retries every 5 seconds.
 **Screen translate/summarize says the screenshot is black.** On macOS, give Terminal (or Python)
 **Screen Recording** permission in System Settings → Privacy & Security, then restart Abdoh.
 
-**Claude doesn't answer.** Run `python -m abdoh claude-check`. Check the key in `.env` and that
-`claude.model` in `config.yaml` is a model your key can use.
+**Claude doesn't answer.** Run `python -m abdoh claude-check`. If it says Claude Code isn't
+signed in, open Claude Code and sign in with your Claude account (`claude auth status` shows the
+current login). If Claude Code isn't found, set `claude.code_path`. With an API key instead,
+check the key in `.env` and that `claude.model` is a model your key can use.
 
 **Edit commands opens nothing on Windows.** If no app is associated with `.yaml` files, Abdoh
 opens Notepad.
@@ -206,7 +228,3 @@ These are being fixed in `ABDOH_EPIC_2.md`:
 - **The wake word model doesn't know "Abdoh".** Vosk listens for similar words instead
   ("abdo", "abdul"), so it misses some wake-ups and wakes up on others (those are ignored after
   transcription). Epic 2 switches to a custom openWakeWord model.
-- **Replies take about 3 seconds**, even for hardcoded commands: a fixed 1 s pause to detect the
-  end of speech, and a new speech engine for every reply.
-- **Claude needs a paid API key.** A Claude Pro subscription can't be used yet; epic 2 adds it
-  through Claude Code.

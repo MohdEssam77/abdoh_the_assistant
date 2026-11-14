@@ -78,3 +78,14 @@ def test_matches(text, expected):
 )
 def test_no_match(text):
     assert matched(text) is None
+
+
+def test_remove_wake_words_keeps_your_wording():
+    from abdoh.commands.matcher import remove_wake_words
+
+    w = ["abdoh", "hey abdoh", "abdo"]
+    assert remove_wake_words("Hey Abdoh, what's 15% of 80?", w) == "what's 15% of 80?"
+    assert remove_wake_words("Good morning Abdoh.", w) == "Good morning."
+    assert remove_wake_words("What is abdominal pain, Abdoh?", w) == "What is abdominal pain?"
+    assert remove_wake_words("Abdoh. Open Spotify.", w) == "Open Spotify."
+    assert remove_wake_words("Abdoh", w) == ""

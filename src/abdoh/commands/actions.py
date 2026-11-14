@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -85,30 +86,95 @@ def open_in_editor(path: Path) -> None:
         raise ActionError(f"I couldn't open {Path(path).name}.") from e
 
 
+def _shell(cmd: str):
+    return subprocess.Popen(cmd, shell=True)
+
+
+def run_action(
+    kind: str,
+    arg: str,
+    allow_run: bool = False,
+    open_url: Callable[[str], object] = webbrowser.open,
+    open_application: Callable[[str], None] = open_app,
+    run_shell: Callable[[str], object] = _shell,
+) -> str | None:
+    """Run one action from commands.yaml. Returns text to speak, if any. Raises ActionError."""
+    log.info("Action %s: %s", kind, arg)
+    if kind == "say":
+        return render(arg)
+    if kind == "open_url":
+        if not open_url(arg):
+            raise ActionError("I couldn't open that link.")
+    elif kind == "open_app":
+        open_application(arg)
+    elif kind == "run":
+        if not allow_run:
+            return "Running programs is turned off. Set allow_run to true in config."
+        try:
+            run_shell(arg)
+        except OSError as e:
+            raise ActionError("That command failed to start.") from e
+    else:
+        raise ActionError(f"I don't know the action {kind}.")
+    return None
+
+
 def run_actions(
     command: Command,
     allow_run: bool = False,
     open_url: Callable[[str], object] = webbrowser.open,
     open_application: Callable[[str], None] = open_app,
-    run_shell: Callable[[str], object] = lambda cmd: subprocess.Popen(cmd, shell=True),
+    run_shell: Callable[[str], object] = _shell,
 ) -> list[str]:
     """Run a command's actions in order. Returns the lines to speak."""
     spoken: list[str] = []
     for kind, arg in command.actions:
-        log.info("Action %s: %s", kind, arg)
-        if kind == "say":
-            spoken.append(render(arg))
-        elif kind == "open_url":
-            if not open_url(arg):
-                raise ActionError("I couldn't open that link.")
-        elif kind == "open_app":
-            open_application(arg)
-        elif kind == "run":
-            if not allow_run:
-                spoken.append("Running programs is turned off. Set allow_run to true in config.")
-                continue
-            try:
-                run_shell(arg)
-            except OSError as e:
-                raise ActionError("That command failed to start.") from e
+        text = run_action(kind, arg, allow_run, open_url, open_application, run_shell)
+        if text:
+            spoken.append(text)
     return spoken
+
+
+# No paths, drive letters, shell characters or runnable file names: just an app's name.
+_UNSAFE_APP_NAME = re.compile(r'[\\/:;&|<>"%^]|\.(exe|bat|cmd|com|ps1|vbs|js|lnk|msi|scr)$', re.I)
+
+
+def open_installed_app(name: str) -> None:
+    """Open an app by its name only (no paths, files or commands). Used for Claude's actions."""
+    if not name.strip() or _UNSAFE_APP_NAME.search(name):
+        raise ActionError(f"I couldn't open {name}.")
+    if sys.platform == "win32":
+        lnk = _windows_start_menu_shortcut(name)
+        if lnk is None:
+            raise ActionError(f"I couldn't find an app called {name}.")
+        try:
+            os.startfile(lnk)  # type: ignore[attr-defined]
+        except OSError as e:
+            raise ActionError(f"I couldn't open {name}.") from e
+        return
+    # Desktop apps only (never a program found on PATH, which could be any command).
+    args = ["open", "-a", name] if sys.platform == "darwin" else ["gtk-launch", name]
+    try:
+        subprocess.run(args, check=True, timeout=10)
+    except (OSError, subprocess.SubprocessError) as e:
+        raise ActionError(f"I couldn't open {name}.") from e
+
+
+def claude_action(
+    kind: str,
+    arg: str,
+    open_url: Callable[[str], object] = webbrowser.open,
+    open_application: Callable[[str], None] = open_installed_app,
+) -> None:
+    """Run an action Claude asked for, with stricter rules than your own commands:
+    only web links, and only installed apps by name. Raises ActionError."""
+    log.info("Claude action %s: %s", kind, arg)
+    if kind == "open_url":
+        if not arg.lower().startswith(("http://", "https://")):
+            raise ActionError("I can only open web links.")
+        if not open_url(arg):
+            raise ActionError("I couldn't open that link.")
+    elif kind == "open_app":
+        open_application(arg)
+    else:
+        raise ActionError(f"I can't do {kind} yet.")
