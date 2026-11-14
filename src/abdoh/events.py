@@ -1,7 +1,7 @@
 """Thread-safe message passing between the daemon threads and the UI.
 
-daemon → UI events:   ("status", str), ("claude", bool), ("history", str), ("show", None),
-                      ("quit", None)
+daemon → UI events:   ("status", str), ("claude", str), ("wake", str), ("history", str),
+                      ("show", None), ("quit", None)
 UI → daemon requests: ("text", str), ("pause", None), ("resume", None), ("reload", None),
                       ("edit_commands", None), ("voice", bool), ("set_key", str),
                       ("stop_speaking", None), ("quit", None)

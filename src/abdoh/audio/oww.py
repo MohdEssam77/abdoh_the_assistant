@@ -1,0 +1,112 @@
+"""Wake word with openWakeWord models, run directly on onnxruntime.
+
+The same three small models, in the same order, as the openwakeword package (0.6), without
+importing that package: it loads scipy and scikit-learn (~100 MB of RAM) for training-only
+features. Every 80 ms of audio:
+
+    audio → melspectrogram (32 bands) → speech embedding of the last 76 mel frames (96 numbers)
+          → wake word model on the last 16 embeddings (~1.3 s) → score 0..1
+
+`scripts/check_wakeword.py` compares the scores with the official package.
+"""
+
+import logging
+from pathlib import Path
+
+import numpy as np
+
+from abdoh.audio.wakeword import WakeWordEngine
+
+log = logging.getLogger(__name__)
+
+FEATURES_DIR = "models/openwakeword"  # relative to the app folder
+MELSPEC = "melspectrogram.onnx"
+EMBEDDING = "embedding_model.onnx"
+
+FRAME = 1280  # samples per step: 80 ms at 16 kHz
+MEL_CONTEXT = 160 * 3  # samples from the previous step the melspectrogram needs
+MEL_WINDOW = 76  # mel frames per embedding
+MEL_STEP = 8  # mel frames per 80 ms
+MEL_KEEP = 10 * 97  # ~10 s of mel frames
+EMBED_KEEP = 120  # ~10 s of embeddings
+WARMUP_FRAMES = 5  # like openWakeWord, ignore the first predictions after a reset
+
+
+def _session(path: Path):
+    import onnxruntime as ort
+
+    opts = ort.SessionOptions()
+    opts.inter_op_num_threads = 1
+    opts.intra_op_num_threads = 1
+    opts.log_severity_level = 3
+    return ort.InferenceSession(str(path), sess_options=opts, providers=["CPUExecutionProvider"])
+
+
+class OpenWakeWord(WakeWordEngine):
+    """Detects the wake word when the model's score reaches `threshold` (0.5 by default)."""
+
+    def __init__(self, model_path: Path, features_dir: Path, threshold: float = 0.5, sessions=None):
+        if sessions is None:
+            paths = [Path(model_path), Path(features_dir) / MELSPEC, Path(features_dir) / EMBEDDING]
+            missing = [str(p) for p in paths if not p.exists()]
+            if missing:
+                raise FileNotFoundError(f"openWakeWord files missing: {', '.join(missing)}")
+            sessions = (_session(paths[1]), _session(paths[2]), _session(paths[0]))
+        self._mel, self._embed, self._wake = sessions
+        wake_input = self._wake.get_inputs()[0]
+        self._wake_input = wake_input.name
+        self._wake_frames = int(wake_input.shape[1])  # embeddings per prediction (16)
+        self.threshold = threshold
+        self.last_score = 0.0
+        self.reset()
+
+    def reset(self) -> None:
+        self._previous = np.zeros(0, dtype=np.int16)  # end of the last step, for the mel context
+        self._pending = np.zeros(0, dtype=np.int16)  # samples not yet making a full step
+        self._mel_buffer = np.ones((MEL_WINDOW, 32), dtype=np.float32)
+        noise = np.random.randint(-1000, 1000, 16000 * 4).astype(np.int16)
+        self._embeddings = self._embed_clip(noise)  # start from noise, as openWakeWord does
+        self._steps = 0
+
+    def detect(self, block: bytes) -> bool:
+        audio = np.concatenate([self._pending, np.frombuffer(block, dtype=np.int16)])
+        usable = len(audio) // FRAME * FRAME
+        self._pending = audio[usable:]
+        heard = False
+        for start in range(0, usable, FRAME):
+            if self.step(audio[start : start + FRAME]) >= self.threshold:
+                heard = True
+        if heard:
+            log.debug("Wake word score %.2f", self.last_score)
+        return heard
+
+    def step(self, frame: np.ndarray) -> float:
+        """Process 80 ms (1280 samples) and return the wake word score."""
+        clip = np.concatenate([self._previous, frame])
+        self._previous = clip[-MEL_CONTEXT:]
+        mel = self._melspectrogram(clip)
+        self._mel_buffer = np.vstack([self._mel_buffer, mel])[-MEL_KEEP:]
+        window = self._mel_buffer[-MEL_WINDOW:][None, :, :, None].astype(np.float32)
+        embedding = self._embed.run(None, {"input_1": window})[0].reshape(1, -1)
+        self._embeddings = np.vstack([self._embeddings, embedding])[-EMBED_KEEP:]
+        features = self._embeddings[-self._wake_frames :][None].astype(np.float32)
+        score = float(np.ravel(self._wake.run(None, {self._wake_input: features})[0])[0])
+        self._steps += 1
+        if self._steps <= WARMUP_FRAMES:
+            score = 0.0
+        self.last_score = score
+        return score
+
+    def _melspectrogram(self, clip: np.ndarray) -> np.ndarray:
+        out = self._mel.run(None, {"input": clip[None, :].astype(np.float32)})[0]
+        return np.squeeze(out) / 10 + 2  # openWakeWord's scaling, closer to Google's original
+
+    def _embed_clip(self, audio: np.ndarray) -> np.ndarray:
+        mel = self._melspectrogram(audio)
+        windows = [
+            mel[i : i + MEL_WINDOW]
+            for i in range(0, mel.shape[0], MEL_STEP)
+            if i + MEL_WINDOW <= mel.shape[0]
+        ]
+        batch = np.array(windows, dtype=np.float32)[..., None]
+        return self._embed.run(None, {"input_1": batch})[0].reshape(len(windows), -1)
