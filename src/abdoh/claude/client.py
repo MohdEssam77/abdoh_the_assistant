@@ -4,8 +4,6 @@ import base64
 import logging
 import re
 
-import anthropic
-
 from abdoh.config import Config
 
 log = logging.getLogger(__name__)
@@ -34,16 +32,26 @@ def clean_for_speech(text: str) -> str:
 
 
 class ClaudeClient:
-    def __init__(self, cfg: Config, client: anthropic.Anthropic | None = None):
+    def __init__(self, cfg: Config, client=None):
         self.model = cfg.claude.model
         self.max_tokens = cfg.claude.max_tokens
         self.system = SYSTEM_PROMPT.format(n=cfg.claude.voice_reply_max_sentences)
-        self._client = client or anthropic.Anthropic(
-            api_key=cfg.anthropic_api_key, timeout=TIMEOUT_SECONDS, max_retries=1
-        )
+        self._api_key = cfg.anthropic_api_key
+        self._client = client  # created on first use: importing the SDK takes ~2 s
+
+    def _sdk_client(self):
+        if self._client is None:
+            import anthropic
+
+            self._client = anthropic.Anthropic(
+                api_key=self._api_key, timeout=TIMEOUT_SECONDS, max_retries=1
+            )
+        return self._client
 
     def ask(self, text: str, image_png: bytes | None = None, max_tokens: int | None = None) -> str:
         """Ask Claude (optionally about an image). Raises ClaudeError with a speakable message."""
+        import anthropic
+
         content: list[dict] = []
         if image_png:
             data = base64.standard_b64encode(image_png).decode("ascii")
@@ -51,7 +59,7 @@ class ClaudeClient:
             content.append({"type": "image", "source": source})
         content.append({"type": "text", "text": text})
         try:
-            response = self._client.messages.create(
+            response = self._sdk_client().messages.create(
                 model=self.model,
                 max_tokens=max_tokens or self.max_tokens,
                 system=self.system,

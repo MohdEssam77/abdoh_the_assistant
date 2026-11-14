@@ -7,10 +7,18 @@ import numpy as np
 
 log = logging.getLogger(__name__)
 
+# Whisper sizes that have an English-only version (more accurate for English, same speed).
+ENGLISH_ONLY = {"tiny", "base", "small", "medium"}
+
+
+def model_name(size: str, language: str | None) -> str:
+    """'base' + 'en' -> 'base.en'; other languages (or auto) keep the multilingual model."""
+    return f"{size}.en" if language == "en" and size in ENGLISH_ONLY else size
+
 
 class Transcriber:
     def __init__(self, model_size: str = "base", language: str | None = "en"):
-        self.model_size = model_size
+        self.model_size = model_name(model_size, language)
         self.language = language
         self._model = None
         self._lock = threading.Lock()
@@ -35,6 +43,7 @@ class Transcriber:
                 beam_size=1,
                 initial_prompt="Hey Abdoh.",
                 condition_on_previous_text=False,
+                without_timestamps=True,
             )
             text = " ".join(s.text.strip() for s in segments).strip()
         log.debug("Transcript: %r", text)

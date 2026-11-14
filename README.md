@@ -150,10 +150,10 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 |---|---|---|
 | `wake_words` | `["abdoh", "hey abdoh"]` | Words removed from requests before matching |
 | `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | What the wake word engine listens for (see Troubleshooting) |
-| `whisper_model` | `base` | `base` is faster, `small` is more accurate |
+| `whisper_model` | `base` | `base` is faster, `small` is more accurate (English-only `.en` models are used when `language` is `en`) |
 | `language` | `en` | Whisper language hint (`null` = auto-detect) |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
-| `silence_seconds` | `1.0` | Pause that ends a request |
+| `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |
 | `tts_rate` | `175` | Speaking speed |
 | `allow_run` | `false` | Allow `run:` actions |

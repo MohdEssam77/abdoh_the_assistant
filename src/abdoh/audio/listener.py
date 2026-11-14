@@ -6,8 +6,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from abdoh.audio.mic import SAMPLE_RATE
-from abdoh.audio.recorder import estimate_threshold, record_until_silence
+from abdoh.audio.mic import BYTES_PER_SECOND, SAMPLE_RATE
+from abdoh.audio.recorder import energy_detector, estimate_threshold, record_until_silence
 from abdoh.audio.wakeword import WakeWordEngine, load_vosk_model, wait_for_wake_word
 from abdoh.commands.matcher import has_wake_word, strip_wake_words
 from abdoh.config import Config
@@ -16,6 +16,10 @@ from abdoh.speech.tts import Speaker
 log = logging.getLogger(__name__)
 
 FOLLOW_UP_WAIT_SECONDS = 5.0
+# How long to wait for speech right after the wake word ("Hey Abdoh … what time is it").
+START_WAIT_SECONDS = 0.8
+# Audio from before the wake word fed to the VAD, so it knows if you were mid-sentence.
+VAD_WARMUP_SECONDS = 0.5
 
 
 def listen_for_request(
@@ -26,20 +30,28 @@ def listen_for_request(
     cfg: Config,
     should_stop: Callable[[], bool] = lambda: False,
     on_wake: Callable[[], None] = lambda: None,
+    vad=None,
 ) -> str | None:
     """Wait for the wake word and return what was said (wake word included), or None if stopped.
 
     Audio from just before the wake word is included, so "Good morning Abdoh" works.
     If only the wake word was said, Abdoh asks "Yes?" and records one more utterance.
     Returns "" if Whisper's transcript doesn't contain the wake word (a false wake-up).
+    With a `vad` (SileroVad), the end of speech is found by voice activity, else by loudness.
     """
     if not wait_for_wake_word(mic.read, engine, should_stop):
         return None
     on_wake()
     t_wake = time.perf_counter()
     before = mic.recent()
-    threshold = estimate_threshold(before)
-    after = record_until_silence(mic.read, threshold, cfg.silence_seconds, cfg.max_record_seconds)
+    is_speech = _speech_detector(vad, before)
+    after = record_until_silence(
+        mic.read,
+        is_speech,
+        cfg.silence_seconds,
+        cfg.max_record_seconds,
+        wait_seconds=max(cfg.silence_seconds, START_WAIT_SECONDS),
+    )
     t_recorded = time.perf_counter()
     text = transcriber.transcribe(before + after)
     log.debug(
@@ -55,9 +67,11 @@ def listen_for_request(
     elif not strip_wake_words(text, wake_words):
         speaker.say("Yes?")
         mic.clear()
+        if vad is not None:
+            vad.reset()
         audio = record_until_silence(
             mic.read,
-            threshold,
+            is_speech,
             cfg.silence_seconds,
             cfg.max_record_seconds,
             wait_seconds=FOLLOW_UP_WAIT_SECONDS,
@@ -67,6 +81,14 @@ def listen_for_request(
     mic.clear()
     engine.reset()
     return text
+
+
+def _speech_detector(vad, before: bytes) -> Callable[[bytes], bool]:
+    if vad is None:
+        return energy_detector(estimate_threshold(before))
+    vad.reset()
+    vad.speech_prob(before[-int(VAD_WARMUP_SECONDS * BYTES_PER_SECOND) :])
+    return vad.is_speech
 
 
 def calibrate(mic, model_path: Path, times: int = 5, out: Callable[[str], None] = print) -> None:

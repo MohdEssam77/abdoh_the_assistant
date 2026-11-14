@@ -7,7 +7,7 @@ vosk_model: "models/vosk-model-small-en-us-0.15"
 whisper_model: "base"            # base | small
 language: "en"                   # whisper language hint; null = auto
 match_threshold: 85
-silence_seconds: 1.0
+silence_seconds: 0.6              # pause that ends a request (speech is detected by a VAD)
 max_record_seconds: 10
 tts_rate: 175
 allow_run: false
