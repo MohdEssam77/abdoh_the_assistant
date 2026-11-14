@@ -156,7 +156,7 @@ Abdoh then starts at login with its window hidden. Only one copy ever runs.
 | `max_record_seconds` | `10` | Longest request |
 | `tts_rate` | `175` | Speaking speed |
 | `allow_run` | `false` | Allow `run:` actions |
-| `claude.model` | `claude-sonnet-4-5` | Claude model id |
+| `claude.model` | `claude-opus-5-5` | Claude model id (API key) |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |
 | `log_file` | `~/.abdoh/abdoh.log` | Log file |
@@ -195,9 +195,17 @@ for each stage (recording, transcription, reply), run `python -m abdoh -v run`.
 ruff check . --fix && ruff format . && pytest -q
 ```
 
-Unit tests never need a microphone, speakers, network or API key. See `ABDOH_EPIC.md` for the plan
-and `CLAUDE.md` for working rules.
+Unit tests never need a microphone, speakers, network or API key. `ABDOH_EPIC_2.md` is the current
+plan (`ABDOH_EPIC.md`, v1, is done) and `CLAUDE.md` has the working rules.
 
 ## Known issues
 
-None.
+These are being fixed in `ABDOH_EPIC_2.md`:
+
+- **The wake word model doesn't know "Abdoh".** Vosk listens for similar words instead
+  ("abdo", "abdul"), so it misses some wake-ups and wakes up on others (those are ignored after
+  transcription). Epic 2 switches to a custom openWakeWord model.
+- **Replies take about 3 seconds**, even for hardcoded commands: a fixed 1 s pause to detect the
+  end of speech, and a new speech engine for every reply.
+- **Claude needs a paid API key.** A Claude Pro subscription can't be used yet; epic 2 adds it
+  through Claude Code.

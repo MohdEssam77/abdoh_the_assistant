@@ -12,7 +12,7 @@ max_record_seconds: 10
 tts_rate: 175
 allow_run: false
 claude:
-  model: "claude-sonnet-4-5"     # any current Claude model id
+  model: "claude-opus-5-5"       # API backend only: any current Claude model id
   max_tokens: 400
   translate_target: "English"
   voice_reply_max_sentences: 4
