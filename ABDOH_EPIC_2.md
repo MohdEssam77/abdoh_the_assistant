@@ -38,7 +38,8 @@ use Claude with a paid API key. This epic turns it into:
 ### Non-goals (for now)
 - No fancy UI. The tray icon and the plain tkinter window are enough.
 - No plugin system, no multi-user support, no cloud sync.
-- Claude never runs shell commands on its own (see Later).
+- Claude never runs shell commands on its own. (Changed on 2026-11-15, story 23: when you ask,
+  Claude may work with your files and run PowerShell, asking before it deletes or overwrites.)
 - macOS/Linux keep working for what already works; new desktop features (hotkey, Start Menu, exe
   build) are Windows-first.
 
@@ -102,7 +103,8 @@ Everything from v1 stays unless replaced here.
   in an empty working folder (`~/.abdoh/claude`), with the request on **stdin** (never on the
   command line), `ANTHROPIC_API_KEY` removed from its environment (so the subscription is used),
   and no console window. Allowed tools: `Read` (for screenshots), plus `WebSearch,WebFetch` when
-  `claude.allow_web` is on. `--bare` must not be used: it ignores subscription logins.
+  `claude.allow_web` is on, plus `Write,Edit,Glob,Grep,PowerShell` and `--add-dir <home>` when
+  `claude.allow_files` is on (story 23). `--bare` must not be used: it ignores subscription logins.
 - `ApiBrain` (when only an API key is set): `anthropic` streaming, effort `low`.
 - `claude.backend: auto` picks Claude Code first (it's paid by the subscription), then the API.
 
@@ -159,7 +161,8 @@ claude:
   model: "claude-opus-5-5" # API backend only
   effort: "low"
   allow_web: true          # let Claude search the web (Claude Code backend)
-  timeout_seconds: 60
+  allow_files: true        # story 23: Claude works with your files (asks before deleting)
+  timeout_seconds: 120     # story 23: file jobs take longer than questions
   followup_seconds: 60     # a follow-up within this time gets the previous exchange as context
   listen_after_question: true  # story 22: answer Claude's questions without the wake word
 ```
@@ -319,7 +322,6 @@ Abdoh without making it heavier:
 
 ## 8. Later (not part of this epic; don't build)
 - Interrupting Abdoh by voice while it talks (needs echo cancellation).
-- Letting Claude run shell commands, with spoken confirmation.
 - A nicer local voice (Piper) and Arabic wake word and replies.
 - Hotkey and installer for macOS/Linux; auto-update.
 - Whisper on onnxruntime (already loaded for the wake word and VAD) or whisper.cpp, to cut

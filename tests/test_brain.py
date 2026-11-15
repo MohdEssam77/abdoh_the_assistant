@@ -22,6 +22,16 @@ def test_system_prompt():
     assert "search the web" in text
     assert "Saturday, November 14, 2026" in text and "9:05 PM" in text
     assert "search the web" not in system_prompt(Config(), web=False)
+    assert "You cannot run commands" in text  # no file access unless a home folder is given
+
+
+def test_system_prompt_with_file_access():
+    home = Path("C:/Users/me")
+    text = system_prompt(Config(), home=home, folders={"Downloads": home / "Downloads"})
+    assert f"Their home folder is {home} (Downloads: {home / 'Downloads'})." in text
+    assert "ask whether to go ahead" in text and "never permanently" in text
+    assert "use the action lines above, not commands" in text
+    assert "You cannot run commands" not in text
 
 
 def test_auto_prefers_claude_code():

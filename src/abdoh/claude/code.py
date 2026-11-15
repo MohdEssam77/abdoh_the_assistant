@@ -1,10 +1,12 @@
 """Claude through your Claude subscription: Claude Code in headless mode (`claude -p`).
 
 Each request runs `claude -p` in an empty folder (~/.abdoh/claude) with Abdoh's own system
-prompt, only the tools Abdoh allows, no plugins/MCP/CLAUDE.md (--safe-mode), file access limited
-to that folder (--restricted), nothing saved to your Claude Code history, and anything that would
-need permission denied. The request goes in on stdin, never on the command line. API keys are
-removed from its environment so the subscription (not an API account) pays for it.
+prompt, only the tools Abdoh allows, no plugins/MCP/CLAUDE.md (--safe-mode), your Claude Code
+settings ignored (--restricted), nothing saved to your Claude Code history, and anything that
+would need permission denied. With claude.allow_files, Claude can also read and change files in
+your home folder (--add-dir) and run PowerShell commands; otherwise file access is limited to
+that empty folder. The request goes in on stdin, never on the command line. API keys are removed
+from its environment so the subscription (not an API account) pays for it.
 """
 
 import json
@@ -28,6 +30,16 @@ log = logging.getLogger(__name__)
 WORKDIR = Path.home() / ".abdoh" / "claude"
 SCREENSHOT = "screenshot.png"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console flash when run by pythonw
+# Tools for working with your files (claude.allow_files), on top of Read.
+FILE_TOOLS = ["Write", "Edit", "Glob", "Grep", "PowerShell" if sys.platform == "win32" else "Bash"]
+# Your main folders, and their names in Windows' "User Shell Folders" registry key (they can
+# live elsewhere than your home folder, e.g. in OneDrive).
+_KNOWN_FOLDERS = {
+    "Desktop": "Desktop",
+    "Documents": "Personal",
+    "Downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
+    "Pictures": "My Pictures",
+}
 # Credentials that would make Claude Code bill an API account instead of your subscription,
 # and the marker Claude Code sets for its own child processes.
 _STRIPPED_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDECODE")
@@ -83,6 +95,27 @@ def find_claude_code(configured: str = "", home: Path | None = None, which=shuti
 
 def child_env() -> dict[str, str]:
     return {k: v for k, v in os.environ.items() if k not in _STRIPPED_ENV}
+
+
+def _shell_folder(name: str) -> str | None:
+    """Where Windows keeps one of your folders (from the registry), or None."""
+    if sys.platform != "win32":
+        return None
+    import winreg
+
+    key = r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+            value, _ = winreg.QueryValueEx(k, name)
+    except OSError:
+        return None
+    return os.path.expandvars(value) if isinstance(value, str) and value else None
+
+
+def user_folders(home: Path | None = None, lookup=_shell_folder) -> dict[str, Path]:
+    """Your Desktop, Documents, Downloads and Pictures folders, wherever they really are."""
+    home = home or Path.home()
+    return {name: Path(lookup(key) or home / name) for name, key in _KNOWN_FOLDERS.items()}
 
 
 def auth_status(exe: Path, run=subprocess.run) -> dict | None:
@@ -194,15 +227,34 @@ class ClaudeCodeBrain(Brain):
         popen=subprocess.Popen,
         run=subprocess.run,
         workdir: Path = WORKDIR,
+        home: Path | None = None,
+        folders: dict[str, Path] | None = None,
     ):
         self.cfg = cfg
         self.exe = Path(exe)
         self.workdir = Path(workdir)
+        self.home = Path(home or Path.home())
+        if folders is None:
+            folders = user_folders(self.home) if cfg.claude.allow_files else {}
+        self.folders = folders
         self._popen = popen
         self._run = run
 
     def tools(self) -> list[str]:
-        return ["Read"] + (["WebSearch", "WebFetch"] if self.cfg.claude.allow_web else [])
+        tools = ["Read"]
+        if self.cfg.claude.allow_files:
+            tools += FILE_TOOLS
+        if self.cfg.claude.allow_web:
+            tools += ["WebSearch", "WebFetch"]
+        return tools
+
+    def file_dirs(self) -> list[Path]:
+        """Where Claude may work with files: your home folder, plus main folders outside it."""
+        dirs = [self.home]
+        for folder in self.folders.values():
+            if not folder.is_relative_to(self.home) and folder not in dirs:
+                dirs.append(folder)
+        return dirs
 
     def command(self, prompt_file: Path) -> list[str]:
         tools = ",".join(self.tools())
@@ -227,6 +279,9 @@ class ClaudeCodeBrain(Brain):
             "--allowedTools",
             tools,
         ]
+        if self.cfg.claude.allow_files:
+            for folder in self.file_dirs():
+                args += ["--add-dir", str(folder)]
         if self.cfg.claude.effort:
             args += ["--effort", self.cfg.claude.effort]
         if self.cfg.claude.code_model:
@@ -239,7 +294,14 @@ class ClaudeCodeBrain(Brain):
     def stream(self, prompt: str, image_png: bytes | None = None) -> Iterator[str]:
         self.workdir.mkdir(parents=True, exist_ok=True)
         prompt_file = self.workdir / "system-prompt.txt"
-        prompt_file.write_text(system_prompt(self.cfg, web=self.cfg.claude.allow_web), "utf-8")
+        files = self.cfg.claude.allow_files
+        system = system_prompt(
+            self.cfg,
+            web=self.cfg.claude.allow_web,
+            home=self.home if files else None,
+            folders=self.folders if files else None,
+        )
+        prompt_file.write_text(system, "utf-8")
         shot = self.workdir / SCREENSHOT
         if image_png:
             shot.write_bytes(image_png)

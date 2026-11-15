@@ -24,7 +24,9 @@ claude:
   max_tokens: 4000               # API key only
   effort: "low"                  # low = quickest answers
   allow_web: true                # let Claude search the web (Claude Code)
-  timeout_seconds: 60
+  allow_files: true              # let Claude work with your files and run PowerShell (Claude Code);
+                                 # it asks before deleting or overwriting anything
+  timeout_seconds: 120
   followup_seconds: 60           # a question within this time can follow up on the last answer
   listen_after_question: true    # when Claude asks you something, just answer (no wake word)
   translate_target: "English"
