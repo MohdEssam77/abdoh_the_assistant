@@ -36,7 +36,7 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
 
     engine = load_wake_engine(cfg)
     print(f"Wake word: {engine.label}")
-    transcriber = Transcriber(cfg.whisper_model, cfg.language)
+    transcriber = Transcriber.from_config(cfg)
     transcriber.transcribe(b"\0\0" * 1600)  # load the model before listening
     with Microphone() as mic:
         print('Listening... say "Hey Abdoh" and a request.')

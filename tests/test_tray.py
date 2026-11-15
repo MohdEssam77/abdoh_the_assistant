@@ -74,6 +74,15 @@ def item(tray, label):
     return next(i for i in tray.icon.menu.items if i.label().startswith(label))
 
 
+def test_a_long_status_fits_windows_tooltip_limit(tray):
+    from abdoh.ui.tray import TITLE_MAX
+
+    tray.show_status("Error: " + "x" * 300)
+    assert len(tray.icon.title) == TITLE_MAX and tray.icon.title.endswith("…")
+    tray.show_status("Listening")
+    assert tray.icon.title == "Abdoh: Listening"
+
+
 def test_status_colors():
     assert status_color("Listening") == GREEN
     assert status_color("Listening to you...") == GREEN

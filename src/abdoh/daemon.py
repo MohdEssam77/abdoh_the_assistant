@@ -27,6 +27,9 @@ SORRY = "Sorry, something went wrong."
 QUIET_MIC_PEAK = 100
 MIC_TOO_QUIET = "I didn't hear anything. Your microphone may be muted or turned down."
 SAMPLE = "Hi, I'm Abdoh. This is how I sound."
+# Why voice input is off (shown as the status; the details are in the log).
+WAKE_WORD_FAILED = "the wake word engine couldn't start"
+SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
 
 class Daemon:
@@ -488,11 +491,15 @@ class Daemon:
         listen_error = None
         try:
             engine = load_wake_engine(cfg)
-            transcriber = Transcriber(cfg.whisper_model, cfg.language)
+        except Exception:
+            log.exception("Could not set up the wake word")
+            listen_error = WAKE_WORD_FAILED
+        try:
+            transcriber = Transcriber.from_config(cfg)
             transcriber.transcribe(b"\0\0" * 1600)  # load the model now, not on first request
-        except Exception as e:
-            log.exception("Could not set up voice input")
-            listen_error = str(e)
+        except Exception:
+            log.exception("Could not load the speech recognition model")
+            listen_error = SPEECH_MODEL_FAILED
         router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
         daemon = cls(
             cfg,

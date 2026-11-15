@@ -177,7 +177,7 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
     root.setLevel(level)
     for h in list(root.handlers):
         root.removeHandler(h)
-    for noisy in ("comtypes", "httpx", "httpcore", "anthropic", "faster_whisper", "PIL"):
+    for noisy in ("comtypes", "httpx", "httpx2", "httpcore", "anthropic", "faster_whisper", "PIL"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     log_path = config.resolve(config.log_file)

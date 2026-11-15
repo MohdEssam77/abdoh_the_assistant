@@ -349,6 +349,19 @@ def test_route_sends_events_to_tray_window_and_page(bus):
     assert win.window.calls == ["show", "restore"]
 
 
+def test_the_page_gets_the_status_even_if_the_tray_fails(bus):
+    win = window_without_gui(bus)
+
+    def broken(status):
+        raise ValueError("string too long (185, maximum length 128)")
+
+    win.tray.show_status = broken
+    win.route("status", "Error: the speech recognition model couldn't be loaded")
+    assert win.state.drain() == [
+        ("status", "Error: the speech recognition model couldn't be loaded")
+    ]
+
+
 def test_closing_hides_unless_quitting(bus):
     win = window_without_gui(bus)
     assert win._on_closing() is False

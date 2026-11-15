@@ -47,9 +47,10 @@ On Linux you may also need PortAudio, Tk and a speech engine:
 python scripts/download_models.py
 ```
 
-This downloads into `models/` the two small openWakeWord feature models (about 2 MB) and the
-Vosk wake word model (about 40 MB, the fallback until you train your own wake word, below). The
-Whisper speech model downloads itself the first time Abdoh starts (about 150 MB for `base`).
+This downloads into `models/` the two small openWakeWord feature models (about 2 MB), the Vosk
+wake word model (about 40 MB, the fallback until you train your own wake word, below), and the
+Whisper speech recognition model `base.en` (about 140 MB). Other Whisper models (if you pick one
+in Settings) download themselves the first time they're used.
 
 ### Train your "Hey Abdoh" wake word (recommended)
 
@@ -315,12 +316,12 @@ pip install -e .[build]
 python scripts/build_app.py        # about 3 minutes; creates dist/Abdoh/Abdoh.exe
 ```
 
-The folder (about 400 MB) contains Abdoh and the models in your `models/` folder (the
-openWakeWord files, your `hey_abdoh.onnx`, and the Vosk fallback). Double-click `Abdoh.exe` to
-start it. It keeps your `config.yaml`, `commands.yaml` and `.env` in `%APPDATA%\Abdoh` (created on
-first start), and a model you put in `%APPDATA%\Abdoh\models` is used instead of the bundled one.
-The Whisper model downloads on the first start, as usual. `Abdoh.exe install` adds the built app
-to the Start Menu.
+The folder (about 550 MB) contains Abdoh and the models in your `models/` folder (the
+openWakeWord files, your `hey_abdoh.onnx`, the Vosk fallback, and the Whisper speech model, so
+nothing downloads on the first start). Double-click `Abdoh.exe` to start it. It keeps your
+`config.yaml`, `commands.yaml` and `.env` in `%APPDATA%\Abdoh` (created on first start), and a
+model you put in `%APPDATA%\Abdoh\models` is used instead of the bundled one. `Abdoh.exe install`
+adds the built app to the Start Menu.
 
 ### The installer and releases (Windows)
 
@@ -439,6 +440,14 @@ prints to `wake_word_aliases`, or better, train a model (see section 2). Either 
 ignored silently (you'll see "Ignoring false wake-up" in the log). If it still reacts too often,
 raise `wake_word_threshold` (openWakeWord) or remove short or common words from
 `wake_word_aliases` (Vosk).
+
+**The tray icon is red and the status says "the speech recognition model couldn't be loaded".**
+Voice input is off because the Whisper model is missing or broken (an interrupted download
+leaves an empty `model.bin`); typing still works. From source, run
+`python scripts/download_models.py`; with the installed app, install the latest version. If you
+changed the speech model in Settings, delete its folder in
+`%USERPROFILE%\.cache\huggingface\hub` (`models--Systran--faster-whisper-...`) and restart
+Abdoh to download it again. The log (Settings → Open logs) has the details.
 
 **Abdoh chimes, then nothing happens** (or it says "Your microphone may be muted"). It didn't
 hear you. Abdoh uses your default microphone: on Windows open Settings → System → Sound →

@@ -14,6 +14,7 @@ from abdoh.events import Bus
 log = logging.getLogger(__name__)
 
 GREEN, GRAY, BLUE, RED = (46, 160, 67), (128, 128, 128), (40, 110, 220), (210, 50, 50)
+TITLE_MAX = 127  # Windows' limit for a tray icon's tooltip (128 with the terminating zero)
 
 
 def status_color(status: str) -> tuple[int, int, int]:
@@ -116,7 +117,8 @@ class Tray:
         if status in ("Listening", "Paused"):
             self.paused = status == "Paused"
         self.icon.icon = icon_image(status_color(status))
-        self.icon.title = f"Abdoh: {status}"
+        title = f"Abdoh: {status}"
+        self.icon.title = title if len(title) <= TITLE_MAX else title[: TITLE_MAX - 1] + "…"
 
     def show_voice(self, on: bool) -> None:
         self.voice_on = on
