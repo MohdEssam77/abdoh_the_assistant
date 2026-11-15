@@ -100,10 +100,18 @@ def test_unknown_app_falls_through_to_claude(skills):
 
 @pytest.mark.parametrize(
     "request_text",
-    ["play some jazz on spotify", "whats the weather", "stop", "turn up the heat"],
+    ["play some jazz on spotify", "whats the weather", "stop the music now", "turn up the heat"],
 )
 def test_other_requests_are_not_mine(skills, request_text):
     assert skills.handle(request_text) is None
+
+
+@pytest.mark.parametrize(
+    "request_text", ["thanks", "thank you", "no thanks", "thats all", "never mind", "stop", "bye"]
+)
+def test_ending_the_conversation_needs_no_answer(skills, request_text):
+    assert skills.handle(request_text) == ""  # handled, nothing to say, nothing sent to Claude
+    assert skills.computer.calls == []
 
 
 def test_errors_are_spoken(skills):

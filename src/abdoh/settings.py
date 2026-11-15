@@ -42,6 +42,7 @@ _RANGES = {
     "wake_word_threshold": (0.05, 0.95),
     "match_threshold": (50, 100),
     "silence_seconds": (0.2, 5),
+    "follow_up_seconds": (0, 30),
     "max_record_seconds": (3, 60),
     "tts_rate": (80, 400),
     "claude.max_tokens": (100, 64000),

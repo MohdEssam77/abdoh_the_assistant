@@ -12,6 +12,7 @@ RATE = 22050
 # Each sound is a list of (frequency in Hz, seconds) segments played back to back; 0 Hz is a pause.
 SOUNDS: dict[str, list[tuple[float, float]]] = {
     "listening": [(660, 0.06), (990, 0.08)],  # rising: I'm listening
+    "ready": [(880, 0.05)],  # one soft note: go on, I'm still listening
     "thinking": [(587, 0.07)],  # soft blip: working on it
     "done": [(880, 0.06), (587, 0.08)],  # falling: stopped
     "alarm": [(880, 0.15), (0, 0.08), (880, 0.15), (0, 0.08), (880, 0.15)],  # timer finished

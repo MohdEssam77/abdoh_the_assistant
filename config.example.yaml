@@ -15,6 +15,8 @@ whisper_model: "small"           # Whisper size for languages other than English
 match_threshold: 85
 silence_seconds: 0.6              # pause that ends a request (speech is detected by a VAD)
 max_record_seconds: 10
+follow_up_seconds: 6             # after Claude answers, keep listening this long (no wake word); 0 = off
+wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
 tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # a voice's name (pick one in the app); "" = Windows' default voice
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default

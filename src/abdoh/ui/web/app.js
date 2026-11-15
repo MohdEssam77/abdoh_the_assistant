@@ -347,8 +347,13 @@ function setVoice(on) { $("#voice-toggle").checked = !!on; }
 
 /* ---------- events from Abdoh ---------- */
 
+function setActivity(text) {
+  if (App.status === "Thinking..." || App.status === "Speaking") $("#status-hint").textContent = `${text}…`;
+}
+
 const HANDLERS = {
   status: setStatus,
+  activity: setActivity,
   history: addHistory,
   claude: setClaude,
   wake: setWake,
