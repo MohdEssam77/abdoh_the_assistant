@@ -42,7 +42,8 @@ class ClaudeConfig:
     max_tokens: int = 4000  # API key only
     effort: str = "low"
     allow_web: bool = True  # Claude Code may search the web
-    timeout_seconds: float = 60
+    allow_files: bool = True  # Claude Code may work with your files and run commands
+    timeout_seconds: float = 120
     followup_seconds: float = 60  # a follow-up within this time gets the last exchange as context
     listen_after_question: bool = True  # answer Claude's questions without the wake word
     translate_target: str = "English"

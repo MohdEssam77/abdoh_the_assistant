@@ -9,6 +9,7 @@ import pytest
 from abdoh.claude.brain import BrainError
 from abdoh.claude.code import (
     FAILED,
+    FILE_TOOLS,
     LIMIT,
     NOT_SIGNED_IN,
     SCREENSHOT,
@@ -22,6 +23,7 @@ from abdoh.claude.code import (
     find_claude_code,
     limit_message,
     read_events,
+    user_folders,
 )
 from abdoh.config import ClaudeConfig, Config
 
@@ -105,9 +107,15 @@ class FakePopen:
         return proc
 
 
-def make_brain(tmp_path, popen, **claude):
+HOME = Path("C:/Users/me")
+FOLDERS = {"Desktop": HOME / "OneDrive" / "Desktop", "Downloads": HOME / "Downloads"}
+
+
+def make_brain(tmp_path, popen, folders=FOLDERS, **claude):
     cfg = Config(app_dir=tmp_path, claude=ClaudeConfig(**claude))
-    return ClaudeCodeBrain(cfg, Path("claude.exe"), popen=popen, workdir=tmp_path / "work")
+    return ClaudeCodeBrain(
+        cfg, Path("claude.exe"), popen=popen, workdir=tmp_path / "work", home=HOME, folders=folders
+    )
 
 
 # ----- finding Claude Code -----
@@ -246,18 +254,69 @@ def test_command_flags(tmp_path):
         assert flag in args
     assert args[args.index("--output-format") + 1] == "stream-json"
     assert args[args.index("--permission-prompts") + 1] == "none"
-    assert args[args.index("--tools") + 1] == "Read,WebSearch,WebFetch"
-    assert args[args.index("--allowedTools") + 1] == "Read,WebSearch,WebFetch"
+    tools = ",".join(["Read", *FILE_TOOLS, "WebSearch", "WebFetch"])
+    assert args[args.index("--tools") + 1] == tools
+    assert args[args.index("--allowedTools") + 1] == tools
+    assert args[args.index("--add-dir") + 1] == str(HOME)  # your files, not just the empty folder
+    assert args.count("--add-dir") == 1  # the OneDrive Desktop is inside your home folder
     assert args[args.index("--model") + 1] == "sonnet"
     assert args[args.index("--effort") + 1] == "low"
     assert "--bare" not in args  # it would ignore the subscription login
 
 
+def test_file_tools_include_a_shell():
+    assert {"Write", "Edit", "Glob", "Grep"} <= set(FILE_TOOLS)
+    assert "PowerShell" in FILE_TOOLS or "Bash" in FILE_TOOLS
+
+
 def test_no_web_tools_when_disabled(tmp_path):
     brain = make_brain(tmp_path, FakePopen(), allow_web=False, effort="")
     args = brain.command(tmp_path / "p.txt")
-    assert args[args.index("--tools") + 1] == "Read"
+    assert args[args.index("--tools") + 1] == ",".join(["Read", *FILE_TOOLS])
     assert "--effort" not in args and "--model" not in args
+
+
+def test_no_file_access_when_disabled(tmp_path):
+    brain = make_brain(tmp_path, FakePopen(), allow_files=False, allow_web=False)
+    args = brain.command(tmp_path / "p.txt")
+    assert args[args.index("--tools") + 1] == "Read"  # screenshots only
+    assert "--add-dir" not in args
+    assert "--restricted" in args  # file tools stay inside the empty working folder
+
+
+def test_folders_outside_home_are_added(tmp_path):
+    folders = {**FOLDERS, "Documents": Path("D:/Documents")}
+    args = make_brain(tmp_path, FakePopen(), folders=folders).command(tmp_path / "p.txt")
+    added = [args[i + 1] for i, a in enumerate(args) if a == "--add-dir"]
+    assert added == [str(HOME), str(Path("D:/Documents"))]
+
+
+def test_user_folders_follow_windows_settings():
+    moved = {"Desktop": r"C:\Users\me\OneDrive\Desktop"}  # e.g. OneDrive backs up the Desktop
+    folders = user_folders(HOME, lookup=moved.get)
+    assert folders["Desktop"] == Path(r"C:\Users\me\OneDrive\Desktop")
+    assert folders["Downloads"] == HOME / "Downloads"  # not moved
+    assert list(folders) == ["Desktop", "Documents", "Downloads", "Pictures"]
+
+
+def test_system_prompt_names_your_folders(tmp_path):
+    popen = FakePopen([INIT, delta("Done."), result("Done.")])
+    brain = make_brain(tmp_path, popen)
+    "".join(brain.stream("Put my screenshots in a folder."))
+    args, _ = popen.calls[0]
+    text = Path(args[args.index("--system-prompt-file") + 1]).read_text(encoding="utf-8")
+    assert str(HOME) in text and str(FOLDERS["Desktop"]) in text
+    assert "ask whether to go ahead" in text
+    assert "You cannot run commands" not in text
+    assert popen.procs[0].stdin.text == "Put my screenshots in a folder."
+
+
+def test_system_prompt_without_file_access(tmp_path):
+    popen = FakePopen([INIT, delta("Hi."), result("Hi.")])
+    "".join(make_brain(tmp_path, popen, allow_files=False).stream("hello"))
+    args, _ = popen.calls[0]
+    text = Path(args[args.index("--system-prompt-file") + 1]).read_text(encoding="utf-8")
+    assert "You cannot run commands" in text and str(HOME) not in text
 
 
 def test_stream_sends_the_request_on_stdin(tmp_path, monkeypatch):
