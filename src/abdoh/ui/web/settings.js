@@ -175,8 +175,16 @@
             if (result) toast(result.error, true);
           } else toast(on ? "Abdoh will start when you sign in." : "Abdoh won't start by itself.");
         }, "Start at sign-in")),
-      row("Check for updates", "Look for a new version of Abdoh once a day.",
-        toggle(settings.check_updates, (on, input) => saveSettings({ check_updates: on }).then((ok) => { if (!ok) input.checked = !on; }), "Check for updates")),
+      row("Check for updates", `Look for a new version of Abdoh once a day. You have ${App.version}.`,
+        el("div", { class: "btn-row" },
+          el("button", { class: "btn small", onclick: async (e) => {
+            e.currentTarget.disabled = true;
+            const update = await checkUpdate(true);
+            e.currentTarget.disabled = false;
+            if (update && !update.available) toast("You have the latest version.");
+            if (update && update.available) showPage("home");
+          } }, "Check now"),
+          toggle(settings.check_updates, (on, input) => saveSettings({ check_updates: on }).then((ok) => { if (!ok) input.checked = !on; }), "Check for updates"))),
       row("Appearance", null, select([["system", "Same as Windows"], ["light", "Light"], ["dark", "Dark"]], theme, (value) => {
         store("abdoh.theme", value);
         applyTheme(value);

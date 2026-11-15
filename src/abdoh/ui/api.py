@@ -94,6 +94,7 @@ class AppApi:
         list_mics=None,
         list_voices=None,
         claude_setup=None,
+        check_for_update=None,
     ):
         self._bus = bus
         self._state = state
@@ -106,6 +107,7 @@ class AppApi:
         self._list_mics = list_mics
         self._list_voices = list_voices
         self._claude_setup = claude_setup  # abdoh.claude.setup (a fake in tests)
+        self._check_for_update = check_for_update
         # What Abdoh started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
@@ -125,6 +127,7 @@ class AppApi:
     def boot(self) -> dict:
         """Everything the page needs to draw itself."""
         cfg = self._config()
+        log.info("App window loaded (Abdoh %s)", __version__)
         return {
             "version": __version__,
             "platform": sys.platform,
@@ -335,6 +338,22 @@ class AppApi:
     def refresh_claude(self) -> None:
         """The connection changed (signed in, installed, key): Abdoh reconnects."""
         self._bus.request("settings_changed")
+
+    # ----- updates -----
+
+    def check_update(self, force=False) -> dict:
+        """Is a newer Abdoh out? At most one check a day (unless force), and only if
+        check_updates is on (or you pressed Check now)."""
+        if not force and not self._config().check_updates:
+            return {"available": False, "current": __version__}
+        if self._check_for_update is None:
+            from abdoh.updates import check_for_update
+
+            self._check_for_update = check_for_update
+        latest = self._check_for_update(force=bool(force))
+        if not latest:
+            return {"available": False, "current": __version__}
+        return {"available": True, "current": __version__, **latest}
 
     # ----- the window -----
 

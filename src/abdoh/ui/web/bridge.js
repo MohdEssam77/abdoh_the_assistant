@@ -135,6 +135,9 @@ const Bridge = (() => {
       set_api_key: async () => ({ ok: true }),
       claude_test: async () => ({ ok: true, reply: "OK", via: "Claude Code" }),
       refresh_claude: async () => {},
+      check_update: async () => (params.get("update")
+        ? { available: true, current: "0.3.0", version: "0.3.1", url: "https://github.com", download: "https://github.com" }
+        : { available: false, current: "0.3.0" }),
     };
   }
 

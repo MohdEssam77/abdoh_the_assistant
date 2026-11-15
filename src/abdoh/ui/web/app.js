@@ -411,6 +411,19 @@ function bindHome() {
   });
 }
 
+/* ---------- updates ---------- */
+
+function showUpdate(update) {
+  showBanner("info", `Abdoh ${update.version} is out (you have ${update.current}).`, "update",
+    { label: "Download", run: () => call("open_link", update.download || update.url) });
+}
+
+async function checkUpdate(force = false) {
+  const update = await call("check_update", force);
+  if (update && update.available) showUpdate(update);
+  return update;
+}
+
 /* ---------- start ---------- */
 
 async function start() {
@@ -434,6 +447,7 @@ async function start() {
   for (const page of Object.values(App.pages)) if (page.boot) page.boot(boot);
   showPage(params.get("page") || store("abdoh.page") || "home");
   poll();
+  setTimeout(() => checkUpdate(false), 5000);
 }
 
 window.addEventListener("DOMContentLoaded", start);

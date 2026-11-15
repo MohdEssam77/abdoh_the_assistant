@@ -318,6 +318,35 @@ first start), and a model you put in `%APPDATA%\Abdoh\models` is used instead of
 The Whisper model downloads on the first start, as usual. `Abdoh.exe install` adds the built app
 to the Start Menu.
 
+### The installer and releases (Windows)
+
+`Abdoh-Setup.exe` is a normal Windows installer: it installs Abdoh for the current user (no admin
+rights), adds it to the Start Menu, can add a desktop shortcut and start Abdoh at sign-in, and
+comes with an uninstaller (your settings in `%APPDATA%\Abdoh` are kept). To build it yourself,
+install [Inno Setup 6](https://jrsoftware.org/isdl.php), then:
+
+```
+pip install -e .[build]
+python scripts/build_installer.py   # builds the app, then dist/Abdoh-Setup.exe
+```
+
+**To publish a release**, bump `__version__` in `src/abdoh/__init__.py` (for example to
+`0.3.1`), commit, then tag and push it:
+
+```
+git tag v0.3.1
+git push origin v0.3.1
+```
+
+GitHub Actions (`.github/workflows/release.yml`) runs the tests, builds `Abdoh-Setup.exe` on
+Windows and publishes it as a GitHub Release. The download page and the app's update check
+always point at the latest release. To bundle a trained wake word model, upload it somewhere
+(for example as an asset of a release) and set the repository variable `WAKE_WORD_URL` to its
+download link.
+
+Abdoh checks for a new release once a day (Settings → **Check for updates**; it only asks
+GitHub for the latest version number) and shows a **Download** button when there is one.
+
 ## How fast and how light
 
 Measured on my laptop (Windows 11), from the end of your speech to the start of Abdoh's reply:
@@ -448,6 +477,11 @@ Developer scripts:
 - **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
   every reply off, so Abdoh now uses the Windows voice directly there; macOS and Linux still go
   through pyttsx3.
+- **The installer isn't code-signed**, so Windows SmartScreen warns the first time ("Windows
+  protected your PC": click **More info → Run anyway**). Signing needs a paid certificate.
+- TODO(blocked): **downloads aren't public yet.** The GitHub repository is private, so its
+  releases (and a GitHub Pages download page) can't be reached by other people. Make the
+  repository public, or publish the releases from a separate public repository.
 - TODO(blocked): **the "Hey Abdoh" wake word model isn't trained yet.** Training happens in Google
   Colab with your Google account (section 2). Until `models/hey_abdoh.onnx` exists, Abdoh uses
   the Vosk fallback, which doesn't know the word "Abdoh": it misses some wake-ups and wakes up on
