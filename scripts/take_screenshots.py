@@ -36,6 +36,8 @@ def main() -> int:
                 url = f"{PAGE.as_uri()}?demo&page={page}&theme={theme}"
                 subprocess.run(
                     [edge, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
+                     # no fade-in animations: the shot would catch the messages half-visible
+                     "--force-prefers-reduced-motion",
                      f"--user-data-dir={profile}", "--force-device-scale-factor=2",
                      "--window-size=1100,690", "--virtual-time-budget=4000",
                      f"--screenshot={out}", url],
