@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abdoh"
-version = "0.1.0"
+dynamic = ["version"]
 description = "A simple, voice-first personal assistant for your laptop."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -38,6 +38,9 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "abdoh.ui" = ["web/*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "abdoh.__version__" }
 
 [tool.ruff]
 line-length = 100

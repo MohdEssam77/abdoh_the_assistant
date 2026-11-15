@@ -1,0 +1,54 @@
+# Builds Abdoh-Setup.exe on Windows. Pushing a version tag (git tag v0.3.0; git push origin v0.3.0)
+# also publishes it as a GitHub Release, which the download page and the in-app update check use.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # build from the Actions tab, without publishing
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Abdoh and the build tools
+        run: python -m pip install -e ".[build,dev]"
+
+      - name: Run the tests
+        run: python -m pytest -q
+
+      - name: Download the speech models
+        run: python scripts/download_models.py
+
+      # Optional: a trained "Hey Abdoh" model to bundle. Set the repository variable
+      # WAKE_WORD_URL (Settings > Secrets and variables > Actions > Variables) to its download URL.
+      - name: Add the trained wake word model
+        if: ${{ vars.WAKE_WORD_URL != '' }}
+        run: Invoke-WebRequest -Uri "${{ vars.WAKE_WORD_URL }}" -OutFile models/hey_abdoh.onnx
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build Abdoh-Setup.exe
+        run: python scripts/build_installer.py
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Abdoh-Setup
+          path: dist/Abdoh-Setup.exe
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/Abdoh-Setup.exe
+          generate_release_notes: true

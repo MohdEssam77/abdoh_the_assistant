@@ -1,3 +1,3 @@
 """Abdoh: a simple, voice-first personal assistant."""
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"  # the one place for the version (pyproject.toml and releases read it)
