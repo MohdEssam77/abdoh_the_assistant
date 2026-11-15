@@ -5,6 +5,7 @@ from abdoh.audio.recorder import (
     MIN_THRESHOLD,
     energy_detector,
     estimate_threshold,
+    peak,
     record_until_silence,
     rms,
 )
@@ -16,6 +17,12 @@ from abdoh.speech.tts import FakeSpeaker
 def test_rms():
     assert rms(silent_block()) == 0
     assert rms(tone_block(1000)) == 1000
+
+
+def test_peak():
+    assert peak(silent_block()) == 0 and peak(b"") == 0
+    assert peak(tone_block(1000)) == 1000
+    assert peak(tone_block(-32768)) == 32768  # no int16 overflow
 
 
 def test_estimate_threshold_has_a_floor():
@@ -199,3 +206,34 @@ def test_hotkey_with_nothing_said(monkeypatch):
         pressed=lambda: next(presses, False),
     )
     assert text == "" and stt.calls == []
+
+
+def test_nothing_said_reports_how_loud_the_mic_was(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    heard = []
+    presses = iter([True])
+    text = listen_for_request(
+        FakeMic([tone_block(150)] * 5),  # some sound, quieter than speech
+        FakeWakeWord(fire_on=99),
+        FakeTranscriber(["should not be used"]),
+        FakeSpeaker(),
+        Config(),
+        pressed=lambda: next(presses, False),
+        on_nothing=heard.append,
+    )
+    assert text == "" and heard == [150]
+
+
+def test_speech_is_not_reported_as_nothing(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    heard = []
+    text = listen_for_request(
+        FakeMic([tone_block()] * 4 + [silent_block()] * 20),
+        FakeWakeWord(fire_on=99),
+        FakeTranscriber(["Cairo."]),
+        FakeSpeaker(),
+        Config(silence_seconds=0.6),
+        answer=True,
+        on_nothing=heard.append,
+    )
+    assert text == "Cairo." and heard == []
