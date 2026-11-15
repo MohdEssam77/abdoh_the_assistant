@@ -23,6 +23,7 @@ dependencies = [
     "anthropic>=0.40",
     "python-dotenv>=1.0",
     "pystray>=0.19",
+    "pywebview>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +35,9 @@ abdoh = "abdoh.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"abdoh.ui" = ["web/*"]
 
 [tool.ruff]
 line-length = 100

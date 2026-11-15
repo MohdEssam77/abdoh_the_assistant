@@ -95,7 +95,7 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         return 0
     window = tray = None
     if not args.headless:
-        window, tray = _make_ui(args)
+        window, tray = _make_ui(cfg, args)
     bus = window.bus if window else Bus(ui_attached=False)
     lock.serve(on_show=lambda: bus.emit("show"))
     try:
@@ -137,10 +137,9 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         lock.release()
 
 
-def _make_ui(args: argparse.Namespace):
+def _make_ui(cfg: Config, args: argparse.Namespace):
     """The window and the tray icon. With a tray icon the window starts hidden unless --show."""
     from abdoh.events import Bus
-    from abdoh.ui.window import Window
 
     log = logging.getLogger(__name__)
     bus = Bus()
@@ -153,10 +152,29 @@ def _make_ui(args: argparse.Namespace):
         log.warning("No tray icon (%s); showing the window instead.", e)
     try:
         hidden = args.minimized or (tray is not None and not args.show)
-        return Window(bus, start_hidden=hidden, tray=tray), tray
+        return _make_window(bus, cfg, hidden, tray), tray
     except Exception as e:  # e.g. no display available
         log.warning("No window (%s); running headless.", e)
         return None, None
+
+
+def _make_window(bus, cfg: Config, hidden: bool, tray):
+    """The app window, or the simple tkinter window if WebView2 (or pywebview) is missing."""
+    from abdoh.ui.app import webview2_available
+
+    log = logging.getLogger(__name__)
+    if webview2_available():
+        try:
+            from abdoh.ui.app import WebWindow
+
+            return WebWindow(bus, cfg, start_hidden=hidden, tray=tray)
+        except Exception as e:
+            log.warning("The app window isn't available (%s); using the simple window.", e)
+    else:
+        log.warning("Microsoft WebView2 isn't installed; using the simple window.")
+    from abdoh.ui.window import Window
+
+    return Window(bus, start_hidden=hidden, tray=tray)
 
 
 def _start_hotkey(cfg: Config, daemon) -> None:

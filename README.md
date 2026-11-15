@@ -89,12 +89,15 @@ resume listening, stop speaking, voice replies on/off, edit commands, start at l
 and talk, no wake word needed (it works even while listening is paused). Press it while Abdoh
 is talking to stop it. Windows only for now.
 
-**The window** shows what Abdoh is doing (status, Claude connection, wake word, recent history).
-You can type requests (they go through the same commands and Claude as voice), stop a reply
-with **Stop**, pause listening, edit or reload commands, turn voice replies off, and set your
-Claude API key. Closing it only hides it; Abdoh keeps listening. Bring it back from the tray, by
-saying "Abdoh, show window", or by running `python -m abdoh run` again. Quit from the tray menu
-or the window's **Abdoh** menu.
+**The window** is a modern app (light or dark, following Windows). **Home** shows what Abdoh is
+doing and the conversation. Type a request (it goes through the same commands and Claude as
+voice), press the round **Talk** button (same as the hotkey; it becomes a stop button while
+Abdoh is busy), turn the **Wake word** off to stop listening for it, or turn **Voice replies**
+off. Closing the window only hides it; Abdoh keeps listening. Bring it back from the tray, by
+saying "Abdoh, show window", or by running `python -m abdoh run` again. Quit from the tray menu.
+
+The window uses Microsoft WebView2, which comes with Windows 10 and 11. Without it, Abdoh falls
+back to its old, simple window.
 
 ### Voice controls
 

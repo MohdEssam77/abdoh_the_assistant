@@ -33,6 +33,12 @@ class StubRouter:
         return reply
 
 
+def test_talk_button_listens_like_the_hotkey():
+    daemon = make_daemon(StubRouter([]))
+    daemon.handle_request("listen")
+    assert daemon._take_listen_now() is True
+
+
 def make_daemon(router, mic_factory=None, transcriber=None, cfg=None, bus=None):
     return Daemon(
         cfg or Config(),

@@ -12,7 +12,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLED_MODELS = ["openwakeword", "hey_abdoh.onnx", "vosk-model-small-en-us-0.15"]
 # Packages with data files or native libraries PyInstaller doesn't find on its own.
-COLLECT = ["faster_whisper", "ctranslate2", "onnxruntime", "vosk", "_sounddevice_data", "pystray"]
+COLLECT = [
+    "faster_whisper",
+    "ctranslate2",
+    "onnxruntime",
+    "vosk",
+    "_sounddevice_data",
+    "pystray",
+    "webview",
+]
 HIDDEN = ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes.stream"]
 
 
@@ -25,7 +33,11 @@ def main() -> int:
     build = ROOT / "build"
     icon = make_icon(build / "abdoh.ico")
     sep = ";" if sys.platform == "win32" else ":"
-    data = [(ROOT / "config.example.yaml", "."), (ROOT / "commands.example.yaml", ".")]
+    data = [
+        (ROOT / "config.example.yaml", "."),
+        (ROOT / "commands.example.yaml", "."),
+        (ROOT / "src" / "abdoh" / "ui" / "web", "abdoh/ui/web"),  # the app window's page
+    ]
     for name in BUNDLED_MODELS:
         path = ROOT / "models" / name
         if path.exists():

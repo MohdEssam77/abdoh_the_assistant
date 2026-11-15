@@ -263,6 +263,8 @@ class Daemon:
                 self.bus.emit("history", f"Abdoh: {e}")
         elif kind == "stop_speaking":
             self.stop_speaking()
+        elif kind == "listen":
+            self.push_to_talk()  # the window's Talk button
         elif kind == "voice":
             self.voice_enabled = bool(value)
             self.bus.emit("voice", self.voice_enabled)
