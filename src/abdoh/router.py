@@ -205,6 +205,8 @@ class Router:
             self.last_turn = turn
 
     def _with_context(self, text: str) -> str:
+        if getattr(self.brain, "remembers", False):
+            return text  # Claude Code keeps the conversation itself
         turn = self.last_turn
         window = self.cfg.claude.followup_seconds
         if turn and turn.answer and window > 0 and time.monotonic() - turn.finished_at <= window:

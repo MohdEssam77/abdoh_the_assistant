@@ -84,6 +84,17 @@
     return row("Use", null, select);
   }
 
+  function speedPart(state) {
+    if (state.using !== "code") return null;
+    const current = (App.settings.claude || {}).code_model || "";
+    const choices = [["", "Your Claude Code default"], ["haiku", "Fastest answers (Haiku)"], ["sonnet", "Balanced (Sonnet)"], ["opus", "Most capable (Opus)"]];
+    if (!choices.some(([v]) => v === current)) choices.push([current, current]);
+    const select = el("select", { class: "input compact", "aria-label": "Claude model" },
+      choices.map(([v, text]) => el("option", { value: v, selected: v === current }, text)));
+    select.addEventListener("change", () => saveSettings({ claude: { code_model: select.value } }));
+    return row("Model", "A faster model starts talking sooner and uses less of your plan.", select);
+  }
+
   async function runTest(button) {
     button.disabled = true;
     const old = button.textContent;
@@ -130,6 +141,7 @@
       accountPart(state, body),
       keyPart(state, body),
       backendPart(state),
+      speedPart(state),
       el("p", { class: "fine" },
         "Works with Claude Pro, Max, Team and Enterprise. Claude's free plan doesn't include Claude Code: use an API key, or use Abdoh without Claude (your commands, timers, apps and music still work). ",
         link("Compare plans", PLANS_URL), ". You sign in on Anthropic's own page; Abdoh never sees your password."));

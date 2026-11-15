@@ -136,9 +136,23 @@ def _after_wake_word(mic, engine, transcriber, speaker, cfg: Config, vad, on_lis
             cfg.max_record_seconds,
             wait_seconds=FOLLOW_UP_WAIT_SECONDS,
         )
-    text = transcriber.transcribe(audio) if audio else ""
+    text = _transcribe(transcriber, audio)
     mic.clear()
     engine.reset()
+    return text
+
+
+def _transcribe(transcriber, audio: bytes) -> str:
+    """Transcribe a recording (if there is one), logging how long each part took."""
+    if not audio:
+        return ""
+    started = time.perf_counter()
+    text = transcriber.transcribe(audio)
+    log.info(
+        "Timing: you spoke for %.1fs, understood in %.2fs",
+        len(audio) / BYTES_PER_SECOND,
+        time.perf_counter() - started,
+    )
     return text
 
 
@@ -166,7 +180,7 @@ def _push_to_talk(
     )
     if not audio:
         on_nothing(loudest)
-    text = transcriber.transcribe(audio) if audio else ""
+    text = _transcribe(transcriber, audio)
     mic.clear()
     engine.reset()
     return text

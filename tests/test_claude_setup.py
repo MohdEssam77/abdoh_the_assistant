@@ -122,14 +122,19 @@ class FakeBrain:
             raise self.error
         yield self.reply
 
+    def close(self):
+        self.closed = True
+
 
 def test_check_connection():
     assert check_connection(Config(), make=lambda cfg: None) == {
         "ok": False,
         "error": NOT_CONNECTED,
     }
-    ok = check_connection(Config(), make=lambda cfg: FakeBrain(" OK "))
+    brain = FakeBrain(" OK ")
+    ok = check_connection(Config(), make=lambda cfg: brain)
     assert ok == {"ok": True, "reply": "OK", "via": "Claude Code"}
+    assert brain.closed  # no Claude Code process left running after the test
     limit = check_connection(Config(), make=lambda cfg: FakeBrain(error=BrainError("Limit.")))
     assert limit == {"ok": False, "error": "Limit."}
 

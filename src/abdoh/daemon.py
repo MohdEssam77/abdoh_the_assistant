@@ -84,6 +84,36 @@ class Daemon:
 
     def stop(self) -> None:
         self.stop_event.set()
+        brain = self.router.brain
+        if brain is not None:
+            brain.close()
+
+    def _use_brain(self, brain) -> None:
+        """Switch to a brain made from the settings as they are now. If nothing about Claude
+        changed, the open conversation is kept."""
+        old = self.router.brain
+        if old is not None and brain is not None and old.same_setup(brain):
+            brain.close()
+        else:
+            self.router.brain = brain
+            if old is not None:
+                old.close()
+            self._connect_brain()
+        self._report_claude()
+
+    def _connect_brain(self) -> None:
+        """Get Claude ready ahead of the first question, and hear what it's doing."""
+        brain = self.router.brain
+        if brain is None:
+            return
+        brain.on_activity = self._activity
+        warm_up = getattr(brain, "warm_up", None)
+        if warm_up:
+            warm_up()
+
+    def _activity(self, text: str) -> None:
+        """Claude started something slow (a web search, a file): show it."""
+        self.bus.emit("activity", text)
 
     def mic_level(self) -> int | None:
         """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
@@ -105,8 +135,7 @@ class Daemon:
                 setattr(self.cfg, f.name, getattr(new, f.name))
         for f in fields(ClaudeConfig):
             setattr(self.cfg.claude, f.name, getattr(new.claude, f.name))
-        self.router.brain = make_brain(self.cfg)  # permissions, folders, API key
-        self._report_claude()
+        self._use_brain(make_brain(self.cfg))  # permissions, folders, API key
         configure = getattr(self.speaker, "configure", None)
         if configure:
             configure(rate=self.cfg.tts_rate, voice=self.cfg.tts_voice)
@@ -172,10 +201,11 @@ class Daemon:
     def _speak_stream(self, sentences, started: float) -> str:
         """Speak a streamed (Claude) reply sentence by sentence; show it in the history once."""
         spoken: list[str] = []
+        first = None
         try:
             for sentence in sentences:
                 if not spoken:
-                    log.debug("Latency: first sentence after %.2fs", time.perf_counter() - started)
+                    first = time.perf_counter() - started
                 spoken.append(sentence)
                 self._speak(sentence)
                 if self._interrupted.is_set():
@@ -192,6 +222,9 @@ class Daemon:
         if text:
             log.info("Abdoh: %s", text)
             self.bus.emit("history", f"Abdoh: {text}")
+        if first is not None:
+            total = time.perf_counter() - started
+            log.info("Timing: Claude began after %.1fs, reply spoken after %.1fs", first, total)
         return text
 
     def announce(self, text: str) -> None:
@@ -265,7 +298,7 @@ class Daemon:
                 log.exception("Error handling %r", text)
                 reply = SORRY
             if isinstance(reply, str):
-                log.debug("Latency: reply ready in %.2fs", time.perf_counter() - started)
+                log.info("Timing: answered in %.2fs, without Claude", time.perf_counter() - started)
                 if reply:
                     self.say(reply)
             else:
@@ -336,8 +369,7 @@ class Daemon:
         key = key.strip()
         save_api_key(self.cfg.env_path, key)
         self.cfg.anthropic_api_key = key or None
-        self.router.brain = make_brain(self.cfg)
-        self._report_claude()
+        self._use_brain(make_brain(self.cfg))
         self.bus.emit(
             "history", "Abdoh: Claude key saved." if key else "Abdoh: Claude key removed."
         )
@@ -385,6 +417,7 @@ class Daemon:
 
     def run(self) -> None:
         """Listen forever (until stop()). Reopens the mic every few seconds if it goes away."""
+        self._connect_brain()
         self._report_claude()
         if self.engine is not None:
             self.bus.emit("wake", self.engine.label)
