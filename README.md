@@ -110,6 +110,19 @@ back to its old, simple window.
 Anything that isn't one of your commands goes to Claude. Abdoh uses **your Claude subscription**
 (Pro or Max) through **Claude Code**, so there's nothing to pay for beyond your plan:
 
+The easy way: open **Settings** in Abdoh's window. The **Claude** card shows whether you're
+connected and with which plan. **Install Claude Code** runs Anthropic's official installer in a
+window you can watch (for you only, no admin rights). **Sign in with Claude** opens Claude Code's
+own sign-in, which finishes in your browser; the card updates by itself when you're done.
+**Test** asks Claude one word. Abdoh never sees your password or your Claude login: it only
+asks Claude Code whether it's signed in. Each person who uses Abdoh connects their own Claude.
+
+Claude's **free plan doesn't include Claude Code**. Without Pro, Max, Team or Enterprise, paste
+an API key from the Claude Console into the same card (pay as you go, kept only on this
+computer), or use Abdoh without Claude: commands, timers, apps, media and YouTube all work.
+
+By hand:
+
 1. Have Claude Code installed and signed in with your Claude account. Abdoh finds it on your
    `PATH`, in `~/.local/bin`, or inside the VS Code extension. If it's somewhere else, set
    `claude.code_path` in `config.yaml`.

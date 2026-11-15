@@ -93,6 +93,7 @@ class AppApi:
         autostart=None,
         list_mics=None,
         list_voices=None,
+        claude_setup=None,
     ):
         self._bus = bus
         self._state = state
@@ -104,6 +105,7 @@ class AppApi:
         self._autostart = autostart
         self._list_mics = list_mics
         self._list_voices = list_voices
+        self._claude_setup = claude_setup  # abdoh.claude.setup (a fake in tests)
         # What Abdoh started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
@@ -277,6 +279,62 @@ class AppApi:
     def open_sound_settings(self) -> None:
         """Windows' sound settings, where a muted microphone can be turned on."""
         self._open_path("ms-settings:sound")
+
+    # ----- Claude: your own account or API key -----
+
+    def _claude(self):
+        if self._claude_setup is None:
+            from abdoh.claude import setup
+
+            self._claude_setup = setup
+        return self._claude_setup
+
+    def claude_status(self) -> dict:
+        """Is Claude Code installed and signed in (and with which plan), or is there a key?"""
+        return self._claude().claude_state(self._config())
+
+    def _claude_action(self, action, *args, refresh: bool = False) -> dict:
+        try:
+            action(*args)
+        except self._claude().SetupError as e:
+            return {"ok": False, "error": str(e)}
+        if refresh:
+            self.refresh_claude()
+        return {"ok": True}
+
+    def install_claude(self) -> dict:
+        """Run Anthropic's installer for Claude Code in a window you can watch."""
+        return self._claude_action(self._claude().install_claude_code)
+
+    def _claude_code(self):
+        return self._claude().find_claude_code(self._config().claude.code_path)
+
+    def claude_sign_in(self) -> dict:
+        """Open Claude Code's own sign-in, which continues in your browser."""
+        exe = self._claude_code()
+        if not exe:
+            return {"ok": False, "error": "Install Claude Code first."}
+        return self._claude_action(self._claude().sign_in, exe)
+
+    def claude_sign_out(self) -> dict:
+        exe = self._claude_code()
+        if not exe:
+            return {"ok": False, "error": "Claude Code isn't installed."}
+        return self._claude_action(self._claude().sign_out, exe, refresh=True)
+
+    def set_api_key(self, key) -> dict:
+        """Save your own Anthropic API key on this computer ("" removes it)."""
+        return self._claude_action(
+            self._claude().set_api_key, self._config(), str(key or ""), refresh=True
+        )
+
+    def claude_test(self) -> dict:
+        """Ask Claude for one word, to check the connection."""
+        return self._claude().check_connection(self._config())
+
+    def refresh_claude(self) -> None:
+        """The connection changed (signed in, installed, key): Abdoh reconnects."""
+        self._bus.request("settings_changed")
 
     # ----- the window -----
 
