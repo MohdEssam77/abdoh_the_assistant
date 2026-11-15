@@ -9,6 +9,10 @@ voice and lives in the system tray.
 Speech recognition runs offline on your machine (openWakeWord or Vosk for the wake word, Whisper
 for requests). Only Claude requests go over the network.
 
+**Just want to use it?** Download `Abdoh-Setup.exe` from the download page (`docs/index.html`,
+see section 6), install it, and follow the short setup. No Python or terminal needed. The rest
+of this README is for running Abdoh from source.
+
 ## Setup checklist
 
 1. Install Abdoh and download the models (sections 1 and 2).
@@ -346,6 +350,16 @@ download link.
 
 Abdoh checks for a new release once a day (Settings → **Check for updates**; it only asks
 GitHub for the latest version number) and shows a **Download** button when there is one.
+
+### The download page
+
+`docs/index.html` is Abdoh's download page: a **Download for Windows** button that always gets
+the latest release's `Abdoh-Setup.exe`, what Abdoh does, how to connect your own Claude, and a
+FAQ (SmartScreen, requirements, plans, privacy, uninstalling). To put it online with GitHub
+Pages: repository **Settings → Pages → Deploy from a branch**, branch `main`, folder `/docs`.
+It's then at `https://mohdessam77.github.io/abdoh_the_assistant/`. Refresh its screenshots with
+`python scripts/take_screenshots.py` (they use the app's demo data). If the releases move to
+another repository, change `REPO` at the bottom of the page and in `src/abdoh/updates.py`.
 
 ## How fast and how light
 
