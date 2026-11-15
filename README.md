@@ -96,6 +96,10 @@ Abdoh is busy), turn the **Wake word** off to stop listening for it, or turn **V
 off. Closing the window only hides it; Abdoh keeps listening. Bring it back from the tray, by
 saying "Abdoh, show window", or by running `python -m abdoh run` again. Quit from the tray menu.
 
+The first time it opens, a short **setup** checks that Abdoh hears your microphone (with a live
+level meter), lets you pick a voice, connects your Claude, and shows how to talk to Abdoh. Skip
+it any time; **Settings → Run setup again** brings it back.
+
 The window uses Microsoft WebView2, which comes with Windows 10 and 11. Without it, Abdoh falls
 back to its old, simple window.
 

@@ -77,6 +77,12 @@ def test_boot_has_version_settings_and_state(api, app_dir):
     assert boot["state"]["status"] == "Starting..."
 
 
+def test_first_start_setup_shows_until_done(api):
+    assert api.boot()["settings"]["setup_done"] is False  # a new install shows the setup
+    assert api.save_settings({"setup_done": True})["ok"] is True
+    assert api.boot()["settings"]["setup_done"] is True
+
+
 def test_events_are_pairs(api):
     api._state.feed("status", "Speaking")
     assert api.events() == [["status", "Speaking"]]
