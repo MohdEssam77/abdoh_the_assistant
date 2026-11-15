@@ -32,6 +32,8 @@ DEFAULT_APP_DIR = _default_app_dir()
 
 
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
+SPEECH_ENGINES = ("auto", "parakeet", "whisper")
+CONFIG_VERSION = 2  # 2: `languages` replaced `language` (Abdoh 0.4)
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = ("open_url", "open_app", "play_youtube", "media", "timer")
 
@@ -59,14 +61,16 @@ class ClaudeConfig:
 
 @dataclass
 class Config:
-    wake_words: list[str] = field(default_factory=lambda: ["abdoh", "hey abdoh"])
+    config_version: int = CONFIG_VERSION  # for upgrading settings files from older versions
+    wake_words: list[str] = field(default_factory=lambda: ["abdoh", "hey abdoh", "ya abdoh"])
     wake_word_aliases: list[str] = field(default_factory=lambda: ["abdo", "ab doe", "abdul"])
     wake_word_model: str = "models/hey_abdoh.onnx"  # openWakeWord; missing -> Vosk fallback
-    wake_word_threshold: float = 0.5
+    wake_word_threshold: float = 0.4
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
     vosk_model: str = "models/vosk-model-small-en-us-0.15"
-    whisper_model: str = "base"
-    language: str | None = "en"
+    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Abdoh
+    speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
+    whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
     silence_seconds: float = 0.6
     max_record_seconds: float = 10
@@ -144,6 +148,27 @@ def save_api_key(env_path: Path, key: str) -> None:
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def upgrade(raw: dict) -> dict:
+    """Settings from an older Abdoh, brought up to date (the file itself is rewritten the next
+    time settings are saved). Only values still at their old default are changed."""
+    if raw.get("config_version", 1) >= CONFIG_VERSION:
+        return raw
+    raw = dict(raw)
+    if "languages" not in raw:  # `language: null` meant "detect it": English and Arabic now
+        language = raw.pop("language", "en")
+        raw["languages"] = [language] if language else ["en", "ar"]
+    raw.pop("language", None)
+    if raw.get("wake_word_threshold") == 0.5:
+        raw["wake_word_threshold"] = 0.4
+    if raw.get("whisper_model") == "base":
+        raw["whisper_model"] = "small"
+    words = raw.get("wake_words")
+    if isinstance(words, list) and "hey abdoh" in words and "ya abdoh" not in words:
+        raw["wake_words"] = [*words, "ya abdoh"]
+    raw["config_version"] = CONFIG_VERSION
+    return raw
+
+
 def load_config(app_dir: Path | None = None) -> Config:
     """Load config.yaml from app_dir; create it and commands.yaml from the examples if missing."""
     app_dir = Path(app_dir or DEFAULT_APP_DIR)
@@ -155,6 +180,7 @@ def load_config(app_dir: Path | None = None) -> Config:
     if config_path.exists():
         raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
 
+    raw = upgrade(raw)
     known = {f.name for f in fields(Config)} - {"app_dir", "anthropic_api_key", "claude"}
     kwargs = {k: v for k, v in raw.items() if k in known}
     for k in raw.keys() - known - {"claude"}:
@@ -167,7 +193,13 @@ def load_config(app_dir: Path | None = None) -> Config:
         log.warning("Unknown claude.backend %r; using 'auto'", claude.backend)
         claude.backend = "auto"
 
-    return Config(**kwargs, claude=claude, app_dir=app_dir, anthropic_api_key=read_api_key(app_dir))
+    cfg = Config(**kwargs, claude=claude, app_dir=app_dir, anthropic_api_key=read_api_key(app_dir))
+    if cfg.speech_engine not in SPEECH_ENGINES:
+        log.warning("Unknown speech_engine %r; using 'auto'", cfg.speech_engine)
+        cfg.speech_engine = "auto"
+    if not cfg.languages:
+        cfg.languages = ["en"]
+    return cfg
 
 
 def setup_logging(config: Config, console: bool = True, level: int = logging.INFO) -> None:

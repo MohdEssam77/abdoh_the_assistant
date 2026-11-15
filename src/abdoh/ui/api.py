@@ -25,6 +25,8 @@ from abdoh.settings import save_settings as _save_settings
 
 log = logging.getLogger(__name__)
 
+MIC_VOLUME = 90  # what "turn my microphone up" sets it to
+
 
 class UiState:
     """What the page shows, kept in Python: a page that (re)loads late still shows it all."""
@@ -95,6 +97,7 @@ class AppApi:
         list_voices=None,
         claude_setup=None,
         check_for_update=None,
+        audio=None,
     ):
         self._bus = bus
         self._state = state
@@ -108,6 +111,7 @@ class AppApi:
         self._list_voices = list_voices
         self._claude_setup = claude_setup  # abdoh.claude.setup (a fake in tests)
         self._check_for_update = check_for_update
+        self._audio = audio  # abdoh.winaudio (a fake in tests)
         # What Abdoh started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
@@ -229,6 +233,33 @@ class AppApi:
     def mic_level(self):
         """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
         return self._daemon.mic_level() if self._daemon is not None else None
+
+    def _mic_endpoint(self):
+        if self._audio is None:
+            from abdoh import winaudio
+
+            self._audio = winaudio
+        return self._audio.microphone(self._config().mic_device)
+
+    def mic_volume(self) -> dict:
+        """The microphone's volume in Windows (0 to 100) and whether it's muted there."""
+        try:
+            mic = self._mic_endpoint()
+            return {"ok": True, "name": mic.name, "volume": mic.volume(), "muted": mic.muted()}
+        except Exception as e:
+            log.debug("Couldn't read the microphone's volume: %s", e)
+            return {"ok": False}
+
+    def fix_mic_volume(self) -> dict:
+        """Unmute the microphone in Windows and turn it up, so Abdoh hears you clearly."""
+        try:
+            mic = self._mic_endpoint()
+            mic.set_muted(False)
+            mic.set_volume(MIC_VOLUME)
+        except Exception as e:
+            log.warning("Couldn't change the microphone's volume: %s", e)
+            return {"ok": False, "error": "Couldn't change it. Try Windows' sound settings."}
+        return self.mic_volume()
 
     def voices(self) -> dict:
         """The installed voices to choose from, and the chosen one ("" = the default)."""

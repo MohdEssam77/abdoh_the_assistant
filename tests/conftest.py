@@ -13,3 +13,14 @@ def app_dir(tmp_path, monkeypatch):
     for name in ("config.example.yaml", "commands.example.yaml"):
         shutil.copyfile(REPO / name, tmp_path / name)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def no_bundled_models(tmp_path_factory, monkeypatch):
+    """Tests never see the models in this checkout's models/ folder: only the example files
+    ship with the (pretend) app, so results are the same on every machine."""
+    bundle = tmp_path_factory.mktemp("bundle")
+    for name in ("config.example.yaml", "commands.example.yaml"):
+        shutil.copyfile(REPO / name, bundle / name)
+    monkeypatch.setattr("abdoh.config.BUNDLE_DIR", bundle)
+    monkeypatch.setattr("abdoh.settings.BUNDLE_DIR", bundle)

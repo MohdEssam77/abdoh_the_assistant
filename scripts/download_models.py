@@ -3,10 +3,14 @@
 - openWakeWord's two shared feature models (melspectrogram, speech embedding), used with your
   own "Hey Abdoh" model (see README: train the wake word).
 - The Vosk small English model, the fallback wake word engine until you have that model.
-- The Whisper speech recognition model (base.en), so the built app never has to download it on
-  its first start. Other Whisper models are downloaded by faster-whisper when first used.
+- The Parakeet speech recognition model (English, about 630 MB), so the built app never has to
+  download anything on its first start.
+- Your trained wake word model, copied from assets/ if models/ doesn't have one yet.
 
-Usage: python scripts/download_models.py
+Whisper models (used for other languages, or with --whisper as an English fallback) are
+downloaded by faster-whisper when first used.
+
+Usage: python scripts/download_models.py [--whisper]
 """
 
 import shutil
@@ -33,6 +37,21 @@ WHISPER_URL = (
     "3d3d5dee26484f91867d81cb899cfcf72b96be6c/{name}"
 )
 WHISPER_FILES = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
+
+# NVIDIA Parakeet TDT 0.6b v2 (CC-BY-4.0), exported to ONNX for onnx-asr.
+PARAKEET_DIR = MODELS_DIR / "parakeet-tdt-0.6b-v2"
+PARAKEET_URL = (
+    "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/"
+    "0bbb45a3365852604aef28b538a8f066f4ccaa85/{name}"
+)
+PARAKEET_FILES = [
+    "config.json",
+    "vocab.txt",
+    "nemo128.onnx",
+    "decoder_joint-model.int8.onnx",
+    "encoder-model.int8.onnx",
+]
+WAKE_WORD = "hey_abdoh.onnx"
 
 
 def download_openwakeword() -> None:
@@ -63,32 +82,54 @@ def download_vosk() -> None:
     print(f"Saved to {target}")
 
 
-def download_whisper(folder: Path = WHISPER_DIR, fetch=urllib.request.urlretrieve) -> None:
-    """Each file is downloaded next to its final name and only kept if it isn't empty, so an
-    interrupted download never leaves a broken model behind."""
-    if all((folder / n).is_file() and (folder / n).stat().st_size > 0 for n in WHISPER_FILES):
+def download_files(folder: Path, url: str, names: list[str], fetch=urllib.request.urlretrieve):
+    """Download `names` into `folder` (url has a {name} blank). Each file is downloaded next to
+    its final name and only kept if it isn't empty, so an interrupted download never leaves a
+    broken model behind."""
+    if all((folder / n).is_file() and (folder / n).stat().st_size > 0 for n in names):
         print(f"Already downloaded: {folder}")
         return
     folder.mkdir(parents=True, exist_ok=True)
-    for name in WHISPER_FILES:
+    for name in names:
         target = folder / name
         if target.is_file() and target.stat().st_size > 0:
             continue
-        url = WHISPER_URL.format(name=name)
+        source = url.format(name=name)
         part = target.with_name(target.name + ".part")
-        print(f"Downloading {url} ...")
-        fetch(url, part)
+        print(f"Downloading {source} ...")
+        fetch(source, part)
         if not part.is_file() or part.stat().st_size == 0:
             part.unlink(missing_ok=True)
-            raise RuntimeError(f"Downloading {url} gave an empty file.")
+            raise RuntimeError(f"Downloading {source} gave an empty file.")
         part.replace(target)
     print(f"Saved to {folder}")
+
+
+def download_whisper(folder: Path = WHISPER_DIR, fetch=urllib.request.urlretrieve) -> None:
+    download_files(folder, WHISPER_URL, WHISPER_FILES, fetch)
+
+
+def download_parakeet(folder: Path = PARAKEET_DIR, fetch=urllib.request.urlretrieve) -> None:
+    download_files(folder, PARAKEET_URL, PARAKEET_FILES, fetch)
+
+
+def copy_wake_word(models: Path = MODELS_DIR, assets: Path = MODELS_DIR.parent / "assets") -> None:
+    """The trained wake word model that's kept in the repo, unless you have your own."""
+    target, source = models / WAKE_WORD, assets / WAKE_WORD
+    if target.exists() or not source.exists():
+        return
+    models.mkdir(exist_ok=True)
+    shutil.copyfile(source, target)
+    print(f"Copied {source} to {target}")
 
 
 def main() -> int:
     download_openwakeword()
     download_vosk()
-    download_whisper()
+    download_parakeet()
+    copy_wake_word()
+    if "--whisper" in sys.argv[1:]:
+        download_whisper()
     return 0
 
 

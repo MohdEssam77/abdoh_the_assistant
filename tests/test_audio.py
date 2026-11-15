@@ -95,6 +95,54 @@ def test_listen_asks_yes_when_only_wake_word():
     assert text == "what time is it"
 
 
+class TrainedWakeWord(FakeWakeWord):
+    trusted = True  # like your own openWakeWord model
+
+
+def test_after_a_trained_wake_word_the_request_is_what_follows():
+    wake = [tone_block(2000)] * 2  # "hey abdoh" (and whatever was said before it)
+    mic = FakeMic(wake + [tone_block()] * 4 + [silent_block()] * 20)
+    stt = FakeTranscriber(["What time is it?"])
+    chimes = []
+    text = listen_for_request(
+        mic,
+        TrainedWakeWord(fire_on=2),
+        stt,
+        FakeSpeaker(),
+        Config(),
+        on_listen=lambda: chimes.append("listening"),
+    )
+    assert text == "What time is it?"  # no check that the transcript has "Abdoh" in it
+    assert chimes == ["listening"]  # you hear that it woke up
+    assert tone_block(2000) not in stt.calls[0]  # the wake word itself isn't transcribed
+    assert stt.calls[0].startswith(tone_block() * 4)
+
+
+def test_a_trained_wake_word_waits_longer_for_you_to_go_on():
+    pause = [silent_block()] * 20  # two seconds of thinking after "Hey Abdoh"
+    mic = FakeMic([silent_block()] * 2 + pause + [tone_block()] * 4 + [silent_block()] * 20)
+    speaker = FakeSpeaker()
+    stt = FakeTranscriber(["open my mail"])
+    text = listen_for_request(mic, TrainedWakeWord(fire_on=2), stt, speaker, Config())
+    assert text == "open my mail" and speaker.said == []
+
+
+def test_only_a_trained_wake_word_gets_a_yes():
+    mic = FakeMic([silent_block()] * 2 + [silent_block()] * 35 + [tone_block()] * 4)
+    speaker = FakeSpeaker()
+    stt = FakeTranscriber(["what time is it"])
+    text = listen_for_request(mic, TrainedWakeWord(fire_on=2), stt, speaker, Config())
+    assert speaker.said == ["Yes?"] and text == "what time is it"
+
+
+def test_a_trained_wake_word_and_then_nothing_is_nothing():
+    mic = FakeMic([])
+    stt = FakeTranscriber(["should not be used"])
+    speaker = FakeSpeaker()
+    assert listen_for_request(mic, TrainedWakeWord(fire_on=2), stt, speaker, Config()) == ""
+    assert stt.calls == [] and speaker.said == ["Yes?"]
+
+
 class FakeVad:
     """Speech = loud block. Records resets and the warm-up audio it was given."""
 

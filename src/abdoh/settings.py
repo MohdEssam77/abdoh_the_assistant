@@ -15,6 +15,7 @@ from abdoh.config import (
     BUNDLE_DIR,
     CLAUDE_ACTIONS,
     CLAUDE_BACKENDS,
+    SPEECH_ENGINES,
     ClaudeConfig,
     Config,
     load_config,
@@ -33,7 +34,8 @@ RESTART_KEYS = (
     "wake_word_model",
     "vosk_model",
     "whisper_model",
-    "language",
+    "languages",
+    "speech_engine",
     "log_file",
 )
 _RANGES = {
@@ -47,9 +49,9 @@ _RANGES = {
     "claude.followup_seconds": (0, 3600),
     "claude.voice_reply_max_sentences": (1, 20),
 }
-_CHOICES = {"claude.backend": CLAUDE_BACKENDS}
+_CHOICES = {"claude.backend": CLAUDE_BACKENDS, "speech_engine": SPEECH_ENGINES}
 _LIST_CHOICES = {"claude.actions": CLAUDE_ACTIONS}
-_NULLABLE = {"language"}  # null = detect the language
+_NULLABLE: set[str] = set()
 LABELS = {
     "wake_words": "Wake words",
     "wake_word_threshold": "Wake word sensitivity",
@@ -61,7 +63,8 @@ LABELS = {
     "tts_voice": "Voice",
     "mic_device": "Microphone",
     "whisper_model": "Speech recognition model",
-    "language": "Language",
+    "languages": "Languages",
+    "speech_engine": "Speech recognition",
     "claude.actions": "Things Claude may do",
     "claude.folders": "Folders Claude may use",
     "claude.instructions": "Your instructions",
@@ -163,6 +166,10 @@ def _checked(key: str, value, default):
         if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
             raise SettingsError(f"{label} must be a list of text.")
         items = list(dict.fromkeys(v.strip() for v in value if v.strip()))
+        if key == "languages":
+            items = [v.lower() for v in items]
+            if not items or not all(re.fullmatch(r"[a-z]{2,3}", v) for v in items):
+                raise SettingsError("Choose at least one language (codes like en or ar).")
         allowed = _LIST_CHOICES.get(key)
         bad = [v for v in items if allowed and v not in allowed]
         if bad:

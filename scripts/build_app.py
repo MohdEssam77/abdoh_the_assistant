@@ -1,9 +1,9 @@
 """Build Abdoh as a Windows app: dist/Abdoh/Abdoh.exe (one folder, no console window).
 
 Needs PyInstaller:  pip install -e .[build]
-Bundles the example files and whatever models are in models/ (openWakeWord feature models, your
-hey_abdoh.onnx, the Vosk fallback, and the Whisper speech model, so nothing downloads on the
-first start). Run scripts/download_models.py first.
+Bundles the example files and the models in models/ (openWakeWord feature models, the trained
+wake word, the Vosk fallback, and the Parakeet speech model, so nothing downloads on the first
+start). Run scripts/download_models.py first.
 Usage: python scripts/build_app.py
 """
 
@@ -15,7 +15,8 @@ BUNDLED_MODELS = [
     "openwakeword",
     "hey_abdoh.onnx",
     "vosk-model-small-en-us-0.15",
-    "faster-whisper-base.en",  # speech recognition: no download on the first start
+    "parakeet-tdt-0.6b-v2",  # speech recognition: no download on the first start
+    "faster-whisper-base.en",  # optional English fallback (only bundled if you downloaded it)
 ]
 # Packages with data files or native libraries PyInstaller doesn't find on its own.
 COLLECT = [
@@ -26,6 +27,7 @@ COLLECT = [
     "_sounddevice_data",
     "pystray",
     "webview",
+    "onnx_asr",
 ]
 HIDDEN = ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes.stream"]
 
@@ -48,6 +50,8 @@ def main() -> int:
         path = ROOT / "models" / name
         if path.exists():
             data.append((path, f"models/{name}" if path.is_dir() else "models"))
+        elif name == "hey_abdoh.onnx" and (ROOT / "assets" / name).exists():
+            data.append((ROOT / "assets" / name, "models"))  # the one kept in the repo
         else:
             print(f"Not bundled (not found): models/{name}")
     args = [

@@ -118,7 +118,7 @@ def measure(daemon_parts, text: str) -> None:
 
 
 def main() -> int:
-    from abdoh.audio.stt import Transcriber
+    from abdoh.audio.stt import load_transcriber
     from abdoh.audio.vad import load_vad
     from abdoh.claude.brain import make_brain
     from abdoh.commands.registry import CommandRegistry
@@ -126,7 +126,7 @@ def main() -> int:
     from abdoh.router import Router
 
     cfg = load_config()
-    transcriber = Transcriber.from_config(cfg)
+    transcriber = load_transcriber(cfg)
     transcriber.transcribe(b"\0\0" * 1600)
     router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
     router.computer = Computer()

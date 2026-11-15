@@ -606,6 +606,11 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .folder span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .off { opacity: 0.5; pointer-events: none; }
 .counter { font-size: 12px; color: var(--faint); }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.pick { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--panel); color: var(--muted); font-size: 13px; font-weight: 560; cursor: pointer; }
+.pick:hover { border-color: var(--accent); color: var(--text); }
+.pick.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.mic-windows .row { border-top: 1px solid var(--border); }
 /* ----- first-start setup ----- */
 .setup-back {
   position: fixed;

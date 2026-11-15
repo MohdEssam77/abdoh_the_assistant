@@ -29,14 +29,14 @@ def cmd_calibrate(cfg: Config, args: argparse.Namespace) -> int:
 def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.audio.listener import listen_for_request
     from abdoh.audio.mic import Microphone
-    from abdoh.audio.stt import Transcriber
+    from abdoh.audio.stt import load_transcriber
     from abdoh.audio.vad import load_vad
     from abdoh.audio.wakeword import load_wake_engine
     from abdoh.speech.tts import make_speaker
 
     engine = load_wake_engine(cfg)
     print(f"Wake word: {engine.label}")
-    transcriber = Transcriber.from_config(cfg)
+    transcriber = load_transcriber(cfg)
     transcriber.transcribe(b"\0\0" * 1600)  # load the model before listening
     with Microphone() as mic:
         print('Listening... say "Hey Abdoh" and a request.')
