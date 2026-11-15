@@ -13,8 +13,12 @@ language: "en"                   # whisper language hint; null = auto
 match_threshold: 85
 silence_seconds: 0.6              # pause that ends a request (speech is detected by a VAD)
 max_record_seconds: 10
-tts_rate: 175
-allow_run: false
+tts_rate: 175                    # speaking speed in words per minute
+tts_voice: ""                    # a voice's name (pick one in the app); "" = Windows' default voice
+mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default
+allow_run: false                 # let your commands run programs (the "run" action)
+check_updates: true              # look for a new version of Abdoh once a day
+setup_done: false                # the first-start setup was finished or skipped
 claude:
   backend: "auto"                # auto: Claude Code if installed (your subscription), else API key
                                  # code | api | off
@@ -26,6 +30,10 @@ claude:
   allow_web: true                # let Claude search the web (Claude Code)
   allow_files: true              # let Claude work with your files and run PowerShell (Claude Code);
                                  # it asks before deleting or overwriting anything
+  folders: []                    # where Claude may work with files; [] = your home folder
+  allow_screen: true             # let Claude look at your screen when you ask (translate, summarize)
+  actions: ["open_url", "open_app", "play_youtube", "media", "timer"]  # what Claude may do
+  instructions: ""               # your own instructions for Claude, sent with every request
   timeout_seconds: 120
   followup_seconds: 60           # a question within this time can follow up on the last answer
   listen_after_question: true    # when Claude asks you something, just answer (no wake word)
