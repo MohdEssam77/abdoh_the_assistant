@@ -23,6 +23,9 @@ class Speaker(ABC):
     def stop(self) -> None:  # noqa: B027 - optional hook
         """Interrupt what is being said right now."""
 
+    # The language you last spoke ("" = unknown): a hint for choosing the voice.
+    language = ""
+
 
 def make_speaker(rate: int = 175, voice: str = "") -> Speaker:
     """The voice for this computer: the Windows voice on Windows, pyttsx3 elsewhere."""
@@ -109,6 +112,55 @@ class _VoiceThread(Speaker):
                 done.set()
 
 
+# ----- languages -----
+
+# Windows language ids (the low 10 bits of a voice's LCID) and their codes and names.
+LANGUAGE_IDS = {
+    0x01: "ar", 0x04: "zh", 0x07: "de", 0x08: "el", 0x09: "en", 0x0A: "es", 0x0C: "fr",
+    0x0D: "he", 0x10: "it", 0x11: "ja", 0x12: "ko", 0x13: "nl", 0x15: "pl", 0x16: "pt",
+    0x19: "ru", 0x1D: "sv", 0x1F: "tr", 0x20: "ur", 0x21: "id", 0x29: "fa", 0x39: "hi",
+}  # fmt: skip
+LANGUAGE_NAMES = {
+    "ar": "Arabic", "zh": "Chinese", "de": "German", "el": "Greek", "en": "English",
+    "es": "Spanish", "fr": "French", "he": "Hebrew", "it": "Italian", "ja": "Japanese",
+    "ko": "Korean", "nl": "Dutch", "pl": "Polish", "pt": "Portuguese", "ru": "Russian",
+    "sv": "Swedish", "tr": "Turkish", "ur": "Urdu", "id": "Indonesian", "fa": "Persian",
+    "hi": "Hindi",
+}  # fmt: skip
+# Writing systems that tell the language (or narrow it down): (first, last, languages).
+_SCRIPTS = [
+    (0x0600, 0x06FF, ("ar", "ur", "fa")),
+    (0x0590, 0x05FF, ("he",)),
+    (0x0400, 0x04FF, ("ru",)),
+    (0x0370, 0x03FF, ("el",)),
+    (0x0900, 0x097F, ("hi",)),
+    (0x3040, 0x30FF, ("ja",)),  # kana: Japanese even when mixed with Chinese characters
+    (0xAC00, 0xD7AF, ("ko",)),
+    (0x4E00, 0x9FFF, ("zh", "ja")),
+]
+LATIN = ("en", "fr", "de", "es", "it", "pt", "nl", "pl", "sv", "tr", "id")
+
+
+def voice_language(attribute: str) -> str:
+    """A SAPI voice's "Language" attribute ("409", "401;1") as a language code ("en", "ar")."""
+    try:
+        return LANGUAGE_IDS.get(int(str(attribute).split(";")[0], 16) & 0x3FF, "")
+    except ValueError:
+        return ""
+
+
+def text_language(text: str, hint: str = "") -> str:
+    """The language to read `text` in: its writing system decides when it can (Arabic letters
+    are never read by an English voice); otherwise `hint` (the language you spoke), else
+    English."""
+    letters = [ord(c) for c in text if c.isalpha()]
+    if letters:
+        for first, last, languages in _SCRIPTS:
+            if sum(first <= c <= last for c in letters) >= max(1, len(letters) * 0.3):
+                return hint if hint in languages else languages[0]
+    return hint if hint in LATIN else "en"
+
+
 # ----- Windows: SAPI -----
 
 # SAPI's SpeechVoiceSpeakFlags.
@@ -116,12 +168,42 @@ SVSF_ASYNC = 1
 SVSF_PURGE_BEFORE_SPEAK = 2
 SVSF_IS_NOT_XML = 16
 POLL_MS = 50  # while speaking, check this often whether to stop
+# Windows' newer voices (Settings > Time & language > Speech), which include other languages.
+ONECORE_VOICES = r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech_OneCore\Voices"
 
 
 def _make_sapi_voice():
     import comtypes.client
 
     return comtypes.client.CreateObject("SAPI.SpVoice", dynamic=True)
+
+
+def _onecore_tokens() -> list:
+    import comtypes.client
+
+    category = comtypes.client.CreateObject("SAPI.SpObjectTokenCategory", dynamic=True)
+    category.SetId(ONECORE_VOICES, False)
+    tokens = category.EnumerateTokens()
+    return [tokens.Item(i) for i in range(tokens.Count)]
+
+
+def installed_voices(voice, onecore: Callable[[], list] | None = None) -> list[tuple]:
+    """Every voice this SAPI voice object can use, as (name, language code, token): the classic
+    desktop voices, then Windows' newer ones."""
+    tokens = voice.GetVoices()
+    found = [tokens.Item(i) for i in range(tokens.Count)]
+    if onecore is not None:
+        try:
+            found += onecore()
+        except Exception:
+            log.debug("Couldn't list Windows' newer voices", exc_info=True)
+    voices, seen = [], set()
+    for token in found:
+        name = token.GetDescription()
+        if name not in seen:
+            seen.add(name)
+            voices.append((name, voice_language(token.GetAttribute("Language")), token))
+    return voices
 
 
 def sapi_rate(words_per_minute: float) -> int:
@@ -132,45 +214,81 @@ def sapi_rate(words_per_minute: float) -> int:
 def windows_voices(voice_factory: Callable[[], object] = _make_sapi_voice) -> list[str]:
     """The names of the installed Windows voices, e.g. "Microsoft Zira Desktop - English (United
     States)". Empty if there are none (or this isn't Windows)."""
-    if sys.platform != "win32" and voice_factory is _make_sapi_voice:
+    real = voice_factory is _make_sapi_voice
+    if sys.platform != "win32" and real:
         return []
     _init_com()
     try:
-        tokens = voice_factory().GetVoices()
-        return [tokens.Item(i).GetDescription() for i in range(tokens.Count)]
+        voices = installed_voices(voice_factory(), _onecore_tokens if real else None)
+        return [name for name, _, _ in voices]
     except Exception:
         log.warning("Couldn't list the Windows voices", exc_info=True)
         return []
 
 
 class SapiSpeaker(_VoiceThread):
-    """The Windows voice (SAPI), driven directly. `stop()` cuts it off within POLL_MS."""
+    """The Windows voice (SAPI), driven directly. `stop()` cuts it off within POLL_MS.
+
+    Each text is read by a voice for its language: your chosen voice when it speaks that
+    language, otherwise the first installed voice that does. `language` is the language you
+    last spoke (a hint for text in Latin letters).
+    """
 
     def __init__(
         self,
         rate: int = 175,
         voice: str = "",
         voice_factory: Callable[[], object] = _make_sapi_voice,
+        onecore: Callable[[], list] | None = None,
     ):
         self.rate = rate
         self.voice = voice  # a voice's name ("" = the Windows default)
+        self.language = ""
+        self.on_missing_voice: Callable[[str], None] | None = None
+        self._onecore = onecore or (_onecore_tokens if voice_factory is _make_sapi_voice else None)
+        self._voices: list[tuple] = []
+        self._default = ("", "en", None)  # the voice SAPI starts with
+        self._missing: set[str] = set()
         super().__init__(voice_factory)
 
     def _new_engine(self):
         voice = self._factory()
         voice.Rate = sapi_rate(self.rate)
-        if self.voice:
-            tokens = voice.GetVoices()
-            for i in range(tokens.Count):
-                if tokens.Item(i).GetDescription() == self.voice:
-                    voice.Voice = tokens.Item(i)
-                    break
-            else:
-                log.warning("Voice %r isn't installed; using the default voice", self.voice)
+        self._voices = installed_voices(voice, self._onecore)
+        start = getattr(voice, "Voice", None)
+        try:
+            language = voice_language(start.GetAttribute("Language")) or "en"
+            self._default = (start.GetDescription(), language, start)
+        except Exception:
+            self._default = ("", "en", None)
+        chosen = next((v for v in self._voices if v[0] == self.voice), None)
+        if chosen is not None:
+            self._default = chosen
+        elif self.voice:
+            log.warning("Voice %r isn't installed; using the default voice", self.voice)
         return voice
+
+    def _voice_for(self, language: str):
+        """The (name, language, token) to read this language with, or None if nothing can."""
+        if self._default[1] == language:
+            return self._default
+        return next((v for v in self._voices if v[1] == language), None)
 
     def _speak(self, text: str) -> None:
         voice = self._engine
+        language = text_language(text, self.language)
+        chosen = self._voice_for(language)
+        if chosen is None:
+            if language not in self._missing:
+                self._missing.add(language)
+                log.warning("No installed voice speaks %s", LANGUAGE_NAMES.get(language, language))
+                if self.on_missing_voice:
+                    self.on_missing_voice(language)
+            if language not in LATIN:
+                return  # an English voice can't read these letters at all
+            chosen = self._default
+        if chosen[2] is not None:
+            voice.Voice = chosen[2]
         voice.Speak(text, SVSF_ASYNC | SVSF_IS_NOT_XML)
         while not voice.WaitUntilDone(POLL_MS):
             if self._stop.is_set():
@@ -215,6 +333,7 @@ class FakeSpeaker(Speaker):
     """Records what would have been said. For tests."""
 
     def __init__(self):
+        self.language = ""
         self.said: list[str] = []
         self.stops = 0
 

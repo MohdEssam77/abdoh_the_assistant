@@ -24,6 +24,11 @@ _MEDIA = {
 _MEDIA_PATTERNS = {key: re.compile(rf"(?:{pattern})") for key, pattern in _MEDIA.items()}
 _CANCEL_TIMER = re.compile(r"\b(?:cancel|stop|delete|clear|remove)\b.*\btimers?\b")
 _TIMER = re.compile(r"\btimers?\b")
+# Ways to end the conversation after a reply: nothing to do, and nothing more to listen for.
+_DONE = re.compile(
+    r"(?:no |okay |ok )?(?:thanks|thank you|thanks a lot|thank you very much|thats all|thats it"
+    r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye)(?: abdoh)?"
+)
 _LOCK = re.compile(r"lock (?:my |the )?(?:computer|pc|laptop|screen|workstation)")
 _OPEN = re.compile(r"(?:open|launch|start) (?P<app>.+)")
 
@@ -44,6 +49,8 @@ class LocalSkills:
             return str(e)
 
     def _handle(self, request: str) -> str | None:
+        if _DONE.fullmatch(request):
+            return ""
         if _CANCEL_TIMER.search(request):
             return self.computer.timers.cancel_all()
         if _TIMER.search(request) and parse_duration(request):

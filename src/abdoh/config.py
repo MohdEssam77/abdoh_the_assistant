@@ -73,6 +73,8 @@ class Config:
     whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
     silence_seconds: float = 0.6
+    follow_up_seconds: float = 6.0  # after a reply, keep listening this long (0 = off)
+    wake_word_interrupts: bool = True  # saying the wake word stops a reply
     max_record_seconds: float = 10
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice

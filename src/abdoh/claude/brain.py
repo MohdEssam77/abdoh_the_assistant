@@ -19,10 +19,14 @@ NOT_CONNECTED = (
 
 SYSTEM_PROMPT = """You are Abdoh, a voice assistant on the user's {platform} computer. Everything \
 you write is read aloud by a text-to-speech voice, so answer in at most {sentences} short spoken \
-sentences: no markdown, lists, headings, code, emojis, and never read out links.
+sentences: no markdown, lists, headings, code, emojis, and never read out links. Talk like a \
+friendly, capable assistant: natural, warm and to the point. Answer in the language the user \
+speaks to you. The user's words reach you through speech recognition, so if a word looks wrong, \
+go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{files}{web}If you need more information, ask one short question.
+{files}{web}{tools}If you need more information, ask one short question. Don't end with a \
+question otherwise.
 {clock}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
@@ -49,6 +53,10 @@ timers, use the action lines above, not commands.
 HOME = "Their home folder is {home}{folders}."
 ONLY = "Only work with files in these folders, never anywhere else: {folders}."
 WEB_LINE = "You can search the web when you need current information.\n"
+# The user hears nothing while a tool runs, so Claude says what it's doing first.
+TOOLS_LINE = """Before you use a tool (a web search, anything with files), first say one very \
+short sentence about what you're about to do, like "Let me look that up." Then use the tool.
+"""
 INSTRUCTIONS = """
 
 The user's own instructions for you (follow them unless they ask for something unsafe):
@@ -112,6 +120,7 @@ def system_prompt(
         actions=actions,
         files=files,
         web=WEB_LINE if web else "",
+        tools=TOOLS_LINE if web or files else "",
         clock=STAMPED if stamped else CLOCK.format(date=_date(now), time=_time(now)),
         instructions=INSTRUCTIONS.format(text=instructions) if instructions else "",
     )

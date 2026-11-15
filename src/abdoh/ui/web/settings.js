@@ -61,7 +61,7 @@
     return card("Voice", null,
       row("Voice replies", "Speak answers out loud. Turn off to only see them here.",
         toggle($("#voice-toggle").checked, (on) => call("set_voice", on), "Voice replies")),
-      row("Voice", list.length ? "More voices: Windows Settings → Time & language → Speech." : "No voices found.",
+      row("Voice", list.length ? "For English. Replies in other languages use a voice for that language, if Windows has one (add voices in Windows Settings → Time & language → Speech)." : "No voices found.",
         select(voiceOptions, settings.tts_voice || "", (value) => saveSettings({ tts_voice: value }), "Voice")),
       row("Speed", speedText, speed),
       row("Hear it", "Play a short sample with this voice and speed.",
@@ -173,6 +173,21 @@
       row("Listening with", null, el("span", { class: "tag", id: "wake-engine" }, $("#side-wake").textContent.replace(/^Wake word: /, ""))));
   }
 
+  /* ---------- conversation ---------- */
+
+  function conversationCard() {
+    const settings = App.settings;
+    const claude = settings.claude || {};
+    const save = (changes, input, on) => saveSettings(changes).then((ok) => { if (!ok) input.checked = !on; });
+    return card("Conversation", "How talking with Abdoh flows.",
+      row("Keep listening after a reply", "After Claude answers, Abdoh listens for a few more seconds, so you can go on without the wake word. Say “thanks” or just stay quiet to end.",
+        toggle(settings.follow_up_seconds > 0, (on, input) => save({ follow_up_seconds: on ? 6 : 0 }, input, on), "Keep listening after a reply")),
+      row("Answer Claude's questions right away", "When Claude asks you something, just answer.",
+        toggle(claude.listen_after_question, (on, input) => save({ claude: { listen_after_question: on } }, input, on), "Answer questions right away")),
+      row("Interrupt with the wake word", "Say “Hey Abdoh” while Abdoh is talking to stop it and say something new.",
+        toggle(settings.wake_word_interrupts, (on, input) => save({ wake_word_interrupts: on }, input, on), "Interrupt with the wake word")));
+  }
+
   /* ---------- speech recognition ---------- */
 
   function speechCard() {
@@ -249,7 +264,7 @@
       el("div", { class: "page-head" }, el("h1", {}, "Settings")),
       restartBanner(),
       ...extra,
-      voiceCard(voices), micCard(mics), wakeCard(), speechCard(), generalCard(login),
+      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speechCard(), generalCard(login),
       el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Abdoh ${App.version}`),
     ].filter(Boolean));
     startMeter();

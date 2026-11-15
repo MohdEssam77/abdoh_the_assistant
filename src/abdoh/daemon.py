@@ -4,12 +4,13 @@ Also serves requests from the UI (typed text, pause, set key, ...) on a second t
 """
 
 import logging
+import random
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import fields
 
-from abdoh.audio.listener import listen_for_request
+from abdoh.audio.listener import ANSWER_WAIT_SECONDS, listen_for_request
 from abdoh.audio.mic import MicrophoneError
 from abdoh.audio.wakeword import WakeWordEngine
 from abdoh.config import ClaudeConfig, Config, save_api_key
@@ -27,6 +28,13 @@ SORRY = "Sorry, something went wrong."
 QUIET_MIC_PEAK = 100
 MIC_TOO_QUIET = "I didn't hear anything. Your microphone may be muted or turned down."
 SAMPLE = "Hi, I'm Abdoh. This is how I sound."
+# When Claude hasn't said anything after this long, Abdoh says it's still on it.
+FILLER_SECONDS = 3.5
+FILLERS = ("One moment.", "Let me think.", "Working on it.", "Just a second.")
+NO_VOICE = (
+    "I answered in {language}, but Windows has no {language} voice to read it. Add one in "
+    "Windows Settings, under Time & language, Speech."
+)
 # Why voice input is off (shown as the status; the details are in the log).
 WAKE_WORD_FAILED = "the wake word engine couldn't start"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
@@ -66,7 +74,12 @@ class Daemon:
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self._listen_now = threading.Event()  # the hotkey was pressed
         self._via_hotkey = False
-        self._awaiting_answer = False  # Claude asked a question: listen for the answer next
+        self._awaiting_answer = False  # listen for one more thing next, without the wake word
+        self._answer_wait = ANSWER_WAIT_SECONDS  # ... for this long
+        self._soft_chime = False  # ... announced by a softer sound than the hotkey's
+        self._spoke = False  # something was said aloud for the current request
+        if hasattr(speaker, "on_missing_voice"):
+            speaker.on_missing_voice = self._missing_voice
         self._recording = False
         self.paused = False
         self.voice_enabled = True
@@ -112,8 +125,30 @@ class Daemon:
             warm_up()
 
     def _activity(self, text: str) -> None:
-        """Claude started something slow (a web search, a file): show it."""
+        """Claude started something slow (a web search, a file): show it, and say it if Claude
+        didn't say what it was about to do."""
         self.bus.emit("activity", text)
+        if not self._spoke:
+            self._say_aside(f"{text}.")
+
+    def _say_aside(self, text: str) -> None:
+        """Say a few words that aren't part of the answer (not shown in the conversation)."""
+        if self.speaker.language not in ("", "en"):
+            return  # these asides are English; the ticking sound says "still working"
+        self._speak(text)
+        if not self._interrupted.is_set():
+            self.bus.emit("status", "Thinking...")
+
+    def _still_working(self) -> None:
+        """Claude has been quiet for a while: say that Abdoh is on it."""
+        if not self._spoke and self._handle_lock.locked():
+            self._say_aside(random.choice(FILLERS))
+
+    def _missing_voice(self, language: str) -> None:
+        from abdoh.speech.tts import LANGUAGE_NAMES
+
+        name = LANGUAGE_NAMES.get(language, language)
+        self.bus.emit("history", "Abdoh: " + NO_VOICE.format(language=name))
 
     def mic_level(self) -> int | None:
         """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
@@ -192,6 +227,7 @@ class Daemon:
         self.earcons.stop_ticking()
         if not self.voice_enabled or self._interrupted.is_set():
             return
+        self._spoke = True
         self.bus.emit("status", "Speaking")
         try:
             self.speaker.say(text)
@@ -258,7 +294,7 @@ class Daemon:
         self._recording = True
         self._interrupted.clear()
         self.bus.emit("status", "Listening to you...")
-        self.earcons.play("listening")
+        self.earcons.play("ready" if self._soft_chime else "listening")
 
     def _heard_nothing(self, loudest: int) -> None:
         """Nothing was said after the hotkey or Claude's question. If you pressed the hotkey
@@ -288,26 +324,82 @@ class Daemon:
         """
         with self._handle_lock:
             self._interrupted.clear()
+            self._spoke = False
             log.info("You: %s", text)
             self.bus.emit("history", f"You: {text}")
             self.bus.emit("status", "Thinking...")
             started = time.perf_counter()
+            watcher = self._watch_for_wake_word() if voice else None
             try:
-                reply = self.router.handle(text)
-            except Exception:
-                log.exception("Error handling %r", text)
-                reply = SORRY
-            if isinstance(reply, str):
-                log.info("Timing: answered in %.2fs, without Claude", time.perf_counter() - started)
-                if reply:
-                    self.say(reply)
-            else:
-                reply = self._speak_stream(reply, started)
-                if voice:
-                    self._awaiting_answer = self._asked_question(reply)
+                try:
+                    reply = self.router.handle(text)
+                except Exception:
+                    log.exception("Error handling %r", text)
+                    reply = SORRY
+                if isinstance(reply, str):
+                    spent = time.perf_counter() - started
+                    log.info("Timing: answered in %.2fs, without Claude", spent)
+                    if reply:
+                        self.say(reply)
+                else:
+                    filler = threading.Timer(FILLER_SECONDS, self._still_working)
+                    filler.daemon = True
+                    filler.start()
+                    try:
+                        reply = self._speak_stream(reply, started)
+                    finally:
+                        filler.cancel()
+                    if voice:
+                        self._listen_for_more(reply)
+            finally:
+                if watcher is not None:
+                    watcher()
             self.earcons.stop_ticking()
             self._status_idle()
             return reply
+
+    def _listen_for_more(self, reply: str) -> None:
+        """After Claude's reply to something you said: listen again without the wake word, if
+        it asked you something, or for a moment in case you want to go on."""
+        if not reply or self._interrupted.is_set():
+            return
+        asked = self._asked_question(reply)
+        wait = max(ANSWER_WAIT_SECONDS if asked else 0.0, float(self.cfg.follow_up_seconds))
+        if wait > 0:
+            self._awaiting_answer, self._answer_wait = True, wait
+            self._soft_chime = not asked
+
+    def _watch_for_wake_word(self):
+        """While Abdoh answers, keep an ear on the microphone: the wake word stops the reply and
+        Abdoh listens to you instead. Returns a function that ends the watch."""
+        mic, engine = self.mic, self.engine
+        if not (self.cfg.wake_word_interrupts and mic is not None and engine is not None):
+            return None
+        if not engine.trusted:  # only a trained model can tell the wake word from Abdoh's voice
+            return None
+        done = threading.Event()
+
+        def watch() -> None:
+            while not done.is_set():
+                try:
+                    block = mic.read()
+                    heard = not done.is_set() and engine.detect(block)
+                except Exception:
+                    return  # the microphone went away; the main loop deals with that
+                if heard:
+                    log.info("Wake word heard during a reply: stopping to listen")
+                    self.stop_speaking()
+                    self._listen_now.set()
+                    return
+
+        thread = threading.Thread(target=watch, name="abdoh-barge-in", daemon=True)
+        thread.start()
+
+        def end() -> None:
+            done.set()
+            thread.join(timeout=3)
+
+        return end
 
     def _asked_question(self, reply: str) -> bool:
         """Did Claude end its reply with a question (and you didn't stop it)?"""
@@ -453,6 +545,8 @@ class Daemon:
         self.stop_event.wait(self.mic_retry_seconds)
 
     def _on_wake(self) -> None:
+        if self._handle_lock.locked() and self.cfg.wake_word_interrupts:
+            self.stop_speaking()  # a typed request is being answered: you get the floor
         self._woke = time.perf_counter()
         self._recording = True
         self._interrupted.clear()
@@ -460,6 +554,8 @@ class Daemon:
 
     def _listen_once(self, mic) -> None:
         answer, self._awaiting_answer = self._awaiting_answer, False
+        if not answer:
+            self._soft_chime = False
         try:
             text = listen_for_request(
                 mic,
@@ -474,6 +570,7 @@ class Daemon:
                 on_listen=self._on_listen,
                 answer=answer,
                 on_nothing=self._heard_nothing,
+                answer_wait=self._answer_wait,
             )
         except MicrophoneError:
             raise
@@ -484,6 +581,8 @@ class Daemon:
         finally:
             self._recording = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
+        self._soft_chime = False
+        self.speaker.language = getattr(self.transcriber, "last_language", "")
         if text and (via_hotkey or answer):
             self.handle_text(text, voice=True)  # the hotkey and answers work even while paused
         elif text and self.paused:

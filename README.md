@@ -109,6 +109,23 @@ it any time; **Settings → Run setup again** brings it back.
 The window uses Microsoft WebView2, which comes with Windows 10 and 11. Without it, Abdoh falls
 back to its old, simple window.
 
+### Talking with Abdoh
+
+- **Say the wake word and keep going**: "Hey Abdoh, what's the weather tomorrow?" A soft chime
+  tells you it woke up. If you only say "Hey Abdoh", it answers "Yes?" and waits.
+- **Keep talking**: after Claude answers, Abdoh listens for about six more seconds (one soft
+  note), so you can go on without the wake word. Say "thanks" or stay quiet to end it.
+- **Interrupt**: say "Hey Abdoh" while it's talking (or press the hotkey) to stop it and say
+  something new.
+- **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window
+  shows what it's doing ("Searching the web…"), and after a few quiet seconds Abdoh says it's
+  still on it.
+- **Other languages**: add the languages you speak in Settings. Abdoh answers in the language
+  you used, with a Windows voice for it (add voices in Windows Settings → Time & language →
+  Speech; the window tells you when one is missing).
+
+Each of these can be turned off under **Settings → Conversation**.
+
 ### Voice controls
 
 - "Abdoh, stop listening": Abdoh ignores everything until "Abdoh, start listening" (or the hotkey)
@@ -412,6 +429,8 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |
+| `follow_up_seconds` | `6` | After Claude answers, keep listening this long without the wake word (0 = off) |
+| `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
 | `tts_rate` | `175` | Speaking speed |
 | `tts_voice` | `""` | A Windows voice's name; empty means the default voice |
 | `mic_device` | `""` | A microphone's name; empty means Windows' default microphone |

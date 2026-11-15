@@ -213,8 +213,11 @@ def read_events(lines: Iterable[str], on_tool=None) -> Iterator[str]:
                 new_message = True
             elif inner.get("type") == "content_block_start":
                 block = inner.get("content_block") or {}
-                if on_tool and block.get("type") in ("tool_use", "server_tool_use"):
-                    on_tool(str(block.get("name") or ""))
+                if block.get("type") in ("tool_use", "server_tool_use"):
+                    if said:
+                        yield "\n"  # what Claude said before the tool is complete: speak it now
+                    if on_tool:
+                        on_tool(str(block.get("name") or ""))
             elif inner.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
                 text = delta.get("text") or ""
                 if text:
@@ -229,6 +232,7 @@ def read_events(lines: Iterable[str], on_tool=None) -> Iterator[str]:
         elif kind == "result":
             if event.get("is_error") or event.get("subtype", "success") != "success":
                 if not said:
+                    log.warning("Claude Code reported an error: %s", str(event)[:300])
                     raise BrainError(error_message(str(event.get("result") or "")))
             elif not said and event.get("result"):
                 yield str(event["result"])
@@ -515,6 +519,25 @@ class ClaudeCodeBrain(Brain):
                 f"\n\nThe screenshot is the file {SCREENSHOT} in the current folder. "
                 "Read it with the Read tool."
             )
+        said = False
+        try:
+            for attempt in (1, 2):
+                try:
+                    for chunk in self._ask(prompt):
+                        said = True
+                        yield chunk
+                    return
+                except BrainError as e:
+                    # Now and then Claude Code returns nothing at all; a fresh process usually
+                    # answers. Anything else (not signed in, a limit, too slow) is final.
+                    if said or attempt == 2 or str(e) != FAILED or self._closed:
+                        raise
+                    log.info("Claude Code gave no answer; asking once more")
+        finally:
+            shot.unlink(missing_ok=True)
+
+    def _ask(self, prompt: str) -> Iterator[str]:
+        """One try at a reply, in the open conversation (or a new one)."""
         session = self._take_session()
         try:
             self._send(session, prompt)
@@ -548,14 +571,14 @@ class ClaudeCodeBrain(Brain):
                 if str(e) == FAILED:
                     detail = session.error_text()
                     log.error("Claude Code failed (exit %s): %s", session.proc.returncode, detail)
-                    raise BrainError(error_message(detail)) from e
+                    message = error_message(detail)
+                    raise BrainError(message) from e
                 raise
             if timed_out.is_set():
                 raise BrainError(TOO_SLOW)
             finished = True
         finally:
             timer.cancel()
-            shot.unlink(missing_ok=True)
             if finished:
                 self._rest(session)
             else:  # an error, or stopped early (e.g. "stop speaking"): start over next time

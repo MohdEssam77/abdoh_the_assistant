@@ -503,7 +503,10 @@ def test_tools_are_reported_as_activity(tmp_path):
     brain = make_brain(tmp_path, popen)
     seen = []
     brain.on_activity = seen.append
-    assert "".join(brain.stream("weather?")) == "Let me check. \nSunny."
+    stream = brain.stream("weather?")
+    assert [next(stream), next(stream)] == ["Let me check. ", "\n"]
+    assert seen == []  # the line before the search can be spoken before the search starts
+    assert "".join(stream) == "\nSunny."
     assert seen == ["Searching the web"]
     assert activity("SomethingNew") == "Working on it"
     brain.close()
@@ -559,3 +562,32 @@ def test_closed_brain_keeps_nothing_open(tmp_path):
     brain.close()
     brain.warm_up()
     assert popen.procs == []
+
+
+def test_an_empty_answer_is_asked_once_more(tmp_path):
+    class Flaky(FakePopen):
+        def __call__(self, args, **kwargs):
+            self.replies = [[result("", is_error=True)]] if not self.procs else [turn("Tokyo.")]
+            return super().__call__(args, **kwargs)
+
+    popen = Flaky()
+    brain = make_brain(tmp_path, popen)
+    assert "".join(brain.stream("capital of japan?")) == "Tokyo."
+    assert len(popen.procs) == 2  # a fresh process answered
+    brain.close()
+
+
+def test_two_empty_answers_are_an_error(tmp_path):
+    popen = FakePopen([result("", is_error=True)])
+    brain = make_brain(tmp_path, popen)
+    with pytest.raises(BrainError, match=FAILED):
+        list(brain.stream("hello"))
+    assert len(popen.procs) == 2
+
+
+def test_real_errors_are_not_retried(tmp_path):
+    popen = FakePopen([rate_limit("rejected")])
+    brain = make_brain(tmp_path, popen)
+    with pytest.raises(BrainError, match=LIMIT):
+        list(brain.stream("hello"))
+    assert len(popen.procs) == 1

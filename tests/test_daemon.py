@@ -514,19 +514,41 @@ def test_claude_question_is_answered_without_the_wake_word(monkeypatch):
     assert daemon.speaker.said == ["Sure.", "Which city?", "It's sunny in Cairo."]
 
 
-def test_no_extra_listening_after_a_statement(monkeypatch):
+def test_after_a_reply_abdoh_keeps_listening_for_a_moment(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
-    daemon = question_daemon([["It's sunny."], ["should not run"]], ["Abdoh, weather?", "x"])
+    daemon = question_daemon(
+        [["It's sunny."], ["Rain tomorrow."]], ["Abdoh, weather?", "And tomorrow?"]
+    )
+    sounds = []
+    daemon.earcons.play = sounds.append
+    run_until(daemon, lambda: len(daemon.speaker.said) >= 2)
+    assert daemon.router.requests == ["Abdoh, weather?", "And tomorrow?"]  # no wake word needed
+    assert "ready" in sounds and "listening" not in sounds  # the softer "go on" sound
+
+
+def test_no_extra_listening_after_a_statement_when_follow_up_is_off(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    cfg = Config(follow_up_seconds=0)
+    daemon = question_daemon([["It's sunny."], ["should not run"]], ["Abdoh, weather?", "x"], cfg)
     run_until(daemon, lambda: daemon.engine.count > 80)  # long past where an answer would be
     assert daemon.router.requests == ["Abdoh, weather?"]
 
 
-def test_no_extra_listening_when_turned_off(monkeypatch):
+def test_no_extra_listening_when_everything_is_turned_off(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
-    cfg = Config(claude=ClaudeConfig(listen_after_question=False))
+    cfg = Config(follow_up_seconds=0, claude=ClaudeConfig(listen_after_question=False))
     daemon = question_daemon([["Which city?"], ["should not run"]], ["Abdoh, weather?", "x"], cfg)
     run_until(daemon, lambda: daemon.engine.count > 80)
     assert daemon.router.requests == ["Abdoh, weather?"]
+
+
+def test_a_question_waits_at_least_as_long_as_a_follow_up():
+    daemon = make_daemon(StubRouter([["Which city?"], ["Sunny."]]), cfg=Config(follow_up_seconds=2))
+    daemon.handle_text("weather", voice=True)
+    assert (daemon._awaiting_answer, daemon._answer_wait, daemon._soft_chime) == (True, 5.0, False)
+    daemon._awaiting_answer = False
+    daemon.handle_text("cairo", voice=True)
+    assert (daemon._awaiting_answer, daemon._answer_wait, daemon._soft_chime) == (True, 2.0, True)
 
 
 def test_typed_requests_and_fixed_replies_dont_listen_for_an_answer():

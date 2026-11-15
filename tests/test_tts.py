@@ -8,8 +8,11 @@ from abdoh.speech.tts import (
     Pyttsx3Speaker,
     SapiSpeaker,
     Speaker,
+    installed_voices,
     make_speaker,
     sapi_rate,
+    text_language,
+    voice_language,
     windows_voices,
 )
 
@@ -139,21 +142,31 @@ DAVID = "Microsoft David Desktop - English (United States)"
 ZIRA = "Microsoft Zira Desktop - English (United States)"
 
 
+NAAYF = "Microsoft Naayf - Arabic (Saudi)"
+
+
 class FakeToken:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self, name, language="409"):
+        self.name, self.language = name, language
 
     def GetDescription(self):
         return self.name
 
+    def GetAttribute(self, name):
+        assert name == "Language"
+        return self.language
+
 
 class FakeTokens:
-    def __init__(self, names):
-        self.names = names
-        self.Count = len(names)
+    def __init__(self, tokens):
+        self.tokens = tokens
+        self.Count = len(tokens)
 
     def Item(self, i):
-        return FakeToken(self.names[i])
+        return self.tokens[i]
+
+
+DESKTOP = [FakeToken(DAVID), FakeToken(ZIRA)]
 
 
 class FakeSapiVoice:
@@ -182,7 +195,7 @@ class FakeSapiVoice:
         return False
 
     def GetVoices(self):
-        return FakeTokens([DAVID, ZIRA])
+        return FakeTokens(DESKTOP)
 
 
 class SapiFactory:
@@ -281,3 +294,69 @@ def test_make_speaker_picks_the_windows_voice_on_windows(monkeypatch):
     assert isinstance(make_speaker(), SapiSpeaker)
     monkeypatch.setattr("sys.platform", "linux")
     assert isinstance(make_speaker(), Pyttsx3Speaker)
+
+
+# ----- a voice for each language -----
+
+
+def test_voice_languages_and_text_languages():
+    assert voice_language("409") == "en" and voice_language("401;1") == "ar"
+    assert voice_language("C0A") == "es" and voice_language("") == ""
+    assert text_language("Hello there") == "en"
+    assert text_language("نعم، أنا هنا. كيف أقدر أساعدك؟") == "ar"
+    assert text_language("نعم", hint="ur") == "ur"  # the same letters: your language wins
+    assert text_language("Bonjour, ça va ?", hint="fr") == "fr"
+    assert text_language("OK", hint="ar") == "en"  # Latin letters are not Arabic
+    assert text_language("Привет") == "ru" and text_language("こんにちは、世界") == "ja"
+    assert text_language("12:30") == "en"
+
+
+def arabic_speaker(**kwargs):
+    factory = SapiFactory()
+    onecore = [FakeToken(NAAYF, "401")]
+    speaker = SapiSpeaker(voice_factory=factory, onecore=lambda: onecore, **kwargs)
+    return speaker, factory, onecore[0]
+
+
+def test_arabic_text_is_read_by_the_arabic_voice_and_english_by_yours():
+    speaker, factory, naayf = arabic_speaker(voice=ZIRA)
+    speaker.say("نعم، أنا هنا.")
+    voice = factory.voices[0]
+    assert voice.Voice is naayf
+    speaker.say("Back to English.")
+    assert voice.Voice.GetDescription() == ZIRA
+    assert [text for text, _ in voice.calls] == ["نعم، أنا هنا.", "Back to English."]
+
+
+def test_without_a_voice_for_the_language_nothing_is_garbled():
+    factory = SapiFactory()
+    speaker = SapiSpeaker(voice_factory=factory)  # English voices only
+    missing = []
+    speaker.on_missing_voice = missing.append
+    speaker.say("نعم، أنا هنا.")
+    speaker.say("كيف أساعدك؟")
+    assert factory.voices[0].calls == []  # an English voice can't read Arabic letters
+    assert missing == ["ar"]  # said once
+
+
+def test_latin_text_in_a_language_without_a_voice_is_still_read():
+    factory = SapiFactory()
+    speaker = SapiSpeaker(voice_factory=factory)
+    missing = []
+    speaker.on_missing_voice = missing.append
+    speaker.language = "fr"
+    speaker.say("Bonjour.")
+    assert [text for text, _ in factory.voices[0].calls] == ["Bonjour."]
+    assert missing == ["fr"]
+
+
+def test_newer_windows_voices_are_listed_once():
+    factory = SapiFactory()
+    extra = [FakeToken(NAAYF, "401"), FakeToken(DAVID)]
+    names = [name for name, _, _ in installed_voices(factory(), lambda: extra)]
+    assert names == [DAVID, ZIRA, NAAYF]
+
+    def broken():
+        raise OSError("no OneCore voices")
+
+    assert len(installed_voices(factory(), broken)) == 2
