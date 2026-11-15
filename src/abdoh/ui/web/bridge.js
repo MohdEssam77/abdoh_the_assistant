@@ -124,6 +124,17 @@ const Bridge = (() => {
       open_folder: async () => true,
       open_sound_settings: async () => {},
       restart: async () => {},
+      claude_status: async () => ({
+        installed: true, signed_in: true, plan: "pro", method: "claude.ai", has_api_key: false,
+        backend: settings.claude.backend, using: "code", connected: true,
+        summary: "Connected with your Pro plan.",
+      }),
+      install_claude: async () => ({ ok: true }),
+      claude_sign_in: async () => ({ ok: true }),
+      claude_sign_out: async () => ({ ok: true }),
+      set_api_key: async () => ({ ok: true }),
+      claude_test: async () => ({ ok: true, reply: "OK", via: "Claude Code" }),
+      refresh_claude: async () => {},
     };
   }
 

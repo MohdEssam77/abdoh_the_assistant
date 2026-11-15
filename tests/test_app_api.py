@@ -377,6 +377,7 @@ def called_api_methods() -> set[str]:
         names |= set(re.findall(r'call\((?:[^"()]*\?\s*)?"(\w+)"', text))
         names |= set(re.findall(r'call\([^"()]*\?\s*"\w+"\s*:\s*"(\w+)"', text))
         names |= set(re.findall(r"App\.api\.(\w+)\(", text))
+        names |= set(re.findall(r'\bact\([^,()]+,\s*"(\w+)"', text))  # claude.js's helper
     return names
 
 
