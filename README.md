@@ -142,6 +142,12 @@ By hand:
    python -m abdoh claude-check    # shows e.g. "Claude: Pro subscription (Claude Code)" and asks one tiny question
    ```
 
+Abdoh keeps one Claude Code conversation open while it runs, so Claude starts answering in
+about a second and **remembers what you said** ("what's the capital of Japan?" ... "and how many
+people live there?"). The conversation starts over after ten quiet minutes, when you interrupt
+a reply, or when you change Claude's settings. In Settings you can pick a faster Claude model
+(**Model**: Haiku answers soonest and uses less of your plan).
+
 Then you can say:
 
 - "Abdoh, what's the capital of Japan?"
@@ -414,7 +420,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `setup_done` | `false` | The first-start setup was finished or skipped |
 | `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key), `code`, `api`, or `off` |
 | `claude.code_path` | `""` | Where `claude.exe` is; empty means find it automatically |
-| `claude.code_model` | `""` | Claude Code model (e.g. `sonnet`); empty means your Claude Code default |
+| `claude.code_model` | `""` | Claude Code model: `haiku` (fastest), `sonnet`, `opus`; empty means your Claude Code default |
 | `claude.model` | `claude-opus-5-5` | Model when using an API key |
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
@@ -424,7 +430,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.actions` | all five | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer` |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
-| `claude.followup_seconds` | `60` | A question this soon after an answer can follow up on it (0 = off) |
+| `claude.followup_seconds` | `60` | API key only: a question this soon after an answer can follow up on it (0 = off). Claude Code remembers the whole conversation by itself |
 | `claude.listen_after_question` | `true` | When Claude asks you something, listen for your answer without the wake word |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |

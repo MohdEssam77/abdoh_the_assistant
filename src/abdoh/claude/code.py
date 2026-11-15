@@ -1,11 +1,13 @@
 """Claude through your Claude subscription: Claude Code in headless mode (`claude -p`).
 
-Each request runs `claude -p` in an empty folder (~/.abdoh/claude) with Abdoh's own system
+One `claude -p` process is kept open per conversation (requests go in on its stdin, one JSON line
+each), so answers start sooner and Claude remembers what was said. It runs in an empty folder
+(~/.abdoh/claude) with Abdoh's own system
 prompt, only the tools Abdoh allows, no plugins/MCP/CLAUDE.md (--safe-mode), your Claude Code
 settings ignored (--restricted), nothing saved to your Claude Code history, and anything that
 would need permission denied. With claude.allow_files, Claude can also read and change files in
 your home folder (--add-dir) and run PowerShell commands; otherwise file access is limited to
-that empty folder. The request goes in on stdin, never on the command line. API keys are removed
+that empty folder. Requests go in on stdin, never on the command line. API keys are removed
 from its environment so the subscription (not an API account) pays for it.
 """
 
@@ -22,7 +24,7 @@ from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
 
-from abdoh.claude.brain import Brain, BrainError, system_prompt
+from abdoh.claude.brain import Brain, BrainError, stamp, system_prompt
 from abdoh.config import Config
 
 log = logging.getLogger(__name__)
@@ -43,6 +45,19 @@ _KNOWN_FOLDERS = {
 # Credentials that would make Claude Code bill an API account instead of your subscription,
 # and the marker Claude Code sets for its own child processes.
 _STRIPPED_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDECODE")
+
+# What to show (and say) while Claude uses a tool.
+TOOL_ACTIVITY = {
+    "WebSearch": "Searching the web",
+    "WebFetch": "Reading a web page",
+    "Read": "Looking at a file",
+    "Glob": "Looking through your files",
+    "Grep": "Looking through your files",
+    "Write": "Writing a file",
+    "Edit": "Changing a file",
+    "PowerShell": "Running a command",
+    "Bash": "Running a command",
+}
 
 FAILED = "Claude couldn't answer that right now."
 TOO_SLOW = "Claude took too long to answer."
@@ -172,12 +187,13 @@ def error_message(detail: str) -> str:
     return FAILED
 
 
-def read_events(lines: Iterable[str]) -> Iterator[str]:
-    """Yield reply text from Claude Code's `--output-format stream-json` lines.
+def read_events(lines: Iterable[str], on_tool=None) -> Iterator[str]:
+    """Yield one reply's text from Claude Code's `--output-format stream-json` lines, up to its
+    "result" line (the lines after it belong to the next reply).
 
     Uses the streamed text deltas (--include-partial-messages); a new line separates text from
-    different messages (e.g. before and after a web search). Raises BrainError for errors and
-    usage limits.
+    different messages (e.g. before and after a web search). `on_tool(name)` is called when
+    Claude starts using a tool. Raises BrainError for errors and usage limits.
     """
     said = False
     new_message = False
@@ -195,6 +211,10 @@ def read_events(lines: Iterable[str]) -> Iterator[str]:
             delta = inner.get("delta") or {}
             if inner.get("type") == "message_start" and said:
                 new_message = True
+            elif inner.get("type") == "content_block_start":
+                block = inner.get("content_block") or {}
+                if on_tool and block.get("type") in ("tool_use", "server_tool_use"):
+                    on_tool(str(block.get("name") or ""))
             elif inner.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
                 text = delta.get("text") or ""
                 if text:
@@ -217,8 +237,59 @@ def read_events(lines: Iterable[str]) -> Iterator[str]:
         raise BrainError(FAILED)
 
 
+def activity(tool: str) -> str:
+    """A few words for what Claude is doing with this tool."""
+    return TOOL_ACTIVITY.get(tool, "Working on it")
+
+
+class _Session:
+    """One running Claude Code process: a conversation that stays open."""
+
+    def __init__(self, proc, stderr):
+        self.proc = proc
+        self.stderr = stderr  # a temporary file with what it printed about errors
+        self.turns = 0
+        self.busy = False
+
+    def alive(self) -> bool:
+        return self.proc.poll() is None
+
+    def error_text(self) -> str:
+        try:
+            self.proc.wait(timeout=5)
+            self.stderr.seek(0)
+            return self.stderr.read().decode("utf-8", "replace").strip()[-500:]
+        except Exception:
+            return ""
+
+    def close(self) -> None:
+        try:
+            if self.proc.poll() is None:
+                self.proc.kill()
+            self.proc.wait(timeout=5)
+        except Exception:
+            log.debug("Couldn't stop Claude Code cleanly", exc_info=True)
+        for stream in (self.proc.stdin, self.proc.stdout, self.stderr):
+            try:
+                if stream is not None:
+                    stream.close()
+            except Exception:  # noqa: S110 - already gone
+                pass
+
+
 class ClaudeCodeBrain(Brain):
+    """Claude through Claude Code, kept open between requests.
+
+    One `claude -p --input-format stream-json` process serves a whole conversation: each request
+    is one line on its stdin. Starting it costs about a second, so it's started ahead of time
+    (`warm_up`), and Claude remembers what was said. A fresh one replaces it after MAX_TURNS
+    requests, after IDLE_SECONDS without any, when a reply is interrupted, or on an error.
+    """
+
     name = "Claude Code"
+    remembers = True
+    MAX_TURNS = 40
+    IDLE_SECONDS = 600.0
 
     def __init__(
         self,
@@ -229,6 +300,8 @@ class ClaudeCodeBrain(Brain):
         workdir: Path = WORKDIR,
         home: Path | None = None,
         folders: dict[str, Path] | None = None,
+        timer=threading.Timer,
+        keep_warm: bool = True,
     ):
         self.cfg = cfg
         self.exe = Path(exe)
@@ -241,6 +314,13 @@ class ClaudeCodeBrain(Brain):
         self.only = [Path(f).expanduser() for f in cfg.claude.folders if str(f).strip()]
         self._popen = popen
         self._run = run
+        self._timer = timer
+        self._keep_warm = keep_warm  # start a fresh process whenever one is retired
+        self._session: _Session | None = None
+        self._lock = threading.RLock()  # guards _session
+        self._idle = None  # the timer that retires a session nobody talks to
+        self._closed = False
+        self._started_with: tuple | None = None  # see same_setup
 
     def tools(self) -> list[str]:
         tools = ["Read"]
@@ -266,6 +346,8 @@ class ClaudeCodeBrain(Brain):
         args = [
             str(self.exe),
             "-p",
+            "--input-format",
+            "stream-json",
             "--output-format",
             "stream-json",
             "--verbose",
@@ -293,83 +375,199 @@ class ClaudeCodeBrain(Brain):
             args += ["--model", self.cfg.claude.code_model]
         return args
 
-    def status(self) -> str:
-        return describe_status(auth_status(self.exe, self._run))
-
-    def stream(self, prompt: str, image_png: bytes | None = None) -> Iterator[str]:
-        self.workdir.mkdir(parents=True, exist_ok=True)
-        prompt_file = self.workdir / "system-prompt.txt"
+    def instructions(self) -> str:
         files = self.cfg.claude.allow_files
-        system = system_prompt(
+        return system_prompt(
             self.cfg,
             web=self.cfg.claude.allow_web,
             home=self.home if files else None,
             folders=self.folders if files else None,
             only=self.only if files else None,
+            stamped=True,
         )
-        prompt_file.write_text(system, "utf-8")
+
+    def _setup(self) -> tuple:
+        """Everything a running Claude Code process was started with."""
+        return (
+            self.command(Path("prompt")),
+            self.instructions(),
+            self.cfg.claude.timeout_seconds,
+        )
+
+    def same_setup(self, other) -> bool:
+        """True if the conversation that's open was started exactly the way `other` (a brain
+        made from the settings as they are now) would start one."""
+        return (
+            isinstance(other, ClaudeCodeBrain)
+            and self._started_with is not None
+            and self._started_with == other._setup()
+        )
+
+    def status(self) -> str:
+        return describe_status(auth_status(self.exe, self._run))
+
+    # ----- the process -----
+
+    def _start(self) -> _Session:
+        self.workdir.mkdir(parents=True, exist_ok=True)
+        prompt_file = self.workdir / "system-prompt.txt"
+        prompt_file.write_text(self.instructions(), "utf-8")
+        stderr = tempfile.TemporaryFile()
+        try:
+            proc = self._popen(
+                self.command(prompt_file),
+                cwd=self.workdir,
+                env=child_env(),
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=stderr,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=NO_WINDOW,
+            )
+        except OSError as e:
+            stderr.close()
+            log.error("Couldn't start Claude Code (%s): %s", self.exe, e)
+            raise BrainError(START_FAILED) from e
+        log.debug("Claude Code started")
+        self._started_with = self._setup()
+        return _Session(proc, stderr)
+
+    def _take_session(self) -> _Session:
+        """The open conversation, or a new one. Marks it busy."""
+        with self._lock:
+            session = self._session
+            if session is not None and not (session.alive() and session.turns < self.MAX_TURNS):
+                self._retire(session)
+                session = None
+            if session is None:
+                session = self._session = self._start()
+            session.busy = True
+            if self._idle is not None:
+                self._idle.cancel()
+                self._idle = None
+            return session
+
+    def _retire(self, session: _Session) -> None:
+        with self._lock:
+            if self._session is session:
+                self._session = None
+        session.close()
+
+    def _rest(self, session: _Session) -> None:
+        """A reply finished: keep the conversation, and retire it if nobody comes back."""
+        with self._lock:
+            session.busy = False
+            session.turns += 1
+            if self._closed:
+                return self._retire(session)
+            self._idle = self._timer(self.IDLE_SECONDS, self._went_quiet, args=(session,))
+            self._idle.daemon = True
+            self._idle.start()
+
+    def _went_quiet(self, session: _Session) -> None:
+        with self._lock:
+            if self._session is not session or session.busy or self._closed:
+                return
+            log.debug("Claude Code conversation closed after a quiet while")
+            self._retire(session)
+        if self._keep_warm:
+            self.warm_up()  # a fresh, empty one, ready for the next question
+
+    def warm_up(self) -> None:
+        """Start Claude Code now, in the background, so the next question doesn't wait for it."""
+
+        def start() -> None:
+            with self._lock:
+                if self._closed or self._session is not None:
+                    return
+                try:
+                    self._session = self._start()
+                except BrainError:
+                    pass  # reported when a question is asked
+
+        threading.Thread(target=start, name="abdoh-claude-warm", daemon=True).start()
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            if self._idle is not None:
+                self._idle.cancel()
+            session, self._session = self._session, None
+        if session is not None:
+            session.close()
+
+    # ----- asking -----
+
+    @staticmethod
+    def _send(session: _Session, prompt: str) -> None:
+        message = {"type": "user", "message": {"role": "user", "content": stamp(prompt)}}
+        session.proc.stdin.write(json.dumps(message) + "\n")
+        session.proc.stdin.flush()
+
+    def stream(self, prompt: str, image_png: bytes | None = None) -> Iterator[str]:
         shot = self.workdir / SCREENSHOT
         if image_png:
+            self.workdir.mkdir(parents=True, exist_ok=True)
             shot.write_bytes(image_png)
             prompt += (
                 f"\n\nThe screenshot is the file {SCREENSHOT} in the current folder. "
                 "Read it with the Read tool."
             )
-        with tempfile.TemporaryFile() as stderr:
-            try:
-                proc = self._popen(
-                    self.command(prompt_file),
-                    cwd=self.workdir,
-                    env=child_env(),
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=stderr,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    creationflags=NO_WINDOW,
-                )
-            except OSError as e:
-                log.error("Couldn't start Claude Code (%s): %s", self.exe, e)
-                raise BrainError(START_FAILED) from e
-            timed_out = threading.Event()
-
-            def kill() -> None:
-                timed_out.set()
-                proc.kill()
-
-            timer = threading.Timer(self.cfg.claude.timeout_seconds, kill)
-            timer.start()
-            try:
-                try:
-                    proc.stdin.write(prompt)
-                    proc.stdin.close()
-                except OSError:
-                    log.debug("Claude Code closed its input early", exc_info=True)
-                try:
-                    yield from read_events(proc.stdout)
-                except BrainError as e:
-                    if timed_out.is_set():
-                        raise BrainError(TOO_SLOW) from e
-                    if str(e) == FAILED:
-                        detail = self._stderr(proc, stderr)
-                        log.error("Claude Code failed (exit %s): %s", proc.returncode, detail)
-                        raise BrainError(error_message(detail)) from e
-                    raise
-                if timed_out.is_set():
-                    raise BrainError(TOO_SLOW)
-            finally:
-                timer.cancel()
-                if proc.poll() is None:
-                    proc.kill()  # stopped early (e.g. "stop speaking")
-                proc.wait()
-                shot.unlink(missing_ok=True)
-
-    @staticmethod
-    def _stderr(proc, stderr) -> str:
+        session = self._take_session()
         try:
-            proc.wait(timeout=5)
-            stderr.seek(0)
-            return stderr.read().decode("utf-8", "replace").strip()[-500:]
-        except Exception:
-            return ""
+            self._send(session, prompt)
+        except (OSError, ValueError):  # it died while waiting: one fresh try
+            log.info("Claude Code had stopped; starting it again")
+            self._retire(session)
+            session = self._take_session()
+            try:
+                self._send(session, prompt)
+            except (OSError, ValueError) as e:
+                detail = session.error_text()
+                self._retire(session)
+                log.error("Claude Code isn't taking requests: %s", detail or e)
+                raise BrainError(error_message(detail)) from e
+        timed_out = threading.Event()
+
+        def kill() -> None:
+            timed_out.set()
+            session.proc.kill()
+
+        timer = self._timer(self.cfg.claude.timeout_seconds, kill)
+        timer.daemon = True
+        timer.start()
+        finished = False
+        try:
+            try:
+                yield from read_events(session.proc.stdout, self._on_tool)
+            except BrainError as e:
+                if timed_out.is_set():
+                    raise BrainError(TOO_SLOW) from e
+                if str(e) == FAILED:
+                    detail = session.error_text()
+                    log.error("Claude Code failed (exit %s): %s", session.proc.returncode, detail)
+                    raise BrainError(error_message(detail)) from e
+                raise
+            if timed_out.is_set():
+                raise BrainError(TOO_SLOW)
+            finished = True
+        finally:
+            timer.cancel()
+            shot.unlink(missing_ok=True)
+            if finished:
+                self._rest(session)
+            else:  # an error, or stopped early (e.g. "stop speaking"): start over next time
+                self._retire(session)
+                if self._keep_warm and not self._closed:
+                    self.warm_up()
+
+    def _on_tool(self, tool: str) -> None:
+        log.info("Claude is using %s", tool)
+        notify = self.on_activity
+        if notify:
+            try:
+                notify(activity(tool))
+            except Exception:
+                log.debug("Couldn't report Claude's activity", exc_info=True)

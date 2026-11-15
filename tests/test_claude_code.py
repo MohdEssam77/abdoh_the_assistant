@@ -16,6 +16,7 @@ from abdoh.claude.code import (
     START_FAILED,
     TOO_SLOW,
     ClaudeCodeBrain,
+    activity,
     auth_status,
     describe_status,
     editor_binaries,
@@ -50,29 +51,44 @@ INIT = json.dumps({"type": "system", "subtype": "init", "tools": []})
 
 
 class FakeStdin:
-    def __init__(self):
-        self.text = ""
+    def __init__(self, broken=False):
+        self.lines = []
         self.closed = False
+        self.broken = broken
 
     def write(self, text):
-        self.text += text
+        if self.broken:
+            raise OSError("pipe closed")
+        self.lines.append(text)
+
+    def flush(self):
+        pass
 
     def close(self):
         self.closed = True
 
+    @property
+    def prompts(self):
+        """What was asked, without the date and time stamp in front."""
+        return [json.loads(line)["message"]["content"].split("\n", 1)[1] for line in self.lines]
+
 
 class FakeProc:
-    def __init__(self, lines, returncode=0, hang=False):
-        self.stdin = FakeStdin()
-        self._lines = lines
+    """A `claude -p --input-format stream-json` process: `replies` is one list of output lines
+    per request; they're only produced once that request has been written to stdin."""
+
+    def __init__(self, replies, returncode=0, hang=False, dead=False):
+        self.stdin = FakeStdin(broken=dead)
+        self._replies = replies
         self._returncode = returncode
         self._hang = hang
         self.killed = threading.Event()
-        self.returncode = None
+        self.returncode = returncode if dead else None
+        self.stdout = self._output()
 
-    @property
-    def stdout(self):
-        yield from (line + "\n" for line in self._lines)
+    def _output(self):
+        for reply in self._replies:
+            yield from (line + "\n" for line in reply)
         if self._hang:
             self.killed.wait(5)  # like a stuck process: no more output until killed
 
@@ -85,15 +101,19 @@ class FakeProc:
 
     def kill(self):
         self.killed.set()
+        self.returncode = -9
 
 
 class FakePopen:
-    def __init__(self, lines=(), returncode=0, stderr=b"", hang=False, error=None):
-        self.lines = list(lines)
+    def __init__(
+        self, *replies, returncode=0, stderr=b"", hang=False, error=None, dead_first=False
+    ):
+        self.replies = [list(r) for r in replies]
         self.returncode = returncode
         self.stderr = stderr
         self.hang = hang
         self.error = error
+        self.dead_first = dead_first
         self.calls = []
         self.procs = []
 
@@ -102,19 +122,48 @@ class FakePopen:
         if self.error:
             raise self.error
         kwargs["stderr"].write(self.stderr)
-        proc = FakeProc(self.lines, self.returncode, self.hang)
+        dead = self.dead_first and not self.procs
+        proc = FakeProc(self.replies, self.returncode, self.hang, dead)
         self.procs.append(proc)
         return proc
+
+
+class FakeTimer:
+    """threading.Timer that only runs when a test says so."""
+
+    made: list = []
+
+    def __init__(self, seconds, function, args=()):
+        self.seconds, self.function, self.args = seconds, function, args
+        self.cancelled = False
+        self.daemon = False
+        FakeTimer.made.append(self)
+
+    def start(self):
+        pass
+
+    def cancel(self):
+        self.cancelled = True
+
+    def fire(self):
+        self.function(*self.args)
 
 
 HOME = Path("C:/Users/me")
 FOLDERS = {"Desktop": HOME / "OneDrive" / "Desktop", "Downloads": HOME / "Downloads"}
 
 
-def make_brain(tmp_path, popen, folders=FOLDERS, **claude):
+def make_brain(tmp_path, popen, folders=FOLDERS, timer=threading.Timer, keep_warm=False, **claude):
     cfg = Config(app_dir=tmp_path, claude=ClaudeConfig(**claude))
     return ClaudeCodeBrain(
-        cfg, Path("claude.exe"), popen=popen, workdir=tmp_path / "work", home=HOME, folders=folders
+        cfg,
+        Path("claude.exe"),
+        popen=popen,
+        workdir=tmp_path / "work",
+        home=HOME,
+        folders=folders,
+        timer=timer,
+        keep_warm=keep_warm,
     )
 
 
@@ -253,6 +302,7 @@ def test_command_flags(tmp_path):
     ):
         assert flag in args
     assert args[args.index("--output-format") + 1] == "stream-json"
+    assert args[args.index("--input-format") + 1] == "stream-json"  # stays open for more
     assert args[args.index("--permission-prompts") + 1] == "none"
     tools = ",".join(["Read", *FILE_TOOLS, "WebSearch", "WebFetch"])
     assert args[args.index("--tools") + 1] == tools
@@ -308,15 +358,19 @@ def test_system_prompt_names_your_folders(tmp_path):
     assert str(HOME) in text and str(FOLDERS["Desktop"]) in text
     assert "ask whether to go ahead" in text
     assert "You cannot run commands" not in text
-    assert popen.procs[0].stdin.text == "Put my screenshots in a folder."
+    assert "date and time in square brackets" in text and "Today is" not in text
+    assert popen.procs[0].stdin.prompts == ["Put my screenshots in a folder."]
+    brain.close()
 
 
 def test_system_prompt_without_file_access(tmp_path):
     popen = FakePopen([INIT, delta("Hi."), result("Hi.")])
-    "".join(make_brain(tmp_path, popen, allow_files=False).stream("hello"))
+    brain = make_brain(tmp_path, popen, allow_files=False)
+    "".join(brain.stream("hello"))
     args, _ = popen.calls[0]
     text = Path(args[args.index("--system-prompt-file") + 1]).read_text(encoding="utf-8")
     assert "You cannot run commands" in text and str(HOME) not in text
+    brain.close()
 
 
 def test_stream_sends_the_request_on_stdin(tmp_path, monkeypatch):
@@ -326,34 +380,153 @@ def test_stream_sends_the_request_on_stdin(tmp_path, monkeypatch):
     assert "".join(brain.stream("What's the capital of Japan?")) == "Tokyo."
     args, kwargs = popen.calls[0]
     assert "What's the capital of Japan?" not in " ".join(args)
-    assert popen.procs[0].stdin.text == "What's the capital of Japan?"
-    assert popen.procs[0].stdin.closed
+    sent = json.loads(popen.procs[0].stdin.lines[0])
+    assert sent["type"] == "user" and sent["message"]["role"] == "user"
+    stamp, prompt = sent["message"]["content"].split("\n", 1)
+    assert prompt == "What's the capital of Japan?"
+    assert stamp.startswith("[") and stamp.endswith(("AM]", "PM]"))  # the time, every time
     assert "ANTHROPIC_API_KEY" not in kwargs["env"]
     assert kwargs["cwd"] == tmp_path / "work"
     prompt_file = Path(args[args.index("--system-prompt-file") + 1])
     assert "You are Abdoh" in prompt_file.read_text(encoding="utf-8")
+    brain.close()
+
+
+# ----- one conversation, kept open -----
+
+
+def turn(text):
+    return [delta(text), result(text)]
+
+
+def test_the_same_process_answers_the_next_question(tmp_path):
+    popen = FakePopen([INIT, *turn("Tokyo.")], turn("About 14 million."))
+    brain = make_brain(tmp_path, popen)
+    assert "".join(brain.stream("What's the capital of Japan?")) == "Tokyo."
+    assert "".join(brain.stream("How many people live there?")) == "About 14 million."
+    assert len(popen.procs) == 1  # Claude remembers: it's the same conversation
+    proc = popen.procs[0]
+    assert proc.stdin.prompts == ["What's the capital of Japan?", "How many people live there?"]
+    assert not proc.stdin.closed and not proc.killed.is_set()
+    assert brain.remembers is True
+    brain.close()
+    assert proc.killed.is_set()
+
+
+def test_a_long_conversation_starts_over(tmp_path):
+    popen = FakePopen(turn("One."), turn("Two."))
+    brain = make_brain(tmp_path, popen)
+    brain.MAX_TURNS = 1
+    assert "".join(brain.stream("first")) == "One."
+    assert "".join(brain.stream("second")) == "One."  # a new process, from the top
+    assert len(popen.procs) == 2 and popen.procs[0].killed.is_set()
+    brain.close()
+
+
+def test_a_quiet_conversation_is_closed_and_a_fresh_one_made_ready(tmp_path):
+    FakeTimer.made.clear()
+    popen = FakePopen(turn("Hi."))
+    brain = make_brain(tmp_path, popen, timer=FakeTimer, keep_warm=True)
+    "".join(brain.stream("hello"))
+    idle = FakeTimer.made[-1]
+    assert idle.seconds == brain.IDLE_SECONDS
+    idle.fire()
+    assert popen.procs[0].killed.is_set()
+    wait_for(lambda: len(popen.procs) == 2)  # warmed up again, with nothing remembered
+    brain.close()
+
+
+def test_asking_again_cancels_the_quiet_timer(tmp_path):
+    FakeTimer.made.clear()
+    popen = FakePopen(turn("Hi."), turn("Yes."))
+    brain = make_brain(tmp_path, popen, timer=FakeTimer)
+    "".join(brain.stream("hello"))
+    idle = FakeTimer.made[-1]
+    "".join(brain.stream("still there?"))
+    assert idle.cancelled and len(popen.procs) == 1
+    brain.close()
+
+
+def wait_for(condition, seconds=3.0):
+    import time
+
+    deadline = time.monotonic() + seconds
+    while not condition() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert condition()
+
+
+def test_warm_up_starts_claude_before_the_first_question(tmp_path):
+    popen = FakePopen(turn("Hi."))
+    brain = make_brain(tmp_path, popen)
+    brain.warm_up()
+    wait_for(lambda: len(popen.procs) == 1)
+    assert popen.procs[0].stdin.lines == []  # started, nothing asked yet
+    assert "".join(brain.stream("hello")) == "Hi."
+    assert len(popen.procs) == 1  # the warm one answered
+    brain.close()
+
+
+def test_a_process_that_died_is_replaced(tmp_path):
+    popen = FakePopen(turn("Hi."), dead_first=True)
+    brain = make_brain(tmp_path, popen)
+    brain.warm_up()
+    wait_for(lambda: len(popen.procs) == 1)
+    assert "".join(brain.stream("hello")) == "Hi."
+    assert len(popen.procs) == 2
+    brain.close()
+
+
+def test_same_setup_keeps_the_conversation_only_if_nothing_changed(tmp_path):
+    popen = FakePopen(turn("Hi."))
+    brain = make_brain(tmp_path, popen)
+    assert not brain.same_setup(make_brain(tmp_path, popen))  # nothing open yet to keep
+    "".join(brain.stream("hello"))
+    assert brain.same_setup(make_brain(tmp_path, popen))
+    assert not brain.same_setup(make_brain(tmp_path, popen, allow_web=False))
+    assert not brain.same_setup(make_brain(tmp_path, popen, instructions="Call me Mo."))
+    assert not brain.same_setup(make_brain(tmp_path, popen, code_model="haiku"))
+    brain.close()
+
+
+def test_tools_are_reported_as_activity(tmp_path):
+    tool = json.dumps(
+        {
+            "type": "stream_event",
+            "event": {
+                "type": "content_block_start",
+                "content_block": {"type": "tool_use", "name": "WebSearch"},
+            },
+        }
+    )
+    popen = FakePopen([delta("Let me check. "), tool, message_start(), delta("Sunny."), result()])
+    brain = make_brain(tmp_path, popen)
+    seen = []
+    brain.on_activity = seen.append
+    assert "".join(brain.stream("weather?")) == "Let me check. \nSunny."
+    assert seen == ["Searching the web"]
+    assert activity("SomethingNew") == "Working on it"
+    brain.close()
 
 
 def test_screenshot_is_given_as_a_file_and_removed(tmp_path):
-    seen = {}
-
-    class Popen(FakePopen):
-        def __call__(self, args, **kwargs):
-            seen["exists"] = (tmp_path / "work" / SCREENSHOT).read_bytes()
-            return super().__call__(args, **kwargs)
-
-    popen = Popen([delta("It shows a cat."), result()])
+    popen = FakePopen([delta("It shows a cat."), result()])
     brain = make_brain(tmp_path, popen)
-    assert "".join(brain.stream("Summarize", image_png=b"PNG")) == "It shows a cat."
-    assert seen["exists"] == b"PNG"
-    assert SCREENSHOT in popen.procs[0].stdin.text
+    stream = brain.stream("Summarize", image_png=b"PNG")
+    assert next(stream) == "It shows a cat."
+    assert (tmp_path / "work" / SCREENSHOT).read_bytes() == b"PNG"  # there while Claude works
+    assert list(stream) == []
+    assert SCREENSHOT in popen.procs[0].stdin.prompts[0]
     assert not (tmp_path / "work" / SCREENSHOT).exists()
+    brain.close()
 
 
 def test_not_signed_in_from_stderr(tmp_path):
-    popen = FakePopen([], returncode=1, stderr=b"Error: not logged in. Run claude /login")
+    popen = FakePopen(returncode=1, stderr=b"Error: not logged in. Run claude /login")
+    brain = make_brain(tmp_path, popen)
     with pytest.raises(BrainError, match="isn't signed in"):
-        list(make_brain(tmp_path, popen).stream("hi"))
+        list(brain.stream("hi"))
+    assert brain._session is None  # not kept for the next question
 
 
 def test_cannot_start(tmp_path):
@@ -369,9 +542,20 @@ def test_timeout_kills_the_process(tmp_path):
     assert popen.procs[0].killed.is_set()
 
 
-def test_stopping_early_kills_the_process(tmp_path):
+def test_stopping_early_kills_the_process_and_readies_a_new_one(tmp_path):
     popen = FakePopen([delta("One. "), delta("Two. "), result()])
-    stream = make_brain(tmp_path, popen).stream("count")
+    brain = make_brain(tmp_path, popen, keep_warm=True)
+    stream = brain.stream("count")
     assert next(stream) == "One. "
     stream.close()
     assert popen.procs[0].killed.is_set()
+    wait_for(lambda: len(popen.procs) == 2)
+    brain.close()
+
+
+def test_closed_brain_keeps_nothing_open(tmp_path):
+    popen = FakePopen(turn("Hi."))
+    brain = make_brain(tmp_path, popen, keep_warm=True)
+    brain.close()
+    brain.warm_up()
+    assert popen.procs == []

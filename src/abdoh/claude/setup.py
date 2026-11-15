@@ -146,4 +146,6 @@ def check_connection(cfg: Config, make=make_brain) -> dict:
     except Exception as e:
         log.exception("Claude test failed")
         return {"ok": False, "error": f"Claude couldn't answer: {e}"}
+    finally:
+        brain.close()
     return {"ok": True, "reply": reply[:200], "via": brain.name}

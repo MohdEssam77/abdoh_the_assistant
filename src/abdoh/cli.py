@@ -87,7 +87,9 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.daemon import Daemon
     from abdoh.events import Bus
     from abdoh.instance import InstanceLock, ask_running_instance_to_show
+    from abdoh.power import keep_full_speed
 
+    keep_full_speed()  # Windows slows down apps without a visible window; Abdoh lives there
     lock = InstanceLock()
     if not lock.acquire():
         shown = ask_running_instance_to_show()
@@ -220,6 +222,8 @@ def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
     except BrainError as e:
         print(e)
         return 1
+    finally:
+        brain.close()
     print(f"Claude is connected. Reply: {reply}")
     return 0
 

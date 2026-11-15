@@ -23,7 +23,14 @@ sentences: no markdown, lists, headings, code, emojis, and never read out links.
 
 {actions}
 {files}{web}If you need more information, ask one short question.
-Today is {date}, and the time is {time}.{instructions}"""
+{clock}{instructions}"""
+
+CLOCK = "Today is {date}, and the time is {time}."
+# For a conversation that stays open: the time comes with every message instead.
+STAMPED = (
+    "Each message starts with the current date and time in square brackets. Use it when it "
+    "matters, and never read it out unless the user asks for the time or the date."
+)
 
 ACTIONS = """You can do things on the computer. To do one, write an action line before your \
 spoken answer, one action per line, exactly in this form:
@@ -52,6 +59,20 @@ def _platform() -> str:
     return {"win32": "Windows", "darwin": "Mac"}.get(sys.platform, "Linux")
 
 
+def _date(now: datetime) -> str:
+    return f"{now:%A}, {now:%B} {now.day}, {now.year}"
+
+
+def _time(now: datetime) -> str:
+    return f"{now.hour % 12 or 12}:{now.minute:02d} {'AM' if now.hour < 12 else 'PM'}"
+
+
+def stamp(prompt: str, now: datetime | None = None) -> str:
+    """A message with the current date and time in front (see STAMPED)."""
+    now = now or datetime.now()
+    return f"[{_date(now)}, {_time(now)}]\n{prompt}"
+
+
 def system_prompt(
     cfg: Config,
     web: bool = False,
@@ -59,6 +80,7 @@ def system_prompt(
     home: Path | None = None,
     folders: dict[str, Path] | None = None,
     only: list[Path] | None = None,
+    stamped: bool = False,
 ) -> str:
     """Abdoh's instructions for Claude, following your permissions (claude.actions and
     claude.instructions). With `home`, Claude may work with your files: anywhere in your home
@@ -90,8 +112,7 @@ def system_prompt(
         actions=actions,
         files=files,
         web=WEB_LINE if web else "",
-        date=f"{now:%A}, {now:%B} {now.day}, {now.year}",
-        time=f"{now.hour % 12 or 12}:{now.minute:02d} {'AM' if now.hour < 12 else 'PM'}",
+        clock=STAMPED if stamped else CLOCK.format(date=_date(now), time=_time(now)),
         instructions=INSTRUCTIONS.format(text=instructions) if instructions else "",
     )
 
@@ -102,6 +123,17 @@ class BrainError(RuntimeError):
 
 class Brain(ABC):
     name = "Claude"
+    # Keeps the conversation itself, so Abdoh needn't repeat the last exchange.
+    remembers = False
+    # Called with a few words when Claude starts something slow ("Searching the web").
+    on_activity = None
+
+    def close(self) -> None:  # noqa: B027 - optional hook
+        """Let go of anything kept open (a Claude Code process)."""
+
+    def same_setup(self, other) -> bool:
+        """Would `other` (a brain made from changed settings) behave exactly like this one?"""
+        return False
 
     @abstractmethod
     def stream(self, prompt: str, image_png: bytes | None = None) -> Iterator[str]:
