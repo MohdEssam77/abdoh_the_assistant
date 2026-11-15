@@ -325,6 +325,10 @@ Developers can measure this themselves without a microphone:
 
 ## Configuration
 
+Most of these are on the window's **Settings** and **Permissions** pages, which save to
+`config.yaml` and keep its comments. Changes apply right away; the hotkey, wake words, speech
+model and language need a restart (the Settings page offers a **Restart now** button).
+
 `config.yaml` (created from `config.example.yaml`; set `ABDOH_HOME` to keep these files elsewhere):
 
 | Key | Default | Meaning |
@@ -340,7 +344,11 @@ Developers can measure this themselves without a microphone:
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |
 | `tts_rate` | `175` | Speaking speed |
+| `tts_voice` | `""` | A Windows voice's name; empty means the default voice |
+| `mic_device` | `""` | A microphone's name; empty means Windows' default microphone |
 | `allow_run` | `false` | Allow `run:` actions |
+| `check_updates` | `true` | Look for a new version once a day |
+| `setup_done` | `false` | The first-start setup was finished or skipped |
 | `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key), `code`, `api`, or `off` |
 | `claude.code_path` | `""` | Where `claude.exe` is; empty means find it automatically |
 | `claude.code_model` | `""` | Claude Code model (e.g. `sonnet`); empty means your Claude Code default |
@@ -348,6 +356,10 @@ Developers can measure this themselves without a microphone:
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
+| `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
+| `claude.allow_screen` | `true` | Let Claude look at your screen when you ask (translate, summarize) |
+| `claude.actions` | all five | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer` |
+| `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | A question this soon after an answer can follow up on it (0 = off) |
 | `claude.listen_after_question` | `true` | When Claude asks you something, listen for your answer without the wake word |

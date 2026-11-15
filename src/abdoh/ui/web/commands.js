@@ -29,12 +29,6 @@
     render();
   }
 
-  function phrase(trigger) {
-    /* A trigger with its {slots} highlighted. */
-    return trigger.split(/(\{[^{}]*\})/).filter(Boolean)
-      .map((part) => (/^\{.*\}$/.test(part) ? el("span", { class: "slot" }, part) : part));
-  }
-
   function describe(action) {
     const spec = ACTIONS[action.type];
     if (action.type === "media") {
@@ -98,30 +92,6 @@
   }
 
   /* ---------- the editor ---------- */
-
-  function chipsInput(values, placeholder) {
-    const list = [...values];
-    const input = el("input", { placeholder, "aria-label": placeholder });
-    const box = el("div", { class: "chips-input" });
-    const draw = () => {
-      box.replaceChildren(...list.map((value, i) => el("span", { class: "chip-x" }, phrase(value),
-        el("button", { title: "Remove", html: svg("x"), onclick: () => { list.splice(i, 1); draw(); input.focus(); } }))), input);
-    };
-    const add = () => {
-      const value = input.value.trim().replace(/,$/, "").trim();
-      if (value && !list.includes(value)) list.push(value);
-      input.value = "";
-      draw();
-      input.focus();
-    };
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
-      else if (e.key === "Backspace" && !input.value && list.length) { list.pop(); draw(); input.focus(); }
-    });
-    box.addEventListener("click", (e) => { if (e.target === box) input.focus(); });
-    draw();
-    return { box, values: () => { if (input.value.trim()) add(); return [...list]; } };
-  }
 
   function actionRows(actions) {
     const rows = actions.length ? actions.map((a) => ({ ...a })) : [{ type: "say", value: "" }];

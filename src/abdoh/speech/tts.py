@@ -24,10 +24,10 @@ class Speaker(ABC):
         """Interrupt what is being said right now."""
 
 
-def make_speaker(rate: int = 175) -> Speaker:
+def make_speaker(rate: int = 175, voice: str = "") -> Speaker:
     """The voice for this computer: the Windows voice on Windows, pyttsx3 elsewhere."""
     if sys.platform == "win32":
-        return SapiSpeaker(rate)
+        return SapiSpeaker(rate, voice)
     return Pyttsx3Speaker(rate)
 
 
@@ -56,7 +56,16 @@ class _VoiceThread(Speaker):
         self._jobs: queue.Queue[tuple[str, threading.Event]] = queue.Queue()
         self._stop = threading.Event()
         self._engine = None
+        self._renew = threading.Event()  # settings changed: make a new engine for the next text
         threading.Thread(target=self._run, name="abdoh-tts", daemon=True).start()
+
+    def configure(self, rate: int | None = None, voice: str | None = None) -> None:
+        """Change the speed or the voice; used from the next text on."""
+        if rate is not None:
+            self.rate = rate
+        if voice is not None:
+            self.voice = voice
+        self._renew.set()
 
     def say(self, text: str) -> None:
         if not text.strip():
@@ -86,6 +95,9 @@ class _VoiceThread(Speaker):
         while True:
             text, done = self._jobs.get()
             try:
+                if self._renew.is_set():
+                    self._renew.clear()
+                    self._engine = None
                 if self._engine is None:
                     self._engine = self._new_engine()
                 if not self._stop.is_set():
@@ -117,16 +129,44 @@ def sapi_rate(words_per_minute: float) -> int:
     return max(-10, min(10, round(math.log(max(1.0, words_per_minute) / 156.63, 1.11))))
 
 
+def windows_voices(voice_factory: Callable[[], object] = _make_sapi_voice) -> list[str]:
+    """The names of the installed Windows voices, e.g. "Microsoft Zira Desktop - English (United
+    States)". Empty if there are none (or this isn't Windows)."""
+    if sys.platform != "win32" and voice_factory is _make_sapi_voice:
+        return []
+    _init_com()
+    try:
+        tokens = voice_factory().GetVoices()
+        return [tokens.Item(i).GetDescription() for i in range(tokens.Count)]
+    except Exception:
+        log.warning("Couldn't list the Windows voices", exc_info=True)
+        return []
+
+
 class SapiSpeaker(_VoiceThread):
     """The Windows voice (SAPI), driven directly. `stop()` cuts it off within POLL_MS."""
 
-    def __init__(self, rate: int = 175, voice_factory: Callable[[], object] = _make_sapi_voice):
+    def __init__(
+        self,
+        rate: int = 175,
+        voice: str = "",
+        voice_factory: Callable[[], object] = _make_sapi_voice,
+    ):
         self.rate = rate
+        self.voice = voice  # a voice's name ("" = the Windows default)
         super().__init__(voice_factory)
 
     def _new_engine(self):
         voice = self._factory()
         voice.Rate = sapi_rate(self.rate)
+        if self.voice:
+            tokens = voice.GetVoices()
+            for i in range(tokens.Count):
+                if tokens.Item(i).GetDescription() == self.voice:
+                    voice.Voice = tokens.Item(i)
+                    break
+            else:
+                log.warning("Voice %r isn't installed; using the default voice", self.voice)
         return voice
 
     def _speak(self, text: str) -> None:

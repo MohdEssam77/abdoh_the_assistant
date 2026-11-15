@@ -60,6 +60,7 @@ class WebWindow:
         self.state = UiState()
         self._webview = webview
         self._quitting = threading.Event()
+        self.restart_requested = False  # the page's Restart button
         self.api = AppApi(bus, self.state, cfg, window=self)
         self.window = webview.create_window(
             "Abdoh",
@@ -87,6 +88,13 @@ class WebWindow:
 
     def hide(self) -> None:
         self.window.hide()
+
+    def pick_folder(self) -> str | None:
+        """A folder chosen in Windows' folder picker, or None."""
+        dialogs = getattr(self._webview, "FileDialog", None)
+        kind = dialogs.FOLDER if dialogs else self._webview.FOLDER_DIALOG
+        chosen = self.window.create_file_dialog(kind)
+        return str(chosen[0]) if chosen else None
 
     def route(self, kind: str, value) -> None:
         """One event from the daemon: to the tray, the window, or the page."""

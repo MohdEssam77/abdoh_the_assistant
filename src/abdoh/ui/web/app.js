@@ -136,6 +136,69 @@ async function call(name, ...args) {
   }
 }
 
+/* ---------- shared form pieces ---------- */
+
+function phrase(text) {
+  /* A phrase with its {slots} highlighted. */
+  return String(text).split(/(\{[^{}]*\})/).filter(Boolean)
+    .map((part) => (/^\{.*\}$/.test(part) ? el("span", { class: "slot" }, part) : part));
+}
+
+/* A box of removable chips with an input to add more. onChange(values) runs after each change. */
+function chipsInput(values, placeholder, onChange) {
+  const list = [...values];
+  const input = el("input", { placeholder, "aria-label": placeholder });
+  const box = el("div", { class: "chips-input" });
+  const changed = () => { if (onChange) onChange([...list]); };
+  const draw = () => {
+    box.replaceChildren(...list.map((value, i) => el("span", { class: "chip-x" }, phrase(value),
+      el("button", { title: "Remove", html: svg("x"), onclick: () => { list.splice(i, 1); draw(); changed(); input.focus(); } }))), input);
+  };
+  const add = () => {
+    const value = input.value.trim().replace(/,$/, "").trim();
+    input.value = "";
+    if (value && !list.includes(value)) {
+      list.push(value);
+      changed();
+    }
+    draw();
+    input.focus();
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
+    else if (e.key === "Backspace" && !input.value && list.length) { list.pop(); draw(); changed(); input.focus(); }
+  });
+  box.addEventListener("click", (e) => { if (e.target === box) input.focus(); });
+  draw();
+  return { box, values: () => { if (input.value.trim()) add(); return [...list]; } };
+}
+
+/* A settings row: title, help text, and a control on the right. */
+function row(title, help, control) {
+  return el("div", { class: "row" }, el("div", { class: "label" }, el("b", {}, title), help ? el("small", {}, help) : null), control);
+}
+
+function toggle(checked, onChange, label) {
+  const input = el("input", { type: "checkbox", class: "switch", checked: !!checked, "aria-label": label || "On or off" });
+  input.addEventListener("change", () => onChange(input.checked, input));
+  return input;
+}
+
+/* Save some settings (shaped like config.yaml). Updates App.settings; returns true if saved. */
+async function saveSettings(changes, quiet = false) {
+  const result = await call("save_settings", changes);
+  if (!result) return false;
+  if (!result.ok) {
+    toast(result.error, true);
+    return false;
+  }
+  App.settings = result.settings;
+  App.restart = result.restart || [];
+  for (const page of Object.values(App.pages)) if (page.settingsChanged) page.settingsChanged();
+  if (!quiet) toast("Saved");
+  return true;
+}
+
 /* ---------- pages ---------- */
 
 function registerPage(name, page) {
@@ -146,6 +209,9 @@ function registerPage(name, page) {
 
 function showPage(name) {
   if (!$(`#page-${name}`)) name = "home";
+  const previous = App.pages[App.current];
+  if (App.current !== name && previous && previous.hide) previous.hide();
+  App.current = name;
   $$(".page").forEach((p) => p.classList.toggle("active", p.id === `page-${name}`));
   $$(".nav button").forEach((b) => b.classList.toggle("active", b.dataset.page === name));
   store("abdoh.page", name);
@@ -351,6 +417,7 @@ async function start() {
   App.api = await Bridge.ready;
   const boot = (await call("boot")) || {};
   App.settings = boot.settings || {};
+  App.restart = boot.restart || [];
   App.version = boot.version || "";
   App.demo = !!boot.demo;
   $("#version").textContent = App.version ? `Abdoh ${App.version}` : "";

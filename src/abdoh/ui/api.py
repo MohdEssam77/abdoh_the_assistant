@@ -5,19 +5,23 @@ exposes public attributes, so everything else is kept in _underscore names. Meth
 data (dicts, lists, strings) and never raise to the page for expected problems.
 """
 
+import copy
 import logging
+import os
 import sys
 import threading
 import webbrowser
 from collections import deque
 from collections.abc import Callable
+from pathlib import Path
 
 from abdoh import __version__
 from abdoh.commands.registry import CommandsFileError
 from abdoh.commands.store import TEMPLATES, CommandsStore
 from abdoh.config import Config, load_config
 from abdoh.events import Bus
-from abdoh.settings import settings_view
+from abdoh.settings import RESTART_KEYS, SettingsError, settings_view
+from abdoh.settings import save_settings as _save_settings
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +73,14 @@ class UiState:
             }
 
 
+def _open_path(target) -> None:
+    """Open a folder, a file or a Windows settings page (e.g. "ms-settings:sound")."""
+    if sys.platform == "win32":
+        os.startfile(str(target))  # type: ignore[attr-defined]
+    else:
+        webbrowser.open(Path(target).resolve().as_uri())
+
+
 class AppApi:
     def __init__(
         self,
@@ -77,25 +89,45 @@ class AppApi:
         cfg: Config,
         window=None,
         open_url: Callable[[str], object] = webbrowser.open,
+        open_path: Callable[[object], None] = _open_path,
+        autostart=None,
+        list_mics=None,
+        list_voices=None,
     ):
         self._bus = bus
         self._state = state
         self._cfg = cfg
-        self._window = window  # WebWindow, for hide()
+        self._window = window  # WebWindow: hide, pick a folder, restart
+        self._daemon = None  # set once the daemon is running (for the mic level)
         self._open_url = open_url
+        self._open_path = open_path
+        self._autostart = autostart
+        self._list_mics = list_mics
+        self._list_voices = list_voices
+        # What Abdoh started with, to tell which saved changes still need a restart. (The
+        # daemon updates the shared Config in place when settings change.)
+        self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
+
+    def _attach(self, daemon) -> None:
+        self._daemon = daemon
 
     def _config(self) -> Config:
         """The settings as saved now (the file may have changed since Abdoh started)."""
         return load_config(self._cfg.app_dir)
 
+    def _restart_needed(self, cfg: Config) -> list[str]:
+        return [key for key in RESTART_KEYS if getattr(cfg, key) != self._started[key]]
+
     # ----- starting up and staying up to date -----
 
     def boot(self) -> dict:
         """Everything the page needs to draw itself."""
+        cfg = self._config()
         return {
             "version": __version__,
             "platform": sys.platform,
-            "settings": settings_view(self._config()),
+            "settings": settings_view(cfg),
+            "restart": self._restart_needed(cfg),
             "state": self._state.snapshot(),
         }
 
@@ -161,6 +193,91 @@ class AppApi:
         """Open commands.yaml in a text editor (e.g. to fix an error made by hand)."""
         self._bus.request("edit_commands")
 
+    # ----- settings and permissions -----
+
+    def settings(self) -> dict:
+        cfg = self._config()
+        return {"settings": settings_view(cfg), "restart": self._restart_needed(cfg)}
+
+    def save_settings(self, changes) -> dict:
+        """Save changed settings (shaped like config.yaml) and use them right away."""
+        try:
+            cfg = _save_settings(self._cfg.app_dir, changes)
+        except SettingsError as e:
+            return {"ok": False, "error": str(e)}
+        self._bus.request("settings_changed")
+        return {"ok": True, "settings": settings_view(cfg), "restart": self._restart_needed(cfg)}
+
+    def microphones(self) -> dict:
+        """The microphones to choose from, and the chosen one ("" = the default)."""
+        try:
+            if self._list_mics is None:
+                from abdoh.audio.mic import input_devices
+
+                self._list_mics = input_devices
+            devices = self._list_mics()
+        except Exception:
+            log.warning("Couldn't list the microphones", exc_info=True)
+            devices = []
+        return {"devices": devices, "current": self._config().mic_device}
+
+    def mic_level(self):
+        """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
+        return self._daemon.mic_level() if self._daemon is not None else None
+
+    def voices(self) -> dict:
+        """The installed voices to choose from, and the chosen one ("" = the default)."""
+        if self._list_voices is None:
+            from abdoh.speech.tts import windows_voices
+
+            self._list_voices = windows_voices
+        return {"voices": self._list_voices(), "current": self._config().tts_voice}
+
+    def test_voice(self) -> None:
+        self._bus.request("say_sample")
+
+    def _login(self):
+        if self._autostart is None:
+            from abdoh import autostart
+
+            self._autostart = autostart
+        return self._autostart
+
+    def login_item(self) -> dict:
+        """Does Abdoh start when you sign in to your computer?"""
+        try:
+            return {"ok": True, "on": bool(self._login().is_installed())}
+        except Exception as e:
+            log.warning("Couldn't check start at login", exc_info=True)
+            return {"ok": False, "on": False, "error": str(e)}
+
+    def set_login_item(self, on) -> dict:
+        try:
+            message = self._login().install() if on else self._login().uninstall()
+        except Exception as e:
+            log.exception("Couldn't change start at login")
+            return {"ok": False, "error": f"Couldn't change it: {e}"}
+        return {"ok": True, "on": bool(on), "message": message}
+
+    def pick_folder(self):
+        """Let you choose a folder (for the folders Claude may use). None if cancelled."""
+        if self._window is None:
+            return None
+        return self._window.pick_folder()
+
+    def open_folder(self, which) -> bool:
+        """Open Abdoh's data folder ("data": settings and commands) or its log folder."""
+        cfg = self._config()
+        folders = {"data": cfg.app_dir, "logs": cfg.resolve(cfg.log_file).parent}
+        if which not in folders:
+            return False
+        self._open_path(folders[which])
+        return True
+
+    def open_sound_settings(self) -> None:
+        """Windows' sound settings, where a muted microphone can be turned on."""
+        self._open_path("ms-settings:sound")
+
     # ----- the window -----
 
     def hide(self) -> None:
@@ -168,6 +285,12 @@ class AppApi:
             self._window.hide()
 
     def quit(self) -> None:
+        self._bus.request("quit")
+
+    def restart(self) -> None:
+        """Quit and start again (for settings that are only read at start)."""
+        if self._window is not None:
+            self._window.restart_requested = True
         self._bus.request("quit")
 
     def open_link(self, url) -> bool:

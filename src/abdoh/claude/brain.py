@@ -21,22 +21,31 @@ SYSTEM_PROMPT = """You are Abdoh, a voice assistant on the user's {platform} com
 you write is read aloud by a text-to-speech voice, so answer in at most {sentences} short spoken \
 sentences: no markdown, lists, headings, code, emojis, and never read out links.
 
-You can do things on the computer. To do one, write an action line before your spoken answer, \
-one action per line, exactly in this form:
+{actions}
+{files}{web}If you need more information, ask one short question.
+Today is {date}, and the time is {time}.{instructions}"""
+
+ACTIONS = """You can do things on the computer. To do one, write an action line before your \
+spoken answer, one action per line, exactly in this form:
 {actions}
 Use only these actions, and only when the user asks you to do something. {limits}After an \
-action, say in a few words what you did.
-{files}{web}If you need more information, ask one short question.
-Today is {date}, and the time is {time}."""
-
+action, say in a few words what you did."""
+NO_ACTIONS = """You can't do things on the computer here: the user turned that off in Abdoh's \
+permissions. {limits}If they ask you to do something, say so in one sentence."""
 NO_COMMANDS = "You cannot run commands, type or click. "
 FILES = """When the user asks, you can also work with their files and run {shell} commands \
-with your tools. Their home folder is {home}{folders}. Before deleting files or overwriting \
-existing ones, say in one short sentence what you will do and ask whether to go ahead; do it \
-only after they say yes. Delete by moving files to the {trash}, never permanently. To open \
-things, press media keys or set timers, use the action lines above, not commands.
+with your tools. {where} Before deleting files or overwriting existing ones, say in one short \
+sentence what you will do and ask whether to go ahead; do it only after they say yes. Delete by \
+moving files to the {trash}, never permanently. To open things, press media keys or set \
+timers, use the action lines above, not commands.
 """
+HOME = "Their home folder is {home}{folders}."
+ONLY = "Only work with files in these folders, never anywhere else: {folders}."
 WEB_LINE = "You can search the web when you need current information.\n"
+INSTRUCTIONS = """
+
+The user's own instructions for you (follow them unless they ask for something unsafe):
+{text}"""
 
 
 def _platform() -> str:
@@ -49,28 +58,41 @@ def system_prompt(
     now: datetime | None = None,
     home: Path | None = None,
     folders: dict[str, Path] | None = None,
+    only: list[Path] | None = None,
 ) -> str:
-    """Abdoh's instructions for Claude. With `home`, Claude may work with files there."""
+    """Abdoh's instructions for Claude, following your permissions (claude.actions and
+    claude.instructions). With `home`, Claude may work with your files: anywhere in your home
+    folder, or with `only`, just in those folders."""
     now = now or datetime.now()
     files = ""
     if home is not None:
         windows = sys.platform == "win32"
-        where = ", ".join(f"{name}: {path}" for name, path in (folders or {}).items())
+        if only:
+            where = ONLY.format(folders=", ".join(str(p) for p in only))
+        else:
+            named = ", ".join(f"{name}: {path}" for name, path in (folders or {}).items())
+            where = HOME.format(home=home, folders=f" ({named})" if named else "")
         files = FILES.format(
             shell="PowerShell" if windows else "shell",
-            home=home,
-            folders=f" ({where})" if where else "",
+            where=where,
             trash="Recycle Bin" if windows else "Trash",
         )
+    limits = "" if files else NO_COMMANDS
+    allowed = [ACTION_HELP[name] for name in ACTION_HELP if name in cfg.claude.actions]
+    if allowed:
+        actions = ACTIONS.format(actions="\n".join(allowed), limits=limits)
+    else:
+        actions = NO_ACTIONS.format(limits=limits)
+    instructions = cfg.claude.instructions.strip()
     return SYSTEM_PROMPT.format(
         platform=_platform(),
         sentences=cfg.claude.voice_reply_max_sentences,
-        actions="\n".join(ACTION_HELP.values()),
-        limits="" if files else NO_COMMANDS,
+        actions=actions,
         files=files,
         web=WEB_LINE if web else "",
         date=f"{now:%A}, {now:%B} {now.day}, {now.year}",
         time=f"{now.hour % 12 or 12}:{now.minute:02d} {'AM' if now.hour < 12 else 'PM'}",
+        instructions=INSTRUCTIONS.format(text=instructions) if instructions else "",
     )
 
 

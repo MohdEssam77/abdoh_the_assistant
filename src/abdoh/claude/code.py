@@ -237,6 +237,8 @@ class ClaudeCodeBrain(Brain):
         if folders is None:
             folders = user_folders(self.home) if cfg.claude.allow_files else {}
         self.folders = folders
+        # claude.folders: Claude may only work in these (empty: anywhere in your home folder).
+        self.only = [Path(f).expanduser() for f in cfg.claude.folders if str(f).strip()]
         self._popen = popen
         self._run = run
 
@@ -249,7 +251,10 @@ class ClaudeCodeBrain(Brain):
         return tools
 
     def file_dirs(self) -> list[Path]:
-        """Where Claude may work with files: your home folder, plus main folders outside it."""
+        """Where Claude may work with files: the folders you chose in Permissions, or else your
+        home folder plus your main folders that live outside it."""
+        if self.only:
+            return list(dict.fromkeys(self.only))
         dirs = [self.home]
         for folder in self.folders.values():
             if not folder.is_relative_to(self.home) and folder not in dirs:
@@ -300,6 +305,7 @@ class ClaudeCodeBrain(Brain):
             web=self.cfg.claude.allow_web,
             home=self.home if files else None,
             folders=self.folders if files else None,
+            only=self.only if files else None,
         )
         prompt_file.write_text(system, "utf-8")
         shot = self.workdir / SCREENSHOT
