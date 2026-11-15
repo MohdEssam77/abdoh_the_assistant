@@ -5,6 +5,7 @@ import logging.handlers
 import os
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
@@ -31,6 +32,8 @@ DEFAULT_APP_DIR = _default_app_dir()
 
 
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
+# Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
+CLAUDE_ACTIONS = ("open_url", "open_app", "play_youtube", "media", "timer")
 
 
 @dataclass
@@ -43,6 +46,10 @@ class ClaudeConfig:
     effort: str = "low"
     allow_web: bool = True  # Claude Code may search the web
     allow_files: bool = True  # Claude Code may work with your files and run commands
+    allow_screen: bool = True  # Claude may look at the screen (translate / summarize it)
+    actions: list[str] = field(default_factory=lambda: list(CLAUDE_ACTIONS))  # it may do these
+    folders: list[str] = field(default_factory=list)  # where it may work with files; [] = home
+    instructions: str = ""  # your own instructions, sent with every request
     timeout_seconds: float = 120
     followup_seconds: float = 60  # a follow-up within this time gets the last exchange as context
     listen_after_question: bool = True  # answer Claude's questions without the wake word
@@ -64,7 +71,11 @@ class Config:
     silence_seconds: float = 0.6
     max_record_seconds: float = 10
     tts_rate: int = 175
+    tts_voice: str = ""  # a voice's name; "" = the system's default voice
+    mic_device: str = ""  # a microphone's name; "" = the system's default microphone
     allow_run: bool = False
+    check_updates: bool = True  # look for a new version once a day
+    setup_done: bool = False  # the first-start setup was finished (or skipped)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     log_file: str = "~/.abdoh/abdoh.log"
     # Not read from config.yaml:
@@ -101,6 +112,20 @@ def _ensure_copy(target: Path, example_name: str) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(example, target)
         log.info("Created %s from %s", target, example)
+
+
+def write_atomic(path: Path, text: str) -> None:
+    """Write a text file so it's never left half-written (write a temp file, then swap)."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
 
 
 def read_api_key(app_dir: Path) -> str | None:
