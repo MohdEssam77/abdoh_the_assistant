@@ -3,8 +3,9 @@
 - openWakeWord's two shared feature models (melspectrogram, speech embedding), used with your
   own "Hey Abdoh" model (see README: train the wake word).
 - The Vosk small English model, the fallback wake word engine until you have that model.
+- The Whisper speech recognition model (base.en), so the built app never has to download it on
+  its first start. Other Whisper models are downloaded by faster-whisper when first used.
 
-Whisper models are downloaded automatically by faster-whisper on first use.
 Usage: python scripts/download_models.py
 """
 
@@ -23,6 +24,15 @@ VOSK_URL = f"https://alphacephei.com/vosk/models/{VOSK}.zip"
 OWW_DIR = MODELS_DIR / "openwakeword"
 OWW_RELEASE = "https://github.com/dscripka/openWakeWord/releases/download/v0.5.1"
 OWW_FILES = ["melspectrogram.onnx", "embedding_model.onnx"]
+
+WHISPER = "base.en"  # the default model (whisper_model: base, language: en)
+WHISPER_DIR = MODELS_DIR / f"faster-whisper-{WHISPER}"
+# A fixed revision, so every build ships the model that was tested.
+WHISPER_URL = (
+    f"https://huggingface.co/Systran/faster-whisper-{WHISPER}/resolve/"
+    "3d3d5dee26484f91867d81cb899cfcf72b96be6c/{name}"
+)
+WHISPER_FILES = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
 
 
 def download_openwakeword() -> None:
@@ -53,9 +63,32 @@ def download_vosk() -> None:
     print(f"Saved to {target}")
 
 
+def download_whisper(folder: Path = WHISPER_DIR, fetch=urllib.request.urlretrieve) -> None:
+    """Each file is downloaded next to its final name and only kept if it isn't empty, so an
+    interrupted download never leaves a broken model behind."""
+    if all((folder / n).is_file() and (folder / n).stat().st_size > 0 for n in WHISPER_FILES):
+        print(f"Already downloaded: {folder}")
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    for name in WHISPER_FILES:
+        target = folder / name
+        if target.is_file() and target.stat().st_size > 0:
+            continue
+        url = WHISPER_URL.format(name=name)
+        part = target.with_name(target.name + ".part")
+        print(f"Downloading {url} ...")
+        fetch(url, part)
+        if not part.is_file() or part.stat().st_size == 0:
+            part.unlink(missing_ok=True)
+            raise RuntimeError(f"Downloading {url} gave an empty file.")
+        part.replace(target)
+    print(f"Saved to {folder}")
+
+
 def main() -> int:
     download_openwakeword()
     download_vosk()
+    download_whisper()
     return 0
 
 

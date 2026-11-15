@@ -98,10 +98,13 @@ class WebWindow:
 
     def route(self, kind: str, value) -> None:
         """One event from the daemon: to the tray, the window, or the page."""
-        if kind == "status" and self.tray:
-            self.tray.show_status(value)
-        elif kind == "voice" and self.tray:
-            self.tray.show_voice(bool(value))
+        try:
+            if kind == "status" and self.tray:
+                self.tray.show_status(value)
+            elif kind == "voice" and self.tray:
+                self.tray.show_voice(bool(value))
+        except Exception:  # the page must still get the event
+            log.exception("Couldn't update the tray icon")
         if kind == "show":
             self.show()
         elif kind == "quit":

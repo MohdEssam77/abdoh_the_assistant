@@ -13,6 +13,7 @@ dependencies = [
     "numpy>=1.26",
     "vosk>=0.3.45",
     "faster-whisper>=1.0",
+    "huggingface_hub>=0.21,<2", # 2.x left an empty model.bin in the built app's model cache
     "onnxruntime>=1.17",
     "pyttsx3>=2.90",
     "comtypes>=1.2; sys_platform == 'win32'",

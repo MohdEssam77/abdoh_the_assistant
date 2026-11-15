@@ -126,7 +126,7 @@ def main() -> int:
     from abdoh.router import Router
 
     cfg = load_config()
-    transcriber = Transcriber(cfg.whisper_model, cfg.language)
+    transcriber = Transcriber.from_config(cfg)
     transcriber.transcribe(b"\0\0" * 1600)
     router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
     router.computer = Computer()

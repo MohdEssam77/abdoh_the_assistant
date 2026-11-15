@@ -2,7 +2,8 @@
 
 Needs PyInstaller:  pip install -e .[build]
 Bundles the example files and whatever models are in models/ (openWakeWord feature models, your
-hey_abdoh.onnx, the Vosk fallback). Whisper's model still downloads on the first start.
+hey_abdoh.onnx, the Vosk fallback, and the Whisper speech model, so nothing downloads on the
+first start). Run scripts/download_models.py first.
 Usage: python scripts/build_app.py
 """
 
@@ -10,7 +11,12 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BUNDLED_MODELS = ["openwakeword", "hey_abdoh.onnx", "vosk-model-small-en-us-0.15"]
+BUNDLED_MODELS = [
+    "openwakeword",
+    "hey_abdoh.onnx",
+    "vosk-model-small-en-us-0.15",
+    "faster-whisper-base.en",  # speech recognition: no download on the first start
+]
 # Packages with data files or native libraries PyInstaller doesn't find on its own.
 COLLECT = [
     "faster_whisper",
