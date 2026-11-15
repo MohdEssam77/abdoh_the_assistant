@@ -7,11 +7,12 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from dataclasses import fields
 
 from abdoh.audio.listener import listen_for_request
 from abdoh.audio.mic import MicrophoneError
 from abdoh.audio.wakeword import WakeWordEngine
-from abdoh.config import Config, save_api_key
+from abdoh.config import ClaudeConfig, Config, save_api_key
 from abdoh.events import Bus
 from abdoh.router import Router
 from abdoh.speech.earcons import Earcons
@@ -25,6 +26,7 @@ SORRY = "Sorry, something went wrong."
 # turned right down. Speech is usually in the thousands.
 QUIET_MIC_PEAK = 100
 MIC_TOO_QUIET = "I didn't hear anything. Your microphone may be muted or turned down."
+SAMPLE = "Hi, I'm Abdoh. This is how I sound."
 
 
 class Daemon:
@@ -56,6 +58,8 @@ class Daemon:
         self.earcons = earcons or Earcons.silent()
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.stop_event = threading.Event()
+        self.mic = None  # the open microphone
+        self._reopen_mic = threading.Event()  # a new microphone was chosen
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self._listen_now = threading.Event()  # the hotkey was pressed
         self._via_hotkey = False
@@ -77,6 +81,43 @@ class Daemon:
 
     def stop(self) -> None:
         self.stop_event.set()
+
+    def mic_level(self) -> int | None:
+        """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
+        mic = self.mic
+        return getattr(mic, "level", None) if mic is not None else None
+
+    def reopen_mic(self) -> None:
+        """Switch to the microphone now in the settings (after the current request)."""
+        self._reopen_mic.set()
+
+    def apply_settings(self, new: Config) -> None:
+        """Use changed settings right away. Some (like the hotkey or the speech model) are
+        only read when Abdoh starts; the app says those need a restart."""
+        from abdoh.claude.brain import make_brain
+
+        old_mic = self.cfg.mic_device
+        for f in fields(Config):
+            if f.name not in ("app_dir", "claude"):
+                setattr(self.cfg, f.name, getattr(new, f.name))
+        for f in fields(ClaudeConfig):
+            setattr(self.cfg.claude, f.name, getattr(new.claude, f.name))
+        self.router.brain = make_brain(self.cfg)  # permissions, folders, API key
+        self._report_claude()
+        configure = getattr(self.speaker, "configure", None)
+        if configure:
+            configure(rate=self.cfg.tts_rate, voice=self.cfg.tts_voice)
+        if self.engine is not None and hasattr(self.engine, "threshold"):
+            self.engine.threshold = self.cfg.wake_word_threshold
+        if self.cfg.mic_device != old_mic:
+            self.reopen_mic()
+        log.info("Settings changed")
+
+    def _speak_sample(self, text: str) -> None:
+        try:
+            self.speaker.say(text)
+        except Exception:
+            log.exception("Could not speak the voice sample")
 
     def set_paused(self, paused: bool) -> None:
         self.paused = paused
@@ -254,6 +295,14 @@ class Daemon:
             count = len(self.router.registry.commands)
             message = f"Commands file error: {error}" if error else f"Loaded {count} commands."
             self.bus.emit("history", f"Abdoh: {message}")
+        elif kind == "settings_changed":  # saved in the app
+            from abdoh.config import load_config
+
+            self.apply_settings(load_config(self.cfg.app_dir))
+        elif kind == "say_sample":  # the app's "test voice" button, even with voice replies off
+            threading.Thread(
+                target=self._speak_sample, args=(value or SAMPLE,), daemon=True
+            ).start()
         elif kind == "commands_changed":  # saved in the app: use them right away
             error = self.router.registry.refresh(force=True)
             if error:
@@ -342,20 +391,23 @@ class Daemon:
             self.stop_event.wait()
             return
         while not self.stop_event.is_set():
+            self._reopen_mic.clear()
             try:
                 mic = self.mic_factory()
                 mic.start()
             except MicrophoneError as e:
                 self._mic_problem(e)
                 continue
+            self.mic = mic
             log.info("Listening for the wake word.")
             self._status_idle()
             try:
-                while not self.stop_event.is_set():
+                while not self.stop_event.is_set() and not self._reopen_mic.is_set():
                     self._listen_once(mic)
             except MicrophoneError as e:
                 self._mic_problem(e)
             finally:
+                self.mic = None
                 mic.stop()
 
     def _mic_problem(self, error: Exception) -> None:
@@ -379,7 +431,7 @@ class Daemon:
                 self.transcriber,
                 self,  # speaks "Yes?" through say(), respecting the voice toggle
                 self.cfg,
-                should_stop=self.stop_event.is_set,
+                should_stop=lambda: self.stop_event.is_set() or self._reopen_mic.is_set(),
                 on_wake=self._on_wake,
                 vad=self.vad,
                 pressed=self._take_listen_now,
@@ -429,7 +481,7 @@ class Daemon:
         from abdoh.computer import AppIndex, Computer, Timers
         from abdoh.speech.tts import make_speaker
 
-        speaker = speaker or make_speaker(cfg.tts_rate)
+        speaker = speaker or make_speaker(cfg.tts_rate, cfg.tts_voice)
         getattr(speaker, "warm_up", lambda: None)()  # the first reply shouldn't pay for it
 
         engine = transcriber = None
@@ -446,7 +498,7 @@ class Daemon:
             cfg,
             router,
             speaker,
-            Microphone,
+            lambda: Microphone(device=cfg.mic_device),  # the mic chosen now, when (re)opened
             engine,
             transcriber,
             bus,

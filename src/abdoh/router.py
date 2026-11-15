@@ -30,6 +30,7 @@ from abdoh.local_skills import LocalSkills
 log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
+SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 COMMANDS_FILE_ERROR = "Your commands file has an error."
 NOTHING_TO_REMEMBER = (
     "There's nothing to remember yet. Ask me to do something, then say: remember that."
@@ -148,7 +149,10 @@ class Router:
 
         # 4. Screen skills
         words = set(request.split())
-        if skills.is_translate_request(words):
+        translate = skills.is_translate_request(words)
+        if (translate or skills.is_summarize_request(words)) and not self.cfg.claude.allow_screen:
+            return SCREEN_OFF
+        if translate:
             target = skills.parse_target_language(request) or self.cfg.claude.translate_target
             prompt = skills.TRANSLATE_PROMPT.format(target=target)
             return self._ask(prompt, original, screen=True)
@@ -185,7 +189,7 @@ class Router:
         try:
             image = self._capture() if screen else None
             chunks = brain.stream(prompt, image)
-            for sentence in speakable(chunks, act):
+            for sentence in speakable(chunks, act, allowed=self.cfg.claude.actions):
                 yield from _drain(problems)
                 spoken.append(sentence)
                 yield sentence

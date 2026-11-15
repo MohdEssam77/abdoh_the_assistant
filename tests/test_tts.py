@@ -10,6 +10,7 @@ from abdoh.speech.tts import (
     Speaker,
     make_speaker,
     sapi_rate,
+    windows_voices,
 )
 
 
@@ -134,11 +135,33 @@ def test_warm_up_creates_the_engine_before_the_first_reply():
 # ----- the Windows voice (SAPI) -----
 
 
+DAVID = "Microsoft David Desktop - English (United States)"
+ZIRA = "Microsoft Zira Desktop - English (United States)"
+
+
+class FakeToken:
+    def __init__(self, name):
+        self.name = name
+
+    def GetDescription(self):
+        return self.name
+
+
+class FakeTokens:
+    def __init__(self, names):
+        self.names = names
+        self.Count = len(names)
+
+    def Item(self, i):
+        return FakeToken(self.names[i])
+
+
 class FakeSapiVoice:
     """Like SAPI.SpVoice: Speak() starts speaking, WaitUntilDone() says when it's finished."""
 
     def __init__(self, polls=3, on_poll=None):
         self.Rate = 0
+        self.Voice = None
         self.calls: list[tuple[str, int]] = []
         self.polls = polls  # each text takes this many WaitUntilDone() calls to finish
         self.left = 0
@@ -157,6 +180,9 @@ class FakeSapiVoice:
             return True
         self.left -= 1
         return False
+
+    def GetVoices(self):
+        return FakeTokens([DAVID, ZIRA])
 
 
 class SapiFactory:
@@ -198,6 +224,40 @@ def test_sapi_speaks_normally_after_a_stop():
     speaker.stop()
     speaker.say("still here")
     assert factory.voices[0].calls == [("still here", SVSF_ASYNC | SVSF_IS_NOT_XML)]
+
+
+def test_sapi_uses_the_chosen_voice():
+    factory = SapiFactory()
+    SapiSpeaker(voice=ZIRA, voice_factory=factory).say("hi")
+    assert factory.voices[0].Voice.GetDescription() == ZIRA
+
+
+def test_sapi_keeps_the_default_voice_when_the_chosen_one_is_gone():
+    factory = SapiFactory()
+    SapiSpeaker(voice="Some Removed Voice", voice_factory=factory).say("hi")
+    assert factory.voices[0].Voice is None
+    assert factory.voices[0].calls  # still spoke
+
+
+def test_new_speed_and_voice_apply_to_the_next_text():
+    factory = SapiFactory()
+    speaker = SapiSpeaker(rate=175, voice_factory=factory)
+    speaker.say("one")
+    speaker.configure(rate=250, voice=ZIRA)
+    speaker.say("two")
+    assert len(factory.voices) == 2
+    assert factory.voices[1].Rate == sapi_rate(250)
+    assert factory.voices[1].Voice.GetDescription() == ZIRA
+    assert factory.voices[1].calls[0][0] == "two"
+
+
+def test_windows_voices_lists_the_names():
+    assert windows_voices(SapiFactory()) == [DAVID, ZIRA]
+
+    def broken():
+        raise OSError("no SAPI")
+
+    assert windows_voices(broken) == []
 
 
 def test_sapi_voice_is_recreated_after_an_error():

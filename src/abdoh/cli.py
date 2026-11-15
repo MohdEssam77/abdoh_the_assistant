@@ -98,6 +98,7 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         window, tray = _make_ui(cfg, args)
     bus = window.bus if window else Bus(ui_attached=False)
     lock.serve(on_show=lambda: bus.emit("show"))
+    restart = False
     try:
         if window is None:
             daemon = Daemon.create(cfg, bus)
@@ -115,6 +116,9 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         def background() -> None:
             daemon = Daemon.create(cfg, bus)
             started.append(daemon)
+            api = getattr(window, "api", None)
+            if api is not None:
+                api._attach(daemon)  # the app window's microphone level meter
             _start_hotkey(cfg, daemon)
             threading.Thread(target=daemon.serve_requests, daemon=True).start()
             daemon.run()
@@ -128,6 +132,7 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
             window.mainloop()
         except KeyboardInterrupt:
             pass
+        restart = getattr(window, "restart_requested", False)
         for daemon in started:
             daemon.stop()
         if tray:
@@ -135,6 +140,20 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         return 0
     finally:
         lock.release()
+        if restart:
+            _start_again()
+
+
+def _start_again() -> None:
+    """Start a new Abdoh once this one has let go of its lock (the window's Restart button)."""
+    import subprocess
+
+    from abdoh.autostart import launch_command
+
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+        subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+    )
+    subprocess.Popen(launch_command(show=True), close_fds=True, creationflags=flags)
 
 
 def _make_ui(cfg: Config, args: argparse.Namespace):

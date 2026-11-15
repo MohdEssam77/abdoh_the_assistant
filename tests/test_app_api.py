@@ -178,6 +178,119 @@ def test_open_commands_file_asks_the_daemon(api, bus):
     assert requests(bus) == [("edit_commands", None)]
 
 
+# ----- settings -----
+
+
+def test_save_settings_tells_the_daemon(api, bus):
+    result = api.save_settings({"tts_rate": 210, "claude": {"allow_screen": False}})
+    assert result["ok"] is True
+    assert result["settings"]["tts_rate"] == 210
+    assert result["settings"]["claude"]["allow_screen"] is False
+    assert result["restart"] == []
+    assert requests(bus) == [("settings_changed", None)]
+    assert api.settings()["settings"]["tts_rate"] == 210
+
+
+def test_bad_settings_are_explained_not_saved(api, bus):
+    result = api.save_settings({"tts_rate": "fast"})
+    assert result == {"ok": False, "error": "Voice speed must be a number."}
+    assert requests(bus) == []
+
+
+def test_restart_list_compares_with_what_abdoh_started_with(api):
+    assert api.save_settings({"hotkey": "ctrl+shift+a"})["restart"] == ["hotkey"]
+    # A later, unrelated change still reports the pending restart...
+    assert api.save_settings({"tts_rate": 190})["restart"] == ["hotkey"]
+    assert api.boot()["restart"] == ["hotkey"]
+    # ...until the setting is back to what Abdoh is running with.
+    assert api.save_settings({"hotkey": "ctrl+alt+space"})["restart"] == []
+
+
+def test_microphones_voices_and_level(app_dir, bus):
+    api = AppApi(
+        bus,
+        UiState(),
+        load_config(app_dir),
+        list_mics=lambda: [{"name": "USB Mic", "default": True}],
+        list_voices=lambda: ["Zira"],
+    )
+    assert api.microphones() == {"devices": [{"name": "USB Mic", "default": True}], "current": ""}
+    assert api.voices() == {"voices": ["Zira"], "current": ""}
+    assert api.mic_level() is None  # the daemon isn't running yet
+    api._attach(type("D", (), {"mic_level": lambda self: 4321})())
+    assert api.mic_level() == 4321
+
+
+def test_microphones_when_listing_fails(app_dir, bus):
+    def broken():
+        raise OSError("PortAudio not found")
+
+    api = AppApi(bus, UiState(), load_config(app_dir), list_mics=broken)
+    assert api.microphones()["devices"] == []
+
+
+def test_test_voice_asks_the_daemon(api, bus):
+    api.test_voice()
+    assert requests(bus) == [("say_sample", None)]
+
+
+class FakeAutostart:
+    def __init__(self, installed=False, fail=False):
+        self.installed = installed
+        self.fail = fail
+
+    def is_installed(self):
+        return self.installed
+
+    def install(self):
+        if self.fail:
+            raise PermissionError("denied")
+        self.installed = True
+        return "Installed."
+
+    def uninstall(self):
+        self.installed = False
+        return "Removed."
+
+
+def test_start_at_sign_in(app_dir, bus):
+    autostart = FakeAutostart()
+    api = AppApi(bus, UiState(), load_config(app_dir), autostart=autostart)
+    assert api.login_item() == {"ok": True, "on": False}
+    assert api.set_login_item(True) == {"ok": True, "on": True, "message": "Installed."}
+    assert api.login_item()["on"] is True
+    assert api.set_login_item(False)["message"] == "Removed."
+    failing = AppApi(bus, UiState(), load_config(app_dir), autostart=FakeAutostart(fail=True))
+    result = failing.set_login_item(True)
+    assert result["ok"] is False and "denied" in result["error"]
+
+
+def test_open_folders_and_sound_settings(app_dir, bus):
+    opened = []
+    api = AppApi(bus, UiState(), load_config(app_dir), open_path=opened.append)
+    assert api.open_folder("data") is True
+    assert api.open_folder("logs") is True
+    assert api.open_folder("C:/Windows") is False
+    api.open_sound_settings()
+    assert opened[0] == app_dir
+    assert opened[1].name == ".abdoh"
+    assert opened[2] == "ms-settings:sound"
+
+
+def test_restart_and_folder_picking_use_the_window(api, bus):
+    class Win:
+        restart_requested = False
+
+        def pick_folder(self):
+            return "C:/Users/me/Music"
+
+    api._window = Win()
+    assert api.pick_folder() == "C:/Users/me/Music"
+    api.restart()
+    assert api._window.restart_requested is True
+    assert requests(bus) == [("quit", None)]
+
+
 # ----- the window -----
 
 

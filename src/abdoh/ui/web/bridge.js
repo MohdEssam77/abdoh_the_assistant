@@ -96,6 +96,34 @@ const Bridge = (() => {
         return { ok: true };
       },
       open_commands_file: async () => {},
+      settings: async () => ({ settings, restart: [] }),
+      save_settings: async (changes) => {
+        for (const [key, value] of Object.entries(changes)) {
+          if (key === "claude") Object.assign(settings.claude, value);
+          else settings[key] = value;
+        }
+        const restart = ["hotkey", "wake_words", "whisper_model", "language"].filter((k) => k in changes);
+        return { ok: true, settings, restart };
+      },
+      microphones: async () => ({
+        devices: [
+          { name: "Microphone (Lenovo FHD Webcam A", default: true },
+          { name: "Microphone Array (Realtek(R) Au", default: false },
+        ],
+        current: settings.mic_device,
+      }),
+      mic_level: async () => Math.round(400 + Math.random() * 9000),
+      voices: async () => ({
+        voices: ["Microsoft David Desktop - English (United States)", "Microsoft Zira Desktop - English (United States)"],
+        current: settings.tts_voice,
+      }),
+      test_voice: async () => {},
+      login_item: async () => ({ ok: true, on: true }),
+      set_login_item: async (on) => ({ ok: true, on }),
+      pick_folder: async () => "C:\\Users\\you\\Documents\\Projects",
+      open_folder: async () => true,
+      open_sound_settings: async () => {},
+      restart: async () => {},
     };
   }
 
