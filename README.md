@@ -126,6 +126,15 @@ Then you can say:
 - "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"
+- "Abdoh, how many files are in my Downloads?", "make a folder called Taxes in my Documents and
+  move the PDFs from Downloads into it", "convert the photos on my desktop to PNG" (Claude can
+  work with your files, see below)
+
+**Your files.** Claude can find, read, create, move, rename and convert files in your user
+folder (including a Desktop or Documents folder that OneDrive moved), running PowerShell when it
+needs to. Before it deletes or overwrites anything, it says what it will do and asks; just
+answer "yes" (no wake word needed). Deleted files go to the Recycle Bin. Abdoh can mishear you,
+so listen to what Claude says it's about to do. `claude.allow_files: false` turns this off.
 
 **Make it instant next time.** When Claude did something for you ("open the Python website"),
 say **"Abdoh, remember that"** (or "remember that as python time"). Abdoh adds it to
@@ -142,9 +151,11 @@ goes back to waiting for "Hey Abdoh". This only happens after spoken requests, n
 `claude.listen_after_question: false` turns it off.
 
 Abdoh plays a soft tick while Claude works and starts speaking as soon as the first sentence of
-the answer arrives. Each request runs Claude Code in a separate empty folder (`~/.abdoh/claude`)
-with only the tools Abdoh allows, and nothing is added to your Claude Code history. Claude can
-only open web links (`http`/`https`) and apps by name; it can't run commands.
+the answer arrives. Each request runs Claude Code from its own folder (`~/.abdoh/claude`) with
+only the tools Abdoh allows and your Claude Code settings and plugins ignored, and nothing is
+added to your Claude Code history. Links Claude opens must be web links (`http`/`https`), and
+apps are opened by name from your installed apps. With `allow_files: false`, Claude can't touch
+your files or run commands.
 Your Claude plan's usage limits apply; if you hit one, Abdoh tells you when it resets.
 
 **No subscription?** Abdoh can use an Anthropic API key from https://console.anthropic.com
@@ -326,7 +337,8 @@ Developers can measure this themselves without a microphone:
 | `claude.model` | `claude-opus-5-5` | Model when using an API key |
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
-| `claude.timeout_seconds` | `60` | Give up on an answer after this long |
+| `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
+| `claude.timeout_seconds` | `120` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | A question this soon after an answer can follow up on it (0 = off) |
 | `claude.listen_after_question` | `true` | When Claude asks you something, listen for your answer without the wake word |
 | `claude.translate_target` | `English` | Default language for screen translation |
