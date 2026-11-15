@@ -235,6 +235,55 @@ def test_microphones_when_listing_fails(app_dir, bus):
     assert api.microphones()["devices"] == []
 
 
+class FakeEndpoint:
+    name = "Microphone Array"
+
+    def __init__(self):
+        self.level, self.mute = 28, True
+
+    def volume(self):
+        return self.level
+
+    def set_volume(self, percent):
+        self.level = percent
+
+    def muted(self):
+        return self.mute
+
+    def set_muted(self, muted):
+        self.mute = muted
+
+
+def test_a_quiet_microphone_is_shown_and_fixed(app_dir, bus):
+    endpoint, asked = FakeEndpoint(), []
+
+    class Audio:
+        def microphone(self, name):
+            asked.append(name)
+            return endpoint
+
+    api = AppApi(bus, UiState(), load_config(app_dir), audio=Audio())
+    assert api.mic_volume() == {"ok": True, "name": "Microphone Array", "volume": 28, "muted": True}
+    api.save_settings({"mic_device": "USB Mic"})
+    assert api.fix_mic_volume() == {
+        "ok": True,
+        "name": "Microphone Array",
+        "volume": 90,
+        "muted": False,
+    }
+    assert asked[-1] == "USB Mic"  # the microphone Abdoh listens with
+
+
+def test_microphone_volume_when_windows_cant_tell(app_dir, bus):
+    class Audio:
+        def microphone(self, name):
+            raise RuntimeError("no Core Audio here")
+
+    api = AppApi(bus, UiState(), load_config(app_dir), audio=Audio())
+    assert api.mic_volume() == {"ok": False}
+    assert api.fix_mic_volume()["ok"] is False
+
+
 def test_test_voice_asks_the_daemon(api, bus):
     api.test_voice()
     assert requests(bus) == [("say_sample", None)]

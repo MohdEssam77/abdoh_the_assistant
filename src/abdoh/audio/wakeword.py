@@ -13,6 +13,9 @@ log = logging.getLogger(__name__)
 
 class WakeWordEngine(ABC):
     label = "wake word"  # shown in the window
+    # A model trained for the wake phrase: what's said after it is the request. Engines that
+    # aren't trusted (Vosk guessing at similar words) are checked against the transcript.
+    trusted = False
 
     @abstractmethod
     def detect(self, block: bytes) -> bool:
@@ -93,6 +96,7 @@ def load_wake_engine(cfg, oww=None, vosk=None) -> WakeWordEngine:
         try:
             engine = oww(model, cfg.wake_word_threshold)
             engine.label = f"openWakeWord ({model.stem})"
+            engine.trusted = True
             return engine
         except FileNotFoundError as e:
             log.warning("%s. Run: python scripts/download_models.py. Using Vosk for now.", e)

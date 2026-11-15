@@ -6,7 +6,7 @@ from abdoh.config import Config, load_config, setup_logging
 def test_defaults_without_any_files(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     cfg = load_config(tmp_path)
-    assert cfg.wake_words == ["abdoh", "hey abdoh"]
+    assert cfg.wake_words == ["abdoh", "hey abdoh", "ya abdoh"]
     assert cfg.match_threshold == 85
     assert cfg.allow_run is False
     assert cfg.claude.max_tokens == 4000
@@ -19,7 +19,7 @@ def test_missing_config_is_copied_from_example(app_dir):
     cfg = load_config(app_dir)
     assert (app_dir / "config.yaml").exists()
     assert (app_dir / "commands.yaml").exists()
-    assert cfg.whisper_model == "base"
+    assert cfg.whisper_model == "small"
     assert cfg.claude.translate_target == "English"
 
 

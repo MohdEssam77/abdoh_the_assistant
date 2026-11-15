@@ -4,14 +4,17 @@
 
 (() => {
   const MODELS = [
-    ["tiny", "Fastest", "Least accurate. For slower computers."],
-    ["base", "Balanced (recommended)", "Fast, and good with clear speech."],
-    ["small", "Most accurate", "Slower, and uses more memory."],
+    ["base", "Fast", "Quick, but makes more mistakes."],
+    ["small", "Balanced (recommended)", "Good accuracy. Downloads about 480 MB the first time."],
+    ["medium", "Most accurate", "Slow without a fast computer. Downloads about 1.5 GB the first time."],
   ];
+  const LANGUAGES = [["en", "English"], ["ar", "Arabic"], ["fr", "French"], ["de", "German"], ["es", "Spanish"],
+    ["it", "Italian"], ["pt", "Portuguese"], ["tr", "Turkish"], ["ur", "Urdu"], ["hi", "Hindi"], ["id", "Indonesian"],
+    ["nl", "Dutch"], ["ru", "Russian"], ["zh", "Chinese"], ["ja", "Japanese"], ["ko", "Korean"]];
   const RESTART_LABELS = {
     hotkey: "hotkey", wake_words: "wake words", wake_word_aliases: "wake word spellings",
     wake_word_model: "wake word model", vosk_model: "fallback wake word model",
-    whisper_model: "speech model", language: "language", log_file: "log file",
+    whisper_model: "speech model", languages: "languages", speech_engine: "speech quality", log_file: "log file",
   };
   const QUIET = 100; // a mic this quiet for a few seconds is probably muted (of 32768)
   const HEARD = 1500;
@@ -73,12 +76,36 @@
     const options = [["", `Windows default${fallback ? ` (${fallback.name})` : ""}`], ...devices.map((d) => [d.name, d.name])];
     const current = (mics && mics.current) || "";
     if (current && !devices.some((d) => d.name === current)) options.push([current, `${current} (not found)`]);
-    return card("Microphone", "Abdoh listens with this microphone. Talk to see the level move.",
-      row("Microphone", null, select(options, current, (value) => saveSettings({ mic_device: value }), "Microphone")),
+    const windows = el("div", { class: "mic-windows" });
+    const card = el("div", { class: "card" }, el("h2", {}, "Microphone"),
+      el("p", { class: "lead" }, "Abdoh listens with this microphone. Talk to see the level move."),
+      row("Microphone", null, select(options, current, async (value) => {
+        if (await saveSettings({ mic_device: value })) showMicVolume(windows);
+      }, "Microphone")),
       el("div", { class: "row stack" },
         el("div", { class: "meter", "aria-label": "Microphone level" }, el("i", { id: "mic-level" })),
         el("div", { class: "mic-status" }, el("span", { id: "mic-status" }, "Checking…"), el("div", { class: "spacer" }),
-          el("button", { class: "btn small", onclick: () => call("open_sound_settings") }, "Windows sound settings"))));
+          el("button", { class: "btn small", onclick: () => call("open_sound_settings") }, "Windows sound settings"))),
+      windows);
+    showMicVolume(windows);
+    return card;
+  }
+
+  /* The microphone's own volume in Windows: a quiet one makes Abdoh mishear you. */
+  async function showMicVolume(box, state) {
+    state = state || await call("mic_volume");
+    if (!state || !state.ok) return box.replaceChildren();
+    const low = state.muted || state.volume < 60;
+    const text = state.muted ? "It's muted in Windows, so Abdoh can't hear you."
+      : low ? `Its volume in Windows is only ${state.volume}%. Abdoh hears you better when it's higher.`
+        : `Its volume in Windows is ${state.volume}%.`;
+    box.replaceChildren(row("Windows volume", el("span", { class: low ? "warn-text" : "" }, text),
+      low ? el("button", { class: "btn small primary", onclick: async (e) => {
+        e.currentTarget.disabled = true;
+        const fixed = await call("fix_mic_volume");
+        if (fixed && fixed.ok) { toast("Microphone turned up."); showMicVolume(box, fixed); }
+        else if (fixed) toast(fixed.error, true);
+      } }, state.muted ? "Unmute and turn up" : "Turn it up") : el("span", { class: "tag good" }, "Good")));
   }
 
   async function readMeter() {
@@ -150,13 +177,29 @@
 
   function speechCard() {
     const settings = App.settings;
-    const model = MODELS.find(([v]) => v === settings.whisper_model) || [settings.whisper_model, settings.whisper_model, ""];
+    const chosen = new Set(settings.languages || ["en"]);
+    const onlyEnglish = chosen.size === 1 && chosen.has("en");
+    const picks = el("div", { class: "picks" }, LANGUAGES.map(([code, name]) => {
+      const button = el("button", { class: chosen.has(code) ? "pick on" : "pick", "aria-pressed": chosen.has(code) ? "true" : "false" }, name);
+      button.addEventListener("click", async () => {
+        const next = LANGUAGES.map(([c]) => c).filter((c) => (c === code ? !chosen.has(c) : chosen.has(c)));
+        if (!next.length) return toast("Keep at least one language.", true);
+        if (await saveSettings({ languages: next })) render();
+      });
+      return button;
+    }));
+    const lighter = settings.speech_engine === "whisper";
+    const how = !onlyEnglish ? "With more than English, Abdoh uses the Whisper model below. It's a little slower, and it answers in the language you spoke."
+      : lighter ? "English with the lighter Whisper model: less memory, more mistakes."
+        : "English only: the fastest and most accurate recognition.";
     return card("Speech recognition", "How Abdoh turns what you say into text. Everything runs on this computer.",
-      row("Model", model[2], select(MODELS.map(([v, label]) => [v, label]).concat(MODELS.some(([v]) => v === settings.whisper_model) ? [] : [[settings.whisper_model, settings.whisper_model]]),
-        settings.whisper_model, (value) => saveSettings({ whisper_model: value }), "Speech model")),
-      row("Language", "Abdoh's voice speaks English; requests in other languages work best with Claude.",
-        select([["en", "English"], ["auto", "Detect automatically"]], settings.language || "auto",
-          (value) => saveSettings({ language: value === "auto" ? null : value }), "Language")));
+      el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Abdoh"), el("small", {}, how)), picks),
+      onlyEnglish ? row("Quality", "Best accuracy uses about 700 MB more memory.",
+        select([["auto", "Best accuracy (recommended)"], ["whisper", "Lighter"]], lighter ? "whisper" : "auto",
+          (value) => saveSettings({ speech_engine: value }).then((ok) => ok && render()), "Speech quality")) : null,
+      !onlyEnglish || lighter ? row("Whisper model", (MODELS.find(([v]) => v === settings.whisper_model) || ["", "", ""])[2],
+        select(MODELS.map(([v, label]) => [v, label]).concat(MODELS.some(([v]) => v === settings.whisper_model) ? [] : [[settings.whisper_model, settings.whisper_model]]),
+          settings.whisper_model, (value) => saveSettings({ whisper_model: value }), "Whisper model")) : null);
   }
 
   /* ---------- general ---------- */

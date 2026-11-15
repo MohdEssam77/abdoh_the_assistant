@@ -12,7 +12,7 @@ const Bridge = (() => {
     const settings = {
       wake_words: ["abdoh", "hey abdoh", "ya abdoh"], wake_word_aliases: ["abdo", "ab doe"],
       wake_word_model: "models/hey_abdoh.onnx", wake_word_threshold: 0.5, hotkey: "ctrl+alt+space",
-      vosk_model: "", whisper_model: "base", language: "en", match_threshold: 85,
+      vosk_model: "", whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
       silence_seconds: 0.6, max_record_seconds: 10, tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, check_updates: true, setup_done: true, log_file: "~/.abdoh/abdoh.log",
       has_api_key: false,
@@ -102,7 +102,7 @@ const Bridge = (() => {
           if (key === "claude") Object.assign(settings.claude, value);
           else settings[key] = value;
         }
-        const restart = ["hotkey", "wake_words", "whisper_model", "language"].filter((k) => k in changes);
+        const restart = ["hotkey", "wake_words", "whisper_model", "languages", "speech_engine"].filter((k) => k in changes);
         return { ok: true, settings, restart };
       },
       microphones: async () => ({
@@ -112,6 +112,8 @@ const Bridge = (() => {
         ],
         current: settings.mic_device,
       }),
+      mic_volume: async () => ({ ok: true, name: "Microphone Array", volume: 28, muted: false }),
+      fix_mic_volume: async () => ({ ok: true, name: "Microphone Array", volume: 90, muted: false }),
       mic_level: async () => Math.round(400 + Math.random() * 9000),
       voices: async () => ({
         voices: ["Microsoft David Desktop - English (United States)", "Microsoft Zira Desktop - English (United States)"],

@@ -25,6 +25,8 @@ PUSH_TO_TALK_WAIT_SECONDS = 4.0
 CHIME_SECONDS = 0.15
 # After Claude asks you something: how long to wait for you to start answering.
 ANSWER_WAIT_SECONDS = 5.0
+# After a trusted wake word ("Hey Abdoh ... what time is it"): how long to wait for the request.
+WAKE_WAIT_SECONDS = 3.0
 
 
 def listen_for_request(
@@ -40,23 +42,26 @@ def listen_for_request(
     on_listen: Callable[[], None] = lambda: None,
     answer: bool = False,
     on_nothing: Callable[[int], None] = lambda loudest: None,
+    answer_wait: float = ANSWER_WAIT_SECONDS,
 ) -> str | None:
-    """Wait for the wake word and return what was said (wake word included), or None if stopped.
+    """Wait for the wake word and return the request that was said, or None if stopped.
 
-    Audio from just before the wake word is included, so "Good morning Abdoh" works.
-    If only the wake word was said, Abdoh asks "Yes?" and records one more utterance.
-    Returns "" if Whisper's transcript doesn't contain the wake word (a false wake-up).
+    With a trusted wake word engine (your trained model), the request is what you say after the
+    wake word; `on_listen` (a chime) confirms the wake-up. If you say nothing, Abdoh asks
+    "Yes?" and records one more utterance.
+
+    With the Vosk fallback, the audio from just before the wake word is transcribed too (so
+    "Good morning Abdoh" works) and the wake word is included in the result; "" is returned
+    if the transcript doesn't contain the wake word (a false wake-up).
     With a `vad` (SileroVad), the end of speech is found by voice activity, else by loudness.
     If `pressed()` turns true (the hotkey), one request is recorded with no wake word needed.
     With `answer` (Claude just asked you something), one reply is recorded right away, the same
-    way; "" if you don't start talking within ANSWER_WAIT_SECONDS.
+    way; "" if you don't start talking within `answer_wait` seconds.
     When nothing is said after the hotkey or a question, `on_nothing(loudest)` gets the loudest
     sample level heard meanwhile (close to 0 means the microphone is muted).
     """
     if answer:
-        return _push_to_talk(
-            mic, engine, transcriber, cfg, vad, on_listen, ANSWER_WAIT_SECONDS, on_nothing
-        )
+        return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen, answer_wait, on_nothing)
     trigger = wait_for_trigger(mic.read, engine, should_stop, pressed)
     if trigger is None:
         return None
@@ -65,6 +70,8 @@ def listen_for_request(
             mic, engine, transcriber, cfg, vad, on_listen, PUSH_TO_TALK_WAIT_SECONDS, on_nothing
         )
     on_wake()
+    if engine.trusted:
+        return _after_wake_word(mic, engine, transcriber, speaker, cfg, vad, on_listen)
     t_wake = time.perf_counter()
     before = mic.recent()
     is_speech = _speech_detector(vad, before)
@@ -101,6 +108,35 @@ def listen_for_request(
         )
         text = transcriber.transcribe(audio)
 
+    mic.clear()
+    engine.reset()
+    return text
+
+
+def _after_wake_word(mic, engine, transcriber, speaker, cfg: Config, vad, on_listen) -> str:
+    """The request said right after a trusted wake word (the wake word itself is left out)."""
+    is_speech = _speech_detector(vad, mic.recent())
+    on_listen()  # heard you; keep talking
+    audio = record_until_silence(
+        mic.read,
+        is_speech,
+        cfg.silence_seconds,
+        cfg.max_record_seconds,
+        wait_seconds=WAKE_WAIT_SECONDS,
+    )
+    if not audio:  # only the wake word
+        speaker.say("Yes?")
+        mic.clear()
+        if vad is not None:
+            vad.reset()
+        audio = record_until_silence(
+            mic.read,
+            is_speech,
+            cfg.silence_seconds,
+            cfg.max_record_seconds,
+            wait_seconds=FOLLOW_UP_WAIT_SECONDS,
+        )
+    text = transcriber.transcribe(audio) if audio else ""
     mic.clear()
     engine.reset()
     return text

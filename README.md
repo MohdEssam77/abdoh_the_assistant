@@ -48,9 +48,10 @@ python scripts/download_models.py
 ```
 
 This downloads into `models/` the two small openWakeWord feature models (about 2 MB), the Vosk
-wake word model (about 40 MB, the fallback until you train your own wake word, below), and the
-Whisper speech recognition model `base.en` (about 140 MB). Other Whisper models (if you pick one
-in Settings) download themselves the first time they're used.
+wake word model (about 40 MB, a fallback), and the **Parakeet** speech recognition model (about
+630 MB; English, the most accurate). It also copies the trained "Hey Abdoh" wake word model from
+`assets/` if you don't have your own. Whisper models (used when you speak other languages)
+download themselves the first time they're used.
 
 ### Train your "Hey Abdoh" wake word (recommended)
 
@@ -394,13 +395,14 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 
 | Key | Default | Meaning |
 |---|---|---|
-| `wake_words` | `["abdoh", "hey abdoh"]` | What you say to wake Abdoh; removed from requests before matching |
+| `wake_words` | `["abdoh", "hey abdoh", "ya abdoh"]` | What you say to wake Abdoh; removed from requests before matching |
 | `wake_word_model` | `models/hey_abdoh.onnx` | Your openWakeWord model; without it, Vosk is used |
-| `wake_word_threshold` | `0.5` | openWakeWord: higher means fewer false wake-ups |
+| `wake_word_threshold` | `0.4` | openWakeWord: higher means fewer false wake-ups |
 | `hotkey` | `ctrl+alt+space` | Press to talk without the wake word, or to stop a reply (`""` = off) |
 | `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Vosk only: similar words it listens for (see Troubleshooting) |
-| `whisper_model` | `base` | `base` is faster, `small` is more accurate (English-only `.en` models are used when `language` is `en`) |
-| `language` | `en` | Whisper language hint (`null` = auto-detect) |
+| `languages` | `["en"]` | What you speak to Abdoh. English only uses Parakeet (fastest, most accurate); with more languages (e.g. `["en", "ar"]`) Whisper is used and Abdoh answers in the language you spoke |
+| `speech_engine` | `auto` | `auto`, `parakeet` (English only) or `whisper` (lighter: about 700 MB less memory, more mistakes) |
+| `whisper_model` | `small` | Whisper size for other languages: `base` (fast), `small`, `medium` (slow) |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |

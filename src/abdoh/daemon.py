@@ -476,7 +476,7 @@ class Daemon:
         handles typed requests and reports the problem as its status.
         """
         from abdoh.audio.mic import Microphone
-        from abdoh.audio.stt import Transcriber
+        from abdoh.audio.stt import load_transcriber
         from abdoh.audio.vad import load_vad
         from abdoh.audio.wakeword import load_wake_engine
         from abdoh.claude.brain import make_brain
@@ -495,8 +495,7 @@ class Daemon:
             log.exception("Could not set up the wake word")
             listen_error = WAKE_WORD_FAILED
         try:
-            transcriber = Transcriber.from_config(cfg)
-            transcriber.transcribe(b"\0\0" * 1600)  # load the model now, not on first request
+            transcriber = load_transcriber(cfg)
         except Exception:
             log.exception("Could not load the speech recognition model")
             listen_error = SPEECH_MODEL_FAILED

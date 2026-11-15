@@ -32,7 +32,7 @@ def test_save_changes_a_value_and_keeps_the_comments(app_dir):
     cfg = save_settings(app_dir, {"tts_rate": 200, "claude": {"allow_web": False}})
     assert cfg.tts_rate == 200
     assert cfg.claude.allow_web is False
-    assert cfg.wake_words == ["abdoh", "hey abdoh"]  # untouched
+    assert cfg.wake_words == ["abdoh", "hey abdoh", "ya abdoh"]  # untouched
     text = (app_dir / "config.yaml").read_text(encoding="utf-8")
     assert "# Abdoh configuration." in text
     assert "tts_rate: 200" in text and "# speaking speed in words per minute" in text
@@ -107,8 +107,38 @@ def test_lists_are_cleaned(app_dir):
     assert cfg.wake_words == ["abdoh", "hey abdoh"]
 
 
-def test_language_can_be_detected_automatically(app_dir):
-    assert save_settings(app_dir, {"language": None}).language is None
+def test_languages_are_a_list_of_codes(app_dir):
+    assert save_settings(app_dir, {"languages": ["EN", "ar"]}).languages == ["en", "ar"]
+    for bad in ([], ["english"], ["e n"]):
+        with pytest.raises(SettingsError, match="at least one language"):
+            save_settings(app_dir, {"languages": bad})
+
+
+def test_settings_from_abdoh_0_3_are_upgraded(app_dir):
+    old = (
+        'wake_words: ["abdoh", "hey abdoh"]\nwake_word_threshold: 0.5\nwhisper_model: "base"\n'
+        "language: null\ntts_rate: 190\n"
+    )
+    (app_dir / "config.yaml").write_text(old)
+    cfg = load_config(app_dir)
+    assert cfg.languages == ["en", "ar"]  # "detect automatically" became your two languages
+    assert (cfg.wake_word_threshold, cfg.whisper_model) == (0.4, "small")  # the new defaults
+    assert cfg.wake_words == ["abdoh", "hey abdoh", "ya abdoh"]
+    assert cfg.tts_rate == 190  # your own choices stay
+    text_before = (app_dir / "config.yaml").read_text()
+    assert text_before == old  # nothing is rewritten until you save a setting
+    save_settings(app_dir, {"tts_rate": 200})
+    text = (app_dir / "config.yaml").read_text()
+    assert "config_version: 2" in text and "\nlanguage:" not in text
+    assert load_config(app_dir).languages == ["en", "ar"]
+
+
+def test_your_own_values_survive_the_upgrade(app_dir):
+    (app_dir / "config.yaml").write_text(
+        'language: "en"\nwake_word_threshold: 0.6\nwhisper_model: "medium"\n'
+    )
+    cfg = load_config(app_dir)
+    assert (cfg.languages, cfg.wake_word_threshold, cfg.whisper_model) == (["en"], 0.6, "medium")
 
 
 def test_restart_is_needed_only_for_some_settings(app_dir):
