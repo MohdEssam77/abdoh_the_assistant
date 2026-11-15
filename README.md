@@ -170,9 +170,16 @@ Without Claude, everything else still works and Abdoh tells you Claude isn't con
 
 ## 5. Your commands
 
-Edit `commands.yaml` (or click **Edit commands**). Each command has trigger phrases and actions
-that run in order. Don't include "Abdoh" in triggers; the wake word is removed before matching.
-Small transcription mistakes are tolerated. Changes are picked up automatically.
+Open the window's **Commands** page (or **Commands** in the tray menu). Each command has the
+phrases you say and the actions Abdoh runs, in order: say something, open a website or an app,
+play on YouTube, press a media key, start a timer, or run a program. Click a command to change
+it, **Try it** to run it now, **New command** to add one, or **Templates** to start from a
+ready-made one (good morning, focus time, Google search, directions, ...). Abdoh checks every
+command before saving it, and uses it right away.
+
+The commands live in `commands.yaml`, which you can also edit by hand. Don't include "Abdoh" in
+triggers; the wake word is removed before matching. Small transcription mistakes are tolerated.
+Changes are picked up automatically.
 
 ```yaml
 - name: good_morning

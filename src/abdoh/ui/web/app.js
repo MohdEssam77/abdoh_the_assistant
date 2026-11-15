@@ -29,6 +29,75 @@ const ICON = {
   logo: '<svg viewBox="0 0 24 24" fill="#fff"><rect x="2.6" y="9" width="2.6" height="6" rx="1.3"/><rect x="6.8" y="6" width="2.6" height="12" rx="1.3"/><rect x="11" y="2.5" width="2.6" height="19" rx="1.3"/><rect x="15.2" y="6" width="2.6" height="12" rx="1.3"/><rect x="19.4" y="9" width="2.6" height="6" rx="1.3"/></svg>',
 };
 
+/* Line icons (24x24, drawn with the current text color). */
+const PATHS = {
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+  pencil: '<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  play: '<path d="M7 5v14l11-7z"/>',
+  up: '<path d="m6 15 6-6 6 6"/>',
+  down: '<path d="m6 9 6 6 6-6"/>',
+  bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+  sparkles: '<path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/>',
+  say: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
+  open_url: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9S9.5 5.7 12 3z"/>',
+  open_app: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/>',
+  play_youtube: '<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9 5 3-5 3z"/>',
+  media: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/>',
+  run: '<path d="m5 7 5 5-5 5M12 19h7"/>',
+  file: '<path d="M14 3H6v18h12V7l-4-4z"/><path d="M14 3v4h4"/>',
+  check: '<path d="m5 12 5 5L20 7"/>',
+};
+
+function svg(name) {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${PATHS[name] || ""}</svg>`;
+}
+
+/* A dialog over the page. Returns {close}. Escape or a click outside closes it. */
+function openModal({ title, body, actions = [], wide = false, onClose }) {
+  const back = el("div", { class: "modal-back" });
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  function close() {
+    back.remove();
+    document.removeEventListener("keydown", onKey);
+    if (onClose) onClose();
+  }
+  const modal = el("div", { class: wide ? "modal wide" : "modal", role: "dialog", "aria-modal": "true" },
+    el("div", { class: "modal-head" }, el("h2", {}, title),
+      el("button", { class: "icon-btn", title: "Close", html: svg("x"), onclick: close })),
+    el("div", { class: "modal-body" }, body),
+    actions.length ? el("div", { class: "modal-foot" }, actions) : null);
+  back.append(modal);
+  back.addEventListener("mousedown", (e) => { if (e.target === back) close(); });
+  document.addEventListener("keydown", onKey);
+  document.body.append(back);
+  const first = modal.querySelector("input, select, textarea");
+  if (first) setTimeout(() => first.focus(), 30);
+  return { close, modal };
+}
+
+/* Ask yes or no. Resolves to true for yes. */
+function confirmBox(text, okLabel = "OK", danger = false) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const answer = (value) => {
+      if (!answered) { answered = true; resolve(value); }
+      dialog.close();
+    };
+    const dialog = openModal({
+      title: "Are you sure?",
+      body: el("p", { style: "margin:0" }, text),
+      actions: [el("div", { class: "spacer" }),
+        el("button", { class: "btn", onclick: () => answer(false) }, "Cancel"),
+        el("button", { class: danger ? "btn danger-fill" : "btn primary", onclick: () => answer(true) }, okLabel)],
+      onClose: () => { if (!answered) { answered = true; resolve(false); } },
+    });
+  });
+}
+
 function store(key, value) {
   try {
     if (value === undefined) return localStorage.getItem(key);

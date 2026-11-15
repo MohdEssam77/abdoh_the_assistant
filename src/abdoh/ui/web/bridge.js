@@ -37,6 +37,22 @@ const Bridge = (() => {
       push("wake", "openWakeWord (hey_abdoh)");
       push("status", "Listening");
     }, 250);
+    let commands = [
+      { name: "Good morning", triggers: ["good morning"], actions: [
+        { type: "say", value: "Good morning! Here's your playlist." },
+        { type: "open_url", value: "https://www.youtube.com/watch?v=jfKfPfyJRdk" }] },
+      { name: "Open my mail", triggers: ["open my mail", "open email"], actions: [{ type: "open_url", value: "https://mail.google.com" }] },
+      { name: "YouTube search", triggers: ["search youtube for {query}"], actions: [{ type: "open_url", value: "https://www.youtube.com/results?search_query={query}" }] },
+      { name: "Play on YouTube", triggers: ["play {query} on youtube"], actions: [{ type: "play_youtube", value: "{query}" }] },
+      { name: "Open VS Code", triggers: ["open code", "open vs code"], actions: [{ type: "open_app", value: "Visual Studio Code" }] },
+      { name: "Focus time", triggers: ["focus time"], actions: [{ type: "timer", value: "25 minutes" }, { type: "play_youtube", value: "lofi hip hop radio" }, { type: "media", value: "volume_down" }] },
+    ];
+    const templates = [
+      { name: "Take a break", description: "A 5-minute break timer.", triggers: ["take a break"], actions: [{ type: "timer", value: "5 minutes" }] },
+      { name: "Google search", description: "Searches Google for whatever you say.", triggers: ["google {query}"], actions: [{ type: "open_url", value: "https://www.google.com/search?q={query}" }] },
+      { name: "Weather", description: "Shows the weather forecast.", triggers: ["what's the weather"], actions: [{ type: "open_url", value: "https://www.google.com/search?q=weather" }] },
+      { name: "Focus time", description: "A 25-minute focus timer with calm music.", triggers: ["focus time"], actions: [{ type: "timer", value: "25 minutes" }] },
+    ];
     const replies = {
       time: () => `It is ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
       timer: () => "Timer set for 10 minutes.",
@@ -68,6 +84,18 @@ const Bridge = (() => {
       hide: async () => {},
       quit: async () => {},
       open_link: async () => true,
+      commands: async () => ({ ok: true, commands, templates }),
+      save_command: async (command, oldName) => {
+        if (!command.name.trim()) return { ok: false, error: "Give the command a name." };
+        if (!command.triggers.length) return { ok: false, error: "Add at least one phrase that triggers the command." };
+        commands = commands.filter((c) => c.name !== oldName).concat([command]);
+        return { ok: true, command };
+      },
+      delete_command: async (name) => {
+        commands = commands.filter((c) => c.name !== name);
+        return { ok: true };
+      },
+      open_commands_file: async () => {},
     };
   }
 

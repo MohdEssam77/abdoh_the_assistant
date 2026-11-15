@@ -61,7 +61,7 @@ class Tray:
                      self.toggle_pause),
                 item("Stop speaking", lambda: bus.request("stop_speaking")),
                 item("Voice replies", self.toggle_voice, checked=lambda i: self.voice_on),
-                item("Edit commands", lambda: bus.request("edit_commands")),
+                item("Commands", self.open_commands),
                 item("Start at login", self.toggle_login, checked=lambda i: self.starts_at_login),
                 menu.SEPARATOR,
                 item("Quit Abdoh", lambda: bus.request("quit")),
@@ -76,6 +76,11 @@ class Tray:
         self.icon.stop()
 
     # ----- menu actions (send requests) -----
+
+    def open_commands(self) -> None:
+        """Show the window's Commands page (the simple window opens the file instead)."""
+        self.bus.emit("show")
+        self.bus.emit("page", "commands")
 
     def toggle_pause(self) -> None:
         self.bus.request("resume" if self.paused else "pause")

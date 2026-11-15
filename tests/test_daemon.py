@@ -33,6 +33,20 @@ class StubRouter:
         return reply
 
 
+def test_commands_saved_in_the_app_are_used_right_away(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text('- name: a\n  triggers: ["hello"]\n  actions:\n    - say: "hi"\n')
+    registry = CommandRegistry(path)
+    bus = Bus()
+    daemon = make_daemon(Router(Config(), registry), bus=bus)
+    path.write_text('- name: b\n  triggers: ["bye"]\n  actions:\n    - say: "bye"\n')
+    daemon.handle_request("commands_changed")
+    assert [c.name for c in registry.commands] == ["b"]
+    path.write_text("- name: [broken\n")
+    daemon.handle_request("commands_changed")
+    assert "Commands file error" in bus.pending_events()[-1][1]
+
+
 def test_talk_button_listens_like_the_hotkey():
     daemon = make_daemon(StubRouter([]))
     daemon.handle_request("listen")

@@ -125,6 +125,59 @@ def test_nothing_private_is_exposed_to_the_page(api):
     assert public == []  # pywebview exposes public attributes to JavaScript
 
 
+# ----- commands -----
+
+
+def news(name="Open news"):
+    return {
+        "name": name,
+        "triggers": ["open the news"],
+        "actions": [{"type": "open_url", "value": "https://news.google.com"}],
+    }
+
+
+def test_commands_and_templates(api):
+    result = api.commands()
+    assert result["ok"] is True
+    assert "good_morning" in [c["name"] for c in result["commands"]]
+    assert result["templates"] and all("description" in t for t in result["templates"])
+
+
+def test_a_broken_commands_file_is_explained(api, app_dir):
+    (app_dir / "commands.yaml").write_text("- name: [oops\n")
+    result = api.commands()
+    assert result["ok"] is False and "isn't valid" in result["error"]
+    assert result["commands"] == [] and result["templates"]
+
+
+def test_save_command_tells_the_daemon(api, bus):
+    result = api.save_command(news())
+    assert result == {"ok": True, "command": news()}
+    assert requests(bus) == [("commands_changed", None)]
+    assert news() in api.commands()["commands"]
+
+
+def test_save_command_error_is_returned_not_raised(api, bus):
+    result = api.save_command({**news(), "triggers": []})
+    assert result["ok"] is False and "phrase" in result["error"]
+    assert requests(bus) == []
+
+
+def test_rename_and_delete_a_command(api, bus):
+    api.save_command(news())
+    assert api.save_command(news("News"), "Open news")["ok"] is True
+    names = [c["name"] for c in api.commands()["commands"]]
+    assert "News" in names and "Open news" not in names
+    assert api.delete_command("News") == {"ok": True}
+    assert api.delete_command("News")["ok"] is False
+    assert requests(bus) == [("commands_changed", None)] * 3
+
+
+def test_open_commands_file_asks_the_daemon(api, bus):
+    api.open_commands_file()
+    assert requests(bus) == [("edit_commands", None)]
+
+
 # ----- the window -----
 
 

@@ -13,6 +13,8 @@ from collections import deque
 from collections.abc import Callable
 
 from abdoh import __version__
+from abdoh.commands.registry import CommandsFileError
+from abdoh.commands.store import TEMPLATES, CommandsStore
 from abdoh.config import Config, load_config
 from abdoh.events import Bus
 from abdoh.settings import settings_view
@@ -124,6 +126,40 @@ class AppApi:
 
     def set_voice(self, on) -> None:
         self._bus.request("voice", bool(on))
+
+    # ----- your commands -----
+
+    def _store(self) -> CommandsStore:
+        return CommandsStore(self._cfg.commands_path)
+
+    def commands(self) -> dict:
+        """Your commands and the templates. If the file has an error, says what it is."""
+        try:
+            items = self._store().load()
+        except CommandsFileError as e:
+            return {"ok": False, "error": str(e), "commands": [], "templates": TEMPLATES}
+        return {"ok": True, "commands": items, "templates": TEMPLATES}
+
+    def save_command(self, command, old_name=None) -> dict:
+        """Add a command, or change the one called old_name."""
+        try:
+            saved = self._store().save(command, old_name or None)
+        except CommandsFileError as e:
+            return {"ok": False, "error": str(e)}
+        self._bus.request("commands_changed")
+        return {"ok": True, "command": saved}
+
+    def delete_command(self, name) -> dict:
+        try:
+            self._store().delete(str(name))
+        except CommandsFileError as e:
+            return {"ok": False, "error": str(e)}
+        self._bus.request("commands_changed")
+        return {"ok": True}
+
+    def open_commands_file(self) -> None:
+        """Open commands.yaml in a text editor (e.g. to fix an error made by hand)."""
+        self._bus.request("edit_commands")
 
     # ----- the window -----
 

@@ -134,6 +134,8 @@ class Window:
                 self.append_history(value)
             elif kind == "show":
                 self.show()
+            elif kind == "page" and value == "commands":
+                self.bus.request("edit_commands")  # this simple window has no Commands page
             elif kind == "quit":
                 self.root.destroy()
                 return

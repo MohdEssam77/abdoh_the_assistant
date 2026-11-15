@@ -92,13 +92,13 @@ def test_icon_image():
 def test_menu_items_send_requests(tray):
     item(tray, "Show window").action()
     item(tray, "Stop speaking").action()
-    item(tray, "Edit commands").action()
+    item(tray, "Commands").action()
     item(tray, "Quit").action()
-    assert tray.bus.pending_events() == [("show", None)]
+    assert tray.bus.pending_events() == [("show", None), ("show", None), ("page", "commands")]
     requests = []
     while (m := tray.bus.next_request(0)) is not None:
         requests.append(m)
-    assert requests == [("stop_speaking", None), ("edit_commands", None), ("quit", None)]
+    assert requests == [("stop_speaking", None), ("quit", None)]
 
 
 def test_pause_and_voice_follow_the_daemon(tray):
