@@ -7,7 +7,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from abdoh.audio.mic import BYTES_PER_SECOND, SAMPLE_RATE
-from abdoh.audio.recorder import energy_detector, estimate_threshold, record_until_silence
+from abdoh.audio.recorder import energy_detector, estimate_threshold, peak, record_until_silence
 from abdoh.audio.wakeword import WakeWordEngine, load_vosk_model, wait_for_trigger
 from abdoh.commands.matcher import has_wake_word, strip_wake_words
 from abdoh.config import Config
@@ -39,6 +39,7 @@ def listen_for_request(
     pressed: Callable[[], bool] = lambda: False,
     on_listen: Callable[[], None] = lambda: None,
     answer: bool = False,
+    on_nothing: Callable[[int], None] = lambda loudest: None,
 ) -> str | None:
     """Wait for the wake word and return what was said (wake word included), or None if stopped.
 
@@ -49,15 +50,19 @@ def listen_for_request(
     If `pressed()` turns true (the hotkey), one request is recorded with no wake word needed.
     With `answer` (Claude just asked you something), one reply is recorded right away, the same
     way; "" if you don't start talking within ANSWER_WAIT_SECONDS.
+    When nothing is said after the hotkey or a question, `on_nothing(loudest)` gets the loudest
+    sample level heard meanwhile (close to 0 means the microphone is muted).
     """
     if answer:
-        return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen, ANSWER_WAIT_SECONDS)
+        return _push_to_talk(
+            mic, engine, transcriber, cfg, vad, on_listen, ANSWER_WAIT_SECONDS, on_nothing
+        )
     trigger = wait_for_trigger(mic.read, engine, should_stop, pressed)
     if trigger is None:
         return None
     if trigger == "hotkey":
         return _push_to_talk(
-            mic, engine, transcriber, cfg, vad, on_listen, PUSH_TO_TALK_WAIT_SECONDS
+            mic, engine, transcriber, cfg, vad, on_listen, PUSH_TO_TALK_WAIT_SECONDS, on_nothing
         )
     on_wake()
     t_wake = time.perf_counter()
@@ -102,19 +107,29 @@ def listen_for_request(
 
 
 def _push_to_talk(
-    mic, engine, transcriber, cfg: Config, vad, on_listen, wait_seconds: float
+    mic, engine, transcriber, cfg: Config, vad, on_listen, wait_seconds: float, on_nothing
 ) -> str:
     on_listen()  # the "listening" chime
     time.sleep(CHIME_SECONDS)
     mic.clear()  # start fresh, without the chime (or the end of Abdoh's own reply)
     is_speech = _speech_detector(vad, b"")
+    loudest = 0
+
+    def read() -> bytes:
+        nonlocal loudest
+        block = mic.read()
+        loudest = max(loudest, peak(block))
+        return block
+
     audio = record_until_silence(
-        mic.read,
+        read,
         is_speech,
         cfg.silence_seconds,
         cfg.max_record_seconds,
         wait_seconds=wait_seconds,
     )
+    if not audio:
+        on_nothing(loudest)
     text = transcriber.transcribe(audio) if audio else ""
     mic.clear()
     engine.reset()

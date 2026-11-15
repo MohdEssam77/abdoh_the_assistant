@@ -21,6 +21,10 @@ log = logging.getLogger(__name__)
 
 MIC_RETRY_SECONDS = 5.0
 SORRY = "Sorry, something went wrong."
+# After the hotkey, nothing louder than this came from the mic (of 32768): it's muted or
+# turned right down. Speech is usually in the thousands.
+QUIET_MIC_PEAK = 100
+MIC_TOO_QUIET = "I didn't hear anything. Your microphone may be muted or turned down."
 
 
 class Daemon:
@@ -178,6 +182,13 @@ class Daemon:
         self._interrupted.clear()
         self.bus.emit("status", "Listening to you...")
         self.earcons.play("listening")
+
+    def _heard_nothing(self, loudest: int) -> None:
+        """Nothing was said after the hotkey or Claude's question. If you pressed the hotkey
+        and the mic was nearly silent, say so: it's probably muted."""
+        log.info("Heard nothing (loudest sound %d of 32768)", loudest)
+        if self._via_hotkey and loudest < QUIET_MIC_PEAK:
+            self.say(MIC_TOO_QUIET)
 
     def stop_speaking(self) -> None:
         """Interrupt the current reply (from the window, tray or hotkey)."""
@@ -368,6 +379,7 @@ class Daemon:
                 pressed=self._take_listen_now,
                 on_listen=self._on_listen,
                 answer=answer,
+                on_nothing=self._heard_nothing,
             )
         except MicrophoneError:
             raise
@@ -409,9 +421,9 @@ class Daemon:
         from abdoh.claude.brain import make_brain
         from abdoh.commands.registry import CommandRegistry
         from abdoh.computer import AppIndex, Computer, Timers
-        from abdoh.speech.tts import Pyttsx3Speaker
+        from abdoh.speech.tts import make_speaker
 
-        speaker = speaker or Pyttsx3Speaker(cfg.tts_rate)
+        speaker = speaker or make_speaker(cfg.tts_rate)
         getattr(speaker, "warm_up", lambda: None)()  # the first reply shouldn't pay for it
 
         engine = transcriber = None

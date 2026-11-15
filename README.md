@@ -358,6 +358,15 @@ ignored silently (you'll see "Ignoring false wake-up" in the log). If it still r
 raise `wake_word_threshold` (openWakeWord) or remove short or common words from
 `wake_word_aliases` (Vosk).
 
+**Abdoh chimes, then nothing happens** (or it says "Your microphone may be muted"). It didn't
+hear you. Abdoh uses your default microphone: on Windows open Settings → System → Sound →
+Input, choose the microphone you talk into, make sure it isn't muted, and set its volume to
+about 80%. A webcam's microphone is often the default.
+
+**You can't hear Abdoh.** It speaks through your default speakers with the Windows voice. Check
+that the window says **Voice replies: On** and that your volume is up, then try
+`python -m abdoh say "Hello"`.
+
 **No microphone / mic permission.** Check your OS privacy settings allow microphone access for
 Python (Windows: Settings → Privacy & security → Microphone, "Let desktop apps access your
 microphone"; macOS: System Settings → Privacy & Security → Microphone for Terminal/Python). If the
@@ -397,6 +406,9 @@ Developer scripts:
 
 - **Memory while idle is about 320 MB**, more than the 250 MB goal: Whisper's speech engine
   (CTranslate2) takes about 170 MB by itself, even with the smallest model.
+- **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
+  every reply off, so Abdoh now uses the Windows voice directly there; macOS and Linux still go
+  through pyttsx3.
 - TODO(blocked): **the "Hey Abdoh" wake word model isn't trained yet.** Training happens in Google
   Colab with your Google account (section 2). Until `models/hey_abdoh.onnx` exists, Abdoh uses
   the Vosk fallback, which doesn't know the word "Abdoh": it misses some wake-ups and wakes up on

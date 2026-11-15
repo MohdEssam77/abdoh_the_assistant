@@ -15,6 +15,12 @@ def rms(block: bytes) -> float:
     return float(np.sqrt(np.mean(samples**2))) if samples.size else 0.0
 
 
+def peak(block: bytes) -> int:
+    """The loudest sample in the block (0 to 32768)."""
+    samples = np.frombuffer(block, dtype=np.int16).astype(np.int32)
+    return int(np.abs(samples).max()) if samples.size else 0
+
+
 def estimate_threshold(audio: bytes, block_bytes: int = 3200) -> float:
     """Speech threshold from recent audio: a few times the background noise level."""
     blocks = [audio[i : i + block_bytes] for i in range(0, len(audio), block_bytes)]

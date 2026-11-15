@@ -55,7 +55,7 @@ Everything from v1 stays unless replaced here.
 | Claude (API key, optional) | `anthropic` SDK, **streaming**, imported lazily | Kept for people with an API key |
 | Wake word | **openWakeWord models** (`.onnx`) run directly with `onnxruntime` (already installed by faster-whisper). Custom "Hey Abdoh" model from the official training notebook. Vosk stays as the fallback | Accurate custom wake word. The `openwakeword` package itself is *not* a runtime dependency: it imports scipy and scikit-learn (~100 MB RAM) for training-only features |
 | End of speech | **Silero VAD** model bundled with faster-whisper (`silero_vad_v6.onnx`), via `onnxruntime` | Knows when you stopped talking, so the wait can be shorter. No new dependency |
-| Text-to-speech | `pyttsx3` with **one persistent engine** on its own thread, interruptible | A new engine per reply costs ~1.5 s |
+| Text-to-speech | `pyttsx3` with **one persistent engine** on its own thread, interruptible. *(Changed 2026-11-15: on Windows the persistent engine is SAPI driven directly through `comtypes`, because pyttsx3 2.99 cut every reply off there.)* | A new engine per reply costs ~1.5 s |
 | Earcons (chime) | Generated with numpy, played with `sounddevice` | No sound files, no new dependency |
 | Tray icon | **`pystray`** (uses Pillow, already a dependency) | Small, cross-platform tray icon |
 | Global hotkey | Win32 `RegisterHotKey` via `ctypes` | No new dependency |
@@ -115,7 +115,8 @@ Everything from v1 stays unless replaced here.
   rest is still arriving.
 - The last request and its actions are kept so "remember that" can save them as a command.
 
-**Speaking and interrupting.** One `pyttsx3` engine lives on its own thread for the whole run.
+**Speaking and interrupting.** One `pyttsx3` engine (on Windows, one SAPI voice) lives on its own
+thread for the whole run.
 Pressing the hotkey, or **Stop** in the tray or window, stops speech immediately and stops reading
 the rest of a streamed reply. (Interrupting by voice is out of scope; see Later.)
 

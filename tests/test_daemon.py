@@ -5,7 +5,7 @@ from fakes import FakeMic, FakeTranscriber, FakeWakeWord, silent_block, tone_blo
 from abdoh.audio.mic import MicrophoneError
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import ClaudeConfig, Config
-from abdoh.daemon import SORRY, Daemon
+from abdoh.daemon import MIC_TOO_QUIET, SORRY, Daemon
 from abdoh.events import Bus
 from abdoh.router import Router
 from abdoh.speech.tts import FakeSpeaker
@@ -540,3 +540,31 @@ def test_voice_toggle_is_announced_to_the_ui():
     daemon = make_daemon(StubRouter([]), bus=bus)
     daemon.handle_request("voice", False)
     assert ("voice", False) in bus.pending_events()
+
+
+def test_hotkey_with_a_silent_mic_says_it_may_be_muted(monkeypatch):
+    monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
+    daemon = Daemon(
+        Config(),
+        StubRouter([]),
+        FakeSpeaker(),
+        lambda: FakeMic([]),  # a muted mic: nothing but zeros
+        FakeWakeWord(fire_on=999),
+        FakeTranscriber([]),
+        mic_retry_seconds=0.01,
+    )
+    daemon.push_to_talk()
+    run_until(daemon, lambda: daemon.speaker.said)
+    assert daemon.speaker.said == [MIC_TOO_QUIET]
+
+
+def test_only_a_silent_mic_after_the_hotkey_is_reported():
+    daemon = make_daemon(StubRouter([]))
+    daemon._via_hotkey = True
+    daemon._heard_nothing(2000)  # there was sound, just no speech
+    daemon._via_hotkey = False
+    daemon._heard_nothing(0)  # not answering Claude's question is fine
+    assert daemon.speaker.said == []
+    daemon._via_hotkey = True
+    daemon._heard_nothing(5)
+    assert daemon.speaker.said == [MIC_TOO_QUIET]
