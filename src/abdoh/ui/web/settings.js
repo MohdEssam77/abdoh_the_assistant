@@ -15,7 +15,7 @@
   };
   const QUIET = 100; // a mic this quiet for a few seconds is probably muted (of 32768)
   const HEARD = 1500;
-  let meter = { timer: null, quietSince: null, heardAt: 0 };
+  let meter = { timer: null, quietSince: null, heardAt: 0, root: document };
 
   /* Shared with other pages (e.g. the first-start setup). */
   window.Settings = { micCard, voiceCard, startMeter, stopMeter };
@@ -82,8 +82,8 @@
   }
 
   async function readMeter() {
-    const bar = $("#mic-level");
-    const status = $("#mic-status");
+    const bar = $("#mic-level", meter.root);
+    const status = $("#mic-status", meter.root);
     if (!bar || !status) return stopMeter();
     let level = null;
     try { level = await App.api.mic_level(); } catch (e) { level = null; }
@@ -110,9 +110,9 @@
     }
   }
 
-  function startMeter() {
+  function startMeter(root = $("#settings-content")) {
     stopMeter();
-    meter = { timer: setInterval(readMeter, 120), quietSince: null, heardAt: 0 };
+    meter = { timer: setInterval(readMeter, 120), quietSince: null, heardAt: 0, root };
   }
 
   function stopMeter() {
@@ -184,7 +184,9 @@
       row("Your files", "Settings, commands and logs.",
         el("div", { class: "btn-row" },
           el("button", { class: "btn small", onclick: () => call("open_folder", "data") }, "Open data folder"),
-          el("button", { class: "btn small", onclick: () => call("open_folder", "logs") }, "Open logs"))));
+          el("button", { class: "btn small", onclick: () => call("open_folder", "logs") }, "Open logs"))),
+      row("First-start setup", "Check the microphone and the voice, and connect Claude, step by step.",
+        el("button", { class: "btn small", onclick: () => window.Setup && window.Setup.open() }, "Run setup again")));
   }
 
   /* ---------- the page ---------- */

@@ -606,6 +606,46 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .folder span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .off { opacity: 0.5; pointer-events: none; }
 .counter { font-size: 12px; color: var(--faint); }
+/* ----- first-start setup ----- */
+.setup-back {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--bg);
+  animation: fade 0.15s ease-out;
+}
+.setup {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.setup-head { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.steps { display: flex; gap: 6px; }
+.steps .dot { width: 8px; height: 8px; border-radius: 999px; background: var(--border-strong); transition: width 0.2s; }
+.steps .dot.done { background: var(--accent); opacity: 0.5; }
+.steps .dot.on { width: 22px; background: var(--accent); }
+.setup-body { padding: 24px 28px; overflow-y: auto; }
+.setup-body .card { margin-bottom: 0; }
+.step-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.step-lead { margin: 0 0 16px; }
+.setup-hero { text-align: center; padding: 8px 0; }
+.setup-hero .orb { margin-bottom: 16px; }
+.setup-hero h1 { font-size: 28px; font-weight: 700; margin-bottom: 6px; }
+.setup-hero > p { margin: 0 auto 22px; max-width: 440px; }
+.points { display: grid; gap: 10px; text-align: left; }
+.point { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+.point b { display: block; font-weight: 650; }
+.point p { margin: 2px 0 0; color: var(--muted); font-size: 13.5px; }
+
 .claude-summary { margin: 0 0 4px; font-weight: 600; }
 .fine { margin: 12px 0 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
 .tag svg { width: 12px; height: 12px; }

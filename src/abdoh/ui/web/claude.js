@@ -137,7 +137,7 @@
 
   function claudeCard() {
     const body = el("div", { class: "claude-body" }, el("p", { class: "muted" }, "Checking Claude…"));
-    const card = el("div", { class: "card", id: "claude-card" },
+    const card = el("div", { class: "card" },
       el("h2", {}, el("span", { html: svg("sparkles"), style: "display:contents" }), "Claude", el("span", { class: "spacer" }), el("span", { class: "claude-tag" })),
       el("p", { class: "lead" }, "Abdoh asks Claude about everything your commands don't cover. Connect your own Claude, billed to your own plan."),
       body);
