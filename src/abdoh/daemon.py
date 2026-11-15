@@ -254,6 +254,10 @@ class Daemon:
             count = len(self.router.registry.commands)
             message = f"Commands file error: {error}" if error else f"Loaded {count} commands."
             self.bus.emit("history", f"Abdoh: {message}")
+        elif kind == "commands_changed":  # saved in the app: use them right away
+            error = self.router.registry.refresh(force=True)
+            if error:
+                self.bus.emit("history", f"Abdoh: Commands file error: {error}")
         elif kind == "edit_commands":
             from abdoh.commands.actions import ActionError, open_in_editor
 
