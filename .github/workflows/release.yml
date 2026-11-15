@@ -14,9 +14,9 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -41,14 +41,20 @@ jobs:
       - name: Build Abdoh-Setup.exe
         run: python scripts/build_installer.py
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: Abdoh-Setup
           path: dist/Abdoh-Setup.exe
+          archive: false # the installer itself, not a zip
 
       - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/Abdoh-Setup.exe
+          body: |
+            **Download `Abdoh-Setup.exe` below** and run it. It installs Abdoh for you only (no admin rights) and walks you through the setup.
+
+            Windows may say "Windows protected your PC", because the installer isn't code-signed yet: click **More info**, then **Run anyway**.
+
+            Needs Windows 10 or 11 (64-bit) and a microphone. For answers from Claude, connect your own Claude Pro or Max account (or an API key) in the setup; your own commands work without it.
           generate_release_notes: true
