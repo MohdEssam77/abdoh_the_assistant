@@ -1,6 +1,11 @@
-"""Text-to-speech behind a small Speaker interface."""
+"""Text-to-speech behind a small Speaker interface.
+
+On Windows Abdoh drives the Windows voice (SAPI) directly: pyttsx3 2.99 cut off its own speech
+there, so replies were silent. pyttsx3 is still used on macOS and Linux.
+"""
 
 import logging
+import math
 import queue
 import sys
 import threading
@@ -19,10 +24,11 @@ class Speaker(ABC):
         """Interrupt what is being said right now."""
 
 
-def _make_pyttsx3_engine():
-    import pyttsx3
-
-    return pyttsx3.init()
+def make_speaker(rate: int = 175) -> Speaker:
+    """The voice for this computer: the Windows voice on Windows, pyttsx3 elsewhere."""
+    if sys.platform == "win32":
+        return SapiSpeaker(rate)
+    return Pyttsx3Speaker(rate)
 
 
 def _init_com() -> None:
@@ -37,19 +43,15 @@ def _init_com() -> None:
         log.debug("CoInitialize failed (COM may already be set up)", exc_info=True)
 
 
-class Pyttsx3Speaker(Speaker):
-    """Offline TTS via pyttsx3, with one engine kept alive on its own thread.
+class _VoiceThread(Speaker):
+    """Speaks on one dedicated thread, one text at a time.
 
-    Creating an engine and speaking its first utterance costs over a second, so the engine is
-    made once and reused. It lives on a dedicated thread because pyttsx3 engines must not be
-    shared across threads. `stop()` interrupts at the next word; if the engine ever fails it is
-    recreated for the next utterance.
+    Creating a voice engine and speaking its first utterance costs over a second, so the engine
+    is made once and reused (and recreated for the next text if it ever fails). It lives on its
+    own thread because these engines must not be shared across threads.
     """
 
-    def __init__(
-        self, rate: int = 175, engine_factory: Callable[[], object] = _make_pyttsx3_engine
-    ):
-        self.rate = rate
+    def __init__(self, engine_factory: Callable[[], object]):
         self._factory = engine_factory
         self._jobs: queue.Queue[tuple[str, threading.Event]] = queue.Queue()
         self._stop = threading.Event()
@@ -71,6 +73,89 @@ class Pyttsx3Speaker(Speaker):
         """Create the engine and speak a blank utterance now, so the first reply is fast."""
         self._jobs.put((" ", threading.Event()))
 
+    @abstractmethod
+    def _new_engine(self):
+        """Create the voice engine (called on the speaking thread)."""
+
+    @abstractmethod
+    def _speak(self, text: str) -> None:
+        """Speak with self._engine until done, or until self._stop is set."""
+
+    def _run(self) -> None:
+        _init_com()
+        while True:
+            text, done = self._jobs.get()
+            try:
+                if self._engine is None:
+                    self._engine = self._new_engine()
+                if not self._stop.is_set():
+                    self._speak(text)
+            except Exception:
+                log.exception("Could not speak")
+                self._engine = None  # start fresh next time
+            finally:
+                done.set()
+
+
+# ----- Windows: SAPI -----
+
+# SAPI's SpeechVoiceSpeakFlags.
+SVSF_ASYNC = 1
+SVSF_PURGE_BEFORE_SPEAK = 2
+SVSF_IS_NOT_XML = 16
+POLL_MS = 50  # while speaking, check this often whether to stop
+
+
+def _make_sapi_voice():
+    import comtypes.client
+
+    return comtypes.client.CreateObject("SAPI.SpVoice", dynamic=True)
+
+
+def sapi_rate(words_per_minute: float) -> int:
+    """SAPI's speed (-10 to 10) for a speaking rate in words per minute (pyttsx3's scale)."""
+    return max(-10, min(10, round(math.log(max(1.0, words_per_minute) / 156.63, 1.11))))
+
+
+class SapiSpeaker(_VoiceThread):
+    """The Windows voice (SAPI), driven directly. `stop()` cuts it off within POLL_MS."""
+
+    def __init__(self, rate: int = 175, voice_factory: Callable[[], object] = _make_sapi_voice):
+        self.rate = rate
+        super().__init__(voice_factory)
+
+    def _new_engine(self):
+        voice = self._factory()
+        voice.Rate = sapi_rate(self.rate)
+        return voice
+
+    def _speak(self, text: str) -> None:
+        voice = self._engine
+        voice.Speak(text, SVSF_ASYNC | SVSF_IS_NOT_XML)
+        while not voice.WaitUntilDone(POLL_MS):
+            if self._stop.is_set():
+                voice.Speak("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)
+                return
+
+
+# ----- macOS and Linux: pyttsx3 -----
+
+
+def _make_pyttsx3_engine():
+    import pyttsx3
+
+    return pyttsx3.init()
+
+
+class Pyttsx3Speaker(_VoiceThread):
+    """Offline TTS via pyttsx3. `stop()` interrupts at the next word."""
+
+    def __init__(
+        self, rate: int = 175, engine_factory: Callable[[], object] = _make_pyttsx3_engine
+    ):
+        self.rate = rate
+        super().__init__(engine_factory)
+
     def _new_engine(self):
         engine = self._factory()
         engine.setProperty("rate", self.rate)
@@ -81,21 +166,9 @@ class Pyttsx3Speaker(Speaker):
         if self._stop.is_set() and self._engine is not None:
             self._engine.stop()
 
-    def _run(self) -> None:
-        _init_com()
-        while True:
-            text, done = self._jobs.get()
-            try:
-                if self._engine is None:
-                    self._engine = self._new_engine()
-                if not self._stop.is_set():
-                    self._engine.say(text)
-                    self._engine.runAndWait()
-            except Exception:
-                log.exception("Could not speak")
-                self._engine = None  # start fresh next time
-            finally:
-                done.set()
+    def _speak(self, text: str) -> None:
+        self._engine.say(text)
+        self._engine.runAndWait()
 
 
 class FakeSpeaker(Speaker):

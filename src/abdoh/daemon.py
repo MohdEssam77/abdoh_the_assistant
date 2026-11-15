@@ -409,9 +409,9 @@ class Daemon:
         from abdoh.claude.brain import make_brain
         from abdoh.commands.registry import CommandRegistry
         from abdoh.computer import AppIndex, Computer, Timers
-        from abdoh.speech.tts import Pyttsx3Speaker
+        from abdoh.speech.tts import make_speaker
 
-        speaker = speaker or Pyttsx3Speaker(cfg.tts_rate)
+        speaker = speaker or make_speaker(cfg.tts_rate)
         getattr(speaker, "warm_up", lambda: None)()  # the first reply shouldn't pay for it
 
         engine = transcriber = None

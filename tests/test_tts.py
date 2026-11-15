@@ -1,6 +1,16 @@
 import threading
 
-from abdoh.speech.tts import FakeSpeaker, Pyttsx3Speaker, Speaker
+from abdoh.speech.tts import (
+    SVSF_ASYNC,
+    SVSF_IS_NOT_XML,
+    SVSF_PURGE_BEFORE_SPEAK,
+    FakeSpeaker,
+    Pyttsx3Speaker,
+    SapiSpeaker,
+    Speaker,
+    make_speaker,
+    sapi_rate,
+)
 
 
 def test_fake_speaker_records_calls():
@@ -119,3 +129,95 @@ def test_warm_up_creates_the_engine_before_the_first_reply():
     assert created.wait(2)
     speaker.say("hi")
     assert len(factory.engines) == 1
+
+
+# ----- the Windows voice (SAPI) -----
+
+
+class FakeSapiVoice:
+    """Like SAPI.SpVoice: Speak() starts speaking, WaitUntilDone() says when it's finished."""
+
+    def __init__(self, polls=3, on_poll=None):
+        self.Rate = 0
+        self.calls: list[tuple[str, int]] = []
+        self.polls = polls  # each text takes this many WaitUntilDone() calls to finish
+        self.left = 0
+        self.on_poll = on_poll  # test hook, called on every WaitUntilDone()
+
+    def Speak(self, text, flags):
+        if text == "boom":
+            raise OSError("COM error")
+        self.calls.append((text, flags))
+        self.left = 0 if flags & SVSF_PURGE_BEFORE_SPEAK else self.polls
+
+    def WaitUntilDone(self, ms):
+        if self.on_poll:
+            self.on_poll()
+        if self.left == 0:
+            return True
+        self.left -= 1
+        return False
+
+
+class SapiFactory:
+    def __init__(self, **kwargs):
+        self.voices: list[FakeSapiVoice] = []
+        self.kwargs = kwargs
+
+    def __call__(self):
+        voice = FakeSapiVoice(**self.kwargs)
+        self.voices.append(voice)
+        return voice
+
+
+def test_sapi_speaks_until_done_with_one_voice():
+    factory = SapiFactory()
+    speaker = SapiSpeaker(rate=175, voice_factory=factory)
+    speaker.say("hello there")
+    speaker.say("good morning")
+    assert len(factory.voices) == 1
+    voice = factory.voices[0]
+    flags = SVSF_ASYNC | SVSF_IS_NOT_XML  # never read "<" in a reply as voice markup
+    assert voice.calls == [("hello there", flags), ("good morning", flags)]
+    assert voice.left == 0  # say() returned only when the voice had finished
+    assert voice.Rate == 1
+
+
+def test_sapi_stop_cuts_the_voice_off():
+    holder = {}
+    factory = SapiFactory(polls=100, on_poll=lambda: holder["speaker"].stop())
+    speaker = SapiSpeaker(voice_factory=factory)
+    holder["speaker"] = speaker
+    speaker.say("a very long answer")
+    assert factory.voices[0].calls[-1] == ("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)
+
+
+def test_sapi_speaks_normally_after_a_stop():
+    factory = SapiFactory()
+    speaker = SapiSpeaker(voice_factory=factory)
+    speaker.stop()
+    speaker.say("still here")
+    assert factory.voices[0].calls == [("still here", SVSF_ASYNC | SVSF_IS_NOT_XML)]
+
+
+def test_sapi_voice_is_recreated_after_an_error():
+    factory = SapiFactory()
+    speaker = SapiSpeaker(voice_factory=factory)
+    speaker.say("boom")  # logged, never raised
+    speaker.say("hello")
+    assert len(factory.voices) == 2
+    assert factory.voices[1].calls == [("hello", SVSF_ASYNC | SVSF_IS_NOT_XML)]
+
+
+def test_sapi_rate_matches_words_per_minute():
+    assert sapi_rate(175) == 1  # Abdoh's default
+    assert sapi_rate(157) == 0  # the voice's normal speed
+    assert sapi_rate(1000) == 10 and sapi_rate(20) == -10
+    assert sapi_rate(0) == -10  # a bad setting doesn't break the voice
+
+
+def test_make_speaker_picks_the_windows_voice_on_windows(monkeypatch):
+    monkeypatch.setattr("sys.platform", "win32")
+    assert isinstance(make_speaker(), SapiSpeaker)
+    monkeypatch.setattr("sys.platform", "linux")
+    assert isinstance(make_speaker(), Pyttsx3Speaker)

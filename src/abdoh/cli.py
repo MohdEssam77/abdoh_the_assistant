@@ -11,9 +11,9 @@ from abdoh.config import Config, load_config, setup_logging
 
 
 def cmd_say(cfg: Config, args: argparse.Namespace) -> int:
-    from abdoh.speech.tts import Pyttsx3Speaker
+    from abdoh.speech.tts import make_speaker
 
-    Pyttsx3Speaker(cfg.tts_rate).say(args.text)
+    make_speaker(cfg.tts_rate).say(args.text)
     return 0
 
 
@@ -32,7 +32,7 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.audio.stt import Transcriber
     from abdoh.audio.vad import load_vad
     from abdoh.audio.wakeword import load_wake_engine
-    from abdoh.speech.tts import Pyttsx3Speaker
+    from abdoh.speech.tts import make_speaker
 
     engine = load_wake_engine(cfg)
     print(f"Wake word: {engine.label}")
@@ -40,7 +40,7 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     transcriber.transcribe(b"\0\0" * 1600)  # load the model before listening
     with Microphone() as mic:
         print('Listening... say "Hey Abdoh" and a request.')
-        speaker = Pyttsx3Speaker(cfg.tts_rate)
+        speaker = make_speaker(cfg.tts_rate)
         text = listen_for_request(mic, engine, transcriber, speaker, cfg, vad=load_vad())
     print(text)
     return 0
