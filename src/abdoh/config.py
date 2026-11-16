@@ -33,9 +33,21 @@ DEFAULT_APP_DIR = _default_app_dir()
 
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
-CONFIG_VERSION = 2  # 2: `languages` replaced `language` (Abdoh 0.4)
+# 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
+CONFIG_VERSION = 3
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
-CLAUDE_ACTIONS = ("open_url", "open_app", "play_youtube", "media", "timer")
+CLAUDE_ACTIONS = (
+    "open_url",
+    "open_app",
+    "play_youtube",
+    "media",
+    "timer",
+    "volume",
+    "brightness",
+    "remind",
+    "note",
+)
+NEW_ACTIONS = {3: ("volume", "brightness", "remind", "note")}  # by the config version adding them
 
 
 @dataclass
@@ -153,9 +165,19 @@ def save_api_key(env_path: Path, key: str) -> None:
 def upgrade(raw: dict) -> dict:
     """Settings from an older Abdoh, brought up to date (the file itself is rewritten the next
     time settings are saved). Only values still at their old default are changed."""
-    if raw.get("config_version", 1) >= CONFIG_VERSION:
+    version = raw.get("config_version", 1)
+    if version >= CONFIG_VERSION:
         return raw
     raw = dict(raw)
+    claude = raw.get("claude")
+    if isinstance(claude, dict) and isinstance(claude.get("actions"), list):
+        # New things Claude can do are allowed until you turn them off, like the others.
+        added = [a for v, names in NEW_ACTIONS.items() if version < v for a in names]
+        actions = [*claude["actions"], *(a for a in added if a not in claude["actions"])]
+        raw["claude"] = {**claude, "actions": actions}
+    raw["config_version"] = CONFIG_VERSION
+    if version >= 2:
+        return raw
     if "languages" not in raw:  # `language: null` meant "detect it": English and Arabic now
         language = raw.pop("language", "en")
         raw["languages"] = [language] if language else ["en", "ar"]
@@ -167,7 +189,6 @@ def upgrade(raw: dict) -> dict:
     words = raw.get("wake_words")
     if isinstance(words, list) and "hey abdoh" in words and "ya abdoh" not in words:
         raw["wake_words"] = [*words, "ya abdoh"]
-    raw["config_version"] = CONFIG_VERSION
     return raw
 
 

@@ -15,6 +15,7 @@ import time
 import webbrowser
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from rapidfuzz import fuzz
@@ -68,7 +69,8 @@ _NUMBERS = {
     "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7,
     "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
     "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
-    "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "ninety": 90,
+    "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80,
+    "ninety": 90, "hundred": 100,
 }  # fmt: skip
 _UNITS = {"second": 1, "sec": 1, "minute": 60, "min": 60, "hour": 3600, "hr": 3600}
 _UNIT_NAMES = {"sec": "second", "min": "minute", "hr": "hour"}
@@ -262,9 +264,21 @@ class Computer:
         open_url: Callable[[str], object] = webbrowser.open,
         start_app: Callable[[str], None] = open_app,
         find_video: Callable[[str], str | None] = youtube.find_video,
+        audio=None,
+        desk=None,
+        notes=None,
+        reminders=None,
+        pictures: Path | None = None,
+        now: Callable[[], datetime] = datetime.now,
     ):
         self.timers = timers or Timers(announce=lambda text: log.info(text))
         self.apps = apps or AppIndex()
+        self._audio = audio  # abdoh.winaudio, or a fake: speaker() gives the volume control
+        self._desk = desk  # abdoh.desk, or a fake: brightness, battery, typing, windows
+        self._notes = notes
+        self._reminders = reminders
+        self._pictures = pictures  # where screenshots go
+        self.now = now
         self._press_key = press_key
         self._lock = lock
         self._open_url = open_url
@@ -309,3 +323,102 @@ class Computer:
 
     def timer(self, duration_text: str) -> str:
         return self.timers.start(duration_text)
+
+    # ----- volume -----
+
+    def _speaker(self):
+        if self._audio is None:
+            from abdoh import winaudio
+
+            self._audio = winaudio
+        try:
+            return self._audio.speaker()
+        except Exception as e:
+            log.warning("Volume control isn't available: %s", e)
+            raise ActionError("I can't reach the volume control here.") from e
+
+    def volume(self) -> int:
+        return self._speaker().volume()
+
+    def set_volume(self, percent: float) -> int:
+        """Set the speakers to exactly this volume (unmuting them if it's above zero)."""
+        speaker = self._speaker()
+        level = speaker.set_volume(percent)
+        if level > 0 and speaker.muted():
+            speaker.set_muted(False)
+        return level
+
+    def set_muted(self, muted: bool) -> None:
+        try:
+            self._speaker().set_muted(muted)
+        except ActionError:
+            self._press_key("mute")  # the mute key at least toggles it
+
+    # ----- screen, battery, keyboard, windows -----
+
+    def _on_desk(self):
+        if self._desk is None:
+            from abdoh import desk
+
+            self._desk = desk
+        return self._desk
+
+    def brightness(self) -> int:
+        return self._on_desk().get_brightness()
+
+    def set_brightness(self, percent: float) -> int:
+        return self._on_desk().set_brightness(percent)
+
+    def battery(self) -> tuple[int, bool] | None:
+        return self._on_desk().battery()
+
+    def type_text(self, text: str) -> None:
+        """Type into whatever app is in front."""
+        self._on_desk().type_text(text)
+
+    def window(self, action: str) -> None:
+        self._on_desk().window(action)
+
+    def screenshot(self) -> Path:
+        folder = self._pictures or Path.home() / "Pictures" / "Screenshots"
+        return self._on_desk().save_screenshot(folder)
+
+    # ----- notes and reminders -----
+
+    @property
+    def notes(self):
+        if self._notes is None:
+            raise ActionError("Notes aren't available here.")
+        return self._notes
+
+    @property
+    def reminders(self):
+        if self._reminders is None:
+            raise ActionError("Reminders aren't available here.")
+        return self._reminders
+
+    def open_notes(self) -> None:
+        from abdoh.commands.actions import open_in_editor
+
+        path = self.notes.path
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("", encoding="utf-8")
+        open_in_editor(path)
+
+    def remind(self, when_and_what: str) -> str:
+        """For Claude: "20 minutes | call mom" or "17:30 | leave". Returns how to say when."""
+        from abdoh.local_skills import parse_reminder
+
+        when_text, _, what = when_and_what.partition("|")
+        when_text, what = when_text.strip().lower(), what.strip()
+        if not what:
+            raise ActionError("What should I remind you of?")
+        if not when_text.startswith(("in ", "at ", "tomorrow", "tonight")):
+            when_text = ("in " if parse_duration(when_text) else "at ") + when_text
+        parsed = parse_reminder(f"{when_text}, to {what}", self.now())
+        if parsed is None:
+            raise ActionError("I didn't catch when to remind you.")
+        when, what, said = parsed
+        self.reminders.add(when, what)
+        return said

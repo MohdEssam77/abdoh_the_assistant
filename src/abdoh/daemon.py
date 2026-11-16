@@ -612,8 +612,10 @@ class Daemon:
         from abdoh.audio.vad import load_vad
         from abdoh.audio.wakeword import load_wake_engine
         from abdoh.claude.brain import make_brain
+        from abdoh.claude.code import user_folders
         from abdoh.commands.registry import CommandRegistry
         from abdoh.computer import AppIndex, Computer, Timers
+        from abdoh.desk import Notes, Reminders
         from abdoh.speech.tts import make_speaker
 
         speaker = speaker or make_speaker(cfg.tts_rate, cfg.tts_voice)
@@ -644,6 +646,12 @@ class Daemon:
             earcons=Earcons(),
             vad=load_vad(),
         )
-        router.computer = Computer(timers=Timers(announce=daemon.announce), apps=AppIndex())
+        router.computer = Computer(
+            timers=Timers(announce=daemon.announce),
+            apps=AppIndex(),
+            notes=Notes(cfg.app_dir / "notes.txt"),
+            reminders=Reminders(cfg.app_dir / "reminders.json", announce=daemon.announce),
+            pictures=user_folders()["Pictures"] / "Screenshots",
+        )
         router.computer.apps.load_in_background()
         return daemon

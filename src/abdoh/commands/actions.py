@@ -1,5 +1,5 @@
-"""Command actions: say, open_url, open_app, play_youtube, run, media, timer; and Claude's
-(stricter) actions."""
+"""Command actions: say, open_url, open_app, play_youtube, media, timer, volume, brightness,
+type, run; and Claude's (stricter) actions."""
 
 import logging
 import os
@@ -112,7 +112,7 @@ def run_action(
     log.info("Action %s: %s", kind, arg)
     if kind == "say":
         return arg
-    if kind in ("media", "timer", "play_youtube") and computer is None:
+    if kind in LOCAL_ONLY and computer is None:
         raise ActionError("That isn't available here.")
     if kind == "media":
         computer.media(arg)
@@ -120,6 +120,12 @@ def run_action(
         return computer.timer(arg)
     elif kind == "play_youtube":
         return computer.play_youtube(arg) or None
+    elif kind == "volume":
+        computer.set_volume(percent(arg))
+    elif kind == "brightness":
+        computer.set_brightness(percent(arg))
+    elif kind == "type":
+        computer.type_text(arg)
     elif kind == "open_url":
         if computer is not None:
             computer.open_url(arg)
@@ -137,6 +143,20 @@ def run_action(
     else:
         raise ActionError(f"I don't know the action {kind}.")
     return None
+
+
+LOCAL_ONLY = ("media", "timer", "play_youtube", "volume", "brightness", "type")
+
+
+def percent(text: str) -> int:
+    """'70', '70%' or '70 percent' -> 70. Raises ActionError."""
+    try:
+        value = float(str(text).lower().replace("percent", "").replace("%", "").strip())
+    except ValueError as e:
+        raise ActionError(f"{text} isn't a number from 0 to 100.") from e
+    if not 0 <= value <= 100:
+        raise ActionError(f"{text} isn't a number from 0 to 100.")
+    return round(value)
 
 
 def run_actions(
@@ -186,5 +206,13 @@ def claude_action(kind: str, arg: str, computer) -> None:
         computer.media(arg)
     elif kind == "timer":
         computer.timer(arg)
+    elif kind == "volume":
+        computer.set_volume(percent(arg))
+    elif kind == "brightness":
+        computer.set_brightness(percent(arg))
+    elif kind == "remind":
+        computer.remind(arg)
+    elif kind == "note":
+        computer.notes.add(arg)
     else:
         raise ActionError(f"I can't do {kind}.")

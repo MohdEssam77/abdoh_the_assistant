@@ -14,6 +14,9 @@
         ["volume_up", "Volume up"], ["volume_down", "Volume down"], ["mute", "Mute"]],
     },
     timer: { label: "Start a timer", placeholder: "25 minutes" },
+    volume: { label: "Set the volume", placeholder: "30" },
+    brightness: { label: "Set the brightness", placeholder: "70" },
+    type: { label: "Type some text", placeholder: "Best regards, Sam" },
     run: { label: "Run a program", placeholder: "notepad.exe" },
   };
   const state = { commands: [], templates: [], error: null };
@@ -35,7 +38,7 @@
       const option = (spec.options.find(([v]) => v === action.value) || [null, action.value])[1];
       return `Press ${option.toLowerCase()}`;
     }
-    const verbs = { say: "Say", open_url: "Open", open_app: "Open", play_youtube: "Play", timer: "Timer:", run: "Run" };
+    const verbs = { say: "Say", open_url: "Open", open_app: "Open", play_youtube: "Play", timer: "Timer:", run: "Run", volume: "Volume to", brightness: "Brightness to", type: "Type" };
     return `${verbs[action.type] || action.type} ${action.value}`;
   }
 

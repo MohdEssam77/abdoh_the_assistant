@@ -24,6 +24,11 @@ ACTION_HELP: dict[str, str] = {
     "open_app": "ACTION open_app: <app name>   (an installed program, e.g. Spotify)",
     "media": "ACTION media: <play_pause, next, previous, volume_up, volume_down or mute>",
     "timer": "ACTION timer: <duration>   (e.g. 10 minutes; Abdoh announces when it's done)",
+    "volume": "ACTION volume: <0 to 100>   (sets the speakers to exactly that volume)",
+    "brightness": "ACTION brightness: <0 to 100>   (the laptop screen's brightness)",
+    "remind": "ACTION remind: <when> | <what>   (when: 20 minutes, 17:30, or tomorrow at 9; "
+    "what: the reminder in a few words, e.g. call your mother. Abdoh says it aloud then)",
+    "note": "ACTION note: <text>   (adds a line to the user's notes)",
 }
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
