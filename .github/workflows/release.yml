@@ -56,5 +56,5 @@ jobs:
 
             Windows may say "Windows protected your PC", because the installer isn't code-signed yet: click **More info**, then **Run anyway**.
 
-            Needs Windows 10 or 11 (64-bit) and a microphone. For answers from Claude, connect your own Claude Pro or Max account (or an API key) in the setup; your own commands work without it.
+            Needs Windows 10 or 11 (64-bit), 8 GB of memory and a microphone. The download is large because the speech recognition model is inside (nothing is downloaded later). For answers from Claude, connect your own Claude Pro or Max account (or an API key) in the setup; your own commands work without it.
           generate_release_notes: true
