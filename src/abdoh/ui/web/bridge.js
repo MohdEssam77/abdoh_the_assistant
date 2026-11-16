@@ -60,7 +60,7 @@ const Bridge = (() => {
     return {
       demo: true,
       boot: async () => ({
-        version: "0.3.0", platform: "win32", demo: true, settings,
+        version: "0.4.0", platform: "win32", demo: true, settings,
         state: { status: "Starting...", claude: "", wake: "", voice: true, history },
       }),
       events: async () => queue.splice(0),

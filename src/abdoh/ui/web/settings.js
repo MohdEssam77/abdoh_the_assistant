@@ -165,7 +165,7 @@
     } }, "Save");
     return card("Wake word and hotkey", null,
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Wake words"),
-        el("small", {}, "What you say to wake Abdoh. Your trained wake word model listens for the sound; these words are checked in what Abdoh heard.")), words.box),
+        el("small", {}, "The wake word model listens for “Hey Abdoh” and “Ya Abdoh” (also in Arabic: يا عبدوه). The words here are removed from what you say or type, so they never become part of a request.")), words.box),
       row("Sensitivity", "Left: wakes more easily. Right: fewer false wake-ups.",
         el("div", { class: "range-wrap" }, sensitivity, el("div", { class: "range-ends" }, el("span", {}, "More easily"), el("span", {}, "Fewer mistakes")))),
       row("Hotkey", "Press it anywhere to talk without the wake word, or to stop a reply. Empty turns it off.",

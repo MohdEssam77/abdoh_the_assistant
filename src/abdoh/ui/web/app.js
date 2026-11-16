@@ -432,6 +432,21 @@ async function checkUpdate(force = false) {
   return update;
 }
 
+/* ---------- a microphone that's turned down ---------- */
+
+async function checkMicVolume() {
+  /* A muted or quiet microphone is the usual reason Abdoh mishears: offer to fix it. */
+  const mic = await call("mic_volume");
+  if (!mic || !mic.ok || !(mic.muted || mic.volume < 50)) return hideBanner("mic");
+  const text = mic.muted ? "Your microphone is muted in Windows, so Abdoh can't hear you."
+    : `Your microphone is turned down in Windows (${mic.volume}%), so Abdoh may mishear you.`;
+  showBanner("warn", text, "mic", { label: "Turn it up", run: async () => {
+    const fixed = await call("fix_mic_volume");
+    if (fixed && fixed.ok) { hideBanner("mic"); toast("Microphone turned up."); }
+    else if (fixed) toast(fixed.error, true);
+  } });
+}
+
 /* ---------- start ---------- */
 
 async function start() {
@@ -456,6 +471,7 @@ async function start() {
   showPage(params.get("page") || store("abdoh.page") || "home");
   poll();
   setTimeout(() => checkUpdate(false), 5000);
+  setTimeout(() => { if ($("#banner").hidden) checkMicVolume(); }, 2500);
 }
 
 window.addEventListener("DOMContentLoaded", start);

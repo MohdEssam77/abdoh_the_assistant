@@ -18,8 +18,8 @@ of this README is for running Abdoh from source.
 1. Install Abdoh and download the models (sections 1 and 2).
 2. Make sure Claude Code is signed in with your Claude account: `python -m abdoh claude-check`
    (section 4).
-3. Train your "Hey Abdoh" wake word in Google Colab and save it as `models/hey_abdoh.onnx`
-   (section 2). Until then the hotkey works without any wake word.
+3. Say "Hey Abdoh" (or "Ya Abdoh"): the trained wake word model comes with Abdoh. The hotkey
+   works without any wake word.
 4. Put your own links and apps in `commands.yaml`, e.g. replace `REPLACE_ME` in `good_morning`
    (section 5).
 5. `python -m abdoh install --login` to add Abdoh to the Start Menu and start it at login
@@ -53,24 +53,30 @@ wake word model (about 40 MB, a fallback), and the **Parakeet** speech recogniti
 `assets/` if you don't have your own. Whisper models (used when you speak other languages)
 download themselves the first time they're used.
 
-### Train your "Hey Abdoh" wake word (recommended)
+### The wake word
 
-The general-purpose Vosk model doesn't know the word "Abdoh", so out of the box Abdoh listens for
-similar words and sometimes misses you or wakes up by itself. A custom openWakeWord model fixes
-that, and it's lighter. Training is free and takes under an hour, with no setup on your computer:
+Abdoh comes with a trained wake word model (`assets/hey_abdoh.onnx`, an openWakeWord model) for
+**"Hey Abdoh"** and **"Ya Abdoh"** (also the Arabic يا عبدوه: it listens for the sound, not the
+spelling). Say the wake word and keep talking; what you say after it is the request. In the
+window, the sidebar shows `Wake word: openWakeWord (hey_abdoh)`.
 
-1. Open the official openWakeWord training notebook in Google Colab:
-   https://colab.research.google.com/drive/1q1oe2zOyZp7UsB3jJiQ1IFn8z5YfjwEb?usp=sharing
-2. Enter your wake phrase. It is spoken by a synthetic voice, so spell it the way it sounds
-   ("hey abdo" or "hey ab doe") and use the notebook's sample playback to check that it sounds
-   like you saying "Hey Abdoh".
-3. Run the notebook and download the `.onnx` model it produces.
-4. Save it as `models/hey_abdoh.onnx` (or point `wake_word_model` in `config.yaml` at it).
-5. Restart Abdoh. The window shows `Wake word: openWakeWord (hey_abdoh)`.
+If it misses you, move **Settings → Sensitivity** to the left (`wake_word_threshold`, e.g.
+0.3); if it wakes up by itself, move it right (e.g. 0.6).
 
-If it misses you, lower `wake_word_threshold` (e.g. 0.4); if it wakes up by itself, raise it
-(e.g. 0.6). Keep "abdoh" in `wake_words`: Abdoh checks the transcript for it, which filters out
-the occasional false wake-up before anything is sent to Claude.
+**Your own wake word.** Train an openWakeWord model in Google Colab (free, a couple of hours):
+
+1. Open https://colab.research.google.com/github/alfiedennen/openwakeword-colab-2026/blob/main/train_wakeword.ipynb
+   (the official notebook no longer runs on Colab). In **Runtime → Change runtime type** pick a
+   **T4 GPU** and a **runtime version with Python 3.12**.
+2. In cell 10, set `TARGET_PHRASE` to your phrases and `MODEL_NAME`. Use words an English
+   dictionary knows ("hey abdo", not "hey abdoh"): the notebook's helper for made-up words is no
+   longer downloadable.
+3. Run all cells and download the `.onnx` file. Put it in `models/` and set `wake_word_model`
+   in `config.yaml` to its path (with the installed app: `%APPDATA%\Abdoh\models\`).
+4. Add your phrase to **Settings → Wake words**, so it's removed from what you say.
+
+Without a wake word model, Abdoh falls back to Vosk, which only catches similar-sounding
+English words and checks the transcript for the wake word; the trained model is far better.
 
 ## 3. Run
 
@@ -408,22 +414,25 @@ another repository, change `REPO` at the bottom of the page and in `src/abdoh/up
 
 ## How fast and how light
 
-Measured on my laptop (Windows 11), from the end of your speech to the start of Abdoh's reply:
+Measured on my laptop (Windows 11, i7-13650HX), 2026-11-16:
 
-| | Version 1 | Now |
+| What | Abdoh 0.3 | Abdoh 0.4 |
 |---|---|---|
-| "What time is it" (a command) | about 3 s | about 1.3 s |
-| A question for Claude (first words) | API key only; waited for the whole answer | about 3.3 s |
-| Start-up | about 9 s | about 2.5 s |
-| Memory while idle | about 410 MB | about 320 MB with your openWakeWord model (410 MB with Vosk) |
-| CPU while idle | about 2% of one core | about 1.5% of one core |
+| A built-in skill or one of your commands | about 1 s after you stop talking | the same; the skill itself takes a few milliseconds |
+| "Set the volume to 75%" | 18 s (Claude wrote PowerShell) | instant (built in) |
+| Claude's first words | 2.1 to 2.8 s | 0.5 to 1.0 s (one Claude Code process stays open) |
+| Understanding a 4-second request | 0.7 s (Whisper base.en) | 0.6 s (Parakeet) |
+| Word errors on Arabic-accented English | 8.8% | 4.4% |
+| Startup | about 5 s | about 6 s |
+| Memory while idle | about 320 MB | about 860 MB (Parakeet's model is 630 MB) |
+| CPU while idle | about 1.5% of one core | about 1.6% of one core |
 
-Where the time goes for a command: 0.6 s to be sure you stopped talking (`silence_seconds`),
-about 0.5 s to transcribe (Whisper `base.en`), and 0.1 s to start speaking. Claude adds about
-2 s to start Claude Code and get the first sentence; the rest of the answer is spoken while it
-arrives. To make commands snappier, try `silence_seconds: 0.5`, or `whisper_model: tiny` (about
-0.25 s faster to transcribe, a bit less accurate). Most of the memory is Whisper's speech engine
-(about 170 MB whatever the model size).
+Where the time goes for a request: 0.6 s to be sure you stopped talking (`silence_seconds`),
+about 0.6 s to understand it, then the answer. Every request logs its own timings (lines
+starting with `Timing:` in the log), so you can see which part is slow on your computer.
+
+Short on memory? **Settings → Speech recognition → Quality → Lighter** uses Whisper instead of
+Parakeet: about 700 MB less memory, about twice the mistakes.
 
 Developers can measure this themselves without a microphone:
 `python scripts/measure_latency.py "Hey Abdoh, what time is it?"`.
@@ -542,18 +551,14 @@ Developer scripts:
 
 ## Known issues
 
-- **Memory while idle is about 320 MB**, more than the 250 MB goal: Whisper's speech engine
-  (CTranslate2) takes about 170 MB by itself, even with the smallest model.
+- **Memory while idle is about 860 MB**: the Parakeet speech model is big. The Lighter quality
+  setting (Whisper) brings it down to about 350 MB.
+- **English is the most accurate language.** Other languages use Whisper (`small` by default),
+  which is slower and makes more mistakes; `medium` is better if your computer is fast.
+- **Replies in other languages need a Windows voice for that language** (Windows Settings → Time
+  & language → Speech). Without one, the reply is only shown.
 - **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
   every reply off, so Abdoh now uses the Windows voice directly there; macOS and Linux still go
   through pyttsx3.
 - **The installer isn't code-signed**, so Windows SmartScreen warns the first time ("Windows
   protected your PC": click **More info → Run anyway**). Signing needs a paid certificate.
-- TODO(blocked): **downloads aren't public yet.** The GitHub repository is private, so its
-  releases (and a GitHub Pages download page) can't be reached by other people. Make the
-  repository public, or publish the releases from a separate public repository.
-- TODO(blocked): **the "Hey Abdoh" wake word model isn't trained yet.** Training happens in Google
-  Colab with your Google account (section 2). Until `models/hey_abdoh.onnx` exists, Abdoh uses
-  the Vosk fallback, which doesn't know the word "Abdoh": it misses some wake-ups and wakes up on
-  similar words (those are ignored after transcription). The hotkey (`Ctrl+Alt+Space`) works
-  without any wake word.
