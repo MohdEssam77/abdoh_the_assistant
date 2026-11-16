@@ -9,6 +9,9 @@
 #   play_youtube: <words>  play the top YouTube video for those words
 #   media: <key>           play_pause, next, previous, volume_up, volume_down or mute
 #   timer: <duration>      e.g. "25 minutes"; Abdoh tells you when it's done
+#   volume: <0-100>        set the speakers to exactly that volume
+#   brightness: <0-100>    set the laptop screen's brightness
+#   type: <text>           type the text into the app in front ({slots} are replaced)
 #   run: <shell command>   run a command (only if allow_run: true in config.yaml; no {slots})
 
 - name: good_morning

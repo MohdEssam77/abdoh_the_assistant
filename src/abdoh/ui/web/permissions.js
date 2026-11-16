@@ -9,6 +9,10 @@
     ["play_youtube", "Play on YouTube", "Starts the top video for a search."],
     ["media", "Music and volume", "Play, pause, skip tracks, volume up and down, mute."],
     ["timer", "Timers", "Abdoh tells you when the time is up."],
+    ["remind", "Reminders", "Abdoh says them aloud at their time."],
+    ["note", "Notes", "Adds lines to your notes file."],
+    ["volume", "Exact volume", "Sets the speakers to a level you name."],
+    ["brightness", "Screen brightness", "Changes the laptop screen's brightness."],
   ];
   const MAX_INSTRUCTIONS = 2000;
   let draft = null; // instructions being typed, kept across redraws

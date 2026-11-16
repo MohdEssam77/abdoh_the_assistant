@@ -1,6 +1,6 @@
 # Abdoh configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
 
-config_version: 2                # written by Abdoh, for upgrading this file; don't change it
+config_version: 3                # written by Abdoh, for upgrading this file; don't change it
 wake_words: ["abdoh", "hey abdoh", "ya abdoh"]
 # Your openWakeWord model (see README: train the wake word). Without it, Vosk is used.
 wake_word_model: "models/hey_abdoh.onnx"
@@ -36,7 +36,8 @@ claude:
                                  # it asks before deleting or overwriting anything
   folders: []                    # where Claude may work with files; [] = your home folder
   allow_screen: true             # let Claude look at your screen when you ask (translate, summarize)
-  actions: ["open_url", "open_app", "play_youtube", "media", "timer"]  # what Claude may do
+  # What Claude may do on the computer (turn them on and off on the Permissions page):
+  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "remind", "note"]
   instructions: ""               # your own instructions for Claude, sent with every request
   timeout_seconds: 120
   followup_seconds: 60           # a question within this time can follow up on the last answer

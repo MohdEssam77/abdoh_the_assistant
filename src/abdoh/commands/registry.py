@@ -9,7 +9,18 @@ import yaml
 
 log = logging.getLogger(__name__)
 
-ACTION_TYPES = ("say", "open_url", "open_app", "play_youtube", "run", "media", "timer")
+ACTION_TYPES = (
+    "say",
+    "open_url",
+    "open_app",
+    "play_youtube",
+    "media",
+    "timer",
+    "volume",
+    "brightness",
+    "type",
+    "run",
+)
 PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
 BUILTIN_PLACEHOLDERS = {"time", "date"}
 
@@ -99,6 +110,13 @@ def _check_slots(where: str, triggers: list[str], actions: list[tuple[str, str]]
             )
         if kind == "timer" and parse_duration(arg) is None:
             raise CommandsFileError(f"{where}: timer needs a duration like '5 minutes'.")
+        if kind in ("volume", "brightness") and not _is_percent(arg):
+            raise CommandsFileError(f"{where}: {kind} needs a number from 0 to 100.")
+
+
+def _is_percent(arg: str) -> bool:
+    text = arg.strip().rstrip("%").strip()
+    return text.isdigit() and 0 <= int(text) <= 100
 
 
 class CommandRegistry:

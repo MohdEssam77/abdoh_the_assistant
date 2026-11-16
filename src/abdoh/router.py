@@ -75,6 +75,7 @@ class Router:
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.last_turn: ClaudeTurn | None = None
+        self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
         self._act = act
         self._capture = capture
@@ -88,7 +89,9 @@ class Router:
     @computer.setter
     def computer(self, computer) -> None:
         self._computer = computer
-        self.local = LocalSkills(computer) if computer is not None else None
+        self.local = None
+        if computer is not None:
+            self.local = LocalSkills(computer, last_reply=lambda: self.last_reply)
 
     @property
     def wake_words(self) -> list[str]:
@@ -113,6 +116,8 @@ class Router:
             return prefix
         reply = self._route(request, remove_wake_words(text, self.wake_words) or request)
         if isinstance(reply, str):
+            if reply:
+                self.last_reply = reply
             return f"{prefix} {reply}".strip()
         return _prepend(prefix, reply) if prefix else reply
 
@@ -142,7 +147,7 @@ class Router:
 
         # 3. Built-in skills that need no Claude (timers, media keys, open an app, ...)
         if self.local is not None:
-            reply = self.local.handle(request)
+            reply = self.local.handle(request, original)
             if reply is not None:
                 log.info("Local skill handled %r", request)
                 return reply
@@ -201,6 +206,8 @@ class Router:
             if close:
                 close()  # stops Claude if we were interrupted
             turn.answer = " ".join(spoken)
+            if turn.answer:
+                self.last_reply = turn.answer
             turn.finished_at = time.monotonic()
             self.last_turn = turn
 

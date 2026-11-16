@@ -286,14 +286,34 @@ matches exactly wins over one with slots.
 
 These work instantly, without Claude (your own commands still come first):
 
-- Timers: "Abdoh, set a timer for 10 minutes", "cancel the timer"
-- Volume and music: "volume up", "turn it down", "mute", "pause", "play", "next song",
-  "previous song"
-- "Abdoh, lock my computer"
-- "Abdoh, open {any installed app}", e.g. "open calculator", "open chrome", "open vs code". If no
-  installed app matches, the request goes to Claude (so "open YouTube" still works).
+- **Timers**: "set a timer for 10 minutes", "cancel the timer"
+- **Reminders**: "remind me to call my mother in 20 minutes", "remind me at 5:30 pm to leave",
+  "remind me tomorrow at 9 to water the plants", "what are my reminders", "cancel my
+  reminders". Abdoh says them aloud at their time; they survive a restart.
+- **Notes**: "take a note: the door code is 4471", "read my notes", "open my notes" (they're
+  lines in `notes.txt` in Abdoh's data folder)
+- **Volume**: "set the volume to 70 percent", "volume up", "turn it down", "mute", "unmute",
+  "what's the volume"
+- **Music**: "pause", "play", "next song", "previous song"
+- **Screen**: "set the brightness to 60", "brighter", "dim the screen" (a laptop's own screen),
+  "take a screenshot" (saved in Pictures\Screenshots)
+- **Quick answers**: "what time is it", "what's the date", "how much battery do I have",
+  "what's 15 percent of 80", "what's 12 times 12"
+- **Typing**: "type best regards, Sam" types into the app in front
+- **Windows**: "minimize this window", "maximize the window", "close this window", "show the
+  desktop", "switch window", "lock my computer"
+- **Apps**: "open {any installed app}", e.g. "open calculator", "open chrome", "open vs code".
+  If no installed app matches, the request goes to Claude (so "open YouTube" still works).
+- **Talking**: "repeat that", "what can you do", and "thanks" or "never mind" to end a
+  conversation
 
-Media keys, locking and opening installed apps are Windows-only for now.
+Claude can also set the volume and the brightness, add reminders and take notes when you ask in
+your own words ("wake me in half an hour", "jot down that I owe Sam ten euros"); each of these
+can be turned off on the Permissions page. Claude can never type for you.
+
+Your own commands can use `volume: 30`, `brightness: 70` and `type: some text` as actions too.
+
+These skills are Windows-only for now.
 
 If the file has a mistake, Abdoh says "Your commands file has an error" and keeps using the last
 working version. Check your commands without speaking:
@@ -446,7 +466,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
 | `claude.allow_screen` | `true` | Let Claude look at your screen when you ask (translate, summarize) |
-| `claude.actions` | all five | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer` |
+| `claude.actions` | all nine | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `remind`, `note` |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | API key only: a question this soon after an answer can follow up on it (0 = off). Claude Code remembers the whole conversation by itself |
