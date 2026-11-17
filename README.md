@@ -188,6 +188,10 @@ Then you can say:
 - "Abdoh, put on some relaxing jazz" (Claude can start YouTube videos too)
 - "Abdoh, what's the weather in Cairo today?" (Claude can search the web; turn this off with
   `claude.allow_web: false`)
+- Anything about what's on your screen: "what does this error mean?", "which of these should I
+  pick?", "read this to me", "what am I looking at?". Claude decides when it needs to see it;
+  Abdoh then says "Looking at your screen" and sends a picture of the screen you're using (the
+  one with the window in front, not Abdoh's own window) with your question.
 - "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"
@@ -486,7 +490,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
-| `claude.allow_screen` | `true` | Let Claude look at your screen when you ask (translate, summarize) |
+| `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it |
 | `claude.actions` | all nine | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `remind`, `note` |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
