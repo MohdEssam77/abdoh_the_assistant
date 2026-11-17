@@ -260,3 +260,57 @@ def test_voice_sample_plays_even_with_voice_replies_off(app_dir):
     while not daemon.speaker.said and time.monotonic() < deadline:
         time.sleep(0.01)
     assert daemon.speaker.said == [SAMPLE]
+
+
+def test_claude_is_told_your_modes_and_screens(tmp_path):
+    import json
+
+    from abdoh.config import ClaudeConfig, Config
+
+    (tmp_path / "modes.yaml").write_text("- name: Movie\n  settings:\n    volume: 5\n")
+    (tmp_path / "displays.json").write_text(json.dumps([
+        {"id": "a", "number": 1, "name": "", "nickname": ""},
+        {"id": "b", "number": 2, "name": "HP 32f", "nickname": "TV"},
+    ]))  # fmt: skip
+    text = system_prompt(Config(app_dir=tmp_path))
+    assert "The user's modes: Movie." in text
+    assert "Their screens: 1 Laptop screen, 2 HP 32f (TV)." in text
+    assert "ACTION displays:" in text and "ACTION mode:" in text
+    off = system_prompt(Config(app_dir=tmp_path, claude=ClaudeConfig(actions=["open_url"])))
+    assert "Movie" not in off and "HP 32f" not in off
+
+
+def test_claude_switches_modes_screens_speakers_and_the_theme():
+    from abdoh.commands.actions import claude_action
+
+    class Computer:
+        def __init__(self):
+            self.done = []
+            self.modes = self
+
+        def switch(self, name):
+            self.done.append(("mode", name))
+
+        def screens(self, layout):
+            self.done.append(("screens", layout))
+
+        def set_audio_output(self, name):
+            self.done.append(("output", name))
+
+        def set_dark_mode(self, on):
+            self.done.append(("dark", on))
+
+    computer = Computer()
+    for kind, arg in [("mode", "Movie"), ("displays", "only 3"), ("audio_output", "headphones"),
+                      ("dark_mode", "off")]:  # fmt: skip
+        claude_action(kind, arg, computer)
+    assert computer.done == [
+        ("mode", "Movie"), ("screens", "only 3"), ("output", "headphones"), ("dark", False)
+    ]  # fmt: skip
+
+
+def test_claude_still_cant_type_press_keys_close_apps_or_shut_down():
+    from abdoh.config import CLAUDE_ACTIONS
+
+    for kind in ("type", "keys", "close_app", "power", "run", "wait", "window", "focus_app"):
+        assert kind not in CLAUDE_ACTIONS

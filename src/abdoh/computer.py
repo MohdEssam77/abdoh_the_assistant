@@ -542,6 +542,12 @@ class Computer:
     def set_dark_mode(self, on: bool) -> None:
         self._on_system().set_dark_mode(on)
 
+    def night_light(self) -> bool:
+        return self._on_system().night_light()
+
+    def set_night_light(self, on: bool) -> None:
+        self._on_system().set_night_light(on)
+
     def power_mode(self) -> str:
         return self._on_system().power_mode()
 

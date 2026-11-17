@@ -34,7 +34,7 @@ DEFAULT_APP_DIR = _default_app_dir()
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
-CONFIG_VERSION = 4
+CONFIG_VERSION = 5
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -47,9 +47,17 @@ CLAUDE_ACTIONS = (
     "app_volume",
     "remind",
     "note",
+    "mode",
+    "displays",
+    "audio_output",
+    "dark_mode",
 )
 # By the config version that added them: switched on for people upgrading from before it.
-NEW_ACTIONS = {3: ("volume", "brightness", "remind", "note"), 4: ("app_volume",)}
+NEW_ACTIONS = {
+    3: ("volume", "brightness", "remind", "note"),
+    4: ("app_volume",),
+    5: ("mode", "displays", "audio_output", "dark_mode"),
+}
 
 
 @dataclass

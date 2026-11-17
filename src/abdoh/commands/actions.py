@@ -158,7 +158,7 @@ def run_action(
 # Settings and controls of the computer, for your commands and modes.
 SYSTEM_ACTIONS = (
     "displays", "audio_output", "dark_mode", "power_mode", "power", "keys", "wait",
-    "close_app", "focus_app", "window",
+    "close_app", "focus_app", "window", "night_light",
 )  # fmt: skip
 LOCAL_ONLY = (
     "media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type", "mode",
@@ -186,6 +186,11 @@ def system_action(kind: str, arg: str, computer) -> str | None:
         computer.set_dark_mode(on)
     elif kind == "power_mode":
         computer.set_power_mode(arg.lower())
+    elif kind == "night_light":
+        on = ON_WORDS.get(arg.lower())
+        if on is None:
+            raise ActionError("night_light is on or off.")
+        computer.set_night_light(on)
     elif kind == "power":
         computer.power(arg)
     elif kind == "keys":
@@ -315,5 +320,19 @@ def claude_action(kind: str, arg: str, computer) -> None:
         computer.remind(arg)
     elif kind == "note":
         computer.notes.add(arg)
+    elif kind == "mode":
+        modes = getattr(computer, "modes", None)
+        if modes is None:
+            raise ActionError("Modes aren't available here.")
+        modes.switch(arg)
+    elif kind == "displays":
+        computer.screens(arg)
+    elif kind == "audio_output":
+        computer.set_audio_output(arg)
+    elif kind == "dark_mode":
+        on = ON_WORDS.get(arg.strip().lower())
+        if on is None:
+            raise ActionError("dark_mode is on or off.")
+        computer.set_dark_mode(on)
     else:
         raise ActionError(f"I can't do {kind}.")

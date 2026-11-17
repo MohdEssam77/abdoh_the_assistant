@@ -32,6 +32,13 @@ ACTION_HELP: dict[str, str] = {
     "remind": "ACTION remind: <when> | <what>   (when: 20 minutes, 17:30, or tomorrow at 9; "
     "what: the reminder in a few words, e.g. call your mother. Abdoh says it aloud then)",
     "note": "ACTION note: <text>   (adds a line to the user's notes)",
+    "mode": "ACTION mode: <one of the user's modes, or normal>   (switches that mode on; normal "
+    "puts back everything a mode changed)",
+    "displays": "ACTION displays: <all | only 2 | 1 off | 3 on>   (turns the user's screens on "
+    "and off, by number or name; at least one stays on)",
+    "audio_output": "ACTION audio_output: <speakers>   (sends the sound to other speakers: "
+    "headphones, speakers, or a name)",
+    "dark_mode": "ACTION dark_mode: <on | off>   (Windows' dark theme)",
 }
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).

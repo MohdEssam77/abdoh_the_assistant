@@ -14,6 +14,10 @@
     ["volume", "Exact volume", "Sets the speakers to a level you name."],
     ["brightness", "Screen brightness", "Changes the laptop screen's brightness."],
     ["app_volume", "App volumes", "Turns one app up or down in the Windows volume mixer, like your browser or Spotify."],
+    ["mode", "Your modes", "Switches one of your modes on, or back to normal."],
+    ["displays", "Screens on and off", "Turns your monitors on and off. At least one always stays on."],
+    ["audio_output", "Speakers", "Sends the sound to other speakers or headphones."],
+    ["dark_mode", "Dark mode", "Switches Windows between dark and light."],
   ];
   const MAX_INSTRUCTIONS = 2000;
   let draft = null; // instructions being typed, kept across redraws

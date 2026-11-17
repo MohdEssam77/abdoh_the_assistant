@@ -23,6 +23,7 @@ HEADER = """\
 #     audio_output: "C34H89x"   # speakers, by name
 #     dark_mode: true
 #     power_mode: balanced      # best_performance, balanced or efficiency
+#     night_light: true
 #     wake_word: false          # false: Abdoh doesn't listen for its name in this mode
 #     voice_replies: true
 #     follow_up: false          # keep listening after a reply
@@ -51,8 +52,8 @@ TEMPLATES: list[dict] = [
     {
         "name": "Night",
         "icon": "moon",
-        "description": "Dim screens, low volume, dark theme.",
-        "settings": {"brightness": 30, "volume": 30, "dark_mode": True},
+        "description": "Dim, warm screens, low volume, dark theme.",
+        "settings": {"brightness": 30, "volume": 30, "dark_mode": True, "night_light": True},
         "actions": [],
     },
     {

@@ -340,7 +340,7 @@ These work instantly, without Claude (your own commands still come first):
 - **Speakers**: "switch the sound to the monitor", "use the headphones", "play the sound through
   the speakers", "what's my audio output"
 - **Settings**: "dark mode", "light mode", "best performance mode", "battery saver", "balanced
-  power mode"
+  power mode", "turn on night light", "night light off"
 - **Sleep and shutdown**: "go to sleep", "shut down the computer", "restart the computer" (Abdoh
   asks first: just say yes), "shut down in 30 minutes" (no question: it's for later), "cancel the
   shutdown". These can be turned off in Permissions.
@@ -356,12 +356,15 @@ These work instantly, without Claude (your own commands still come first):
 
 Claude can also set the volume, one app's volume and the brightness, add reminders and take notes when you ask in
 your own words ("wake me in half an hour", "jot down that I owe Sam ten euros"); each of these
-can be turned off on the Permissions page. Claude can never type for you.
+can be turned off on the Permissions page. Claude can also switch your modes, your screens,
+your speakers and dark mode: it knows your modes and your screens by name, so "I'm about to
+watch a film" can switch on Movie mode and "put the picture only on the big monitor" turns the
+others off. Claude can never type for you, press keys, close programs or shut the computer down.
 
 Your own commands can use `volume: 30`, `app_volume: browser 30`, `brightness: 70` and
 `type: some text` as actions too, and these: `displays: only 2`, `audio_output: headphones`,
 `dark_mode: on`, `power_mode: balanced`, `power: screens_off`, `keys: win+d`, `wait: 2 seconds`,
-`close_app: Spotify`, `focus_app: Chrome` and `window: Chrome to 2 maximized`.
+`night_light: on`, `close_app: Spotify`, `focus_app: Chrome` and `window: Chrome to 2 maximized`.
 
 These skills are Windows-only for now.
 
@@ -401,11 +404,20 @@ menu. You can also write modes by hand in `modes.yaml` in Abdoh's data folder:
     - open_app: "Visual Studio Code"
 ```
 
-Settings: `displays`, `brightness`, `volume`, `audio_output`, `dark_mode`, `power_mode`, and
-Abdoh's own `wake_word`, `voice_replies` and `follow_up`. Actions: anything a command can do,
+Settings: `displays`, `brightness`, `volume`, `audio_output`, `dark_mode`, `power_mode`,
+`night_light`, and Abdoh's own `wake_word`, `voice_replies` and `follow_up`. Actions: anything a command can do,
 plus `exit_actions` for when the mode ends. Switching from one mode to another first puts back
 what the new one leaves alone. A mode that is on when Abdoh restarts can still be undone. Your
 own commands can switch modes too (`mode: Movie`, `mode: normal`).
+
+**A mode at a time.** A mode can switch on by itself: turn on **At** in the editor and pick a
+time and days, or write `schedule: ["daily 23:00", "weekdays 09:00", "sat,sun 10:30"]` (days:
+`daily`, `weekdays`, `weekends`, or `mon` to `sun` joined by commas; 24-hour time). Abdoh says
+the mode aloud when it starts. Times that passed while Abdoh wasn't running are skipped.
+
+**Night light** (Windows 11) is switched through a setting Windows doesn't document. Abdoh only
+changes it when it recognizes how your Windows stores it; otherwise it opens the Night light
+settings for you.
 
 ## 6. Install it like an app
 
@@ -558,7 +570,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
 | `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it |
-| `claude.actions` | all ten | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note` |
+| `claude.actions` | all fourteen | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note`, `mode`, `displays`, `audio_output`, `dark_mode` |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | API key only: a question this soon after an answer can follow up on it (0 = off). Claude Code remembers the whole conversation by itself |

@@ -30,6 +30,7 @@ HEADER = """\
 #   audio_output: <name>   send the sound to these speakers ("headphones", "C34H89x")
 #   dark_mode: on|off|toggle
 #   power_mode: best_performance|balanced|efficiency
+#   night_light: on|off
 #   power: sleep|lock|screens_off
 #   keys: <keys>           press keys: "ctrl+shift+esc", "win+d, alt+tab", "f11"
 #   wait: <time>           wait before the next action (up to 60 seconds)
