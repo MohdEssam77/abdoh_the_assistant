@@ -62,7 +62,11 @@ def test_resolve_relative_to_app_dir(tmp_path):
 
 def test_setup_logging_writes_file(tmp_path):
     cfg = Config(app_dir=tmp_path, log_file="logs/abdoh.log")
+    old = tmp_path / "logs" / "abdoh.log.2"  # Abdoh 0.4's backups, of any age
+    old.parent.mkdir()
+    old.write_text("You: something from last month")
     setup_logging(cfg, console=False)
+    assert not old.exists()
     logging.getLogger("abdoh.test").info("hello log")
     for h in logging.getLogger().handlers:
         h.flush()

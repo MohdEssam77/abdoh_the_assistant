@@ -243,7 +243,10 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
 
     log_path = config.resolve(config.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    # The log has what you said in it: keep today's and yesterday's only.
+    # The log has what you said in it: keep today's and yesterday's only. (Abdoh 0.4 kept
+    # numbered backups of any age: remove them.)
+    for number in (1, 2, 3):
+        log_path.with_name(f"{log_path.name}.{number}").unlink(missing_ok=True)
     file_handler = logging.handlers.TimedRotatingFileHandler(
         log_path, when="midnight", backupCount=1, encoding="utf-8"
     )
