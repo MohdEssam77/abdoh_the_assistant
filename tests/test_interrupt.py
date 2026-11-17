@@ -87,6 +87,7 @@ class FakeWatch:
 
     def idle(self):
         self.idles += 1
+        self.fired = False  # like the real watch: idle() rearms it
 
 
 def make_daemon(router, heard, watch=None, cfg=None, engine=None):
@@ -142,6 +143,19 @@ def test_saying_something_new_stops_the_reply_and_it_is_next():
     assert router.requests == ["Tell me about London", "What about Paris?"]
     assert daemon.speaker.said[-1] == "Paris is lovely."
     assert sum(s.startswith("Sentence") for s in daemon.speaker.said) < SENTENCES / 2
+
+
+def test_the_reply_to_an_interruption_can_be_interrupted_too():
+    router = Router()
+    watch = FakeWatch()
+    watch.shots = 2
+    daemon = make_daemon(router, ["Explain it within software engineering", "Wait."], watch)
+    router.replies = [long_reply(daemon), long_reply(daemon)]
+    watch.fire = said_at_least(daemon, 3)
+    daemon._handle_spoken("What is OOP")
+    assert router.requests == ["What is OOP", "Explain it within software engineering"]
+    assert daemon.speaker.pauses == 2  # you were heard over the second reply as well
+    assert len(daemon.speaker.said) < SENTENCES
 
 
 def test_okay_lets_abdoh_go_on():

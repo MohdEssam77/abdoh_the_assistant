@@ -384,6 +384,9 @@ class Daemon:
         with self._handle_lock:
             self._interrupted.clear()
             self._floor.set()
+            # A new reply: the voice watch starts afresh. It fired for the one you just talked
+            # over, and the next reply can follow straight on, with no idle moment to reset it.
+            self._watching = False
             self._spoke = self._answered = False
             self._request = text
             log.info("You: %s", text)
