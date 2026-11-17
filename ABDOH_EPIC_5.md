@@ -878,53 +878,99 @@ and the volume ducks in a test with fakes.
 ```python
 LOOPBACK, AUTOCONVERT, SRC_QUALITY, SILENT = 0x00020000, 0x80000000, 0x08000000, 0x2
 
+
 class WAVEFORMATEX(Structure):
     _pack_ = 1
-    _fields_ = [("wFormatTag", c_ushort), ("nChannels", c_ushort), ("nSamplesPerSec", c_ulong),
-                ("nAvgBytesPerSec", c_ulong), ("nBlockAlign", c_ushort),
-                ("wBitsPerSample", c_ushort), ("cbSize", c_ushort)]
+    _fields_ = [
+        ("wFormatTag", c_ushort),
+        ("nChannels", c_ushort),
+        ("nSamplesPerSec", c_ulong),
+        ("nAvgBytesPerSec", c_ulong),
+        ("nBlockAlign", c_ushort),
+        ("wBitsPerSample", c_ushort),
+        ("cbSize", c_ushort),
+    ]
+
 
 class IAudioClient(IUnknown):
     _iid_ = GUID("{1CB9AD4C-DBFA-4C32-B178-C2F568A703B2}")
     _methods_ = (
-        COMMETHOD([], HRESULT, "Initialize", (["in"], c_uint, "mode"), (["in"], c_ulong, "flags"),
-                  (["in"], c_longlong, "buffer"), (["in"], c_longlong, "period"),
-                  (["in"], POINTER(WAVEFORMATEX), "format"), (["in"], c_void_p, "session")),
+        COMMETHOD(
+            [],
+            HRESULT,
+            "Initialize",
+            (["in"], c_uint, "mode"),
+            (["in"], c_ulong, "flags"),
+            (["in"], c_longlong, "buffer"),
+            (["in"], c_longlong, "period"),
+            (["in"], POINTER(WAVEFORMATEX), "format"),
+            (["in"], c_void_p, "session"),
+        ),
         COMMETHOD([], HRESULT, "GetBufferSize", (["out"], POINTER(c_uint), "frames")),
         COMMETHOD([], HRESULT, "GetStreamLatency", (["out"], POINTER(c_longlong), "latency")),
         COMMETHOD([], HRESULT, "GetCurrentPadding", (["out"], POINTER(c_uint), "frames")),
-        COMMETHOD([], HRESULT, "IsFormatSupported", (["in"], c_uint, "mode"),
-                  (["in"], POINTER(WAVEFORMATEX), "format"), (["out"], POINTER(c_void_p), "closest")),
+        COMMETHOD(
+            [],
+            HRESULT,
+            "IsFormatSupported",
+            (["in"], c_uint, "mode"),
+            (["in"], POINTER(WAVEFORMATEX), "format"),
+            (["out"], POINTER(c_void_p), "closest"),
+        ),
         COMMETHOD([], HRESULT, "GetMixFormat", (["out"], POINTER(POINTER(WAVEFORMATEX)), "format")),
-        COMMETHOD([], HRESULT, "GetDevicePeriod", (["out"], POINTER(c_longlong), "default"),
-                  (["out"], POINTER(c_longlong), "minimum")),
-        COMMETHOD([], HRESULT, "Start"), COMMETHOD([], HRESULT, "Stop"), COMMETHOD([], HRESULT, "Reset"),
+        COMMETHOD(
+            [],
+            HRESULT,
+            "GetDevicePeriod",
+            (["out"], POINTER(c_longlong), "default"),
+            (["out"], POINTER(c_longlong), "minimum"),
+        ),
+        COMMETHOD([], HRESULT, "Start"),
+        COMMETHOD([], HRESULT, "Stop"),
+        COMMETHOD([], HRESULT, "Reset"),
         COMMETHOD([], HRESULT, "SetEventHandle", (["in"], c_void_p, "event")),
-        COMMETHOD([], HRESULT, "GetService", (["in"], POINTER(GUID), "iid"),
-                  (["out"], POINTER(POINTER(IUnknown)), "service")),
+        COMMETHOD(
+            [],
+            HRESULT,
+            "GetService",
+            (["in"], POINTER(GUID), "iid"),
+            (["out"], POINTER(POINTER(IUnknown)), "service"),
+        ),
     )
+
 
 class IAudioCaptureClient(IUnknown):
     _iid_ = GUID("{C8ADBD64-E71E-48A0-A4DE-185C395CD317}")
     _methods_ = (
-        COMMETHOD([], HRESULT, "GetBuffer", (["out"], POINTER(POINTER(c_ubyte)), "data"),
-                  (["out"], POINTER(c_uint), "frames"), (["out"], POINTER(c_ulong), "flags"),
-                  (["out"], POINTER(c_ulonglong), "position"), (["out"], POINTER(c_ulonglong), "qpc")),
+        COMMETHOD(
+            [],
+            HRESULT,
+            "GetBuffer",
+            (["out"], POINTER(POINTER(c_ubyte)), "data"),
+            (["out"], POINTER(c_uint), "frames"),
+            (["out"], POINTER(c_ulong), "flags"),
+            (["out"], POINTER(c_ulonglong), "position"),
+            (["out"], POINTER(c_ulonglong), "qpc"),
+        ),
         COMMETHOD([], HRESULT, "ReleaseBuffer", (["in"], c_uint, "frames")),
         COMMETHOD([], HRESULT, "GetNextPacketSize", (["out"], POINTER(c_uint), "frames")),
     )
 
+
 # device: the default render endpoint, from winaudio's enumerator: GetDefaultAudioEndpoint(0, 0)
 client = device.Activate(IAudioClient._iid_, CLSCTX_ALL, None).QueryInterface(IAudioClient)
-wanted = WAVEFORMATEX(1, 1, 16000, 32000, 2, 16, 0)            # PCM, mono, 16 kHz, 16 bit
+wanted = WAVEFORMATEX(1, 1, 16000, 32000, 2, 16, 0)  # PCM, mono, 16 kHz, 16 bit
 client.Initialize(0, LOOPBACK | AUTOCONVERT | SRC_QUALITY, 2_000_000, 0, byref(wanted), None)
 capture = client.GetService(IAudioCaptureClient._iid_).QueryInterface(IAudioCaptureClient)
 client.Start()
-while running:                                                  # every 10 ms
+while running:  # every 10 ms
     while capture.GetNextPacketSize():
         data, n, flags, _position, _qpc = capture.GetBuffer()
-        samples = (np.zeros(n, np.int16) if flags & SILENT else
-                   np.ctypeslib.as_array(cast(data, POINTER(c_int16)), shape=(n,)).copy())
+        samples = (
+            np.zeros(n, np.int16)
+            if flags & SILENT
+            else np.ctypeslib.as_array(cast(data, POINTER(c_int16)), shape=(n,)).copy()
+        )
         capture.ReleaseBuffer(n)
 ```
 
@@ -934,32 +980,94 @@ Copy the samples before `ReleaseBuffer`. No packets at all means silence.
 
 ```python
 QDC_ALL_PATHS, QDC_ONLY_ACTIVE_PATHS, PATH_ACTIVE, MODE_IDX_INVALID = 1, 2, 1, 0xFFFFFFFF
-SDC_TOPOLOGY_SUPPLIED, SDC_USE_SUPPLIED_DISPLAY_CONFIG, SDC_VALIDATE, SDC_APPLY = 0x10, 0x20, 0x40, 0x80
+SDC_TOPOLOGY_SUPPLIED, SDC_USE_SUPPLIED_DISPLAY_CONFIG, SDC_VALIDATE, SDC_APPLY = (
+    0x10,
+    0x20,
+    0x40,
+    0x80,
+)
 SDC_SAVE_TO_DATABASE, SDC_ALLOW_CHANGES, SDC_ALLOW_PATH_ORDER_CHANGES = 0x200, 0x400, 0x2000
 INTERNAL = {0x80000000, 6, 11, 13}
 
-class LUID(Structure):        _fields_ = [("LowPart", c_uint32), ("HighPart", c_int32)]
-class PathSource(Structure):  _fields_ = [("adapterId", LUID), ("id", c_uint32),
-                                          ("modeInfoIdx", c_uint32), ("statusFlags", c_uint32)]
-class Rational(Structure):    _fields_ = [("Numerator", c_uint32), ("Denominator", c_uint32)]
-class PathTarget(Structure):  _fields_ = [("adapterId", LUID), ("id", c_uint32), ("modeInfoIdx", c_uint32),
-                                          ("outputTechnology", c_uint32), ("rotation", c_uint32),
-                                          ("scaling", c_uint32), ("refreshRate", Rational),
-                                          ("scanLineOrdering", c_uint32), ("targetAvailable", c_int32),
-                                          ("statusFlags", c_uint32)]
-class PathInfo(Structure):    _fields_ = [("sourceInfo", PathSource), ("targetInfo", PathTarget), ("flags", c_uint32)]
-class Point(Structure):       _fields_ = [("x", c_int32), ("y", c_int32)]
-class SourceMode(Structure):  _fields_ = [("width", c_uint32), ("height", c_uint32),
-                                          ("pixelFormat", c_uint32), ("position", Point)]
-class ModeUnion(Union):       _fields_ = [("sourceMode", SourceMode), ("raw", c_byte * 48)]
-class ModeInfo(Structure):    _fields_ = [("infoType", c_uint32), ("id", c_uint32), ("adapterId", LUID), ("u", ModeUnion)]
-class DeviceInfoHeader(Structure): _fields_ = [("type", c_uint32), ("size", c_uint32), ("adapterId", LUID), ("id", c_uint32)]
-class SourceName(Structure):  _fields_ = [("header", DeviceInfoHeader), ("viewGdiDeviceName", c_wchar * 32)]   # type 1
-class TargetName(Structure):  _fields_ = [("header", DeviceInfoHeader), ("flags", c_uint32),                 # type 2
-                                          ("outputTechnology", c_uint32), ("edidManufactureId", c_uint16),
-                                          ("edidProductCodeId", c_uint16), ("connectorInstance", c_uint32),
-                                          ("monitorFriendlyDeviceName", c_wchar * 64),
-                                          ("monitorDevicePath", c_wchar * 128)]
+
+class LUID(Structure):
+    _fields_ = [("LowPart", c_uint32), ("HighPart", c_int32)]
+
+
+class PathSource(Structure):
+    _fields_ = [
+        ("adapterId", LUID),
+        ("id", c_uint32),
+        ("modeInfoIdx", c_uint32),
+        ("statusFlags", c_uint32),
+    ]
+
+
+class Rational(Structure):
+    _fields_ = [("Numerator", c_uint32), ("Denominator", c_uint32)]
+
+
+class PathTarget(Structure):
+    _fields_ = [
+        ("adapterId", LUID),
+        ("id", c_uint32),
+        ("modeInfoIdx", c_uint32),
+        ("outputTechnology", c_uint32),
+        ("rotation", c_uint32),
+        ("scaling", c_uint32),
+        ("refreshRate", Rational),
+        ("scanLineOrdering", c_uint32),
+        ("targetAvailable", c_int32),
+        ("statusFlags", c_uint32),
+    ]
+
+
+class PathInfo(Structure):
+    _fields_ = [("sourceInfo", PathSource), ("targetInfo", PathTarget), ("flags", c_uint32)]
+
+
+class Point(Structure):
+    _fields_ = [("x", c_int32), ("y", c_int32)]
+
+
+class SourceMode(Structure):
+    _fields_ = [
+        ("width", c_uint32),
+        ("height", c_uint32),
+        ("pixelFormat", c_uint32),
+        ("position", Point),
+    ]
+
+
+class ModeUnion(Union):
+    _fields_ = [("sourceMode", SourceMode), ("raw", c_byte * 48)]
+
+
+class ModeInfo(Structure):
+    _fields_ = [("infoType", c_uint32), ("id", c_uint32), ("adapterId", LUID), ("u", ModeUnion)]
+
+
+class DeviceInfoHeader(Structure):
+    _fields_ = [("type", c_uint32), ("size", c_uint32), ("adapterId", LUID), ("id", c_uint32)]
+
+
+class SourceName(Structure):
+    _fields_ = [("header", DeviceInfoHeader), ("viewGdiDeviceName", c_wchar * 32)]  # type 1
+
+
+class TargetName(Structure):
+    _fields_ = [
+        ("header", DeviceInfoHeader),
+        ("flags", c_uint32),  # type 2
+        ("outputTechnology", c_uint32),
+        ("edidManufactureId", c_uint16),
+        ("edidProductCodeId", c_uint16),
+        ("connectorInstance", c_uint32),
+        ("monitorFriendlyDeviceName", c_wchar * 64),
+        ("monitorDevicePath", c_wchar * 128),
+    ]
+
+
 assert (sizeof(PathInfo), sizeof(ModeInfo), sizeof(TargetName)) == (72, 64, 420)
 ```
 
@@ -977,10 +1085,10 @@ assert (sizeof(PathInfo), sizeof(ModeInfo), sizeof(TargetName)) == (72, 64, 420)
 
 ```python
 chosen, used = [], set()
-for target in wanted:                       # monitors that are already on first
+for target in wanted:  # monitors that are already on first
     paths = by_target[target]
     path = next((p for p in paths if p.flags & PATH_ACTIVE), None)
-    if path is None:                        # turn it on: a source of its adapter that is free
+    if path is None:  # turn it on: a source of its adapter that is free
         path = next(p for p in paths if (luid(p.sourceInfo.adapterId), p.sourceInfo.id) not in used)
     used.add((luid(path.sourceInfo.adapterId), path.sourceInfo.id))
     copy = PathInfo.from_buffer_copy(path)
@@ -988,12 +1096,17 @@ for target in wanted:                       # monitors that are already on first
     copy.sourceInfo.modeInfoIdx = copy.targetInfo.modeInfoIdx = MODE_IDX_INVALID
     chosen.append(copy)
 array = (PathInfo * len(chosen))(*chosen)
-err = user32.SetDisplayConfig(len(chosen), array, 0, None,
-                              SDC_APPLY | SDC_TOPOLOGY_SUPPLIED | SDC_ALLOW_PATH_ORDER_CHANGES)
-if err:                                     # this set of monitors was never used: let Windows choose
-    err = user32.SetDisplayConfig(len(chosen), array, 0, None,
-                                  SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES
-                                  | SDC_SAVE_TO_DATABASE)
+err = user32.SetDisplayConfig(
+    len(chosen), array, 0, None, SDC_APPLY | SDC_TOPOLOGY_SUPPLIED | SDC_ALLOW_PATH_ORDER_CHANGES
+)
+if err:  # this set of monitors was never used: let Windows choose
+    err = user32.SetDisplayConfig(
+        len(chosen),
+        array,
+        0,
+        None,
+        SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE,
+    )
 ```
 
 With `SDC_TOPOLOGY_SUPPLIED` Windows takes resolutions and positions from what it remembers for
@@ -1010,15 +1123,31 @@ GDI name, to match with the source name) → `dxva2.GetNumberOfPhysicalMonitorsF
 ```python
 class IPolicyConfig(IUnknown):
     _iid_ = GUID("{F8679F50-850A-41CF-9C72-430F290290C8}")
-    _methods_ = (unused("GetMixFormat"), unused("GetDeviceFormat"), unused("ResetDeviceFormat"),
-                 unused("SetDeviceFormat"), unused("GetProcessingPeriod"), unused("SetProcessingPeriod"),
-                 unused("GetShareMode"), unused("SetShareMode"), unused("GetPropertyValue"),
-                 unused("SetPropertyValue"),
-                 COMMETHOD([], HRESULT, "SetDefaultEndpoint", (["in"], c_wchar_p, "device"), (["in"], c_uint, "role")),
-                 unused("SetEndpointVisibility"))
+    _methods_ = (
+        unused("GetMixFormat"),
+        unused("GetDeviceFormat"),
+        unused("ResetDeviceFormat"),
+        unused("SetDeviceFormat"),
+        unused("GetProcessingPeriod"),
+        unused("SetProcessingPeriod"),
+        unused("GetShareMode"),
+        unused("SetShareMode"),
+        unused("GetPropertyValue"),
+        unused("SetPropertyValue"),
+        COMMETHOD(
+            [],
+            HRESULT,
+            "SetDefaultEndpoint",
+            (["in"], c_wchar_p, "device"),
+            (["in"], c_uint, "role"),
+        ),
+        unused("SetEndpointVisibility"),
+    )
+
+
 POLICY_CONFIG = GUID("{870AF99C-171D-4F9E-AF0D-E63DF40C2BC9}")
 policy = comtypes.CoCreateInstance(POLICY_CONFIG, IPolicyConfig, CLSCTX_ALL)
-policy.SetDefaultEndpoint(device_id, 0)     # 0 console, 1 multimedia, 2 communications
+policy.SetDefaultEndpoint(device_id, 0)  # 0 console, 1 multimedia, 2 communications
 ```
 
 `IMMDevice` needs two more methods after `OpenPropertyStore`: `GetId` (`["out"],
@@ -1043,9 +1172,9 @@ including what it had said before the interruption.
 voice.Speak(text, SVSF_ASYNC | SVSF_IS_NOT_XML)
 while not voice.WaitUntilDone(POLL_MS):
     status = voice.Status
-    position, length = status.InputWordPosition, status.InputWordLength   # characters into `text`
-voice.Speak("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)    # silent after 17 ms
-voice.Speak(text[position:], SVSF_ASYNC | SVSF_IS_NOT_XML)   # continues from that word
+    position, length = status.InputWordPosition, status.InputWordLength  # characters into `text`
+voice.Speak("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)  # silent after 17 ms
+voice.Speak(text[position:], SVSF_ASYNC | SVSF_IS_NOT_XML)  # continues from that word
 ```
 
 `voice.Pause()` and `voice.Resume()` exist but act about a second late: don't use them.
@@ -1065,13 +1194,15 @@ voice.Speak(text[position:], SVSF_ASYNC | SVSF_IS_NOT_XML)   # continues from th
 
 ```python
 from livekit import rtc
-apm = rtc.AudioProcessingModule(echo_cancellation=True, high_pass_filter=True,
-                                noise_suppression=False, auto_gain_control=False)
-apm.set_stream_delay_ms(140)                      # the lag of the echo behind the reference
-for i in range(frames):                           # 10 ms each: 160 samples, int16 bytes
+
+apm = rtc.AudioProcessingModule(
+    echo_cancellation=True, high_pass_filter=True, noise_suppression=False, auto_gain_control=False
+)
+apm.set_stream_delay_ms(140)  # the lag of the echo behind the reference
+for i in range(frames):  # 10 ms each: 160 samples, int16 bytes
     apm.process_reverse_stream(rtc.AudioFrame(speaker_bytes[i], 16000, 1, 160))
     frame = rtc.AudioFrame(mic_bytes[i], 16000, 1, 160)
-    apm.process_stream(frame)                     # changes frame.data in place
+    apm.process_stream(frame)  # changes frame.data in place
     cleaned = bytes(frame.data)
 ```
 
