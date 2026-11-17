@@ -5,6 +5,7 @@ only shows events and forwards requests; AppApi (abdoh.ui.api) is the page's onl
 """
 
 import logging
+import shutil
 import sys
 import threading
 from pathlib import Path
@@ -18,6 +19,23 @@ log = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).resolve().parent / "web"
 INDEX = WEB_DIR / "index.html"
 STORAGE = Path.home() / ".abdoh" / "webview"  # the page's own small storage (e.g. the theme)
+
+
+def forget_old_page(storage: Path, version: str) -> None:
+    """After an update, drop the window's cached copy of the page, or it keeps showing the
+    old version's page. What the page remembers (Local Storage) is kept."""
+    marker = storage / "version.txt"
+    try:
+        if marker.read_text(encoding="utf-8").strip() == version:
+            return
+    except OSError:
+        pass
+    for name in ("Cache", "Code Cache"):
+        shutil.rmtree(storage / "EBWebView" / "Default" / name, ignore_errors=True)
+    storage.mkdir(parents=True, exist_ok=True)
+    marker.write_text(version, encoding="utf-8")
+
+
 POLL_SECONDS = 0.1
 WEBVIEW2_CLIENT = r"Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 
@@ -166,7 +184,9 @@ class WebWindow:
             self._quitting.wait(POLL_SECONDS)
 
     def mainloop(self) -> None:
-        STORAGE.mkdir(parents=True, exist_ok=True)
+        from abdoh import __version__
+
+        forget_old_page(STORAGE, __version__)
         gui = "edgechromium" if sys.platform == "win32" else None
         self._webview.start(self._pump, gui=gui, private_mode=False, storage_path=str(STORAGE))
         self._quitting.set()
