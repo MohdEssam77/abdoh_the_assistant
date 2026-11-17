@@ -12,8 +12,8 @@ from dataclasses import dataclass, field
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
-from abdoh.claude.reply import speakable
-from abdoh.claude.screen import ScreenCaptureError, capture_screen
+from abdoh.claude.reply import LOOK, speakable
+from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
 from abdoh.commands.actions import ActionError, claude_action, run_actions
 from abdoh.commands.learn import append_command
 from abdoh.commands.matcher import (
@@ -31,6 +31,7 @@ log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
 SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
+LOOKING = "Looking at your screen"
 COMMANDS_FILE_ERROR = "Your commands file has an error."
 NOTHING_TO_REMEMBER = (
     "There's nothing to remember yet. Ask me to do something, then say: remember that."
@@ -68,17 +69,20 @@ class Router:
         capture=capture_screen,
         on_thinking: Callable[[], None] = lambda: None,
         computer=None,
+        window=front_window,
     ):
         self.cfg = cfg
         self.registry = registry
         self.brain = brain  # Claude (Brain) or None; may be replaced at runtime
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
+        self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
         self.last_turn: ClaudeTurn | None = None
         self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
         self._act = act
         self._capture = capture
+        self._window = window
         self._builtins: dict[str, Callable[[], str]] = {}
         self._builtin_commands: list[Command] = []
 
@@ -183,22 +187,43 @@ class Router:
         problems: list[str] = []
         spoken: list[str] = []
 
+        looks: list[str] = []  # Claude asked to see the screen
+
         def act(kind: str, arg: str) -> None:
+            if kind == LOOK:
+                looks.append(arg)
+                return
             try:
                 self._act(kind, arg, self.computer)
                 turn.actions.append((kind, arg))  # only what worked can be remembered
             except ActionError as e:
                 problems.append(str(e))
 
+        allowed = list(self.cfg.claude.actions)
+        if self.cfg.claude.allow_screen and not screen:
+            allowed.append(LOOK)  # at most once: the follow-up can't ask again
         chunks = None
         try:
             image = self._capture() if screen else None
             chunks = brain.stream(prompt, image)
-            for sentence in speakable(chunks, act, allowed=self.cfg.claude.actions):
+            for sentence in speakable(chunks, act, allowed=allowed):
                 yield from _drain(problems)
                 spoken.append(sentence)
                 yield sentence
             yield from _drain(problems)
+            if looks:
+                log.info("Claude asked to look at the screen: %s", looks[0])
+                chunks.close()
+                self.on_activity(LOOKING)
+                window = self._window()
+                image = self._capture()
+                follow_up = skills.look_follow_up(request, window.title, window.program)
+                chunks = brain.stream(follow_up, image)
+                for sentence in speakable(chunks, act, allowed=self.cfg.claude.actions):
+                    yield from _drain(problems)
+                    spoken.append(sentence)
+                    yield sentence
+                yield from _drain(problems)
         except (BrainError, ScreenCaptureError) as e:
             yield str(e)
         finally:

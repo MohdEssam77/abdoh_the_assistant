@@ -387,3 +387,94 @@ def test_follow_up_context_expires(learning, monkeypatch):
     router.last_turn.finished_at -= router.cfg.claude.followup_seconds + 1
     text_of(router.handle("tell me a joke"))
     assert router.brain.asked[1][0] == "tell me a joke"
+
+
+# ----- Claude asks to look at the screen -----
+
+
+class LookingBrain:
+    """First reply: asks to look. The next one answers from the picture."""
+
+    def __init__(self, first=("Let me look.\n", "ACTION look: the error\n"), second=("It says ",
+                 "the file is missing.")):  # fmt: skip
+        self.replies = [first, second]
+        self.asked = []
+        self.closed = 0
+
+    def stream(self, prompt, image_png=None):
+        self.asked.append((prompt, image_png))
+        reply = self.replies.pop(0) if self.replies else ("ACTION look: again\n", "Done.")
+        try:
+            yield from reply
+        finally:
+            self.closed += 1
+
+
+def looking_router(tmp_path, brain, **claude):
+    from abdoh.claude.screen import FrontWindow
+    from abdoh.config import ClaudeConfig
+
+    path = tmp_path / "commands.yaml"
+    path.write_text("[]", encoding="utf-8")
+    router = Router(
+        Config(app_dir=tmp_path, claude=ClaudeConfig(**claude)),
+        CommandRegistry(path),
+        brain=brain,
+        act=FakeAct(),
+        capture=lambda: b"PNG",
+        window=lambda: FrontWindow("Build failed - Visual Studio Code", "Code", (0, 0, 10, 10)),
+    )
+    seen = []
+    router.on_activity = seen.append
+    return router, seen
+
+
+def test_claude_looks_when_it_needs_to_and_then_answers(tmp_path):
+    brain = LookingBrain()
+    router, seen = looking_router(tmp_path, brain)
+    said = list(router.handle("what does this error mean"))
+    assert said == ["Let me look.", "It says the file is missing."]
+    assert seen == ["Looking at your screen"]
+    (first, no_image), (follow_up, image) = brain.asked
+    assert no_image is None and image == b"PNG"
+    assert '"what does this error mean"' in follow_up  # the request goes with the picture
+    assert 'The window in front is "Build failed - Visual Studio Code" (Code)' in follow_up
+    assert brain.closed == 2
+
+
+def test_no_look_without_asking(tmp_path):
+    brain = LookingBrain(first=("Tokyo.",))
+    router, seen = looking_router(tmp_path, brain)
+    assert list(router.handle("capital of japan")) == ["Tokyo."]
+    assert len(brain.asked) == 1 and seen == []
+
+
+def test_only_one_look_per_request(tmp_path):
+    brain = LookingBrain(second=("ACTION look: more\n", "Still can't tell."))
+    router, seen = looking_router(tmp_path, brain)
+    assert list(router.handle("what's this")) == ["Let me look.", "Still can't tell."]
+    assert len(brain.asked) == 2 and seen == ["Looking at your screen"]
+
+
+def test_no_look_when_the_screen_is_off(tmp_path):
+    brain = LookingBrain()
+    router, seen = looking_router(tmp_path, brain, allow_screen=False)
+    assert list(router.handle("what does this error mean")) == ["Let me look."]
+    assert len(brain.asked) == 1 and seen == []
+
+
+def test_a_look_is_never_remembered_as_a_command(tmp_path):
+    router, _ = looking_router(tmp_path, LookingBrain())
+    list(router.handle("what does this error mean"))
+    assert router.last_turn.actions == []
+
+
+def test_a_failed_look_is_said(tmp_path):
+    brain = LookingBrain()
+    router, _ = looking_router(tmp_path, brain)
+
+    def broken():
+        raise ScreenCaptureError("I couldn't capture your screen.")
+
+    router._capture = broken
+    assert list(router.handle("what's this")) == ["Let me look.", "I couldn't capture your screen."]

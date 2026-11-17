@@ -25,7 +25,7 @@ speaks to you. The user's words reach you through speech recognition, so if a wo
 go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{files}{web}{tools}If you need more information, ask one short question. Don't end with a \
+{look}{files}{web}{tools}If you need more information, ask one short question. Don't end with a \
 question otherwise.
 {clock}{instructions}"""
 
@@ -44,6 +44,15 @@ action, say in a few words what you did."""
 NO_ACTIONS = """You can't do things on the computer here: the user turned that off in Abdoh's \
 permissions. {limits}If they ask you to do something, say so in one sentence."""
 NO_COMMANDS = "You cannot run commands, type or click. "
+# Claude decides when it needs to see the screen; Abdoh then sends a picture of it.
+LOOK = """You can see the user's screen when you need to. Whenever what they say points at \
+something on their screen ("what's this error?", "which one should I pick?", "read this to me", \
+"what am I looking at?", "is this a good deal?"), or you can't answer well without seeing what \
+they're looking at, don't guess and don't ask them to describe it: write the line \
+ACTION look: <what you want to see>
+and nothing else. Abdoh then sends you a picture of the screen they are using, and you answer. \
+Don't ask to look when the request has nothing to do with their screen.
+"""
 FILES = """When the user asks, you can also work with their files and run {shell} commands \
 with your tools. {where} Before deleting files or overwriting existing ones, say in one short \
 sentence what you will do and ask whether to go ahead; do it only after they say yes. Delete by \
@@ -118,6 +127,7 @@ def system_prompt(
         platform=_platform(),
         sentences=cfg.claude.voice_reply_max_sentences,
         actions=actions,
+        look=LOOK if cfg.claude.allow_screen else "",
         files=files,
         web=WEB_LINE if web else "",
         tools=TOOLS_LINE if web or files else "",

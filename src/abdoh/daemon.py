@@ -101,6 +101,7 @@ class Daemon:
         self._woke = time.perf_counter()
         self._handle_lock = threading.Lock()
         router.on_thinking = self._thinking
+        router.on_activity = self._activity
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)

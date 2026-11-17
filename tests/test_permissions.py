@@ -64,9 +64,16 @@ def test_prompt_offers_only_the_allowed_actions():
 
 
 def test_prompt_without_any_actions():
-    text = system_prompt(cfg_with(actions=[]))
+    text = system_prompt(cfg_with(actions=[], allow_screen=False))
     assert "ACTION" not in text
     assert NO_ACTIONS.split(":")[0] in text
+
+
+def test_claude_may_ask_to_look_only_when_the_screen_is_allowed():
+    looking = system_prompt(cfg_with(actions=[]))
+    assert "ACTION look:" in looking and "the screen they are using" in looking
+    assert "ACTION open_url" not in looking  # looking isn't one of the switchable actions
+    assert "ACTION look" not in system_prompt(cfg_with(allow_screen=False))
 
 
 def test_prompt_has_your_instructions():
