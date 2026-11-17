@@ -348,13 +348,14 @@ def test_old_settings_get_claudes_new_actions(app_dir):
     old = 'config_version: 2\nclaude:\n  actions: ["open_url", "timer"]\n'
     (app_dir / "config.yaml").write_text(old)
     cfg = load_config(app_dir)
+    system = ["mode", "displays", "audio_output", "dark_mode"]
     assert cfg.claude.actions == [
-        "open_url", "timer", "volume", "brightness", "remind", "note", "app_volume"
+        "open_url", "timer", "volume", "brightness", "remind", "note", "app_volume", *system
     ]  # fmt: skip
-    assert cfg.config_version == 4
+    assert cfg.config_version == 5
     from_0_4 = 'config_version: 3\nclaude:\n  actions: ["open_url", "volume"]\n'
     (app_dir / "config.yaml").write_text(from_0_4)
-    assert load_config(app_dir).claude.actions == ["open_url", "volume", "app_volume"]
-    current = 'config_version: 4\nclaude:\n  actions: ["open_url"]\n'
+    assert load_config(app_dir).claude.actions == ["open_url", "volume", "app_volume", *system]
+    current = 'config_version: 5\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(current)
     assert load_config(app_dir).claude.actions == ["open_url"]  # your choice from then on

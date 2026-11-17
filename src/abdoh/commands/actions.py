@@ -315,5 +315,19 @@ def claude_action(kind: str, arg: str, computer) -> None:
         computer.remind(arg)
     elif kind == "note":
         computer.notes.add(arg)
+    elif kind == "mode":
+        modes = getattr(computer, "modes", None)
+        if modes is None:
+            raise ActionError("Modes aren't available here.")
+        modes.switch(arg)
+    elif kind == "displays":
+        computer.screens(arg)
+    elif kind == "audio_output":
+        computer.set_audio_output(arg)
+    elif kind == "dark_mode":
+        on = ON_WORDS.get(arg.strip().lower())
+        if on is None:
+            raise ActionError("dark_mode is on or off.")
+        computer.set_dark_mode(on)
     else:
         raise ActionError(f"I can't do {kind}.")

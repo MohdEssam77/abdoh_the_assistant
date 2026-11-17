@@ -84,6 +84,41 @@ def _time(now: datetime) -> str:
     return f"{now.hour % 12 or 12}:{now.minute:02d} {'AM' if now.hour < 12 else 'PM'}"
 
 
+def _your_things(cfg: Config) -> str:
+    """The user's modes and screens, by name, for the mode and displays actions."""
+    lines = []
+    if "mode" in cfg.claude.actions:
+        try:
+            from abdoh.modes.store import ModesStore
+
+            names = [m.name for m in ModesStore(cfg.app_dir / "modes.yaml").load()]
+        except Exception:
+            names = []
+        if names:
+            lines.append(f"The user's modes: {', '.join(names)}.")
+    if "displays" in cfg.claude.actions:
+        screens = _screen_names(cfg.app_dir / "displays.json")
+        if screens:
+            lines.append(f"Their screens: {screens}.")
+    return "".join(f"\n{line}" for line in lines)
+
+
+def _screen_names(path: Path) -> str:
+    """'1 Laptop screen, 2 HP 32f (TV), 3 C34H89x' from Abdoh's screen numbers."""
+    import json
+
+    try:
+        entries = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    names = []
+    for entry in sorted(entries, key=lambda e: e.get("number", 99)):
+        name = entry.get("name") or "Laptop screen"
+        nickname = entry.get("nickname")
+        names.append(f"{entry.get('number')} {name}" + (f" ({nickname})" if nickname else ""))
+    return ", ".join(names)
+
+
 def stamp(prompt: str, now: datetime | None = None) -> str:
     """A message with the current date and time in front (see STAMPED)."""
     now = now or datetime.now()
@@ -119,7 +154,7 @@ def system_prompt(
     limits = "" if files else NO_COMMANDS
     allowed = [ACTION_HELP[name] for name in ACTION_HELP if name in cfg.claude.actions]
     if allowed:
-        actions = ACTIONS.format(actions="\n".join(allowed), limits=limits)
+        actions = ACTIONS.format(actions="\n".join(allowed), limits=limits) + _your_things(cfg)
     else:
         actions = NO_ACTIONS.format(limits=limits)
     instructions = cfg.claude.instructions.strip()
