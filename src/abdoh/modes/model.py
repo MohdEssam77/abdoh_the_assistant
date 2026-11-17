@@ -5,6 +5,7 @@ volume, brightness, speakers, theme, power mode, and three of Abdoh's own switch
 (things that just happen, like a command's: open an app, play music, say something).
 """
 
+import re
 from dataclasses import dataclass, field
 
 from abdoh.commands.registry import CommandsFileError, parse_actions
@@ -27,6 +28,29 @@ POWER_MODES = ("best_performance", "balanced", "efficiency")
 ICONS = ("sparkles", "film", "briefcase", "moon", "target", "presentation", "music", "game",
          "coffee", "book", "sun", "home")  # fmt: skip
 RESERVED = ("normal",)  # "back to normal" ends a mode
+
+
+DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+DAY_GROUPS = {"daily": DAYS, "every day": DAYS, "weekdays": DAYS[:5], "weekends": DAYS[5:]}
+_SCHEDULE = re.compile(r"(?P<days>[a-z, ]+?)\s+(?P<hour>\d{1,2}):(?P<minute>\d{2})")
+
+
+def parse_schedule(text: str) -> tuple[frozenset[int], int, int]:
+    """'weekdays 09:00' -> ({0, 1, 2, 3, 4}, 9, 0) (Monday is 0). Raises ValueError."""
+    found = _SCHEDULE.fullmatch(" ".join(text.lower().split()))
+    if not found:
+        raise ValueError(f"'{text}' isn't like 'weekdays 09:00'.")
+    hour, minute = int(found["hour"]), int(found["minute"])
+    if hour > 23 or minute > 59:
+        raise ValueError(f"'{text}' has no such time.")
+    words = found["days"].strip()
+    if words in DAY_GROUPS:
+        days = DAY_GROUPS[words]
+    else:
+        days = tuple(d.strip()[:3] for d in words.split(",") if d.strip())
+        if not days or any(d not in DAYS for d in days):
+            raise ValueError(f"'{text}': days are daily, weekdays, weekends, or mon,tue,...")
+    return frozenset(DAYS.index(d) for d in days), hour, minute
 
 
 class ModesFileError(ValueError):
@@ -85,6 +109,11 @@ def parse_mode(item, where: str = "the mode") -> Mode:
     except CommandsFileError as e:
         raise ModesFileError(str(e)) from e
     schedule = _strings(item.get("schedule"), f"{where}: schedule")
+    for entry in schedule:
+        try:
+            parse_schedule(entry)
+        except ValueError as e:
+            raise ModesFileError(f"{where}: schedule {e}") from e
     if not settings and not actions:
         raise ModesFileError(f"{where}: add at least one setting or action.")
     return Mode(name, icon, phrases, settings, tuple(actions), tuple(exit_actions), schedule)

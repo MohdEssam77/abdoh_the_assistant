@@ -664,6 +664,12 @@ class Daemon:
                 self.modes.start()  # a mode that was on before a restart
             except Exception:
                 log.exception("Couldn't restore the mode")
+            threading.Thread(
+                target=self.modes.run_schedule,
+                args=(self.stop_event, self.announce),
+                name="abdoh-mode-times",
+                daemon=True,
+            ).start()
         self._status_idle()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)

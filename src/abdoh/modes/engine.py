@@ -13,7 +13,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from abdoh.commands.actions import ActionError
-from abdoh.modes.model import SETTINGS, Mode, ModesFileError
+from abdoh.modes.model import SETTINGS, Mode, ModesFileError, parse_schedule
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +43,7 @@ class ModeEngine:
         self._emit = emit
         self._lock = threading.RLock()
         self._depth = 0  # a mode's actions switching to another mode: once only
+        self._last_tick = ""  # the minute the schedules were last checked
         state = self._load()
         self.current: str | None = state.get("current")
         self.remembered: dict = state.get("remembered", {})
@@ -148,6 +149,42 @@ class ModeEngine:
                     except Exception:
                         log.exception("Couldn't apply %s", key)
             self._emit(mode.name)
+
+    # ----- modes at a time of day -----
+
+    def tick(self, now) -> str | None:
+        """Switch on a mode whose time it is (call at least once a minute). Each time fires
+        once; times that passed while Abdoh was off don't catch up. Returns what was said."""
+        minute = now.strftime("%Y-%m-%d %H:%M")
+        if minute == self._last_tick:
+            return None
+        self._last_tick = minute
+        for mode in self.modes():
+            for entry in mode.schedule:
+                days, hour, mins = parse_schedule(entry)
+                if now.weekday() in days and (now.hour, now.minute) == (hour, mins):
+                    if self.current == mode.name:
+                        return None
+                    log.info("It's %s: %s mode", entry, mode.name)
+                    try:
+                        return self.activate(mode.name)
+                    except ActionError as e:
+                        return str(e)
+        return None
+
+    def run_schedule(self, stop, announce, clock=None, every: float = 20.0) -> None:
+        """Check the schedules until `stop` is set; `announce(text)` says what happened."""
+        from datetime import datetime
+
+        clock = clock or datetime.now
+        while not stop.wait(every):
+            try:
+                said = self.tick(clock())
+            except Exception:
+                log.exception("Mode schedule failed")
+                continue
+            if said:
+                announce(said)
 
     def describe(self) -> str:
         if self.current:

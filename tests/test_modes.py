@@ -428,3 +428,60 @@ def test_the_window_switches_modes_through_abdoh(tmp_path):
         "Abdoh: Back to normal.",
         "Abdoh: You don't have a mode called Party.",
     ]
+
+
+# ----- modes at a time of day -----
+
+
+def test_schedules_are_read():
+    from abdoh.modes.model import parse_schedule
+
+    assert parse_schedule("weekdays 09:00") == (frozenset({0, 1, 2, 3, 4}), 9, 0)
+    assert parse_schedule("daily 23:30")[0] == frozenset(range(7))
+    assert parse_schedule("sat, sun 10:05") == (frozenset({5, 6}), 10, 5)
+    for bad in ("weekdays", "daily 25:00", "someday 09:00", "9am"):
+        with pytest.raises(ValueError):
+            parse_schedule(bad)
+    with pytest.raises(ModesFileError, match="schedule"):
+        parse_modes([{"name": "X", "settings": {"volume": 5}, "schedule": ["soon"]}])
+
+
+def test_a_mode_switches_on_at_its_time_once(tmp_path):
+    from datetime import datetime
+
+    timed = OWNER + '- name: Night\n  settings:\n    volume: 20\n  schedule: ["daily 23:00"]\n'
+    engine, controls, _, shown = make(tmp_path, timed)
+    assert engine.tick(datetime(2026, 11, 17, 22, 59)) is None
+    assert engine.tick(datetime(2026, 11, 17, 23, 0, 5)) == "Night mode."
+    assert engine.tick(datetime(2026, 11, 17, 23, 0, 40)) is None  # the same minute: once
+    engine.deactivate()
+    assert engine.tick(datetime(2026, 11, 17, 23, 1)) is None  # no catching up
+    assert engine.tick(datetime(2026, 11, 18, 23, 0)) == "Night mode."  # the next day
+
+
+def test_weekday_schedules_skip_the_weekend(tmp_path):
+    from datetime import datetime
+
+    timed = OWNER + '- name: Desk\n  settings:\n    volume: 20\n  schedule: ["weekdays 09:00"]\n'
+    engine, *_ = make(tmp_path, timed)
+    assert engine.tick(datetime(2026, 11, 21, 9, 0)) is None  # a Saturday
+    assert engine.tick(datetime(2026, 11, 23, 9, 0)) == "Desk mode."  # Monday
+
+
+def test_the_schedule_runs_until_abdoh_stops(tmp_path):
+    import threading
+    from datetime import datetime
+
+    timed = OWNER + '- name: Night\n  settings:\n    volume: 20\n  schedule: ["daily 23:00"]\n'
+    engine, *_ = make(tmp_path, timed)
+    stop, said = threading.Event(), []
+
+    def announce(text):
+        said.append(text)
+        stop.set()
+
+    at_eleven = lambda: datetime(2026, 11, 17, 23, 0)  # noqa: E731
+    thread = threading.Thread(target=engine.run_schedule, args=(stop, announce, at_eleven, 0.01))
+    thread.start()
+    thread.join(2)
+    assert said == ["Night mode."] and not thread.is_alive()

@@ -38,6 +38,7 @@
     if (s.wake_word === false) chips.push("Wake word off");
     if (s.voice_replies === false) chips.push("Quiet replies");
     if (s.follow_up !== undefined) chips.push(s.follow_up ? "Keeps listening" : "No follow-up");
+    if ((mode.schedule || []).length) chips.push(`At ${mode.schedule[0]}`);
     const n = (mode.actions || []).length;
     if (n) chips.push(`${n} action${n > 1 ? "s" : ""}`);
     return chips;
@@ -186,6 +187,26 @@
     };
   }
 
+  /* "Switch it on at 23:00 every day": the first time in the mode's schedule (more can be
+     written in modes.yaml; they're kept). */
+  const DAY_CHOICES = [["daily", "Every day"], ["weekdays", "Weekdays"], ["weekends", "Weekends"]];
+
+  function schedulePicker(schedule) {
+    const [first, ...rest] = schedule || [];
+    const found = /^(\S.*?)\s+(\d{1,2}):(\d{2})$/.exec(first || "");
+    const on = el("input", { type: "checkbox", class: "switch", checked: !!found, "aria-label": "Switch on by itself" });
+    const time = el("input", { type: "time", class: "input compact", value: found ? `${found[2].padStart(2, "0")}:${found[3]}` : "21:00", "aria-label": "At" });
+    const days = choice(DAY_CHOICES, found ? found[1] : "daily", "On");
+    if (found && !DAY_CHOICES.some(([v]) => v === found[1])) days.append(el("option", { value: found[1], selected: true }, found[1]));
+    const sync = () => { time.disabled = days.disabled = !on.checked; };
+    on.addEventListener("change", sync);
+    sync();
+    return {
+      node: el("div", { class: "set-control" }, on, el("span", {}, "At"), time, days),
+      value: () => (on.checked && time.value ? [`${days.value} ${time.value}`, ...rest] : rest),
+    };
+  }
+
   function openEditor(mode, fromTemplate = false) {
     const editing = mode && !fromTemplate ? mode.name : null;
     const start = mode || { name: "", icon: "sparkles", phrases: [], settings: {}, actions: [], exit_actions: [] };
@@ -207,6 +228,7 @@
     const wake = onOff(s.wake_word, "Listens for its name", "Doesn't listen");
     const voice = onOff(s.voice_replies, "Speaks replies", "Quiet (shows them)");
     const follow = onOff(s.follow_up, "Keeps listening after a reply", "Doesn't");
+    const when = schedulePicker(start.schedule);
     const actions = actionRows(start.actions || [], true);
     const exits = actionRows(start.exit_actions || [], true);
     const error = el("p", { class: "error-text", hidden: true });
@@ -230,6 +252,8 @@
           setRow("Follow-up", follow)),
         el("small", {}, "All of these go back to how they were when you say “back to normal”.")),
       el("div", { class: "field" }, el("label", {}, "Then Abdoh will"), actions.box),
+      el("div", { class: "field" }, el("label", {}, "Switch it on by itself"), when.node,
+        el("small", {}, "Abdoh switches this mode on at that time (while it's running).")),
       el("div", { class: "field" }, el("label", {}, "When the mode ends"), exits.box),
       error);
 
@@ -243,7 +267,7 @@
       };
       Object.keys(settings).forEach((k) => settings[k] === undefined && delete settings[k]);
       return { name: name.value, icon, phrases: phrases.values(), settings,
-        actions: actions.values(), exit_actions: exits.values(), schedule: start.schedule || [] };
+        actions: actions.values(), exit_actions: exits.values(), schedule: when.value() };
     };
 
     const save = async (andTry) => {
