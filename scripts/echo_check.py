@@ -137,7 +137,8 @@ def main() -> int:
 
     print("\nWrongly heard you (should be 0) at each sensitivity:")
     for name in SENSITIVITY:
-        watch = VoiceWatch(Replay([r for _, r in recorder.pairs]), EchoCanceller(), SileroVad())
+        replay = Replay([r for _, r in recorder.pairs])
+        watch = VoiceWatch(replay, EchoCanceller(), SileroVad(), raw_vad=SileroVad())
         watch.sensitivity = name
         false = 0
         for i, (block, _) in enumerate(recorder.pairs):
@@ -158,16 +159,31 @@ def talk_over(cfg, speaker) -> int:
     transcriber = load_transcriber(cfg)
     tap = SpeakerTap()
     tap.start()
-    watch = VoiceWatch(tap, EchoCanceller(), SileroVad(), cfg.voice_interrupt_sensitivity)
+    watch = VoiceWatch(
+        tap, EchoCanceller(), SileroVad(), cfg.voice_interrupt_sensitivity, raw_vad=SileroVad()
+    )
     heard = threading.Event()
+    probe = SileroVad()  # for the timeline only
     started = time.perf_counter()
     threading.Thread(target=lambda: speaker.say(TALK), daemon=True).start()
     audio = b""
+    print("  time   mic level   after cleaning   speech?")
+    row: list[tuple[bytes, bytes]] = []
     with Microphone(device=cfg.mic_device) as mic:
         while time.perf_counter() - started < 30:
             block = mic.read()
             if not heard.is_set():
-                if watch.feed(block, mic.last_time):
+                fired = watch.feed(block, mic.last_time)
+                row.append((block, bytes(watch._recent[-len(block) :])))
+                if len(row) == 5 or fired:  # a timeline line every half second
+                    raw = np.frombuffer(b"".join(b for b, _ in row), np.int16)
+                    clean = b"".join(c for _, c in row)
+                    chance = probe.speech_prob(clean)
+                    print(f"  {time.perf_counter() - started:4.1f}s   {dbfs(raw):5.0f} dBFS"
+                          f"   {dbfs(np.frombuffer(clean, np.int16)):5.0f} dBFS"
+                          f"       {chance:.2f}")  # fmt: skip
+                    row = []
+                if fired:
                     heard.set()
                     speaker.stop()
                     print(f"Heard you {time.perf_counter() - started:.1f} s after Abdoh started.")

@@ -809,4 +809,6 @@ def make_voice_watch(cfg: Config):
     tap = SpeakerTap()
     if canceller is not None:
         tap.start()
-    return VoiceWatch(tap, canceller, load_vad(), cfg.voice_interrupt_sensitivity)
+    return VoiceWatch(
+        tap, canceller, load_vad(), cfg.voice_interrupt_sensitivity, raw_vad=load_vad()
+    )

@@ -329,3 +329,49 @@ def test_the_stream_follows_a_clock_that_drifts():
         watch.feed(tone(0.1, 0).tobytes(), 10.0 + i * 0.101)
     expected = 10.0 + 199 * 0.101 - 0.04
     assert abs(tap.ends[-1] - expected) < 0.05
+
+
+# ----- a microphone that hardly hears Abdoh -----
+
+
+class Muffler:
+    """An echo canceller that hasn't learned anything yet: it muffles everything."""
+
+    def clean(self, mic, speakers):
+        return bytes(len(mic))
+
+
+def raw_watch(tap_level=3000, sensitivity="medium"):
+    return VoiceWatch(StillTap(tap_level), Muffler(), FakeVad(), sensitivity, raw_vad=FakeVad())
+
+
+def test_where_abdoh_barely_reaches_the_mic_your_voice_counts_at_once():
+    watch = raw_watch()
+    quiet = [tone(0.1, 2).tobytes()] * 12  # Abdoh plays loudly; the mic hears almost nothing
+    assert feed_blocks(watch, quiet) is None
+    assert watch.echo_gain() < 0.01
+    assert feed_blocks(watch, [tone(0.1, 3000).tobytes()]) == 0  # you: heard in one block
+    assert np.frombuffer(watch.pre_roll(), np.int16)[-1] == 3000  # your words, not muffled
+
+
+def test_where_abdoh_is_loud_at_the_mic_its_echo_never_counts():
+    watch = raw_watch()
+    echo = [tone(0.1, 3000).tobytes()] * 30  # the mic hears Abdoh as loudly as it plays
+    assert feed_blocks(watch, echo) is None
+    assert 0.9 < watch.echo_gain() < 1.1
+    assert feed_blocks(watch, [tone(0.1, 6000).tobytes()] * 5) is None  # not 12 dB above it
+    assert feed_blocks(watch, [tone(0.1, 20000).tobytes()]) == 0  # far louder: that's you
+
+
+def test_until_it_knows_the_room_the_raw_mic_only_counts_when_nothing_plays():
+    playing = raw_watch(tap_level=3000)
+    assert feed_blocks(playing, [tone(0.1, 3000).tobytes()] * 3) is None  # might be echo
+    silent = raw_watch(tap_level=0)
+    assert feed_blocks(silent, [tone(0.1, 3000).tobytes()]) == 0  # nothing to be an echo of
+
+
+def test_what_it_learned_about_the_room_outlasts_a_reply():
+    watch = raw_watch()
+    feed_blocks(watch, [tone(0.1, 2).tobytes()] * 12)
+    watch.idle()
+    assert watch.echo_gain() < 0.01
