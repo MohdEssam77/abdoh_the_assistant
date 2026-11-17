@@ -1,8 +1,8 @@
 # CLAUDE.md
 
-Abdoh is a simple, voice-first personal assistant. `ABDOH_EPIC_4.md` is the current source of
-truth: work through its stories in order. Epics 1 to 3 (`ABDOH_EPIC.md`, `ABDOH_EPIC_2.md`,
-`ABDOH_EPIC_3.md`) are done; their architecture still applies unless epic 4 changes it.
+Abdoh is a simple, voice-first personal assistant. `ABDOH_EPIC_5.md` is the current source of
+truth: work through its stories in order. Epics 1 to 4 (`ABDOH_EPIC.md` to `ABDOH_EPIC_4.md`)
+are done; their architecture still applies unless epic 5 changes it.
 
 ## Working rules
 
