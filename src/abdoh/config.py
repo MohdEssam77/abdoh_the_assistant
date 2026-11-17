@@ -34,7 +34,7 @@ DEFAULT_APP_DIR = _default_app_dir()
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
-CONFIG_VERSION = 3
+CONFIG_VERSION = 4
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -44,10 +44,12 @@ CLAUDE_ACTIONS = (
     "timer",
     "volume",
     "brightness",
+    "app_volume",
     "remind",
     "note",
 )
-NEW_ACTIONS = {3: ("volume", "brightness", "remind", "note")}  # by the config version adding them
+# By the config version that added them: switched on for people upgrading from before it.
+NEW_ACTIONS = {3: ("volume", "brightness", "remind", "note"), 4: ("app_volume",)}
 
 
 @dataclass
@@ -89,6 +91,8 @@ class Config:
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
+    duck_others: bool = True  # other apps go quieter while Abdoh listens and answers
+    duck_percent: int = 30  # ... to this share of their volume
     max_record_seconds: float = 10
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice
@@ -239,8 +243,12 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
 
     log_path = config.resolve(config.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+    # The log has what you said in it: keep today's and yesterday's only. (Abdoh 0.4 kept
+    # numbered backups of any age: remove them.)
+    for number in (1, 2, 3):
+        log_path.with_name(f"{log_path.name}.{number}").unlink(missing_ok=True)
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        log_path, when="midnight", backupCount=1, encoding="utf-8"
     )
     file_handler.setFormatter(fmt)
     root.addHandler(file_handler)

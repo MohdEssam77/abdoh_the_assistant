@@ -133,6 +133,12 @@ back to its old, simple window.
   `python scripts/echo_check.py` (it speaks two sentences; `--talk` lets you try talking over it).
 - **Interrupt with the wake word**: say "Hey Abdoh" while it's talking (or press the hotkey) to
   stop it and say something new.
+- **Other sounds go down while you talk**: from the wake word until Abdoh has answered, every
+  other app that is playing (your browser, Spotify, a film) drops to 30% of its volume in the
+  Windows volume mixer, then comes back. Abdoh's own voice stays as it is, and an app you turned
+  up or down yourself meanwhile keeps your volume.
+- **Only today's conversation**: the chat in the window starts empty every day. The log file
+  (which also has what you said) keeps today's and yesterday's only.
 - **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window
   shows what it's doing ("Searching the web…"), and after a few quiet seconds Abdoh says it's
   still on it.
@@ -314,6 +320,9 @@ These work instantly, without Claude (your own commands still come first):
   lines in `notes.txt` in Abdoh's data folder)
 - **Volume**: "set the volume to 70 percent", "volume up", "turn it down", "mute", "unmute",
   "what's the volume"
+- **One app's volume** (the Windows volume mixer): "lower the browser", "turn up Spotify",
+  "set the browser to 30 percent", "mute Discord", "unmute Discord", "what's playing?".
+  "Browser" (or "YouTube") means every web browser.
 - **Music**: "pause", "play", "next song", "previous song"
 - **Screen**: "set the brightness to 60", "brighter", "dim the screen" (a laptop's own screen),
   "take a screenshot" (saved in Pictures\Screenshots)
@@ -327,11 +336,12 @@ These work instantly, without Claude (your own commands still come first):
 - **Talking**: "repeat that", "what can you do", and "thanks" or "never mind" to end a
   conversation
 
-Claude can also set the volume and the brightness, add reminders and take notes when you ask in
+Claude can also set the volume, one app's volume and the brightness, add reminders and take notes when you ask in
 your own words ("wake me in half an hour", "jot down that I owe Sam ten euros"); each of these
 can be turned off on the Permissions page. Claude can never type for you.
 
-Your own commands can use `volume: 30`, `brightness: 70` and `type: some text` as actions too.
+Your own commands can use `volume: 30`, `app_volume: browser 30`, `brightness: 70` and
+`type: some text` as actions too.
 
 These skills are Windows-only for now.
 
@@ -476,6 +486,8 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
+| `duck_others` | `true` | Other apps go quieter while Abdoh listens and answers |
+| `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |
 | `tts_voice` | `""` | A Windows voice's name; empty means the default voice |
 | `mic_device` | `""` | A microphone's name; empty means Windows' default microphone |
@@ -491,14 +503,14 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
 | `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it |
-| `claude.actions` | all nine | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `remind`, `note` |
+| `claude.actions` | all ten | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note` |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | API key only: a question this soon after an answer can follow up on it (0 = off). Claude Code remembers the whole conversation by itself |
 | `claude.listen_after_question` | `true` | When Claude asks you something, listen for your answer without the wake word |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |
-| `log_file` | `~/.abdoh/abdoh.log` | Log file |
+| `log_file` | `~/.abdoh/abdoh.log` | Log file (today's and yesterday's) |
 
 ## Troubleshooting
 

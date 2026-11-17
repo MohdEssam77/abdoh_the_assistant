@@ -1,11 +1,14 @@
-"""Windows' own volume controls (Core Audio): the speakers' and a microphone's volume and mute.
+"""Windows' own volume controls (Core Audio): the speakers' and a microphone's volume and mute,
+and each app's volume in the volume mixer.
 
-Thin wrappers over COM through comtypes; everything else uses the small `Endpoint` class, which
-tests replace with a fake.
+Thin wrappers over COM through comtypes; everything else uses the small `Endpoint` class and
+the plain `AppSession` values, which tests replace with fakes.
 """
 
 import logging
+import os
 import sys
+from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 
@@ -99,7 +102,58 @@ def _com():
                       (["out"], POINTER(POINTER(IMMDevice)), "device")),
         )  # fmt: skip
 
+    class ISimpleAudioVolume(IUnknown):
+        _iid_ = GUID("{87CE5498-68D6-44E5-9215-6DA47EF883D8}")
+        _methods_ = (
+            COMMETHOD([], HRESULT, "SetMasterVolume",
+                      (["in"], c_float, "level"), (["in"], c_void_p, "context")),
+            COMMETHOD([], HRESULT, "GetMasterVolume", (["out"], POINTER(c_float), "level")),
+            COMMETHOD([], HRESULT, "SetMute",
+                      (["in"], c_int, "mute"), (["in"], c_void_p, "context")),
+            COMMETHOD([], HRESULT, "GetMute", (["out"], POINTER(c_int), "mute")),
+        )  # fmt: skip
+
+    class IAudioSessionControl2(IUnknown):
+        _iid_ = GUID("{BFB7FF88-7239-4FC9-8FA2-07C950BE9C6D}")
+        _methods_ = (
+            COMMETHOD([], HRESULT, "GetState", (["out"], POINTER(c_int), "state")),
+            COMMETHOD([], HRESULT, "GetDisplayName", (["out"], POINTER(c_void_p), "name")),
+            unused("SetDisplayName"),
+            unused("GetIconPath"),
+            unused("SetIconPath"),
+            unused("GetGroupingParam"),
+            unused("SetGroupingParam"),
+            unused("RegisterAudioSessionNotification"),
+            unused("UnregisterAudioSessionNotification"),
+            # IAudioSessionControl2's own methods
+            unused("GetSessionIdentifier"),
+            COMMETHOD([], HRESULT, "GetSessionInstanceIdentifier",
+                      (["out"], POINTER(c_void_p), "id")),
+            COMMETHOD([], HRESULT, "GetProcessId", (["out"], POINTER(c_uint), "pid")),
+        )  # fmt: skip
+
+    class IAudioSessionEnumerator(IUnknown):
+        _iid_ = GUID("{E2F5BB11-0570-40CA-ACDD-3AA01277DEE8}")
+        _methods_ = (
+            COMMETHOD([], HRESULT, "GetCount", (["out"], POINTER(c_int), "count")),
+            COMMETHOD([], HRESULT, "GetSession",
+                      (["in"], c_int, "index"),
+                      (["out"], POINTER(POINTER(IUnknown)), "session")),
+        )  # fmt: skip
+
+    class IAudioSessionManager2(IUnknown):
+        _iid_ = GUID("{77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F}")
+        _methods_ = (
+            unused("GetAudioSessionControl"),
+            unused("GetSimpleAudioVolume"),
+            COMMETHOD([], HRESULT, "GetSessionEnumerator",
+                      (["out"], POINTER(POINTER(IAudioSessionEnumerator)), "sessions")),
+        )  # fmt: skip
+
     _com.cache = {
+        "sessions": IAudioSessionManager2,
+        "session": IAudioSessionControl2,
+        "app_volume": ISimpleAudioVolume,
         "enumerator": IMMDeviceEnumerator,
         "volume": IAudioEndpointVolume,
         "clsid": GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"),
@@ -190,6 +244,123 @@ class Endpoint:
 
     def set_muted(self, muted: bool) -> None:
         self._volume.SetMute(1 if muted else 0, None)
+
+
+# ----- each app's volume (the volume mixer) -----
+
+ACTIVE_SESSION = 1  # AudioSessionStateActive: the app is playing sound right now
+
+
+@dataclass(frozen=True)
+class AppSession:
+    """One app's sound in the volume mixer, as plain values. `volume` is 0 to 100, relative to
+    the speakers' volume (what the mixer's slider shows)."""
+
+    id: str  # the session's instance id: finds it again later
+    pid: int
+    program: str  # "brave", "spotify" ("" for Windows' system sounds)
+    name: str  # what the mixer calls it, when the app named it
+    volume: int
+    muted: bool
+    playing: bool
+
+
+def _take_string(pointer) -> str:
+    import ctypes
+
+    if not pointer:
+        return ""
+    try:
+        return ctypes.wstring_at(pointer)
+    finally:
+        ctypes.windll.ole32.CoTaskMemFree(ctypes.c_void_p(pointer))
+
+
+def process_name(pid: int) -> str:
+    """The program a process runs ("chrome"), without ".exe"; "" if Windows won't say."""
+    if sys.platform != "win32" or not pid:
+        return ""
+    import ctypes
+    from ctypes import wintypes
+
+    process = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFO
+    if not process:
+        return ""
+    try:
+        size = wintypes.DWORD(1024)
+        buffer = ctypes.create_unicode_buffer(size.value)
+        if not ctypes.windll.kernel32.QueryFullProcessImageNameW(
+            process, 0, buffer, ctypes.byref(size)
+        ):
+            return ""
+        name = os.path.basename(buffer.value)
+        return name[:-4] if name.lower().endswith(".exe") else name
+    finally:
+        ctypes.windll.kernel32.CloseHandle(process)
+
+
+def _sessions():
+    """(AppSession, ISimpleAudioVolume) for every app on every active output."""
+    import comtypes
+
+    try:
+        comtypes.CoInitialize()
+    except OSError:
+        pass  # this thread already uses COM another way
+    com = _com()
+    devices = comtypes.CoCreateInstance(com["clsid"], com["enumerator"], comtypes.CLSCTX_ALL)
+    outputs = devices.EnumAudioEndpoints(RENDER, ACTIVE)
+    for d in range(outputs.GetCount()):
+        manager = outputs.Item(d).Activate(com["sessions"]._iid_, comtypes.CLSCTX_ALL, None)
+        found = manager.QueryInterface(com["sessions"]).GetSessionEnumerator()
+        for i in range(found.GetCount()):
+            try:
+                raw = found.GetSession(i)
+                control = raw.QueryInterface(com["session"])
+                volume = raw.QueryInterface(com["app_volume"])
+                pid = control.GetProcessId()
+                session = AppSession(
+                    id=_take_string(control.GetSessionInstanceIdentifier()),
+                    pid=pid,
+                    program=process_name(pid),
+                    name=_take_string(control.GetDisplayName()),
+                    volume=round(volume.GetMasterVolume() * 100),
+                    muted=bool(volume.GetMute()),
+                    playing=control.GetState() == ACTIVE_SESSION,
+                )
+            except Exception:
+                log.debug("Skipped an audio session", exc_info=True)
+                continue
+            yield session, volume
+
+
+def app_sessions() -> list[AppSession]:
+    """Every app in the volume mixer (Windows only; [] elsewhere or if it can't be read)."""
+    if sys.platform != "win32":
+        return []
+    try:
+        return [session for session, _ in _sessions()]
+    except Exception as e:
+        log.warning("Couldn't read the volume mixer: %s", e)
+        return []
+
+
+def set_session_volume(session_id: str, percent: float | None = None, muted=None) -> bool:
+    """Change one app's volume (0 to 100) or mute, found by its session id. False if it's gone."""
+    if sys.platform != "win32":
+        return False
+    try:
+        for session, volume in _sessions():
+            if session.id != session_id:
+                continue
+            if percent is not None:
+                volume.SetMasterVolume(max(0.0, min(1.0, percent / 100)), None)
+            if muted is not None:
+                volume.SetMute(1 if muted else 0, None)
+            return True
+    except Exception as e:
+        raise AudioError(f"Windows' volume mixer isn't available: {e}") from e
+    return False
 
 
 def speaker() -> Endpoint:

@@ -1,6 +1,6 @@
 # Abdoh configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
 
-config_version: 3                # written by Abdoh, for upgrading this file; don't change it
+config_version: 4                # written by Abdoh, for upgrading this file; don't change it
 wake_words: ["abdoh", "hey abdoh", "ya abdoh"]
 # Your openWakeWord model (see README: train the wake word). Without it, Vosk is used.
 wake_word_model: "models/hey_abdoh.onnx"
@@ -19,6 +19,8 @@ follow_up_seconds: 6             # after Claude answers, keep listening this lon
 wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
 voice_interrupts: true           # or just start talking: Abdoh goes quiet and listens
 voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Abdoh
+duck_others: true                # other apps (music, videos) go quieter while Abdoh listens
+duck_percent: 30                 # ... to this share of their own volume
 tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # a voice's name (pick one in the app); "" = Windows' default voice
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default
@@ -39,7 +41,7 @@ claude:
   folders: []                    # where Claude may work with files; [] = your home folder
   allow_screen: true             # let Claude look at your screen when you ask about it
   # What Claude may do on the computer (turn them on and off on the Permissions page):
-  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "remind", "note"]
+  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note"]
   instructions: ""               # your own instructions for Claude, sent with every request
   timeout_seconds: 120
   followup_seconds: 60           # a question within this time can follow up on the last answer

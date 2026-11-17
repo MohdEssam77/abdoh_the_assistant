@@ -7,6 +7,7 @@ the installed-app list are Windows features; elsewhere they say so politely.
 
 import json
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -354,6 +355,63 @@ class Computer:
         except ActionError:
             self._press_key("mute")  # the mute key at least toggles it
 
+    # ----- each app's volume (the volume mixer) -----
+
+    def _mixer(self):
+        if self._audio is None:
+            from abdoh import winaudio
+
+            self._audio = winaudio
+        return self._audio
+
+    def find_app_audio(self, name: str) -> list:
+        """The mixer's sessions for an app you named ("the browser", "Spotify"); [] if none.
+        Abdoh's own sound never counts."""
+        return find_sessions(name, self._mixer().app_sessions())
+
+    def _app_sessions(self, name: str) -> list:
+        found = self.find_app_audio(name)
+        if not found:
+            raise ActionError(f"I can't find {name.strip()} in the volume mixer.")
+        return found
+
+    def app_volume(self, name: str) -> tuple[str, int]:
+        """(the app's name, its volume 0 to 100)."""
+        found = self._app_sessions(name)
+        return app_label(found[0]), max(s.volume for s in found)
+
+    def set_app_volume(self, name: str, percent: float) -> str:
+        """Set an app's volume (0 to 100, unmuting it). Returns the app's name."""
+        found = self._app_sessions(name)
+        level = max(0, min(100, round(percent)))
+        for session in found:
+            self._mixer().set_session_volume(session.id, level, muted=False if level else None)
+        return app_label(found[0])
+
+    def change_app_volume(self, name: str, step: int) -> tuple[str, int]:
+        """Turn an app up (step > 0) or down. Returns (its name, the new volume)."""
+        label, now = self.app_volume(name)
+        level = max(0, min(100, now + step))
+        self.set_app_volume(name, level)
+        return label, level
+
+    def mute_app(self, name: str, muted: bool) -> str:
+        found = self._app_sessions(name)
+        for session in found:
+            self._mixer().set_session_volume(session.id, muted=muted)
+        return app_label(found[0])
+
+    def playing_apps(self) -> list[str]:
+        """The apps making sound right now (not Abdoh itself, not Windows' system sounds)."""
+        own = os.getpid()
+        names = []
+        for session in self._mixer().app_sessions():
+            if session.playing and session.pid not in (0, own):
+                label = app_label(session)
+                if label not in names:
+                    names.append(label)
+        return names
+
     # ----- screen, battery, keyboard, windows -----
 
     def _on_desk(self):
@@ -422,3 +480,61 @@ class Computer:
         when, what, said = parsed
         self.reminders.add(when, what)
         return said
+
+
+# ----- naming the apps in the volume mixer -----
+
+BROWSERS = ("chrome", "msedge", "brave", "firefox", "opera", "vivaldi", "arc", "browser")
+# What you might call an app -> the programs it means.
+APP_ALIASES = {
+    "browser": BROWSERS,
+    "web browser": BROWSERS,
+    "internet": BROWSERS,
+    "youtube": BROWSERS,
+    "netflix": (*BROWSERS, "netflix"),
+    "video": BROWSERS,
+    "edge": ("msedge",),
+    "microsoft edge": ("msedge",),
+    "google chrome": ("chrome",),
+    "teams": ("ms-teams", "teams"),
+    "music": ("spotify", "music.ui", "applemusic", "itunes"),
+}
+NICE_NAMES = {"msedge": "Edge", "ms-teams": "Teams", "music.ui": "Media Player"}
+_FILLER_WORDS = re.compile(r"^(?:the|my) |(?: app| application| volume| sound| audio| tab)+$")
+
+
+def app_label(session) -> str:
+    """A name to say for a mixer session: "Brave", "Spotify", "WhatsApp"."""
+    program = session.program or ""
+    if program.lower() in NICE_NAMES:
+        return NICE_NAMES[program.lower()]
+    name = session.name if session.name and not session.name.startswith("@") else program
+    name = name.split(".")[0] or "Windows sounds"
+    return name[:1].upper() + name[1:]
+
+
+def find_sessions(name: str, sessions) -> list:
+    """The sessions an app's spoken name means: by alias ("browser"), program or mixer name;
+    a close spelling if nothing matches exactly. Never Abdoh's own."""
+    wanted = _FILLER_WORDS.sub("", " ".join(name.lower().split()))
+    wanted = _FILLER_WORDS.sub("", wanted).strip()
+    if not wanted:
+        return []
+    own = os.getpid()
+    candidates = [s for s in sessions if s.pid not in (0, own)]
+    programs = APP_ALIASES.get(wanted, ())
+    squeezed = wanted.replace(" ", "")
+
+    def exact(s) -> bool:
+        program = (s.program or "").lower()
+        label = app_label(s).lower()
+        return (
+            program in programs
+            or squeezed in (program, label.replace(" ", ""))
+            or (len(squeezed) >= 4 and (squeezed in program or squeezed in label.replace(" ", "")))
+        )
+
+    found = [s for s in candidates if exact(s)]
+    if found or len(squeezed) < 4:
+        return found
+    return [s for s in candidates if fuzz.ratio(squeezed, (s.program or "").lower()) >= 80]

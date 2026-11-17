@@ -467,3 +467,37 @@ def test_every_file_the_page_loads_exists():
     for ref in re.findall(r'(?:src|href)="([^":#?]+)"', html):
         assert (WEB_DIR / ref).is_file(), ref
     assert Path(WEB_DIR / "app.css").is_file()
+
+
+# ----- only today's conversation -----
+
+
+def test_a_new_day_starts_with_an_empty_conversation():
+    from datetime import date
+
+    day = {"today": date(2026, 11, 17)}
+    state = UiState(today=lambda: day["today"])
+    state.feed("history", "You: what time is it")
+    state.feed("history", "Abdoh: It's 11 PM.")
+    state.drain()
+    day["today"] = date(2026, 11, 18)  # midnight passed with the window open
+    assert state.drain() == [("clear", None)]  # the page empties the chat
+    assert state.snapshot()["history"] == []
+    state.feed("history", "You: good morning")
+    assert state.snapshot()["history"] == ["You: good morning"]
+    assert state.drain() == []  # cleared once, not again
+
+
+def test_a_page_opened_on_a_new_day_shows_nothing_old():
+    from datetime import date
+
+    day = {"today": date(2026, 11, 17)}
+    state = UiState(today=lambda: day["today"])
+    state.feed("history", "You: something from yesterday")
+    day["today"] = date(2026, 11, 18)
+    assert state.snapshot()["history"] == []
+
+
+def test_the_page_can_clear_the_chat():
+    script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
+    assert "clear: clearHistory" in script

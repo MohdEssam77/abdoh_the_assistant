@@ -13,6 +13,7 @@ import threading
 import webbrowser
 from collections import deque
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 
 from abdoh import __version__
@@ -29,11 +30,17 @@ MIC_VOLUME = 90  # what "turn my microphone up" sets it to
 
 
 class UiState:
-    """What the page shows, kept in Python: a page that (re)loads late still shows it all."""
+    """What the page shows, kept in Python: a page that (re)loads late still shows it all.
+
+    The conversation is today's only: at the first sign of a new day it is emptied, and the
+    page is told to clear the chat (("clear", None)).
+    """
 
     HISTORY = 200
 
-    def __init__(self):
+    def __init__(self, today=date.today):
+        self._today = today
+        self._day = today()
         self._lock = threading.Lock()
         self._pending: list[tuple[str, object]] = []
         self._status = "Starting..."
@@ -43,9 +50,18 @@ class UiState:
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
 
+    def _new_day(self) -> None:
+        """Called with the lock held: a new day starts with an empty conversation."""
+        today = self._today()
+        if today != self._day:
+            self._day = today
+            self._history.clear()
+            self._pending.append(("clear", None))
+
     def feed(self, kind: str, value) -> None:
         """An event from the daemon (or the app): remember it and queue it for the page."""
         with self._lock:
+            self._new_day()
             if kind == "status":
                 self._status = value
             elif kind == "claude":
@@ -62,12 +78,14 @@ class UiState:
 
     def drain(self) -> list[tuple[str, object]]:
         with self._lock:
+            self._new_day()  # the page asks often: a chat left open clears at midnight
             pending, self._pending = self._pending, []
             return pending
 
     def snapshot(self) -> dict:
         """Everything so far. Queued events are dropped: the snapshot already has them."""
         with self._lock:
+            self._new_day()
             self._pending.clear()
             return {
                 "status": self._status,
