@@ -43,6 +43,8 @@ def listen_for_request(
     answer: bool = False,
     on_nothing: Callable[[int], None] = lambda loudest: None,
     answer_wait: float = ANSWER_WAIT_SECONDS,
+    observe: Callable[[bytes], bool] | None = None,
+    on_voice: Callable[[object], str] = lambda mic: "",
 ) -> str | None:
     """Wait for the wake word and return the request that was said, or None if stopped.
 
@@ -59,12 +61,19 @@ def listen_for_request(
     way; "" if you don't start talking within `answer_wait` seconds.
     When nothing is said after the hotkey or a question, `on_nothing(loudest)` gets the loudest
     sample level heard meanwhile (close to 0 means the microphone is muted).
+    While waiting, every block also goes to `observe`; when it returns True (you talked over a
+    reply), what `on_voice(mic)` returns is the request.
     """
     if answer:
         return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen, answer_wait, on_nothing)
-    trigger = wait_for_trigger(mic.read, engine, should_stop, pressed)
+    trigger = wait_for_trigger(mic.read, engine, should_stop, pressed, observe)
     if trigger is None:
         return None
+    if trigger == "voice":
+        text = on_voice(mic)
+        mic.clear()
+        engine.reset()
+        return text
     if trigger == "hotkey":
         return _push_to_talk(
             mic, engine, transcriber, cfg, vad, on_listen, PUSH_TO_TALK_WAIT_SECONDS, on_nothing
@@ -74,7 +83,7 @@ def listen_for_request(
         return _after_wake_word(mic, engine, transcriber, speaker, cfg, vad, on_listen)
     t_wake = time.perf_counter()
     before = mic.recent()
-    is_speech = _speech_detector(vad, before)
+    is_speech = speech_detector(vad, before)
     after = record_until_silence(
         mic.read,
         is_speech,
@@ -115,7 +124,7 @@ def listen_for_request(
 
 def _after_wake_word(mic, engine, transcriber, speaker, cfg: Config, vad, on_listen) -> str:
     """The request said right after a trusted wake word (the wake word itself is left out)."""
-    is_speech = _speech_detector(vad, mic.recent())
+    is_speech = speech_detector(vad, mic.recent())
     on_listen()  # heard you; keep talking
     audio = record_until_silence(
         mic.read,
@@ -162,7 +171,7 @@ def _push_to_talk(
     on_listen()  # the "listening" chime
     time.sleep(CHIME_SECONDS)
     mic.clear()  # start fresh, without the chime (or the end of Abdoh's own reply)
-    is_speech = _speech_detector(vad, b"")
+    is_speech = speech_detector(vad, b"")
     loudest = 0
 
     def read() -> bytes:
@@ -186,7 +195,7 @@ def _push_to_talk(
     return text
 
 
-def _speech_detector(vad, before: bytes) -> Callable[[bytes], bool]:
+def speech_detector(vad, before: bytes) -> Callable[[bytes], bool]:
     if vad is None:
         return energy_detector(estimate_threshold(before))
     vad.reset()

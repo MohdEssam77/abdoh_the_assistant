@@ -347,6 +347,8 @@ function renderHowToTalk() {
 function setClaude(text) { $("#side-claude").textContent = `Claude: ${text}`; }
 function setWake(text) { $("#side-wake").textContent = `Wake word: ${text}`; }
 function setVoice(on) { $("#voice-toggle").checked = !!on; }
+// Why Abdoh can't hear you over its own voice ("" when it can).
+function setHearing(why) { App.hearing = why || ""; }
 
 /* ---------- events from Abdoh ---------- */
 
@@ -360,6 +362,7 @@ const HANDLERS = {
   history: addHistory,
   claude: setClaude,
   wake: setWake,
+  hearing: setHearing,
   voice: setVoice,
   page: showPage,
 };
@@ -463,6 +466,7 @@ async function start() {
   (state.history || []).forEach(addHistory);
   if (state.claude) setClaude(state.claude);
   if (state.wake) setWake(state.wake);
+  setHearing(state.hearing);
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");
   renderHowToTalk();

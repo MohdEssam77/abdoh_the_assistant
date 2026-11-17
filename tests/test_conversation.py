@@ -149,10 +149,10 @@ def test_the_watch_ends_with_the_reply():
 def test_no_watch_without_a_trained_model_or_when_turned_off():
     daemon, _ = make_daemon("", FakeWakeWord(fire_on=1))  # Vosk would hear Abdoh's own voice
     daemon.mic = FakeMic([])
-    assert daemon._watch_for_wake_word() is None
+    assert daemon._watch_reply() is None
     off, _ = make_daemon("", TrainedWakeWord(), Config(wake_word_interrupts=False))
     off.mic = FakeMic([])
-    assert off._watch_for_wake_word() is None
+    assert off._watch_reply() is None
 
 
 def test_the_wake_word_also_stops_a_typed_requests_reply():

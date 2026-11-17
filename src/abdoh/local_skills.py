@@ -7,6 +7,7 @@ import re
 from datetime import datetime, timedelta
 
 from abdoh.commands.actions import ActionError
+from abdoh.commands.matcher import normalize
 from abdoh.computer import _NUMBERS, parse_duration
 from abdoh.desk import calculate, clock_text, parse_clock
 
@@ -96,6 +97,17 @@ _DONE = re.compile(
     r"(?:no |okay |ok )?(?:thanks|thank you|thanks a lot|thank you very much|thats all|thats it"
     r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye)(?: abdoh)?"
 )
+# What you might say while Abdoh is talking: sounds, "I'm listening", and "be quiet".
+_FILLER = re.compile(r"(?:(?:uh|um|umm|hmm|hm|mm|mmm|ah|er|erm|oh)\s*)+")
+_BACKCHANNEL = re.compile(
+    r"(?:okay|ok|yeah|yes|yep|right|i see|got it|sure|uh huh|mm hmm|mhm|wow|nice|cool|really"
+    r"|oh|alright|all right|go on|continue|keep going|and|so)(?: (?:okay|ok|yeah|right|sure))?"
+)
+_HUSH = re.compile(
+    r"(?:okay |ok )?(?:wait|hold on|one second|one sec|one moment|just a (?:second|moment)|enough"
+    r"|thats enough|be quiet|quiet|shut up|stop talking|stop it|pause|shh+|hush)"
+    r"(?: (?:please|abdoh|a second|a moment))?"
+)
 _LOCK = re.compile(r"lock (?:my |the )?(?:computer|pc|laptop|screen|workstation)")
 _OPEN = re.compile(r"(?:open|launch|start) (?P<app>.+)")
 
@@ -105,6 +117,20 @@ HELP = (
     "the volume and the brightness, open apps and websites, play things on YouTube, type what "
     "you dictate, take screenshots, and ask Claude about everything else."
 )
+
+
+def interruption_kind(text: str) -> str:
+    """What you said while Abdoh was talking: "nothing" (no words, or "um"), "backchannel"
+    ("okay", "right": Abdoh goes on), "stop" ("wait", "thanks", "stop": it goes quiet) or
+    "request" (anything else: it stops and does that instead)."""
+    words = normalize(text)
+    if not words or _FILLER.fullmatch(words):
+        return "nothing"
+    if _BACKCHANNEL.fullmatch(words):
+        return "backchannel"
+    if _DONE.fullmatch(words) or _HUSH.fullmatch(words):
+        return "stop"
+    return "request"
 
 
 def spoken_number(text: str) -> int | None:

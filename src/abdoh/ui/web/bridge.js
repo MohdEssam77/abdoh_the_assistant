@@ -13,7 +13,7 @@ const Bridge = (() => {
       wake_words: ["abdoh", "hey abdoh", "ya abdoh"], wake_word_aliases: ["abdo", "ab doe"],
       wake_word_model: "models/hey_abdoh.onnx", wake_word_threshold: 0.5, hotkey: "ctrl+alt+space",
       vosk_model: "", whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
-      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, wake_word_interrupts: true, tts_rate: 175, tts_voice: "", mic_device: "",
+      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, wake_word_interrupts: true, voice_interrupts: true, voice_interrupt_sensitivity: "medium", tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, check_updates: true, setup_done: true, log_file: "~/.abdoh/abdoh.log",
       has_api_key: false,
       claude: {
@@ -61,7 +61,7 @@ const Bridge = (() => {
       demo: true,
       boot: async () => ({
         version: "0.4.0", platform: "win32", demo: true, settings,
-        state: { status: "Starting...", claude: "", wake: "", voice: true, history },
+        state: { status: "Starting...", claude: "", wake: "", hearing: "", voice: true, history },
       }),
       events: async () => queue.splice(0),
       send: async (text) => {

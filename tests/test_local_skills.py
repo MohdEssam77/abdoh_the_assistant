@@ -379,3 +379,37 @@ def test_repeat_that():
 
 def test_what_can_you_do(skills):
     assert skills.handle("what can you do") == HELP
+
+
+# ----- what you say while Abdoh is talking -----
+
+
+def test_what_an_interruption_means():
+    from abdoh.local_skills import interruption_kind
+
+    cases = {
+        "nothing": ["", "Um.", "uh, hmm", "mm hmm", "Er..."],
+        "backchannel": ["Okay.", "Yeah, right.", "I see", "Go on", "Got it", "Alright", "wow"],
+        "stop": [
+            "Wait.",
+            "Hold on a second",
+            "Thanks!",
+            "Stop.",
+            "Be quiet please",
+            "Enough",
+            "That's enough",
+            "no",
+            "never mind",
+            "shh",
+        ],  # fmt: skip
+        "request": [
+            "What about tomorrow?",
+            "Okay, and what about Paris?",
+            "stop the music",
+            "wait what did you say about the capital",
+            "open notepad",
+        ],  # fmt: skip
+    }
+    for kind, texts in cases.items():
+        for text in texts:
+            assert interruption_kind(text) == kind, text

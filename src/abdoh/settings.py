@@ -50,7 +50,11 @@ _RANGES = {
     "claude.followup_seconds": (0, 3600),
     "claude.voice_reply_max_sentences": (1, 20),
 }
-_CHOICES = {"claude.backend": CLAUDE_BACKENDS, "speech_engine": SPEECH_ENGINES}
+_CHOICES = {
+    "claude.backend": CLAUDE_BACKENDS,
+    "speech_engine": SPEECH_ENGINES,
+    "voice_interrupt_sensitivity": ("low", "medium", "high"),
+}
 _LIST_CHOICES = {"claude.actions": CLAUDE_ACTIONS}
 _NULLABLE: set[str] = set()
 LABELS = {
@@ -66,6 +70,7 @@ LABELS = {
     "whisper_model": "Speech recognition model",
     "languages": "Languages",
     "speech_engine": "Speech recognition",
+    "voice_interrupt_sensitivity": "How easily your voice stops Abdoh",
     "claude.actions": "Things Claude may do",
     "claude.folders": "Folders Claude may use",
     "claude.instructions": "Your instructions",
