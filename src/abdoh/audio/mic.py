@@ -2,6 +2,7 @@
 
 import logging
 import queue
+import time
 from collections import deque
 
 import numpy as np
@@ -106,7 +107,7 @@ class Microphone:
     def __exit__(self, *exc) -> None:
         self.stop()
 
-    def _callback(self, indata, frames, time, status) -> None:
+    def _callback(self, indata, frames, timing, status) -> None:
         if status:
             log.debug("Mic status: %s", status)
         block = bytes(indata)
