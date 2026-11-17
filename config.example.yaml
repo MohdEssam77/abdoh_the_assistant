@@ -19,6 +19,8 @@ follow_up_seconds: 6             # after Claude answers, keep listening this lon
 wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
 voice_interrupts: true           # or just start talking: Abdoh goes quiet and listens
 voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Abdoh
+duck_others: true                # other apps (music, videos) go quieter while Abdoh listens
+duck_percent: 30                 # ... to this share of their own volume
 tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # a voice's name (pick one in the app); "" = Windows' default voice
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default

@@ -63,6 +63,7 @@ class Daemon:
         earcons: Earcons | None = None,
         vad=None,
         voice_watch=None,
+        ducker=None,
     ):
         self.cfg = cfg
         self.router = router
@@ -76,6 +77,7 @@ class Daemon:
         self.earcons = earcons or Earcons.silent()
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
+        self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
         self._watching = False  # the voice watch is following a reply
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
@@ -113,6 +115,7 @@ class Daemon:
 
     def stop(self) -> None:
         self.stop_event.set()
+        self._unduck()
         tap = getattr(self.voice_watch, "tap", None)
         if tap is not None:
             tap.stop()
@@ -319,7 +322,25 @@ class Daemon:
             return True
         return False
 
+    def _duck(self) -> None:
+        """Other apps go quieter: you're about to talk to Abdoh."""
+        if self.ducker is None or not self.cfg.duck_others:
+            return
+        try:
+            self.ducker.duck(self.cfg.duck_percent)
+        except Exception:
+            log.exception("Couldn't lower the other apps")
+
+    def _unduck(self) -> None:
+        if self.ducker is None:
+            return
+        try:
+            self.ducker.release()
+        except Exception:
+            log.exception("Couldn't give the other apps their volume back")
+
     def _on_listen(self) -> None:
+        self._duck()
         self._recording = True
         self._interrupted.clear()
         self.bus.emit("status", "Listening to you...")
@@ -470,6 +491,7 @@ class Daemon:
         from abdoh.local_skills import interruption_kind
 
         watch = self.voice_watch
+        self._duck()
         self._floor.clear()  # nothing more is said until this is decided
         self.earcons.stop_ticking()
         paused = self.speaker.pause()
@@ -667,6 +689,7 @@ class Daemon:
         self.stop_event.wait(self.mic_retry_seconds)
 
     def _on_wake(self) -> None:
+        self._duck()
         if self._handle_lock.locked() and self.cfg.wake_word_interrupts:
             self.stop_speaking()  # a typed request is being answered: you get the floor
         self._woke = time.perf_counter()
@@ -675,6 +698,15 @@ class Daemon:
         self.bus.emit("status", "Thinking...")
 
     def _listen_once(self, mic) -> None:
+        """Listen for one request and answer it. The other apps get their volume back after
+        the answer, unless Abdoh goes on listening for more."""
+        try:
+            self._listen_and_answer(mic)
+        finally:
+            if not self._awaiting_answer or self.stop_event.is_set():
+                self._unduck()
+
+    def _listen_and_answer(self, mic) -> None:
         answer, self._awaiting_answer = self._awaiting_answer, False
         if not answer:
             self._soft_chime = False
@@ -740,6 +772,7 @@ class Daemon:
         If voice input can't be set up (e.g. the Vosk model is missing), the daemon still
         handles typed requests and reports the problem as its status.
         """
+        from abdoh.audio.ducking import Ducker
         from abdoh.audio.mic import Microphone
         from abdoh.audio.stt import load_transcriber
         from abdoh.audio.vad import load_vad
@@ -779,6 +812,7 @@ class Daemon:
             earcons=Earcons(),
             vad=load_vad(),
             voice_watch=None if listen_error else make_voice_watch(cfg),
+            ducker=Ducker(),
         )
         router.computer = Computer(
             timers=Timers(announce=daemon.announce),

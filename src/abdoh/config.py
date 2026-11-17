@@ -89,6 +89,8 @@ class Config:
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
+    duck_others: bool = True  # other apps go quieter while Abdoh listens and answers
+    duck_percent: int = 30  # ... to this share of their volume
     max_record_seconds: float = 10
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice

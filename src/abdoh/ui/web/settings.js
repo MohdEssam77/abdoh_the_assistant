@@ -191,6 +191,8 @@
       settings.voice_interrupts && !App.hearing ? row("How easily your voice stops Abdoh", "Higher reacts sooner; lower is for loud rooms, or when Abdoh stops by itself.",
         select([["low", "Low"], ["medium", "Medium (recommended)"], ["high", "High"]], settings.voice_interrupt_sensitivity,
           (value) => saveSettings({ voice_interrupt_sensitivity: value }), "How easily your voice stops Abdoh")) : null,
+      row("Lower other sounds while I talk to Abdoh", `Music and videos drop to ${settings.duck_percent}% of their volume while Abdoh listens and answers, then come back. Abdoh's own voice stays as it is.`,
+        toggle(settings.duck_others, (on, input) => save({ duck_others: on }, input, on), "Lower other sounds while I talk to Abdoh")),
       row("Interrupt with the wake word", "Say “Hey Abdoh” while Abdoh is talking to stop it and say something new.",
         toggle(settings.wake_word_interrupts, (on, input) => save({ wake_word_interrupts: on }, input, on), "Interrupt with the wake word")));
   }
