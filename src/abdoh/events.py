@@ -2,6 +2,7 @@
 
 daemon → UI events:   ("status", str), ("claude", str), ("wake", str), ("voice", bool),
                       ("history", str), ("activity", str), ("show", None), ("page", str),
+                      ("hearing", str): why Abdoh can't hear you over itself ("" = it can),
                       ("quit", None)
 UI → daemon requests: ("text", str), ("listen", None), ("pause", None), ("resume", None),
                       ("reload", None), ("edit_commands", None), ("voice", bool),

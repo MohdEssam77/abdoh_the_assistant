@@ -70,26 +70,45 @@ class FakeStdin:
     @property
     def prompts(self):
         """What was asked, without the date and time stamp in front."""
-        return [json.loads(line)["message"]["content"].split("\n", 1)[1] for line in self.lines]
+        return [
+            json.loads(line)["message"]["content"].split("\n", 1)[1]
+            for line in self.lines
+            if json.loads(line)["type"] == "user"
+        ]
+
+    @property
+    def interrupts(self):
+        return [json.loads(line) for line in self.lines if '"control_request"' in line]
 
 
 class FakeProc:
     """A `claude -p --input-format stream-json` process: `replies` is one list of output lines
     per request; they're only produced once that request has been written to stdin."""
 
-    def __init__(self, replies, returncode=0, hang=False, dead=False):
+    def __init__(self, replies, returncode=0, hang=False, dead=False, deaf=False):
         self.stdin = FakeStdin(broken=dead)
         self._replies = replies
         self._returncode = returncode
         self._hang = hang
+        self._deaf = deaf  # ignores interrupts
         self.killed = threading.Event()
         self.returncode = returncode if dead else None
         self.stdout = self._output()
 
     def _output(self):
+        answered = 0
         for reply in self._replies:
-            yield from (line + "\n" for line in reply)
-        if self._hang:
+            for line in reply:
+                asked = self.stdin.interrupts
+                if len(asked) > answered and not self._deaf:
+                    # Like Claude Code: confirm, end this reply, drop the rest of it.
+                    answered = len(asked)
+                    response = {"subtype": "success", "request_id": asked[-1]["request_id"]}
+                    yield json.dumps({"type": "control_response", "response": response}) + "\n"
+                    yield result(is_error=True, subtype="error_during_execution") + "\n"
+                    break
+                yield line + "\n"
+        if self._hang or self._deaf:
             self.killed.wait(5)  # like a stuck process: no more output until killed
 
     def poll(self):
@@ -106,7 +125,14 @@ class FakeProc:
 
 class FakePopen:
     def __init__(
-        self, *replies, returncode=0, stderr=b"", hang=False, error=None, dead_first=False
+        self,
+        *replies,
+        returncode=0,
+        stderr=b"",
+        hang=False,
+        error=None,
+        dead_first=False,
+        deaf=False,
     ):
         self.replies = [list(r) for r in replies]
         self.returncode = returncode
@@ -114,6 +140,7 @@ class FakePopen:
         self.hang = hang
         self.error = error
         self.dead_first = dead_first
+        self.deaf = deaf
         self.calls = []
         self.procs = []
 
@@ -123,7 +150,7 @@ class FakePopen:
             raise self.error
         kwargs["stderr"].write(self.stderr)
         dead = self.dead_first and not self.procs
-        proc = FakeProc(self.replies, self.returncode, self.hang, dead)
+        proc = FakeProc(self.replies, self.returncode, self.hang, dead, self.deaf)
         self.procs.append(proc)
         return proc
 
@@ -545,14 +572,45 @@ def test_timeout_kills_the_process(tmp_path):
     assert popen.procs[0].killed.is_set()
 
 
-def test_stopping_early_kills_the_process_and_readies_a_new_one(tmp_path):
-    popen = FakePopen([delta("One. "), delta("Two. "), result()])
+def test_stopping_early_interrupts_claude_and_keeps_the_conversation(tmp_path):
+    popen = FakePopen(
+        [INIT, delta("One. "), delta("Two. "), delta("Three. "), result()],
+        [delta("Okay, a short one."), result()],
+    )
+    brain = make_brain(tmp_path, popen, keep_warm=True)
+    stream = brain.stream("count")
+    assert next(stream) == "One. "
+    stream.close()  # you started talking
+    proc = popen.procs[0]
+    assert [i["request"] for i in proc.stdin.interrupts] == [{"subtype": "interrupt"}]
+    assert not proc.killed.is_set()
+    assert "".join(brain.stream("shorter please")) == "Okay, a short one."
+    assert len(popen.procs) == 1  # the same conversation: Claude knows what it was saying
+    assert proc.stdin.prompts == ["count", "shorter please"]
+    brain.close()
+
+
+def test_a_claude_that_ignores_the_interrupt_is_replaced(tmp_path, monkeypatch):
+    monkeypatch.setattr("abdoh.claude.code.INTERRUPT_SECONDS", 0.05)
+    popen = FakePopen([delta("One. "), delta("Two. "), result()], deaf=True)
     brain = make_brain(tmp_path, popen, keep_warm=True)
     stream = brain.stream("count")
     assert next(stream) == "One. "
     stream.close()
     assert popen.procs[0].killed.is_set()
-    wait_for(lambda: len(popen.procs) == 2)
+    wait_for(lambda: len(popen.procs) == 2)  # a fresh one is made ready
+    brain.close()
+
+
+def test_an_interrupt_just_as_the_reply_ended(tmp_path):
+    """The result was already on its way: Claude Code only confirms, and nothing more comes."""
+    brain = make_brain(tmp_path, FakePopen([delta("Hi.")]))
+    session = brain._take_session()
+    response = {"subtype": "success", "request_id": "abdoh-1"}
+    session.proc.stdout = iter(
+        [result() + "\n", json.dumps({"type": "control_response", "response": response}) + "\n"]
+    )
+    assert brain._interrupt(session) is True
     brain.close()
 
 

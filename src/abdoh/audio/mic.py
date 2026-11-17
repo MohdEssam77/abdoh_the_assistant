@@ -2,6 +2,7 @@
 
 import logging
 import queue
+import time
 from collections import deque
 
 import numpy as np
@@ -60,14 +61,16 @@ class Microphone:
 
     Every block returned by `read()` is also kept in a rolling buffer of the last
     `buffer_seconds`, so speech said just before the wake word can be recovered. `level` is the
-    loudest sample of the latest block (0 to 32768), for a level meter.
+    loudest sample of the latest block (0 to 32768), for a level meter. `last_time` is when the
+    block last returned by read() arrived from the microphone (`time.perf_counter()`).
     """
 
     def __init__(self, block_seconds: float = 0.1, buffer_seconds: float = 3.0, device: str = ""):
         self.block_seconds = block_seconds
         self.device = device
         self.level = 0
-        self._queue: queue.Queue[bytes] = queue.Queue()
+        self.last_time = 0.0
+        self._queue: queue.Queue[tuple[bytes, float]] = queue.Queue()
         self._buffer: deque[bytes] = deque(maxlen=max(1, int(buffer_seconds / block_seconds)))
         self._stream = None
 
@@ -104,17 +107,17 @@ class Microphone:
     def __exit__(self, *exc) -> None:
         self.stop()
 
-    def _callback(self, indata, frames, time, status) -> None:
+    def _callback(self, indata, frames, timing, status) -> None:
         if status:
             log.debug("Mic status: %s", status)
         block = bytes(indata)
         samples = np.frombuffer(block, dtype=np.int16)
         self.level = int(np.abs(samples.astype(np.int32)).max()) if samples.size else 0
-        self._queue.put(block)
+        self._queue.put((block, time.perf_counter()))
 
     def read(self, timeout: float = 2.0) -> bytes:
         try:
-            block = self._queue.get(timeout=timeout)
+            block, self.last_time = self._queue.get(timeout=timeout)
         except queue.Empty as e:
             raise MicrophoneError("Microphone stopped delivering audio") from e
         self._buffer.append(block)

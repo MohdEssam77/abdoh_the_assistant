@@ -23,6 +23,15 @@ class Speaker(ABC):
     def stop(self) -> None:  # noqa: B027 - optional hook
         """Interrupt what is being said right now."""
 
+    def pause(self) -> bool:
+        """Go quiet now, ready to go on from the same word with resume(). False if nothing was
+        being said or this voice can't continue (then it has simply stopped)."""
+        self.stop()
+        return False
+
+    def resume(self) -> None:  # noqa: B027 - optional hook
+        """Go on with the text that pause() interrupted."""
+
     # The language you last spoke ("" = unknown): a hint for choosing the voice.
     language = ""
 
@@ -58,6 +67,9 @@ class _VoiceThread(Speaker):
         self._factory = engine_factory
         self._jobs: queue.Queue[tuple[str, threading.Event]] = queue.Queue()
         self._stop = threading.Event()
+        self._pause = threading.Event()  # go quiet, and wait for _resume (or _stop)
+        self._resume = threading.Event()
+        self._speaking = False  # a text is being read right now
         self._engine = None
         self._renew = threading.Event()  # settings changed: make a new engine for the next text
         threading.Thread(target=self._run, name="abdoh-tts", daemon=True).start()
@@ -80,6 +92,10 @@ class _VoiceThread(Speaker):
 
     def stop(self) -> None:
         self._stop.set()
+
+    def resume(self) -> None:
+        self._pause.clear()
+        self._resume.set()
 
     def warm_up(self) -> None:
         """Create the engine and speak a blank utterance now, so the first reply is fast."""
@@ -274,7 +290,22 @@ class SapiSpeaker(_VoiceThread):
             return self._default
         return next((v for v in self._voices if v[1] == language), None)
 
+    def pause(self) -> bool:
+        if not self._speaking:
+            return False
+        self._resume.clear()
+        self._pause.set()
+        return True
+
     def _speak(self, text: str) -> None:
+        self._speaking = True
+        try:
+            self._read(text)
+        finally:
+            self._speaking = False
+            self._pause.clear()
+
+    def _read(self, text: str) -> None:
         voice = self._engine
         language = text_language(text, self.language)
         chosen = self._voice_for(language)
@@ -289,11 +320,32 @@ class SapiSpeaker(_VoiceThread):
             chosen = self._default
         if chosen[2] is not None:
             voice.Voice = chosen[2]
+        start = 0  # where in `text` the voice was last started
         voice.Speak(text, SVSF_ASYNC | SVSF_IS_NOT_XML)
         while not voice.WaitUntilDone(POLL_MS):
             if self._stop.is_set():
                 voice.Speak("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)
                 return
+            if not self._pause.is_set():
+                continue
+            # Purging stops it within a few milliseconds; SAPI's own Pause() takes a second.
+            start += _word_position(voice)
+            voice.Speak("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)
+            while not (self._resume.wait(POLL_MS / 1000) or self._stop.is_set()):
+                pass
+            self._resume.clear()
+            rest = text[start:]
+            if self._stop.is_set() or not rest.strip():
+                return
+            voice.Speak(rest, SVSF_ASYNC | SVSF_IS_NOT_XML)
+
+
+def _word_position(voice) -> int:
+    """Where the voice is in the text it was given: the start of the word being spoken."""
+    try:
+        return max(0, int(voice.Status.InputWordPosition))
+    except Exception:
+        return 0
 
 
 # ----- macOS and Linux: pyttsx3 -----
@@ -336,9 +388,19 @@ class FakeSpeaker(Speaker):
         self.language = ""
         self.said: list[str] = []
         self.stops = 0
+        self.pauses = 0
+        self.resumes = 0
+        self.can_pause = True  # set False to act like a voice that can't continue
 
     def say(self, text: str) -> None:
         self.said.append(text)
 
     def stop(self) -> None:
         self.stops += 1
+
+    def pause(self) -> bool:
+        self.pauses += 1
+        return self.can_pause
+
+    def resume(self) -> None:
+        self.resumes += 1

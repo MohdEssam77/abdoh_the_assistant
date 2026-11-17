@@ -61,6 +61,9 @@ TOOL_ACTIVITY = {
 
 FAILED = "Claude couldn't answer that right now."
 TOO_SLOW = "Claude took too long to answer."
+# After an interrupt, Claude Code confirms within a few hundredths of a second. If it hasn't
+# after this long, it is stopped and a fresh one is started.
+INTERRUPT_SECONDS = 3.0
 NOT_SIGNED_IN = (
     "Claude Code isn't signed in. Open Claude Code and sign in with your Claude account."
 )
@@ -287,7 +290,8 @@ class ClaudeCodeBrain(Brain):
     One `claude -p --input-format stream-json` process serves a whole conversation: each request
     is one line on its stdin. Starting it costs about a second, so it's started ahead of time
     (`warm_up`), and Claude remembers what was said. A fresh one replaces it after MAX_TURNS
-    requests, after IDLE_SECONDS without any, when a reply is interrupted, or on an error.
+    requests, after IDLE_SECONDS without any, or on an error. A reply that is stopped early (you
+    started talking) is interrupted, and the conversation goes on.
     """
 
     name = "Claude Code"
@@ -324,6 +328,7 @@ class ClaudeCodeBrain(Brain):
         self._lock = threading.RLock()  # guards _session
         self._idle = None  # the timer that retires a session nobody talks to
         self._closed = False
+        self._interrupts = 0  # numbers the interrupt requests
         self._started_with: tuple | None = None  # see same_setup
 
     def tools(self) -> list[str]:
@@ -561,10 +566,13 @@ class ClaudeCodeBrain(Brain):
         timer = self._timer(self.cfg.claude.timeout_seconds, kill)
         timer.daemon = True
         timer.start()
-        finished = False
+        finished = stopped = False
         try:
             try:
                 yield from read_events(session.proc.stdout, self._on_tool)
+            except GeneratorExit:
+                stopped = True  # you interrupted: nobody wants the rest
+                raise
             except BrainError as e:
                 if timed_out.is_set():
                     raise BrainError(TOO_SLOW) from e
@@ -579,12 +587,53 @@ class ClaudeCodeBrain(Brain):
             finished = True
         finally:
             timer.cancel()
-            if finished:
+            if finished or (stopped and self._interrupt(session)):
                 self._rest(session)
-            else:  # an error, or stopped early (e.g. "stop speaking"): start over next time
+            else:  # an error, or it didn't stop when asked: start over next time
                 self._retire(session)
                 if self._keep_warm and not self._closed:
                     self.warm_up()
+
+    def _interrupt(self, session: _Session) -> bool:
+        """Ask Claude Code to stop the reply it is writing; the conversation stays open, and
+        Claude remembers what it had said. False if it didn't confirm in time (it is killed)."""
+        self._interrupts += 1
+        request_id = f"abdoh-{self._interrupts}"
+        request = {"type": "control_request", "request_id": request_id}
+        request["request"] = {"subtype": "interrupt"}
+        timer = self._timer(INTERRUPT_SECONDS, session.proc.kill)
+        timer.daemon = True
+        timer.start()
+        try:
+            session.proc.stdin.write(json.dumps(request) + "\n")
+            session.proc.stdin.flush()
+            # It confirms the request, and ends the reply with a "result" line. If the reply
+            # had just ended by itself, that result came first and nothing more follows.
+            confirmed = ended = False
+            for line in session.proc.stdout:
+                line = line.strip()
+                if not line.startswith("{"):
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") == "result":
+                    ended = True
+                elif event.get("type") == "control_response":
+                    response = event.get("response") or {}
+                    if response.get("request_id") != request_id:
+                        continue
+                    if response.get("subtype") != "success":
+                        return False
+                    confirmed = True
+                if confirmed and ended:
+                    return session.alive()
+            return False
+        except (OSError, ValueError):
+            return False
+        finally:
+            timer.cancel()
 
     def _on_tool(self, tool: str) -> None:
         log.info("Claude is using %s", tool)

@@ -285,3 +285,17 @@ def test_speech_is_not_reported_as_nothing(monkeypatch):
         on_nothing=heard.append,
     )
     assert text == "Cairo." and heard == []
+
+
+def test_the_microphone_stamps_each_block_with_when_it_arrived():
+    """sounddevice calls the callback from its own thread with (indata, frames, time, status)."""
+    import time
+
+    from abdoh.audio.mic import Microphone
+
+    mic = Microphone()
+    before = time.perf_counter()
+    mic._callback(tone_block(1000), 1600, object(), None)
+    assert mic.read() == tone_block(1000)
+    assert before <= mic.last_time <= time.perf_counter()
+    assert mic.level == 1000

@@ -10,8 +10,9 @@ import time
 from collections.abc import Callable
 from dataclasses import fields
 
-from abdoh.audio.listener import ANSWER_WAIT_SECONDS, listen_for_request
+from abdoh.audio.listener import ANSWER_WAIT_SECONDS, listen_for_request, speech_detector
 from abdoh.audio.mic import MicrophoneError
+from abdoh.audio.recorder import record_until_silence
 from abdoh.audio.wakeword import WakeWordEngine
 from abdoh.config import ClaudeConfig, Config, save_api_key
 from abdoh.events import Bus
@@ -35,6 +36,11 @@ NO_VOICE = (
     "I answered in {language}, but Windows has no {language} voice to read it. Add one in "
     "Windows Settings, under Time & language, Speech."
 )
+# After Abdoh heard you talk over it: how long to wait for the words to start.
+INTERRUPTION_WAIT_SECONDS = 1.0
+# Why Abdoh can't hear you over its own voice (shown in the settings).
+NO_ECHO_CANCELLER = "the echo canceller couldn't be loaded"
+NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
 # Why voice input is off (shown as the status; the details are in the log).
 WAKE_WORD_FAILED = "the wake word engine couldn't start"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
@@ -56,6 +62,7 @@ class Daemon:
         listen_error: str | None = None,
         earcons: Earcons | None = None,
         vad=None,
+        voice_watch=None,
     ):
         self.cfg = cfg
         self.router = router
@@ -68,6 +75,14 @@ class Daemon:
         self.listen_error = listen_error  # set when voice input couldn't be set up
         self.earcons = earcons or Earcons.silent()
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
+        self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
+        self._watching = False  # the voice watch is following a reply
+        self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
+        self._floor.set()
+        self._request = ""  # the request being answered
+        self._answered = False  # ... and part of its answer was said
+        self._next_request: str | None = None  # said over a reply: handle it next
+        self._via_voice = False  # this request interrupted a reply
         self.stop_event = threading.Event()
         self.mic = None  # the open microphone
         self._reopen_mic = threading.Event()  # a new microphone was chosen
@@ -97,6 +112,9 @@ class Daemon:
 
     def stop(self) -> None:
         self.stop_event.set()
+        tap = getattr(self.voice_watch, "tap", None)
+        if tap is not None:
+            tap.stop()
         brain = self.router.brain
         if brain is not None:
             brain.close()
@@ -176,6 +194,8 @@ class Daemon:
             configure(rate=self.cfg.tts_rate, voice=self.cfg.tts_voice)
         if self.engine is not None and hasattr(self.engine, "threshold"):
             self.engine.threshold = self.cfg.wake_word_threshold
+        if self.voice_watch is not None:
+            self.voice_watch.sensitivity = self.cfg.voice_interrupt_sensitivity
         if self.cfg.mic_device != old_mic:
             self.reopen_mic()
         log.info("Settings changed")
@@ -225,7 +245,7 @@ class Daemon:
 
     def _speak(self, text: str) -> None:
         self.earcons.stop_ticking()
-        if not self.voice_enabled or self._interrupted.is_set():
+        if not self._wait_for_floor() or not self.voice_enabled:
             return
         self._spoke = True
         self.bus.emit("status", "Speaking")
@@ -233,6 +253,13 @@ class Daemon:
             self.speaker.say(text)
         except Exception:
             log.exception("Could not speak")
+
+    def _wait_for_floor(self) -> bool:
+        """Wait while you are talking over a reply. False if the reply was stopped."""
+        while not self._floor.wait(0.05):
+            if self._interrupted.is_set() or self.stop_event.is_set():
+                return False
+        return not self._interrupted.is_set()
 
     def _speak_stream(self, sentences, started: float) -> str:
         """Speak a streamed (Claude) reply sentence by sentence; show it in the history once."""
@@ -242,6 +269,7 @@ class Daemon:
             for sentence in sentences:
                 if not spoken:
                     first = time.perf_counter() - started
+                    self._answered = True
                 spoken.append(sentence)
                 self._speak(sentence)
                 if self._interrupted.is_set():
@@ -324,12 +352,14 @@ class Daemon:
         """
         with self._handle_lock:
             self._interrupted.clear()
-            self._spoke = False
+            self._floor.set()
+            self._spoke = self._answered = False
+            self._request = text
             log.info("You: %s", text)
             self.bus.emit("history", f"You: {text}")
             self.bus.emit("status", "Thinking...")
             started = time.perf_counter()
-            watcher = self._watch_for_wake_word() if voice else None
+            watcher = self._watch_reply() if voice else None
             try:
                 try:
                     reply = self.router.handle(text)
@@ -340,6 +370,7 @@ class Daemon:
                     spent = time.perf_counter() - started
                     log.info("Timing: answered in %.2fs, without Claude", spent)
                     if reply:
+                        self._answered = True
                         self.say(reply)
                 else:
                     filler = threading.Timer(FILLER_SECONDS, self._still_working)
@@ -369,13 +400,16 @@ class Daemon:
             self._awaiting_answer, self._answer_wait = True, wait
             self._soft_chime = not asked
 
-    def _watch_for_wake_word(self):
-        """While Abdoh answers, keep an ear on the microphone: the wake word stops the reply and
-        Abdoh listens to you instead. Returns a function that ends the watch."""
+    def _watch_reply(self):
+        """While Abdoh answers something you said, keep an ear on the microphone: you talking
+        (or the wake word) stops the reply. The main loop is busy answering, so this thread
+        reads the microphone meanwhile. Returns a function that ends the watch."""
         mic, engine = self.mic, self.engine
-        if not (self.cfg.wake_word_interrupts and mic is not None and engine is not None):
+        if mic is None or engine is None:
             return None
-        if not engine.trusted:  # only a trained model can tell the wake word from Abdoh's voice
+        # Only a trained model can tell the wake word from Abdoh's own voice.
+        wake = self.cfg.wake_word_interrupts and engine.trusted
+        if not (wake or self._can_hear_over_itself()):
             return None
         done = threading.Event()
 
@@ -383,23 +417,100 @@ class Daemon:
             while not done.is_set():
                 try:
                     block = mic.read()
-                    heard = not done.is_set() and engine.detect(block)
+                    if done.is_set():
+                        return
+                    if wake and engine.detect(block):
+                        log.info("Wake word heard during a reply: stopping to listen")
+                        self.stop_speaking()
+                        self._listen_now.set()
+                        return
+                    if self._observe(block, mic):
+                        text = self._heard_voice(mic)
+                        if text:
+                            self._next_request = text
+                            return
                 except Exception:
+                    log.debug("The watch over a reply ended", exc_info=True)
                     return  # the microphone went away; the main loop deals with that
-                if heard:
-                    log.info("Wake word heard during a reply: stopping to listen")
-                    self.stop_speaking()
-                    self._listen_now.set()
-                    return
 
         thread = threading.Thread(target=watch, name="abdoh-barge-in", daemon=True)
         thread.start()
 
         def end() -> None:
             done.set()
-            thread.join(timeout=3)
+            # If you are being listened to right now, let that finish: it reads the microphone.
+            thread.join(timeout=self.cfg.max_record_seconds + 15)
 
         return end
+
+    # ----- hearing you over Abdoh's own voice -----
+
+    def _can_hear_over_itself(self) -> bool:
+        watch = self.voice_watch
+        return bool(self.cfg.voice_interrupts and watch is not None and watch.available)
+
+    def _observe(self, block: bytes, mic) -> bool:
+        """Every microphone block while Abdoh listens: True when you started talking over a
+        reply that is running."""
+        watch = self.voice_watch
+        if self.paused or not self._can_hear_over_itself() or not self._handle_lock.locked():
+            if self._watching:
+                self._watching = False
+                watch.idle()
+            return False
+        if not self._watching:
+            self._watching = True
+            watch.idle()  # a new reply: start afresh
+        return watch.feed(block, getattr(mic, "last_time", 0.0) or time.perf_counter())
+
+    def _heard_voice(self, mic) -> str:
+        """You started talking over a reply: Abdoh goes quiet and listens. Returns what to do
+        next, or "" if Abdoh goes on ("okay", a cough) or just stops ("wait", "thanks")."""
+        from abdoh.local_skills import interruption_kind
+
+        watch = self.voice_watch
+        self._floor.clear()  # nothing more is said until this is decided
+        self.earcons.stop_ticking()
+        paused = self.speaker.pause()
+        self._recording = True
+        self.bus.emit("status", "Listening to you...")
+        try:
+            before = watch.pre_roll()
+
+            def read() -> bytes:
+                block = mic.read()
+                return watch.clean(block, getattr(mic, "last_time", 0.0) or time.perf_counter())
+
+            audio = record_until_silence(
+                read,
+                speech_detector(self.vad, before),
+                self.cfg.silence_seconds,
+                self.cfg.max_record_seconds,
+                wait_seconds=INTERRUPTION_WAIT_SECONDS,
+            )
+            text = self.transcriber.transcribe(before + audio) if self.transcriber else ""
+        finally:
+            self._recording = False
+        kind = interruption_kind(text)
+        log.info("Heard %r over the reply (%s)", text, kind)
+        if kind in ("nothing", "backchannel"):
+            if paused:
+                self.speaker.resume()
+            watch.rearm()
+            self._floor.set()
+            self.bus.emit("status", "Speaking" if paused else "Thinking...")
+            if not self._answered and self.voice_enabled and not self._interrupted.is_set():
+                self.earcons.start_ticking("thinking")
+            return ""
+        # You said you're done (or something new): the reply ends here. If none of its answer
+        # was said yet, you were still asking: what you added belongs to the same request.
+        earlier = "" if self._answered else self._request
+        self.stop_speaking()
+        self._floor.set()
+        if kind == "stop":
+            return ""
+        self._via_voice = True
+        return f"{earlier} {text}".strip()
 
     def _asked_question(self, reply: str) -> bool:
         """Did Claude end its reply with a question (and you didn't stop it)?"""
@@ -513,6 +624,7 @@ class Daemon:
         self._report_claude()
         if self.engine is not None:
             self.bus.emit("wake", self.engine.label)
+        self.bus.emit("hearing", self._hearing_problem())
         self._status_idle()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
@@ -537,6 +649,15 @@ class Daemon:
             finally:
                 self.mic = None
                 mic.stop()
+
+    def _hearing_problem(self) -> str:
+        """Why Abdoh can't hear you over its own voice ("" when it can)."""
+        watch = self.voice_watch
+        if watch is None or watch.canceller is None:
+            return NO_ECHO_CANCELLER
+        if not getattr(watch.tap, "available", False):
+            return NO_SPEAKER_TAP
+        return ""
 
     def _mic_problem(self, error: Exception) -> None:
         self._awaiting_answer = False  # too late to answer once the mic is back
@@ -571,6 +692,8 @@ class Daemon:
                 answer=answer,
                 on_nothing=self._heard_nothing,
                 answer_wait=self._answer_wait,
+                observe=lambda block: self._observe(block, mic),  # a typed request's reply
+                on_voice=self._heard_voice,
             )
         except MicrophoneError:
             raise
@@ -581,22 +704,31 @@ class Daemon:
         finally:
             self._recording = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
+        via_voice, self._via_voice = self._via_voice, False
         self._soft_chime = False
         self.speaker.language = getattr(self.transcriber, "last_language", "")
-        if text and (via_hotkey or answer):
-            self.handle_text(text, voice=True)  # the hotkey and answers work even while paused
+        if text and (via_hotkey or answer or via_voice):
+            self._handle_spoken(text)  # the hotkey and answers work even while paused
         elif text and self.paused:
             # While paused, only the built-in "start listening" command is honored.
             if self.router.builtin_name(text) == "start_listening":
-                self.handle_text(text, voice=True)
+                self._handle_spoken(text)
             else:
                 log.info("Paused; ignoring %r", text)
         elif text:
-            self.handle_text(text, voice=True)
+            self._handle_spoken(text)
             log.debug("Latency: wake word to reply spoken %.2fs", time.perf_counter() - self._woke)
         self._status_idle()
         mic.clear()  # don't react to our own voice
         self.engine.reset()
+
+    def _handle_spoken(self, text: str) -> None:
+        """Answer a spoken request, then whatever you said over that answer, and so on."""
+        while text and not self.stop_event.is_set():
+            self.handle_text(text, voice=True)
+            text, self._next_request = self._next_request, None
+            if text:
+                self.speaker.language = getattr(self.transcriber, "last_language", "")
 
     @classmethod
     def create(
@@ -645,6 +777,7 @@ class Daemon:
             listen_error=listen_error,
             earcons=Earcons(),
             vad=load_vad(),
+            voice_watch=None if listen_error else make_voice_watch(cfg),
         )
         router.computer = Computer(
             timers=Timers(announce=daemon.announce),
@@ -655,3 +788,27 @@ class Daemon:
         )
         router.computer.apps.load_in_background()
         return daemon
+
+
+def make_voice_watch(cfg: Config):
+    """What lets Abdoh hear you over its own voice, or None if part of it is missing (then
+    only the wake word and the hotkey stop a reply)."""
+    from abdoh.audio.bargein import VoiceWatch
+    from abdoh.audio.echo import EchoCanceller, echo_available
+    from abdoh.audio.loopback import SpeakerTap
+    from abdoh.audio.vad import load_vad
+
+    canceller = None
+    if echo_available():
+        try:
+            canceller = EchoCanceller()
+        except Exception:
+            log.exception("Couldn't start the echo canceller")
+    else:
+        log.info("No echo canceller (livekit isn't installed): only the wake word interrupts")
+    tap = SpeakerTap()
+    if canceller is not None:
+        tap.start()
+    return VoiceWatch(
+        tap, canceller, load_vad(), cfg.voice_interrupt_sensitivity, raw_vad=load_vad()
+    )

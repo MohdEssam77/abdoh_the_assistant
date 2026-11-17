@@ -121,8 +121,18 @@ back to its old, simple window.
   tells you it woke up. If you only say "Hey Abdoh", it answers "Yes?" and waits.
 - **Keep talking**: after Claude answers, Abdoh listens for about six more seconds (one soft
   note), so you can go on without the wake word. Say "thanks" or stay quiet to end it.
-- **Interrupt**: say "Hey Abdoh" while it's talking (or press the hotkey) to stop it and say
-  something new.
+- **Just start talking**: while Abdoh explains something, talk and it goes quiet at once and
+  listens. "Okay" or "go on" lets it carry on from the same word; "wait" or "thanks" stops it;
+  anything else becomes your next request, and Claude still remembers the conversation. If you
+  add something while it's still thinking ("What's the weather" ... "in Paris"), both parts are
+  one request. Abdoh hears you over its own voice by taking what the speakers play back out of
+  the microphone (echo cancellation); that sound is only used in memory, never saved or sent.
+  Works best with headphones or the volume not too loud. Under loud music or a film it may not
+  hear you: use the wake word or the hotkey then. **How easily your voice stops Abdoh** (Low,
+  Medium, High) is in Settings → Conversation. Check how well it works in your room with
+  `python scripts/echo_check.py` (it speaks two sentences; `--talk` lets you try talking over it).
+- **Interrupt with the wake word**: say "Hey Abdoh" while it's talking (or press the hotkey) to
+  stop it and say something new.
 - **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window
   shows what it's doing ("Searching the web…"), and after a few quiet seconds Abdoh says it's
   still on it.
@@ -167,8 +177,8 @@ By hand:
 
 Abdoh keeps one Claude Code conversation open while it runs, so Claude starts answering in
 about a second and **remembers what you said** ("what's the capital of Japan?" ... "and how many
-people live there?"). The conversation starts over after ten quiet minutes, when you interrupt
-a reply, or when you change Claude's settings. In Settings you can pick a faster Claude model
+people live there?"). The conversation starts over after ten quiet minutes or when you change
+Claude's settings; when you stop a reply, Claude stops writing it and still knows what it said. In Settings you can pick a faster Claude model
 (**Model**: Haiku answers soonest and uses less of your plan).
 
 Then you can say:
@@ -460,6 +470,8 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `max_record_seconds` | `10` | Longest request |
 | `follow_up_seconds` | `6` | After Claude answers, keep listening this long without the wake word (0 = off) |
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
+| `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
+| `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
 | `tts_rate` | `175` | Speaking speed |
 | `tts_voice` | `""` | A Windows voice's name; empty means the default voice |
 | `mic_device` | `""` | A microphone's name; empty means Windows' default microphone |
@@ -548,8 +560,16 @@ Developer scripts:
 - `scripts/check_wakeword.py`: checks Abdoh's openWakeWord code against the official package
   (needs `pip install openwakeword`).
 - `scripts/build_app.py`: builds `dist/Abdoh/Abdoh.exe` (needs `pip install -e .[build]`).
+- `scripts/echo_check.py`: measures how well Abdoh hears you over its own voice in your room
+  (it speaks; `--talk` to try talking over it).
 
 ## Known issues
+
+- **Talking over Abdoh is weaker under loud sound.** With music or a film playing loudly on the
+  speakers, Abdoh may not notice you start talking; the wake word and the hotkey still work.
+  Measured on a laptop with its own speakers and microphone: it heard the user within 0.3 s and
+  never mistook its own voice for theirs. In a simulated loud room it heard normal speech in
+  about 0.3 s; a quiet voice under a loud, distorting speaker took up to 3 s.
 
 - **Memory while idle is about 860 MB**: the Parakeet speech model is big. The Lighter quality
   setting (Whisper) brings it down to about 350 MB.

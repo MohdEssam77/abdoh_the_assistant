@@ -184,6 +184,13 @@
         toggle(settings.follow_up_seconds > 0, (on, input) => save({ follow_up_seconds: on ? 6 : 0 }, input, on), "Keep listening after a reply")),
       row("Answer Claude's questions right away", "When Claude asks you something, just answer.",
         toggle(claude.listen_after_question, (on, input) => save({ claude: { listen_after_question: on } }, input, on), "Answer questions right away")),
+      row("Stop when I start talking", App.hearing
+        ? `Not available on this computer: ${App.hearing}.`
+        : "Abdoh goes quiet as soon as it hears you, and listens. Say “okay” and it goes on; say “wait” and it stops. Works best with headphones or the volume not too loud.",
+        App.hearing ? null : toggle(settings.voice_interrupts, (on, input) => save({ voice_interrupts: on }, input, on).then(() => render()), "Stop when I start talking")),
+      settings.voice_interrupts && !App.hearing ? row("How easily your voice stops Abdoh", "Higher reacts sooner; lower is for loud rooms, or when Abdoh stops by itself.",
+        select([["low", "Low"], ["medium", "Medium (recommended)"], ["high", "High"]], settings.voice_interrupt_sensitivity,
+          (value) => saveSettings({ voice_interrupt_sensitivity: value }), "How easily your voice stops Abdoh")) : null,
       row("Interrupt with the wake word", "Say “Hey Abdoh” while Abdoh is talking to stop it and say something new.",
         toggle(settings.wake_word_interrupts, (on, input) => save({ wake_word_interrupts: on }, input, on), "Interrupt with the wake word")));
   }
