@@ -19,7 +19,7 @@ const Bridge = (() => {
       claude: {
         backend: "auto", code_path: "", code_model: "", model: "claude-opus-5-5", max_tokens: 4000,
         effort: "low", allow_web: true, allow_files: true, allow_screen: true,
-        actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "remind", "note"], folders: [],
+        actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note"], folders: [],
         instructions: "", timeout_seconds: 120, followup_seconds: 60, listen_after_question: true,
         translate_target: "English", voice_reply_max_sentences: 4,
       },
