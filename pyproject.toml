@@ -11,7 +11,6 @@ requires-python = ">=3.11"
 dependencies = [
     "sounddevice>=0.4",
     "numpy>=1.26",
-    "vosk>=0.3.45",
     "faster-whisper>=1.0",
     "huggingface_hub>=0.21,<2", # 2.x left an empty model.bin in the built app's model cache
     "onnxruntime>=1.17",

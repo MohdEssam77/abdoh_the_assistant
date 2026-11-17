@@ -13,7 +13,7 @@
     ["nl", "Dutch"], ["ru", "Russian"], ["zh", "Chinese"], ["ja", "Japanese"], ["ko", "Korean"]];
   const RESTART_LABELS = {
     hotkey: "hotkey", wake_words: "wake words", wake_word_aliases: "wake word spellings",
-    wake_word_model: "wake word model", vosk_model: "fallback wake word model",
+    wake_word_model: "wake word model",
     whisper_model: "speech model", languages: "languages", speech_engine: "speech quality", log_file: "log file",
   };
   const QUIET = 100; // a mic this quiet for a few seconds is probably muted (of 32768)

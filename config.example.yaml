@@ -2,13 +2,12 @@
 
 config_version: 5                # written by Abdoh, for upgrading this file; don't change it
 wake_words: ["abdoh", "hey abdoh", "ya abdoh"]
-# Your openWakeWord model (see README: train the wake word). Without it, Vosk is used.
+# Your openWakeWord model (see README: train the wake word). Without it, only the hotkey works.
 wake_word_model: "models/hey_abdoh.onnx"
 wake_word_threshold: 0.4         # higher = fewer false wake-ups, lower = wakes more easily
 hotkey: "ctrl+alt+space"         # press to talk without the wake word, or to stop a reply; "" = off
-# Vosk only: words it might hear instead of "Abdoh". `python -m abdoh calibrate` finds yours.
+# Other spellings speech recognition may write for "Abdoh"; they're left out of your requests.
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
-vosk_model: "models/vosk-model-small-en-us-0.15"
 languages: ["en"]                # what you speak to Abdoh, e.g. ["en"] or ["en", "ar"]
 speech_engine: "auto"            # auto | parakeet (English only, most accurate) | whisper
 whisper_model: "small"           # Whisper size for languages other than English: base | small | medium

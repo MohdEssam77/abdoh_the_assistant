@@ -277,15 +277,6 @@ def test_not_while_paused():
     assert watch.fed == 0
 
 
-def test_the_wake_word_engine_is_left_alone_when_it_cant_be_trusted():
-    engine = FakeWakeWord(fire_on=10**9)  # Vosk: would hear "Abdoh" in Abdoh's own voice
-    router = Router()
-    daemon = make_daemon(router, [], FakeWatch(), engine=engine)
-    router.replies = [long_reply(daemon)]
-    daemon._handle_spoken("Tell me a story")
-    assert engine.count == 0  # only the voice watch listened
-
-
 def test_the_sensitivity_follows_the_settings(tmp_path):
     watch = FakeWatch()
     daemon = make_daemon(Router(), [], watch)

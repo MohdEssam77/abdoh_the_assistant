@@ -13,7 +13,7 @@ from dataclasses import fields
 from abdoh.audio.listener import ANSWER_WAIT_SECONDS, listen_for_request, speech_detector
 from abdoh.audio.mic import MicrophoneError
 from abdoh.audio.recorder import record_until_silence
-from abdoh.audio.wakeword import WakeWordEngine
+from abdoh.audio.wakeword import NoWakeWord, WakeWordEngine
 from abdoh.config import ClaudeConfig, Config, save_api_key
 from abdoh.events import Bus
 from abdoh.router import Router
@@ -43,7 +43,6 @@ INTERRUPTION_WAIT_SECONDS = 1.0
 NO_ECHO_CANCELLER = "the echo canceller couldn't be loaded"
 NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
 # Why voice input is off (shown as the status; the details are in the log).
-WAKE_WORD_FAILED = "the wake word engine couldn't start"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
 
@@ -225,8 +224,11 @@ class Daemon:
     def _status_idle(self) -> None:
         if self.listen_error:
             self.bus.emit("status", f"Error: {self.listen_error}")
+        elif self.paused:
+            self.bus.emit("status", "Paused")
         else:
-            self.bus.emit("status", "Paused" if self.paused else "Listening")
+            no_wake_word = isinstance(self.engine, NoWakeWord)
+            self.bus.emit("status", "Hotkey only" if no_wake_word else "Listening")
 
     def _show_window(self) -> str:
         self.bus.emit("show")
@@ -439,8 +441,7 @@ class Daemon:
         mic, engine = self.mic, self.engine
         if mic is None or engine is None:
             return None
-        # Only a trained model can tell the wake word from Abdoh's own voice.
-        wake = self.cfg.wake_word_interrupts and engine.trusted
+        wake = self.cfg.wake_word_interrupts
         if not (wake or self._can_hear_over_itself()):
             return None
         done = threading.Event()
@@ -810,10 +811,10 @@ class Daemon:
     def create(
         cls, cfg: Config, bus: Bus | None = None, speaker: Speaker | None = None
     ) -> "Daemon":
-        """Build a daemon with the real microphone, Vosk, Whisper and TTS.
+        """Build a daemon with the real microphone, wake word, speech recognition and TTS.
 
-        If voice input can't be set up (e.g. the Vosk model is missing), the daemon still
-        handles typed requests and reports the problem as its status.
+        If the wake word can't start, the hotkey still works. If speech recognition can't be
+        set up, the daemon still handles typed requests and reports the problem as its status.
         """
         from abdoh.audio.ducking import Ducker
         from abdoh.audio.mic import Microphone
@@ -836,8 +837,8 @@ class Daemon:
         try:
             engine = load_wake_engine(cfg)
         except Exception:
-            log.exception("Could not set up the wake word")
-            listen_error = WAKE_WORD_FAILED
+            log.exception("Could not set up the wake word; only the hotkey wakes Abdoh")
+            engine = NoWakeWord()
         try:
             transcriber = load_transcriber(cfg)
         except Exception:

@@ -367,6 +367,7 @@ function hideBanner(source) {
 const STATUS = {
   "Listening": ["listening", "Listening", () => `Say “Hey Abdoh” or press ${hotkeyText(App.settings.hotkey)}`],
   "Paused": ["idle", "Paused", () => "Not listening for the wake word. The hotkey still works."],
+  "Hotkey only": ["listening", "Hotkey only", () => `The wake word couldn't start. Press ${hotkeyText(App.settings.hotkey)} to talk.`],
   "Listening to you...": ["hearing", "Listening to you", () => "Go ahead, I'm listening"],
   "Thinking...": ["busy", "Thinking", () => "Working on it"],
   "Speaking": ["busy", "Speaking", () => "Press the stop button to interrupt"],

@@ -17,15 +17,6 @@ def cmd_say(cfg: Config, args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_calibrate(cfg: Config, args: argparse.Namespace) -> int:
-    from abdoh.audio.listener import calibrate
-    from abdoh.audio.mic import Microphone
-
-    with Microphone() as mic:
-        calibrate(mic, cfg.resolve(cfg.vosk_model), times=args.times)
-    return 0
-
-
 def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.audio.listener import listen_for_request
     from abdoh.audio.mic import Microphone
@@ -270,10 +261,6 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("say", help="speak some text")
     p.add_argument("text")
     p.set_defaults(func=cmd_say)
-
-    p = sub.add_parser("calibrate", help="print what the wake word engine hears for 'Abdoh'")
-    p.add_argument("--times", type=int, default=5)
-    p.set_defaults(func=cmd_calibrate)
 
     p = sub.add_parser("listen-once", help="wait for the wake word, then print the transcript")
     p.set_defaults(func=cmd_listen_once)

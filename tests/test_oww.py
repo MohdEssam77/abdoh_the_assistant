@@ -2,6 +2,7 @@
 scripts/check_wakeword.py against the official package)."""
 
 import numpy as np
+import pytest
 from fakes import silent_block
 
 from abdoh.audio.oww import FRAME, MEL_CONTEXT, WARMUP_FRAMES, OpenWakeWord
@@ -112,27 +113,19 @@ class Recorded:
         return self
 
 
-def test_uses_openwakeword_when_your_model_exists(tmp_path):
+def test_uses_openwakeword_with_your_model(tmp_path):
     (tmp_path / "models").mkdir()
     (tmp_path / "models" / "hey_abdoh.onnx").write_bytes(b"onnx")
-    oww, vosk = Recorded(), Recorded()
+    oww = Recorded()
     cfg = Config(app_dir=tmp_path, wake_word_threshold=0.6)
-    engine = load_wake_engine(cfg, oww=oww, vosk=vosk)
-    assert engine is oww and vosk.calls == []
+    engine = load_wake_engine(cfg, oww=oww)
+    assert engine is oww
     assert oww.calls == [(tmp_path / "models" / "hey_abdoh.onnx", 0.6)]
     assert engine.label == "openWakeWord (hey_abdoh)"
 
 
-def test_falls_back_to_vosk_without_a_model(tmp_path):
-    oww, vosk = Recorded(), Recorded()
-    engine = load_wake_engine(Config(app_dir=tmp_path), oww=oww, vosk=vosk)
-    assert engine is vosk and oww.calls == []
-    path, phrases = vosk.calls[0]
-    assert path.name == "vosk-model-small-en-us-0.15" and "hey abdoh" in phrases
-
-
-def test_falls_back_to_vosk_when_feature_models_are_missing(tmp_path):
-    (tmp_path / "models").mkdir()
-    (tmp_path / "models" / "hey_abdoh.onnx").write_bytes(b"onnx")
-    oww, vosk = Recorded(error=FileNotFoundError("melspectrogram.onnx missing")), Recorded()
-    assert load_wake_engine(Config(app_dir=tmp_path), oww=oww, vosk=vosk) is vosk
+def test_no_model_is_an_error_the_daemon_turns_into_hotkey_only(tmp_path):
+    oww = Recorded()
+    with pytest.raises(FileNotFoundError):
+        load_wake_engine(Config(app_dir=tmp_path), oww=oww)
+    assert oww.calls == []
