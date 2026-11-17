@@ -331,6 +331,24 @@ These work instantly, without Claude (your own commands still come first):
 - **Typing**: "type best regards, Sam" types into the app in front
 - **Windows**: "minimize this window", "maximize the window", "close this window", "show the
   desktop", "switch window", "lock my computer"
+- **Screens**: "turn off monitor 3", "turn off the laptop screen", "only screen 2", "turn off
+  the other screens" (keeps the one you're working on), "turn on all the screens", "which
+  screens are on", "turn off the screens" (they sleep until you move the mouse). Abdoh numbers
+  your monitors the first time it sees them (laptop first) and keeps those numbers; screens come
+  back where they were. Try it with `python scripts/display_check.py` (it switches for 8 seconds
+  and puts everything back).
+- **Speakers**: "switch the sound to the monitor", "use the headphones", "play the sound through
+  the speakers", "what's my audio output"
+- **Settings**: "dark mode", "light mode", "best performance mode", "battery saver", "balanced
+  power mode"
+- **Sleep and shutdown**: "go to sleep", "shut down the computer", "restart the computer" (Abdoh
+  asks first: just say yes), "shut down in 30 minutes" (no question: it's for later), "cancel the
+  shutdown". These can be turned off in Permissions.
+- **Programs**: "close Spotify", "switch to Chrome", "move Chrome to screen 2", "move this to the
+  other screen", "snap this to the left"
+- **Folders**: "open my downloads", "open my latest download", "open the newest screenshot"
+- **Clipboard**: "copy that" (Abdoh's last answer), "read my clipboard". Claude gets your
+  clipboard only when you mention it ("translate what I copied into French").
 - **Apps**: "open {any installed app}", e.g. "open calculator", "open chrome", "open vs code".
   If no installed app matches, the request goes to Claude (so "open YouTube" still works).
 - **Talking**: "repeat that", "what can you do", and "thanks" or "never mind" to end a
@@ -341,7 +359,9 @@ your own words ("wake me in half an hour", "jot down that I owe Sam ten euros");
 can be turned off on the Permissions page. Claude can never type for you.
 
 Your own commands can use `volume: 30`, `app_volume: browser 30`, `brightness: 70` and
-`type: some text` as actions too.
+`type: some text` as actions too, and these: `displays: only 2`, `audio_output: headphones`,
+`dark_mode: on`, `power_mode: balanced`, `power: screens_off`, `keys: win+d`, `wait: 2 seconds`,
+`close_app: Spotify`, `focus_app: Chrome` and `window: Chrome to 2 maximized`.
 
 These skills are Windows-only for now.
 
@@ -486,6 +506,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
+| `allow_power` | `true` | Abdoh may put the computer to sleep, shut it down or restart it when you ask |
 | `duck_others` | `true` | Other apps go quieter while Abdoh listens and answers |
 | `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |
@@ -576,6 +597,7 @@ Developer scripts:
 - `scripts/check_wakeword.py`: checks Abdoh's openWakeWord code against the official package
   (needs `pip install openwakeword`).
 - `scripts/build_app.py`: builds `dist/Abdoh/Abdoh.exe` (needs `pip install -e .[build]`).
+- `scripts/display_check.py`: turns all monitors but one off for 8 seconds, then back on.
 - `scripts/echo_check.py`: measures how well Abdoh hears you over its own voice in your room
   (it speaks; `--talk` to try talking over it).
 
