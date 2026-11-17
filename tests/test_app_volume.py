@@ -111,7 +111,8 @@ def test_an_app_that_isnt_there_is_said():
 @pytest.fixture
 def say():
     fake = mixer()
-    skills = LocalSkills(Computer(audio=fake))
+    fake.keys = []
+    skills = LocalSkills(Computer(audio=fake, press_key=fake.keys.append))
     return lambda text: skills.handle(text, text), fake
 
 
@@ -134,7 +135,7 @@ def test_other_requests_are_left_alone(say):
     assert handle("set the alarm to 7") is None
     before = dict(fake.sessions)
     handle("turn the volume down")  # the speakers, as before
-    assert fake.sessions == before
+    assert fake.sessions == before and fake.keys == ["volume_down"]
 
 
 def test_the_speakers_volume_still_wins(say):
