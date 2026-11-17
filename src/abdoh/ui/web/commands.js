@@ -3,23 +3,6 @@
 "use strict";
 
 (() => {
-  const ACTIONS = {
-    say: { label: "Say something", placeholder: "Good morning! It's {time} on {date}." },
-    open_url: { label: "Open a website", placeholder: "https://www.youtube.com" },
-    open_app: { label: "Open an app", placeholder: "Spotify" },
-    play_youtube: { label: "Play on YouTube", placeholder: "lofi hip hop radio" },
-    media: {
-      label: "Press a media key",
-      options: [["play_pause", "Play / pause"], ["next", "Next track"], ["previous", "Previous track"],
-        ["volume_up", "Volume up"], ["volume_down", "Volume down"], ["mute", "Mute"]],
-    },
-    timer: { label: "Start a timer", placeholder: "25 minutes" },
-    volume: { label: "Set the volume", placeholder: "30" },
-    brightness: { label: "Set the brightness", placeholder: "70" },
-    app_volume: { label: "Set an app's volume", placeholder: "browser 30" },
-    type: { label: "Type some text", placeholder: "Best regards, Sam" },
-    run: { label: "Run a program", placeholder: "notepad.exe" },
-  };
   const state = { commands: [], templates: [], error: null };
 
   /* ---------- the list ---------- */
@@ -34,12 +17,14 @@
   }
 
   function describe(action) {
-    const spec = ACTIONS[action.type];
-    if (action.type === "media") {
+    const spec = ACTIONS[action.type] || {};
+    if (spec.options) {
       const option = (spec.options.find(([v]) => v === action.value) || [null, action.value])[1];
-      return `Press ${option.toLowerCase()}`;
+      return action.type === "media" ? `Press ${option.toLowerCase()}` : `${spec.label}: ${option.toLowerCase()}`;
     }
-    const verbs = { say: "Say", open_url: "Open", open_app: "Open", play_youtube: "Play", timer: "Timer:", run: "Run", volume: "Volume to", brightness: "Brightness to", app_volume: "App volume:", type: "Type" };
+    const verbs = { say: "Say", open_url: "Open", open_app: "Open", play_youtube: "Play", timer: "Timer:", run: "Run", volume: "Volume to", brightness: "Brightness to", app_volume: "App volume:", type: "Type",
+      displays: "Screens:", audio_output: "Sound to", keys: "Press", wait: "Wait", close_app: "Close",
+      focus_app: "Switch to", window: "Window:", mode: "Mode:" };
     return `${verbs[action.type] || action.type} ${action.value}`;
   }
 
@@ -96,53 +81,6 @@
   }
 
   /* ---------- the editor ---------- */
-
-  function actionRows(actions) {
-    const rows = actions.length ? actions.map((a) => ({ ...a })) : [{ type: "say", value: "" }];
-    const box = el("div", { class: "action-rows" });
-    const draw = () => {
-      box.replaceChildren(...rows.map((row, i) => {
-        const type = el("select", { class: "input", "aria-label": "What Abdoh does" },
-          Object.entries(ACTIONS).map(([value, spec]) => el("option", { value, selected: value === row.type }, spec.label)));
-        type.addEventListener("change", () => {
-          row.type = type.value;
-          if (row.type === "media") row.value = "play_pause";
-          else if (ACTIONS.media.options.some(([v]) => v === row.value)) row.value = "";
-          draw();
-        });
-        const spec = ACTIONS[row.type] || ACTIONS.say;
-        let value;
-        if (spec.options) {
-          value = el("select", { class: "input", "aria-label": "Which key" },
-            spec.options.map(([v, label]) => el("option", { value: v, selected: v === row.value }, label)));
-          value.addEventListener("change", () => { row.value = value.value; });
-        } else {
-          value = el("input", { class: "input", value: row.value || "", placeholder: spec.placeholder, "aria-label": spec.label });
-          value.addEventListener("input", () => { row.value = value.value; });
-        }
-        const move = (by) => {
-          const j = i + by;
-          if (j < 0 || j >= rows.length) return;
-          [rows[i], rows[j]] = [rows[j], rows[i]];
-          draw();
-        };
-        const note = row.type === "run" && !App.settings.allow_run
-          ? el("div", { class: "note" }, "Running programs is off. Turn on “Your commands may run programs” in Permissions.")
-          : null;
-        return el("div", {},
-          el("div", { class: "action-row" }, type, value,
-            el("div", { class: "moves" },
-              el("button", { class: "icon-btn", title: "Move up", html: svg("up"), disabled: i === 0, onclick: () => move(-1) }),
-              el("button", { class: "icon-btn", title: "Move down", html: svg("down"), disabled: i === rows.length - 1, onclick: () => move(1) }),
-              el("button", { class: "icon-btn", title: "Remove", html: svg("x"), disabled: rows.length === 1, onclick: () => { rows.splice(i, 1); draw(); } }))),
-          note);
-      }));
-    };
-    draw();
-    const addButton = el("button", { class: "btn small", onclick: () => { rows.push({ type: "say", value: "" }); draw(); } },
-      el("span", { html: svg("plus") }), "Add another action");
-    return { box: el("div", {}, box, el("div", { style: "margin-top:10px" }, addButton)), values: () => rows.map((r) => ({ ...r })) };
-  }
 
   function openEditor(command, fromTemplate = false) {
     const editing = command && !fromTemplate ? command.name : null;

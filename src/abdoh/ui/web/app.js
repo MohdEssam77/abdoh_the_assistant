@@ -53,6 +53,33 @@ const PATHS = {
   run: '<path d="m5 7 5 5-5 5M12 19h7"/>',
   file: '<path d="M14 3H6v18h12V7l-4-4z"/><path d="M14 3v4h4"/>',
   check: '<path d="m5 12 5 5L20 7"/>',
+  // modes
+  layers: '<path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/>',
+  film: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/>',
+  briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V4h6v3M3 12h18"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  presentation: '<path d="M3 4h18M5 4v11h14V4M12 15v5M8 20h8"/>',
+  music: '<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>',
+  game: '<rect x="2.5" y="7" width="19" height="11" rx="5"/><path d="M7 11v3M5.5 12.5h3M15.5 12h.01M18 13.5h.01"/>',
+  coffee: '<path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17M8 2v3M12 2v3"/>',
+  book: '<path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4zM20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/>',
+  monitor: '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/>',
+  // the newer actions
+  displays: '<rect x="2" y="5" width="11" height="8" rx="1.5"/><rect x="11" y="10" width="11" height="8" rx="1.5"/>',
+  app_volume: '<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 9v6M20 7v10"/>',
+  audio_output: '<rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="14" r="3"/><path d="M12 7h.01"/>',
+  dark_mode: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  power_mode: '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+  power: '<path d="M12 3v8M6.3 6.3a8 8 0 1 0 11.4 0"/>',
+  keys: '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
+  wait: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  close_app: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m9 10 6 6M15 10l-6 6"/>',
+  focus_app: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 12h8M13 9l3 3-3 3"/>',
+  window: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M12 9v11"/>',
+  mode: '<path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/>',
 };
 
 function svg(name) {
@@ -174,6 +201,86 @@ function chipsInput(values, placeholder, onChange) {
   box.addEventListener("click", (e) => { if (e.target === box) input.focus(); });
   draw();
   return { box, values: () => { if (input.value.trim()) add(); return [...list]; } };
+}
+
+
+/* What Abdoh can do: commands and modes use the same actions. */
+const ACTIONS = {
+  say: { label: "Say something", placeholder: "Good morning! It's {time} on {date}." },
+  open_url: { label: "Open a website", placeholder: "https://www.youtube.com" },
+  open_app: { label: "Open an app", placeholder: "Spotify" },
+  play_youtube: { label: "Play on YouTube", placeholder: "lofi hip hop radio" },
+  media: {
+    label: "Press a media key",
+    options: [["play_pause", "Play / pause"], ["next", "Next track"], ["previous", "Previous track"],
+      ["volume_up", "Volume up"], ["volume_down", "Volume down"], ["mute", "Mute"]],
+  },
+  timer: { label: "Start a timer", placeholder: "25 minutes" },
+  volume: { label: "Set the volume", placeholder: "30" },
+  app_volume: { label: "Set an app's volume", placeholder: "browser 30" },
+  brightness: { label: "Set the brightness", placeholder: "70" },
+  displays: { label: "Turn screens on or off", placeholder: "only 2   (or: all, 1 off, 3 on)" },
+  audio_output: { label: "Switch the speakers", placeholder: "headphones" },
+  dark_mode: { label: "Dark mode", options: [["on", "On"], ["off", "Off"], ["toggle", "Switch it"]] },
+  power_mode: { label: "Power mode", options: [["best_performance", "Best performance"], ["balanced", "Balanced"], ["efficiency", "Best power efficiency"]] },
+  power: { label: "Sleep or lock", options: [["screens_off", "Screens off"], ["lock", "Lock the computer"], ["sleep", "Sleep"]] },
+  keys: { label: "Press keys", placeholder: "win+d" },
+  wait: { label: "Wait", placeholder: "2 seconds" },
+  close_app: { label: "Close a program", placeholder: "Spotify" },
+  focus_app: { label: "Switch to a program", placeholder: "Chrome" },
+  window: { label: "Move a window", placeholder: "Chrome to 2 maximized" },
+  mode: { label: "Switch mode", placeholder: "Movie   (or: normal)" },
+  type: { label: "Type some text", placeholder: "Best regards, Sam" },
+  run: { label: "Run a program", placeholder: "notepad.exe" },
+};
+
+/* Rows of actions ("what Abdoh does"), for commands and modes. A mode may have none. */
+function actionRows(actions, canBeEmpty = false) {
+  const rows = actions.length ? actions.map((a) => ({ ...a }))
+    : canBeEmpty ? [] : [{ type: "say", value: "" }];
+  const box = el("div", { class: "action-rows" });
+  const draw = () => {
+    box.replaceChildren(...rows.map((row, i) => {
+      const type = el("select", { class: "input", "aria-label": "What Abdoh does" },
+        Object.entries(ACTIONS).map(([value, spec]) => el("option", { value, selected: value === row.type }, spec.label)));
+      type.addEventListener("change", () => {
+        row.type = type.value;
+        const options = (ACTIONS[row.type] || {}).options;
+        row.value = options ? options[0][0] : "";
+        draw();
+      });
+      const spec = ACTIONS[row.type] || ACTIONS.say;
+      let value;
+      if (spec.options) {
+        value = el("select", { class: "input", "aria-label": "Which key" },
+          spec.options.map(([v, label]) => el("option", { value: v, selected: v === row.value }, label)));
+        value.addEventListener("change", () => { row.value = value.value; });
+      } else {
+        value = el("input", { class: "input", value: row.value || "", placeholder: spec.placeholder, "aria-label": spec.label });
+        value.addEventListener("input", () => { row.value = value.value; });
+      }
+      const move = (by) => {
+        const j = i + by;
+        if (j < 0 || j >= rows.length) return;
+        [rows[i], rows[j]] = [rows[j], rows[i]];
+        draw();
+      };
+      const note = row.type === "run" && !App.settings.allow_run
+        ? el("div", { class: "note" }, "Running programs is off. Turn on “Your commands may run programs” in Permissions.")
+        : null;
+      return el("div", {},
+        el("div", { class: "action-row" }, type, value,
+          el("div", { class: "moves" },
+            el("button", { class: "icon-btn", title: "Move up", html: svg("up"), disabled: i === 0, onclick: () => move(-1) }),
+            el("button", { class: "icon-btn", title: "Move down", html: svg("down"), disabled: i === rows.length - 1, onclick: () => move(1) }),
+            el("button", { class: "icon-btn", title: "Remove", html: svg("x"), disabled: rows.length === 1 && !canBeEmpty, onclick: () => { rows.splice(i, 1); draw(); } }))),
+        note);
+    }));
+  };
+  draw();
+  const addButton = el("button", { class: "btn small", onclick: () => { rows.push({ type: "say", value: "" }); draw(); } },
+    el("span", { html: svg("plus") }), canBeEmpty ? "Add an action" : "Add another action");
+  return { box: el("div", {}, box, el("div", { style: "margin-top:10px" }, addButton)), values: () => rows.map((r) => ({ ...r })) };
 }
 
 /* A settings row: title, help text, and a control on the right. */
@@ -355,6 +462,14 @@ function setWake(text) { $("#side-wake").textContent = `Wake word: ${text}`; }
 function setVoice(on) { $("#voice-toggle").checked = !!on; }
 // Why Abdoh can't hear you over its own voice ("" when it can).
 function setHearing(why) { App.hearing = why || ""; }
+// The mode that is on ("" for none): a chip on Home, and the Modes page marks it.
+function setMode(name) {
+  App.mode = name || "";
+  const chip = $("#mode-chip");
+  if (!chip) return;
+  chip.hidden = !App.mode;
+  $("#mode-chip-name").textContent = App.mode ? `${App.mode} mode` : "";
+}
 
 /* ---------- events from Abdoh ---------- */
 
@@ -370,6 +485,7 @@ const HANDLERS = {
   claude: setClaude,
   wake: setWake,
   hearing: setHearing,
+  mode: setMode,
   voice: setVoice,
   page: showPage,
 };
@@ -474,6 +590,7 @@ async function start() {
   if (state.claude) setClaude(state.claude);
   if (state.wake) setWake(state.wake);
   setHearing(state.hearing);
+  setMode(state.mode);
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");
   renderHowToTalk();

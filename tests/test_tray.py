@@ -11,8 +11,9 @@ from abdoh.ui.tray import BLUE, GRAY, GREEN, RED, icon_image, status_color
 
 
 class FakeMenuItem:
-    def __init__(self, text, action, checked=None, default=False):
+    def __init__(self, text, action, checked=None, default=False, enabled=True):
         self.text, self.action, self.checked, self.default = text, action, checked, default
+        self.enabled = enabled
 
     def label(self):
         return self.text(self) if callable(self.text) else self.text
@@ -149,3 +150,35 @@ def test_start_at_login_toggle(tray):
 def test_stop(tray):
     tray.stop()
     assert tray.icon.stopped
+
+
+# ----- modes -----
+
+
+def test_the_modes_submenu_follows_your_modes(monkeypatch):
+    fake = types.SimpleNamespace(Icon=FakeIcon, Menu=FakeMenu, MenuItem=FakeMenuItem)
+    monkeypatch.setitem(sys.modules, "pystray", fake)
+    from abdoh.ui.tray import Tray
+
+    bus = Bus()
+    names = ["Movie", "Work"]
+    tray = Tray(bus, autostart=FakeAutostart(), list_modes=lambda: names)
+    items = tray.mode_items()
+    assert [i.label() for i in items] == ["Movie", "Work", "Back to normal"]
+    items[0].action()
+    assert bus.next_request(timeout=1) == ("mode", "Movie")
+    tray.show_mode("Movie")
+    items = tray.mode_items()
+    assert items[0].checked(items[0]) and not items[1].checked(items[1])
+    assert items[-1].enabled(items[-1])
+    items[-1].action()
+    assert bus.next_request(timeout=1) == ("mode", "")
+    tray.show_status("Listening")
+    assert tray.icon.title == "Abdoh: Listening (Movie mode)"
+
+
+def test_no_modes_yet_points_to_the_window(tray):
+    items = tray.mode_items()
+    assert items[0].label().startswith("No modes yet")
+    items[0].action()
+    assert ("page", "modes") in tray.bus.pending_events()

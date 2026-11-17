@@ -501,3 +501,64 @@ def test_a_page_opened_on_a_new_day_shows_nothing_old():
 def test_the_page_can_clear_the_chat():
     script = (WEB_DIR / "app.js").read_text(encoding="utf-8")
     assert "clear: clearHistory" in script
+
+
+# ----- modes and screens -----
+
+
+@pytest.fixture
+def modes_api(app_dir, bus):
+    from test_displays import FakeBackend
+
+    from abdoh.displays import Displays
+
+    class Audio:
+        @staticmethod
+        def outputs():
+            from abdoh.winaudio import Output
+
+            return [Output("a", "Speakers (Realtek(R) Audio)", True)]
+
+    state = UiState()
+    displays = Displays(app_dir / "displays.json", FakeBackend())
+    return AppApi(bus, state, load_config(app_dir), audio=Audio(), displays=displays), state
+
+
+def test_modes_for_the_page(modes_api):
+    api, state = modes_api
+    result = api.modes()
+    assert result["ok"] and result["modes"] == [] and result["templates"]
+    assert [d["number"] for d in result["displays"]] == [1, 2, 3]
+    assert result["outputs"] == ["Speakers"] and "film" in result["icons"]
+    saved = api.save_mode({"name": "Movie", "settings": {"displays": ["2"]}})
+    assert saved["ok"] and saved["mode"]["settings"] == {"displays": ["2"]}
+    assert [m["name"] for m in api.modes()["modes"]] == ["Movie"]
+    assert api.save_mode({"name": "Bad", "settings": {"volume": 400}})["ok"] is False
+    state.feed("mode", "Movie")
+    assert api.modes()["current"] == "Movie"
+    assert api.delete_mode("Movie") == {"ok": True}
+    assert api.modes()["modes"] == []
+
+
+def test_switching_goes_through_abdoh(modes_api, bus):
+    api, _ = modes_api
+    api.activate_mode("Movie")
+    api.end_mode()
+    assert requests(bus) == [("mode", "Movie"), ("mode", "")]
+
+
+def test_naming_and_numbering_screens(modes_api):
+    api, _ = modes_api
+    ids = [d["id"] for d in api.displays()["displays"]]
+    shown = api.rename_display(ids[1], "TV")["displays"]
+    assert shown[1]["nickname"] == "TV" and shown[1]["label"] == "TV"
+    shown = api.reorder_displays([ids[2], ids[0], ids[1]])["displays"]
+    assert [d["id"] for d in shown] == [ids[2], ids[0], ids[1]]
+
+
+def test_identify_shows_numbers_on_the_screens(modes_api):
+    api, _ = modes_api
+    shown = []
+    api._window = type("W", (), {"identify": lambda self, displays: shown.append(displays)})()
+    api.identify_displays()
+    assert [d["number"] for d in shown[0]] == [1, 2, 3]

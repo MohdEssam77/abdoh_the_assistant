@@ -586,6 +586,8 @@ class Daemon:
                 open_in_editor(self.cfg.commands_path)
             except ActionError as e:
                 self.bus.emit("history", f"Abdoh: {e}")
+        elif kind == "mode":  # the window or the tray: a mode's name, or "" for normal
+            self._switch_mode(str(value or ""))
         elif kind == "stop_speaking":
             self.stop_speaking()
         elif kind == "listen":
@@ -686,6 +688,20 @@ class Daemon:
             finally:
                 self.mic = None
                 mic.stop()
+
+    def _switch_mode(self, name: str) -> None:
+        from abdoh.commands.actions import ActionError
+
+        if self.modes is None:
+            return
+        try:
+            reply = self.modes.activate(name) if name else self.modes.deactivate()
+        except ActionError as e:
+            reply = str(e)
+        except Exception:
+            log.exception("Couldn't switch the mode")
+            reply = SORRY
+        self.bus.emit("history", f"Abdoh: {reply}")
 
     def use_modes(self, engine) -> None:
         """Modes: the router hears "movie mode", the `mode:` action reaches them."""

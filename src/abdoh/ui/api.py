@@ -85,6 +85,10 @@ class UiState:
             pending, self._pending = self._pending, []
             return pending
 
+    def snapshot_mode(self) -> str:
+        with self._lock:
+            return self._mode
+
     def snapshot(self) -> dict:
         """Everything so far. Queued events are dropped: the snapshot already has them."""
         with self._lock:
@@ -124,6 +128,7 @@ class AppApi:
         claude_setup=None,
         check_for_update=None,
         audio=None,
+        displays=None,
     ):
         self._bus = bus
         self._state = state
@@ -138,6 +143,7 @@ class AppApi:
         self._claude_setup = claude_setup  # abdoh.claude.setup (a fake in tests)
         self._check_for_update = check_for_update
         self._audio = audio  # abdoh.winaudio (a fake in tests)
+        self._displays = displays  # abdoh.displays.Displays (a fake backend in tests)
         # What Abdoh started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
@@ -227,6 +233,111 @@ class AppApi:
     def open_commands_file(self) -> None:
         """Open commands.yaml in a text editor (e.g. to fix an error made by hand)."""
         self._bus.request("edit_commands")
+
+    # ----- your modes and your screens -----
+
+    def _modes_store(self):
+        from abdoh.modes.store import ModesStore
+
+        return ModesStore(self._cfg.app_dir / "modes.yaml")
+
+    def _screens(self):
+        if self._displays is None:
+            from abdoh.displays import Displays
+
+            self._displays = Displays(self._cfg.app_dir / "displays.json")
+        return self._displays
+
+    def modes(self) -> dict:
+        """Your modes, the templates, which one is on, and what the editor offers: your
+        screens, your speakers and the icons."""
+        from abdoh.modes.model import ICONS, ModesFileError
+        from abdoh.modes.store import TEMPLATES
+
+        result = {
+            "ok": True,
+            "modes": [],
+            "templates": TEMPLATES,
+            "current": self._state.snapshot_mode(),
+            "displays": self._display_list(),
+            "outputs": self._output_names(),
+            "icons": list(ICONS),
+        }
+        try:
+            result["modes"] = self._modes_store().forms()
+        except ModesFileError as e:
+            result.update(ok=False, error=str(e))
+        return result
+
+    def save_mode(self, mode, old_name=None) -> dict:
+        from abdoh.modes.model import ModesFileError
+
+        try:
+            saved = self._modes_store().save(mode, old_name or None)
+        except ModesFileError as e:
+            return {"ok": False, "error": str(e)}
+        from abdoh.modes.model import as_form
+
+        return {"ok": True, "mode": as_form(saved)}
+
+    def delete_mode(self, name) -> dict:
+        from abdoh.modes.model import ModesFileError
+
+        try:
+            self._modes_store().delete(str(name))
+        except ModesFileError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True}
+
+    def activate_mode(self, name) -> None:
+        """Switch a mode on (on Abdoh's own thread: screens can take a second)."""
+        self._bus.request("mode", str(name))
+
+    def end_mode(self) -> None:
+        """Back to normal."""
+        self._bus.request("mode", "")
+
+    def _display_list(self) -> list[dict]:
+        try:
+            found = self._screens().all()
+        except Exception:
+            log.exception("Couldn't list the screens")
+            return []
+        return [
+            {
+                "id": d.id, "number": d.number, "label": d.label, "name": d.name,
+                "nickname": d.nickname, "active": d.active, "internal": d.internal,
+                "primary": d.primary, "rect": list(d.rect) if d.rect else None,
+            }
+            for d in found
+        ]  # fmt: skip
+
+    def _output_names(self) -> list[str]:
+        from abdoh.computer import short_output_name
+
+        audio = self._audio
+        if audio is None:
+            from abdoh import winaudio as audio
+        try:
+            return [short_output_name(o.name) for o in audio.outputs()]
+        except Exception:
+            return []
+
+    def displays(self) -> dict:
+        return {"displays": self._display_list()}
+
+    def rename_display(self, display_id, nickname) -> dict:
+        self._screens().rename(str(display_id), str(nickname or ""))
+        return self.displays()
+
+    def reorder_displays(self, ids) -> dict:
+        self._screens().renumber([str(i) for i in ids or []])
+        return self.displays()
+
+    def identify_displays(self) -> None:
+        """Show each screen's number on it for a few seconds."""
+        if self._window is not None and hasattr(self._window, "identify"):
+            self._window.identify(self._display_list())
 
     # ----- settings and permissions -----
 

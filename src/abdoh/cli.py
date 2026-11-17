@@ -158,6 +158,12 @@ def _start_again() -> None:
     subprocess.Popen(launch_command(show=True), close_fds=True, creationflags=flags)
 
 
+def _mode_names(cfg: Config) -> list[str]:
+    from abdoh.modes.store import ModesStore
+
+    return [mode.name for mode in ModesStore(cfg.app_dir / "modes.yaml").load()]
+
+
 def _make_ui(cfg: Config, args: argparse.Namespace):
     """The window and the tray icon. With a tray icon the window starts hidden unless --show."""
     from abdoh.events import Bus
@@ -168,7 +174,7 @@ def _make_ui(cfg: Config, args: argparse.Namespace):
     try:
         from abdoh.ui.tray import Tray
 
-        tray = Tray(bus)
+        tray = Tray(bus, list_modes=lambda: _mode_names(cfg))
     except Exception as e:
         log.warning("No tray icon (%s); showing the window instead.", e)
     try:
