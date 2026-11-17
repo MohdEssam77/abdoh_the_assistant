@@ -18,6 +18,7 @@ ACTION_TYPES = (
     "timer",
     "volume",
     "brightness",
+    "app_volume",
     "type",
     "run",
 )
@@ -112,6 +113,12 @@ def _check_slots(where: str, triggers: list[str], actions: list[tuple[str, str]]
             raise CommandsFileError(f"{where}: timer needs a duration like '5 minutes'.")
         if kind in ("volume", "brightness") and not _is_percent(arg):
             raise CommandsFileError(f"{where}: {kind} needs a number from 0 to 100.")
+        if kind == "app_volume":
+            app, _, level = arg.replace("|", " ").strip().rpartition(" ")
+            if not app.strip() or not _is_percent(level):
+                raise CommandsFileError(
+                    f"{where}: app_volume needs an app and a number, like 'browser 30'."
+                )
 
 
 def _is_percent(arg: str) -> bool:

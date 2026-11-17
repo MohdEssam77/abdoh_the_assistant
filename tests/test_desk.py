@@ -348,8 +348,13 @@ def test_old_settings_get_claudes_new_actions(app_dir):
     old = 'config_version: 2\nclaude:\n  actions: ["open_url", "timer"]\n'
     (app_dir / "config.yaml").write_text(old)
     cfg = load_config(app_dir)
-    assert cfg.claude.actions == ["open_url", "timer", "volume", "brightness", "remind", "note"]
-    assert cfg.config_version == 3
-    current = 'config_version: 3\nclaude:\n  actions: ["open_url"]\n'
+    assert cfg.claude.actions == [
+        "open_url", "timer", "volume", "brightness", "remind", "note", "app_volume"
+    ]  # fmt: skip
+    assert cfg.config_version == 4
+    from_0_4 = 'config_version: 3\nclaude:\n  actions: ["open_url", "volume"]\n'
+    (app_dir / "config.yaml").write_text(from_0_4)
+    assert load_config(app_dir).claude.actions == ["open_url", "volume", "app_volume"]
+    current = 'config_version: 4\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(current)
     assert load_config(app_dir).claude.actions == ["open_url"]  # your choice from then on

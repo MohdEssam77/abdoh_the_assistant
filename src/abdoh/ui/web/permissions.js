@@ -13,6 +13,7 @@
     ["note", "Notes", "Adds lines to your notes file."],
     ["volume", "Exact volume", "Sets the speakers to a level you name."],
     ["brightness", "Screen brightness", "Changes the laptop screen's brightness."],
+    ["app_volume", "App volumes", "Turns one app up or down in the Windows volume mixer, like your browser or Spotify."],
   ];
   const MAX_INSTRUCTIONS = 2000;
   let draft = null; // instructions being typed, kept across redraws

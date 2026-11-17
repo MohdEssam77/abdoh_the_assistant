@@ -124,6 +124,8 @@ def run_action(
         computer.set_volume(percent(arg))
     elif kind == "brightness":
         computer.set_brightness(percent(arg))
+    elif kind == "app_volume":
+        computer.set_app_volume(*app_and_level(arg))
     elif kind == "type":
         computer.type_text(arg)
     elif kind == "open_url":
@@ -145,7 +147,17 @@ def run_action(
     return None
 
 
-LOCAL_ONLY = ("media", "timer", "play_youtube", "volume", "brightness", "type")
+LOCAL_ONLY = ("media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type")
+
+
+def app_and_level(text: str) -> tuple[str, int]:
+    """'browser | 30', 'browser 30' or 'Spotify 20%' -> ('browser', 30). Raises ActionError."""
+    app, sep, level = str(text).rpartition("|")
+    if not sep:
+        app, _, level = str(text).strip().rpartition(" ")
+    if not app.strip():
+        raise ActionError(f"'{text}' needs an app and a volume, like: browser 30.")
+    return app.strip(), percent(level)
 
 
 def percent(text: str) -> int:
@@ -210,6 +222,8 @@ def claude_action(kind: str, arg: str, computer) -> None:
         computer.set_volume(percent(arg))
     elif kind == "brightness":
         computer.set_brightness(percent(arg))
+    elif kind == "app_volume":
+        computer.set_app_volume(*app_and_level(arg))
     elif kind == "remind":
         computer.remind(arg)
     elif kind == "note":

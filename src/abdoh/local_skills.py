@@ -109,6 +109,25 @@ _HUSH = re.compile(
     r"(?: (?:please|abdoh|a second|a moment))?"
 )
 _LOCK = re.compile(r"lock (?:my |the )?(?:computer|pc|laptop|screen|workstation)")
+# One app's volume in the mixer: "lower the browser", "set spotify to 20 percent".
+_APP = r"(?:the |my )?(?P<app>[a-z][a-z0-9 ]{1,30}?)(?: volume| sound| audio)?"
+_APP_SET = re.compile(rf"(?:set|turn|put|change|make) {_APP} (?:to|at) {_LEVEL}")
+_APP_DOWN = [
+    re.compile(rf"(?:lower|turn down|decrease|reduce|quieten) {_APP}"),
+    re.compile(rf"turn {_APP} down"),
+    re.compile(rf"make {_APP} quieter"),
+]
+_APP_UP = [
+    re.compile(rf"(?:raise|turn up|increase|boost) {_APP}"),
+    re.compile(rf"turn {_APP} up"),
+    re.compile(rf"make {_APP} louder"),
+]
+_APP_MUTE = re.compile(rf"mute {_APP}")
+_APP_UNMUTE = re.compile(rf"unmute {_APP}")
+_PLAYING = re.compile(
+    r"whats playing|what is playing|(?:which|what) apps? (?:is|are) (?:playing|making sound)"
+)
+APP_STEP = 20
 _OPEN = re.compile(r"(?:open|launch|start) (?P<app>.+)")
 
 BRIGHTNESS_STEP = 20
@@ -134,7 +153,8 @@ def interruption_kind(text: str) -> str:
 
 
 def spoken_number(text: str) -> int | None:
-    """'75' or 'seventy five' -> 75."""
+    """'75', 'seventy five' or 'twenty percent' -> 75 (or 20)."""
+    text = re.sub(r"\s*percent$", "", text.strip())
     if text.isdigit():
         return int(text)
     total = 0
@@ -223,7 +243,13 @@ class LocalSkills:
             return self._last_reply() or "I haven't said anything yet."
         if _HELP.fullmatch(request):
             return HELP
-        for handler in (self._sound, self._screen, self._time_and_reminders, self._writing):
+        for handler in (
+            self._sound,
+            self._screen,
+            self._time_and_reminders,
+            self._writing,
+            self._app_sound,
+        ):
             reply = handler(request, original)
             if reply is not None:
                 return reply
@@ -259,6 +285,37 @@ class LocalSkills:
         level = spoken_number(found["level"]) if found else None
         if level is not None and level <= 100:
             return f"Volume at {computer.set_volume(level)} percent."
+        return None
+
+    def _app_sound(self, request: str, original: str) -> str | None:
+        """One app's volume. Only for apps in the volume mixer: anything else ("turn the
+        lights down") is left for your commands or Claude."""
+        computer = self.computer
+        if not hasattr(computer, "find_app_audio"):
+            return None
+        if _PLAYING.fullmatch(request):
+            playing = computer.playing_apps()
+            if not playing:
+                return "Nothing is playing right now."
+            return f"Playing now: {', '.join(playing)}."
+        found = _APP_SET.fullmatch(request)
+        if found:
+            level = spoken_number(found["level"])
+            if level is not None and level <= 100 and computer.find_app_audio(found["app"]):
+                name = computer.set_app_volume(found["app"], level)
+                return f"{name} at {level} percent."
+            return None
+        for patterns, step in ((_APP_DOWN, -APP_STEP), (_APP_UP, APP_STEP)):
+            for pattern in patterns:
+                found = pattern.fullmatch(request)
+                if found and computer.find_app_audio(found["app"]):
+                    name, level = computer.change_app_volume(found["app"], step)
+                    return f"{name} at {level} percent."
+        for pattern, muted in ((_APP_MUTE, True), (_APP_UNMUTE, False)):
+            found = pattern.fullmatch(request)
+            if found and computer.find_app_audio(found["app"]):
+                name = computer.mute_app(found["app"], muted)
+                return f"{name} {'muted' if muted else 'unmuted'}."
         return None
 
     def _screen(self, request: str, original: str) -> str | None:
