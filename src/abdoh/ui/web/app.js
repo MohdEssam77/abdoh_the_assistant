@@ -314,6 +314,12 @@ function addHistory(line) {
   scrollChat();
 }
 
+/* A new day: the conversation starts empty (only today's is kept). */
+function clearHistory() {
+  $$(".msg:not(#typing)", $("#chat-inner")).forEach((message) => message.remove());
+  if (!$("#typing")) $("#chat-empty").hidden = false;
+}
+
 function showTyping(on) {
   const existing = $("#typing");
   if (on && !existing) {
@@ -360,6 +366,7 @@ const HANDLERS = {
   status: setStatus,
   activity: setActivity,
   history: addHistory,
+  clear: clearHistory,
   claude: setClaude,
   wake: setWake,
   hearing: setHearing,

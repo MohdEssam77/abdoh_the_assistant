@@ -67,6 +67,9 @@ def test_setup_logging_writes_file(tmp_path):
     for h in logging.getLogger().handlers:
         h.flush()
     assert "hello log" in (tmp_path / "logs" / "abdoh.log").read_text(encoding="utf-8")
+    (handler,) = logging.getLogger().handlers
+    # What you said is in the log: only today's and yesterday's are kept.
+    assert (handler.when, handler.backupCount) == ("MIDNIGHT", 1)
     for h in list(logging.getLogger().handlers):
         h.close()
         logging.getLogger().removeHandler(h)

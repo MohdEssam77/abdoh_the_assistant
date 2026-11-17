@@ -243,8 +243,9 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
 
     log_path = config.resolve(config.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    file_handler = logging.handlers.RotatingFileHandler(
-        log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+    # The log has what you said in it: keep today's and yesterday's only.
+    file_handler = logging.handlers.TimedRotatingFileHandler(
+        log_path, when="midnight", backupCount=1, encoding="utf-8"
     )
     file_handler.setFormatter(fmt)
     root.addHandler(file_handler)
