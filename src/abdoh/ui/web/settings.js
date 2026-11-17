@@ -245,9 +245,10 @@
       row("Check for updates", `Look for a new version of Abdoh once a day. You have ${App.version}.`,
         el("div", { class: "btn-row" },
           el("button", { class: "btn small", onclick: async (e) => {
-            e.currentTarget.disabled = true;
+            const button = e.currentTarget; // gone from the event once we've awaited
+            button.disabled = true;
             const update = await checkUpdate(true);
-            e.currentTarget.disabled = false;
+            button.disabled = false;
             if (update && !update.available) toast("You have the latest version.");
             if (update && update.available) showPage("home");
           } }, "Check now"),
