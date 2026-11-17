@@ -379,7 +379,13 @@ A mode switches a set of things at once, and puts them back when you're done. Sa
 "**movie mode**", "**switch to work mode**", and "**back to normal**" (or "exit movie mode") to
 undo everything the mode changed. "Which mode am I in?" and "what modes do I have?" work too.
 
-Make modes on the **Modes** page, or in `modes.yaml` in Abdoh's data folder:
+Make modes on the **Modes** page: pick an icon, click the screens to keep on in a drawing of your
+desk, set the volume, brightness, speakers, theme and power, and add actions. **Save and try it**
+switches it on; if your screens change, Abdoh asks "Keep these screens?" and goes back by itself
+after 15 seconds. **Your screens** at the bottom shows Abdoh's numbers for your monitors, lets you
+name them ("TV") or renumber them, and **Show the numbers on the screens** puts a big number on
+each. The Home page shows the mode that's on (with a way back), and the tray icon has a **Modes**
+menu. You can also write modes by hand in `modes.yaml` in Abdoh's data folder:
 
 ```yaml
 - name: Movie

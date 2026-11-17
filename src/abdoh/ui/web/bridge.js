@@ -53,6 +53,24 @@ const Bridge = (() => {
       { name: "Weather", description: "Shows the weather forecast.", triggers: ["what's the weather"], actions: [{ type: "open_url", value: "https://www.google.com/search?q=weather" }] },
       { name: "Focus time", description: "A 25-minute focus timer with calm music.", triggers: ["focus time"], actions: [{ type: "timer", value: "25 minutes" }] },
     ];
+    const MODE_ICONS = ["sparkles", "film", "briefcase", "moon", "target", "presentation", "music", "game", "coffee", "book", "sun", "home"];
+    let currentMode = params.get("mode") || "";
+    let displays = [
+      { id: "laptop", number: 1, label: "Laptop screen", name: "", nickname: "", active: true, internal: true, primary: false, rect: [-3840, 0, 1920, 1080] },
+      { id: "hp", number: 2, label: "TV", name: "HP 32f", nickname: "TV", active: true, internal: false, primary: false, rect: [-1920, 0, 1920, 1080] },
+      { id: "wide", number: 3, label: "C34H89x", name: "C34H89x", nickname: "", active: true, internal: false, primary: true, rect: [0, 0, 3440, 1440] },
+    ];
+    let modes = [
+      { name: "Movie", icon: "film", phrases: ["movie night"], settings: { displays: ["2"], volume: 60, dark_mode: true },
+        actions: [{ type: "say", value: "Enjoy the movie." }], exit_actions: [], schedule: [] },
+      { name: "Work", icon: "briefcase", phrases: [], settings: { displays: "all", brightness: 100, power_mode: "best_performance" },
+        actions: [{ type: "play_youtube", value: "jazz music" }, { type: "open_app", value: "Visual Studio Code" }], exit_actions: [], schedule: [] },
+      { name: "Night", icon: "moon", phrases: [], settings: { brightness: 30, volume: 30, dark_mode: true }, actions: [], exit_actions: [], schedule: [] },
+    ];
+    const modeTemplates = [
+      { name: "Focus", icon: "target", description: "A 25-minute timer, and Abdoh stops listening for more after replies.", settings: { follow_up: false }, actions: [{ type: "timer", value: "25 minutes" }] },
+      { name: "Presentation", icon: "presentation", description: "Light theme, full brightness, and Abdoh stays quiet.", settings: { dark_mode: false, brightness: 100, voice_replies: false }, actions: [] },
+    ];
     const replies = {
       time: () => `It is ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
       timer: () => "Timer set for 10 minutes.",
@@ -61,7 +79,7 @@ const Bridge = (() => {
       demo: true,
       boot: async () => ({
         version: "0.4.0", platform: "win32", demo: true, settings,
-        state: { status: "Starting...", claude: "", wake: "", hearing: "", voice: true, history },
+        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, voice: true, history },
       }),
       events: async () => queue.splice(0),
       send: async (text) => {
@@ -96,6 +114,22 @@ const Bridge = (() => {
         return { ok: true };
       },
       open_commands_file: async () => {},
+      modes: async () => ({ ok: true, modes, templates: modeTemplates, current: currentMode, displays, outputs: ["Speakers", "C34H89x"], icons: MODE_ICONS }),
+      save_mode: async (mode, oldName) => {
+        if (!mode.name.trim()) return { ok: false, error: "Give the mode a name." };
+        modes = modes.filter((m) => m.name !== oldName && m.name !== mode.name).concat([mode]);
+        return { ok: true, mode };
+      },
+      delete_mode: async (name) => { modes = modes.filter((m) => m.name !== name); return { ok: true }; },
+      activate_mode: async (name) => { currentMode = name; push("mode", name); push("history", `Abdoh: ${name} mode.`); },
+      end_mode: async () => { currentMode = ""; push("mode", ""); push("history", "Abdoh: Back to normal."); },
+      displays: async () => ({ displays }),
+      rename_display: async (id, nickname) => { displays.find((d) => d.id === id).nickname = nickname; return { displays }; },
+      reorder_displays: async (ids) => {
+        displays = ids.map((id, i) => ({ ...displays.find((d) => d.id === id), number: i + 1 }));
+        return { displays };
+      },
+      identify_displays: async () => {},
       settings: async () => ({ settings, restart: [] }),
       save_settings: async (changes) => {
         for (const [key, value] of Object.entries(changes)) {

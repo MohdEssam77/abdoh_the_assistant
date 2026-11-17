@@ -51,6 +51,19 @@ def windows_dark_mode(read=_registry_value) -> bool:
     return read("HKEY_CURRENT_USER", key, "AppsUseLightTheme") == 0
 
 
+IDENTIFY_HTML = """<!doctype html><html><body style="margin:0;height:100vh;display:flex;
+flex-direction:column;align-items:center;justify-content:center;background:#0d9668;color:#fff;
+font-family:Segoe UI,system-ui,sans-serif;border-radius:16px;overflow:hidden">
+<div style="font-size:120px;font-weight:700;line-height:1">{number}</div>
+<div style="font-size:22px;margin-top:8px;opacity:.9">{label}</div></body></html>"""
+
+
+def _escape(text: str) -> str:
+    import html
+
+    return html.escape(text)
+
+
 class WebWindow:
     def __init__(self, bus: Bus, cfg: Config, start_hidden: bool = False, tray=None):
         import webview
@@ -96,6 +109,34 @@ class WebWindow:
         chosen = self.window.create_file_dialog(kind)
         return str(chosen[0]) if chosen else None
 
+    def identify(self, displays: list[dict], seconds: float = 3.0) -> None:
+        """A big number in the middle of each screen that's on, for a few seconds."""
+        made = []
+        for d in displays:
+            if not d.get("active") or not d.get("rect"):
+                continue
+            left, top, width, height = d["rect"]
+            label = d.get("nickname") or d.get("label") or ""
+            html = IDENTIFY_HTML.format(number=d["number"], label=_escape(label))
+            made.append(
+                self._webview.create_window(
+                    f"Screen {d['number']}", html=html, width=360, height=240,
+                    x=left + (width - 360) // 2, y=top + (height - 240) // 2,
+                    frameless=True, on_top=True, focus=False, resizable=False,
+                )
+            )  # fmt: skip
+
+        def close() -> None:
+            for window in made:
+                try:
+                    window.destroy()
+                except Exception:
+                    log.debug("Couldn't close an identify window", exc_info=True)
+
+        timer = threading.Timer(seconds, close)
+        timer.daemon = True
+        timer.start()
+
     def route(self, kind: str, value) -> None:
         """One event from the daemon: to the tray, the window, or the page."""
         try:
@@ -103,6 +144,8 @@ class WebWindow:
                 self.tray.show_status(value)
             elif kind == "voice" and self.tray:
                 self.tray.show_voice(bool(value))
+            elif kind == "mode" and self.tray:
+                self.tray.show_mode(str(value or ""))
         except Exception:  # the page must still get the event
             log.exception("Couldn't update the tray icon")
         if kind == "show":

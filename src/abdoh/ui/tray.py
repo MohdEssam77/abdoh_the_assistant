@@ -40,7 +40,7 @@ def icon_image(color: tuple[int, int, int], size: int = 64) -> Image.Image:
 
 
 class Tray:
-    def __init__(self, bus: Bus, autostart=None):
+    def __init__(self, bus: Bus, autostart=None, list_modes=None):
         import pystray
 
         if autostart is None:
@@ -51,6 +51,9 @@ class Tray:
         self.paused = False
         self.voice_on = True
         self.starts_at_login = False
+        self.mode = ""  # the mode that is on
+        self._list_modes = list_modes or (lambda: [])
+        self._item = pystray.MenuItem
         item, menu = pystray.MenuItem, pystray.Menu
         self.icon = pystray.Icon(
             "abdoh",
@@ -62,6 +65,7 @@ class Tray:
                      self.toggle_pause),
                 item("Stop speaking", lambda: bus.request("stop_speaking")),
                 item("Voice replies", self.toggle_voice, checked=lambda i: self.voice_on),
+                item("Modes", menu(self.mode_items)),
                 item("Commands", self.open_commands),
                 item("Start at login", self.toggle_login, checked=lambda i: self.starts_at_login),
                 menu.SEPARATOR,
@@ -77,6 +81,34 @@ class Tray:
         self.icon.stop()
 
     # ----- menu actions (send requests) -----
+
+    def mode_items(self) -> list:
+        """The Modes submenu: each of your modes (a check on the one that's on), and back to
+        normal. Built each time the menu opens, so it follows modes.yaml."""
+        try:
+            names = list(self._list_modes())
+        except Exception:
+            log.debug("Couldn't list the modes", exc_info=True)
+            names = []
+        item = self._item
+        items = [
+            item(name, self._mode_action(name), checked=self._mode_checked(name)) for name in names
+        ]
+        if not items:
+            items.append(item("No modes yet: make one in the window", self.open_modes))
+        items.append(item("Back to normal", lambda: self.bus.request("mode", ""),
+                          enabled=lambda i: bool(self.mode)))  # fmt: skip
+        return items
+
+    def _mode_action(self, name: str):
+        return lambda: self.bus.request("mode", name)
+
+    def _mode_checked(self, name: str):
+        return lambda i: self.mode.lower() == name.lower()
+
+    def open_modes(self) -> None:
+        self.bus.emit("show")
+        self.bus.emit("page", "modes")
 
     def open_commands(self) -> None:
         """Show the window's Commands page (the simple window opens the file instead)."""
@@ -117,7 +149,15 @@ class Tray:
         if status in ("Listening", "Paused"):
             self.paused = status == "Paused"
         self.icon.icon = icon_image(status_color(status))
-        title = f"Abdoh: {status}"
+        self._title()
+
+    def show_mode(self, name: str) -> None:
+        self.mode = name or ""
+        self._title()
+        self.icon.update_menu()
+
+    def _title(self) -> None:
+        title = f"Abdoh: {self.status}" + (f" ({self.mode} mode)" if self.mode else "")
         self.icon.title = title if len(title) <= TITLE_MAX else title[: TITLE_MAX - 1] + "…"
 
     def show_voice(self, on: bool) -> None:

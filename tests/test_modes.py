@@ -400,3 +400,31 @@ def test_the_controls_reach_the_computer_and_abdoh(tmp_path):
     controls.restore("follow_up", before)
     assert daemon.cfg.follow_up_seconds == before
     assert not (tmp_path / "config.yaml").exists()  # in memory only
+
+
+def test_the_window_switches_modes_through_abdoh(tmp_path):
+    from abdoh.config import Config
+    from abdoh.daemon import Daemon
+    from abdoh.events import Bus
+    from abdoh.speech.tts import FakeSpeaker
+
+    class Router:
+        brain = registry = computer = None
+        modes = None
+
+        def add_builtin(self, *args):
+            pass
+
+    bus = Bus()
+    daemon = Daemon(Config(app_dir=tmp_path), Router(), FakeSpeaker(), None, None, None, bus=bus)
+    engine, *_ = make(tmp_path)
+    daemon.use_modes(engine)
+    daemon.handle_request("mode", "Movie")
+    daemon.handle_request("mode", "")
+    daemon.handle_request("mode", "Party")
+    history = [v for k, v in bus.pending_events() if k == "history"]
+    assert history == [
+        "Abdoh: Movie mode. Enjoy the movie.",
+        "Abdoh: Back to normal.",
+        "Abdoh: You don't have a mode called Party.",
+    ]
