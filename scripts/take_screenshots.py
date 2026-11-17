@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "src" / "abdoh" / "ui" / "web" / "index.html"
-SHOTS = {"app": "home", "commands": "commands"}  # docs/<name>-<theme>.png -> the app's page
+SHOTS = {"app": "home", "modes": "modes"}  # docs/<name>-<theme>.png -> the app's page
 EDGE = [
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
     Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
