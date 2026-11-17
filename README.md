@@ -6,8 +6,8 @@ time), handles everyday things by itself (timers, volume and music, opening any 
 everything else to Claude, using your Claude subscription through Claude Code. It replies by
 voice and lives in the system tray.
 
-Speech recognition runs offline on your machine (openWakeWord or Vosk for the wake word, Whisper
-for requests). Only Claude requests go over the network.
+Speech recognition runs offline on your machine (openWakeWord for the wake word, Parakeet and
+Whisper for requests). Only Claude requests go over the network.
 
 **Just want to use it?** Download `Abdoh-Setup.exe` from the download page (`docs/index.html`,
 see section 6), install it, and follow the short setup. No Python or terminal needed. The rest
@@ -47,9 +47,8 @@ On Linux you may also need PortAudio, Tk and a speech engine:
 python scripts/download_models.py
 ```
 
-This downloads into `models/` the two small openWakeWord feature models (about 2 MB), the Vosk
-wake word model (about 40 MB, a fallback), and the **Parakeet** speech recognition model (about
-630 MB; English, the most accurate). It also copies the trained "Hey Abdoh" wake word model from
+This downloads into `models/` the two small openWakeWord feature models (about 2 MB) and the **Parakeet** speech recognition
+model (about 630 MB; English, the most accurate). It also copies the trained "Hey Abdoh" wake word model from
 `assets/` if you don't have your own. Whisper models (used when you speak other languages)
 download themselves the first time they're used.
 
@@ -75,8 +74,8 @@ If it misses you, move **Settings → Sensitivity** to the left (`wake_word_thre
    in `config.yaml` to its path (with the installed app: `%APPDATA%\Abdoh\models\`).
 4. Add your phrase to **Settings → Wake words**, so it's removed from what you say.
 
-Without a wake word model, Abdoh falls back to Vosk, which only catches similar-sounding
-English words and checks the transcript for the wake word; the trained model is far better.
+If the wake word model is missing or can't start, the status says **Hotkey only**: press the
+hotkey (or the talk button) to talk to Abdoh, and typing works as always.
 
 ## 3. Run
 
@@ -456,9 +455,9 @@ pip install -e .[build]
 python scripts/build_app.py        # about 3 minutes; creates dist/Abdoh/Abdoh.exe
 ```
 
-The folder (about 550 MB) contains Abdoh and the models in your `models/` folder (the
-openWakeWord files, your `hey_abdoh.onnx`, the Vosk fallback, and the Whisper speech model, so
-nothing downloads on the first start). Double-click `Abdoh.exe` to start it. It keeps your
+The folder (about 950 MB) contains Abdoh and the models in your `models/` folder (the
+openWakeWord files, your `hey_abdoh.onnx` and the Parakeet speech model, so nothing downloads
+on the first start). Double-click `Abdoh.exe` to start it. It keeps your
 `config.yaml`, `commands.yaml` and `.env` in `%APPDATA%\Abdoh` (created on first start), and a
 model you put in `%APPDATA%\Abdoh\models` is used instead of the bundled one. `Abdoh.exe install`
 adds the built app to the Start Menu.
@@ -538,10 +537,10 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | Key | Default | Meaning |
 |---|---|---|
 | `wake_words` | `["abdoh", "hey abdoh", "ya abdoh"]` | What you say to wake Abdoh; removed from requests before matching |
-| `wake_word_model` | `models/hey_abdoh.onnx` | Your openWakeWord model; without it, Vosk is used |
+| `wake_word_model` | `models/hey_abdoh.onnx` | Your openWakeWord model; without it, only the hotkey works |
 | `wake_word_threshold` | `0.4` | openWakeWord: higher means fewer false wake-ups |
 | `hotkey` | `ctrl+alt+space` | Press to talk without the wake word, or to stop a reply (`""` = off) |
-| `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Vosk only: similar words it listens for (see Troubleshooting) |
+| `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Other spellings speech recognition may write for "Abdoh"; left out of your requests |
 | `languages` | `["en"]` | What you speak to Abdoh. English only uses Parakeet (fastest, most accurate); with more languages (e.g. `["en", "ar"]`) Whisper is used and Abdoh answers in the language you spoke |
 | `speech_engine` | `auto` | `auto`, `parakeet` (English only) or `whisper` (lighter: about 700 MB less memory, more mistakes) |
 | `whisper_model` | `small` | Whisper size for other languages: `base` (fast), `small`, `medium` (slow) |
@@ -582,15 +581,10 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 ## Troubleshooting
 
 **Abdoh doesn't wake up.** The window's `Wake word:` line shows which engine is used. With your
-openWakeWord model, lower `wake_word_threshold`. With Vosk (no model yet), which doesn't know the
-word "Abdoh": run `python -m abdoh calibrate`, say "Abdoh" five times, and add the words it
-prints to `wake_word_aliases`, or better, train a model (see section 2). Either way,
-`python -m abdoh listen-once` should print your request.
+openWakeWord model, lower `wake_word_threshold`. If it says **Hotkey only**, the model couldn't
+start: the log says why. `python -m abdoh listen-once` should print your request.
 
-**Abdoh wakes up by itself.** False wake-ups are checked against the Whisper transcript and
-ignored silently (you'll see "Ignoring false wake-up" in the log). If it still reacts too often,
-raise `wake_word_threshold` (openWakeWord) or remove short or common words from
-`wake_word_aliases` (Vosk).
+**Abdoh wakes up by itself.** Raise `wake_word_threshold` (for example to 0.5 or 0.6).
 
 **The tray icon is red and the status says "the speech recognition model couldn't be loaded".**
 Voice input is off because the Whisper model is missing or broken (an interrupted download
