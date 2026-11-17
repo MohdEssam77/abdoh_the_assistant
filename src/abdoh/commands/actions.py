@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import webbrowser
 from collections.abc import Callable
 from datetime import datetime
@@ -126,6 +127,8 @@ def run_action(
         computer.set_brightness(percent(arg))
     elif kind == "app_volume":
         computer.set_app_volume(*app_and_level(arg))
+    elif kind in SYSTEM_ACTIONS:
+        return system_action(kind, arg, computer)
     elif kind == "type":
         computer.type_text(arg)
     elif kind == "open_url":
@@ -147,7 +150,86 @@ def run_action(
     return None
 
 
-LOCAL_ONLY = ("media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type")
+# Settings and controls of the computer, for your commands and modes.
+SYSTEM_ACTIONS = (
+    "displays", "audio_output", "dark_mode", "power_mode", "power", "keys", "wait",
+    "close_app", "focus_app", "window",
+)  # fmt: skip
+LOCAL_ONLY = (
+    "media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type",
+    *SYSTEM_ACTIONS,
+)  # fmt: skip
+ON_WORDS = {"on": True, "true": True, "yes": True, "dark": True, "off": False, "false": False,
+            "no": False, "light": False}  # fmt: skip
+MAX_WAIT_SECONDS = 60
+WINDOW_WORDS = ("minimize", "maximize", "restore", "close", "desktop", "switch")
+WINDOW_PLACES = ("maximized", "left", "right", "keep")
+
+
+def system_action(kind: str, arg: str, computer) -> str | None:
+    """One of SYSTEM_ACTIONS. Returns text to speak, if any. Raises ActionError."""
+    arg = arg.strip()
+    if kind == "displays":
+        computer.screens(arg)
+    elif kind == "audio_output":
+        computer.set_audio_output(arg)
+    elif kind == "dark_mode":
+        word = arg.lower()
+        on = (not computer.dark_mode()) if word == "toggle" else ON_WORDS.get(word)
+        if on is None:
+            raise ActionError("dark_mode is on, off or toggle.")
+        computer.set_dark_mode(on)
+    elif kind == "power_mode":
+        computer.set_power_mode(arg.lower())
+    elif kind == "power":
+        computer.power(arg)
+    elif kind == "keys":
+        computer.press_keys(arg)
+    elif kind == "wait":
+        time.sleep(wait_seconds(arg))
+    elif kind == "close_app":
+        computer.close_app(arg)
+    elif kind == "focus_app":
+        computer.focus_app(arg)
+    elif kind == "window":
+        place = parse_window(arg)
+        if isinstance(place, str):
+            computer.window(place)
+        else:
+            computer.move_window(*place)
+    return None
+
+
+def wait_seconds(text: str) -> float:
+    from abdoh.computer import parse_duration
+
+    found = parse_duration(text)
+    seconds = found[0] if found else None
+    if seconds is None:
+        try:
+            seconds = float(text.lower().replace("seconds", "").replace("second", "").strip())
+        except ValueError as e:
+            raise ActionError(f"wait needs a time like '2 seconds', not '{text}'.") from e
+    if not 0 <= seconds <= MAX_WAIT_SECONDS:
+        raise ActionError(f"wait is at most {MAX_WAIT_SECONDS} seconds.")
+    return seconds
+
+
+def parse_window(text: str):
+    """'minimize' -> 'minimize'; 'Chrome to 2 left' -> ('Chrome', '2', 'left');
+    'this to the laptop' -> (None, 'the laptop', 'maximized'). Raises ActionError."""
+    words = " ".join(text.lower().split())
+    if words in WINDOW_WORDS:
+        return words
+    app, sep, rest = words.partition(" to ")
+    if not sep or not rest:
+        raise ActionError("window is like 'Chrome to 2 maximized' or 'minimize'.")
+    how = "maximized"
+    last = rest.rsplit(" ", 1)
+    if len(last) == 2 and last[1] in WINDOW_PLACES:
+        rest, how = last
+    app = None if app in ("this", "it", "this window", "the window") else app
+    return app, rest, how
 
 
 def app_and_level(text: str) -> tuple[str, int]:

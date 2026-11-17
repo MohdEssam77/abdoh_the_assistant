@@ -19,6 +19,16 @@ ACTION_TYPES = (
     "volume",
     "brightness",
     "app_volume",
+    "displays",
+    "audio_output",
+    "dark_mode",
+    "power_mode",
+    "power",
+    "keys",
+    "wait",
+    "close_app",
+    "focus_app",
+    "window",
     "type",
     "run",
 )
@@ -113,12 +123,59 @@ def _check_slots(where: str, triggers: list[str], actions: list[tuple[str, str]]
             raise CommandsFileError(f"{where}: timer needs a duration like '5 minutes'.")
         if kind in ("volume", "brightness") and not _is_percent(arg):
             raise CommandsFileError(f"{where}: {kind} needs a number from 0 to 100.")
+        problem = _system_problem(kind, arg)
+        if problem:
+            raise CommandsFileError(f"{where}: {problem}")
+        if kind in ("keys", "close_app") and PLACEHOLDER.search(arg):
+            raise CommandsFileError(f"{where}: '{kind}' actions can't use slots (that's unsafe).")
         if kind == "app_volume":
             app, _, level = arg.replace("|", " ").strip().rpartition(" ")
             if not app.strip() or not _is_percent(level):
                 raise CommandsFileError(
                     f"{where}: app_volume needs an app and a number, like 'browser 30'."
                 )
+
+
+_DISPLAYS = re.compile(r"all(?: on)?|only .+|.+ (?:on|off)", re.IGNORECASE)
+
+
+def _system_problem(kind: str, arg: str) -> str | None:
+    """What's wrong with a system action's value (only its form: the screens, speakers and
+    programs it names may not be there right now)."""
+    from abdoh.commands.actions import (
+        ON_WORDS,
+        WINDOW_WORDS,
+        ActionError,
+        parse_window,
+        wait_seconds,
+    )
+
+    value = arg.strip().lower()
+    if kind == "displays" and not _DISPLAYS.fullmatch(value):
+        return "displays is like 'all', 'only 2', '1 off' or '3 on'."
+    if kind == "dark_mode" and value not in (*ON_WORDS, "toggle"):
+        return "dark_mode is on, off or toggle."
+    if kind == "power_mode" and value not in ("best_performance", "balanced", "efficiency"):
+        return "power_mode is best_performance, balanced or efficiency."
+    if kind == "power" and value not in ("sleep", "lock", "screens_off"):
+        return "power is sleep, lock or screens_off."
+    if kind in ("audio_output", "close_app", "focus_app") and not value:
+        return f"{kind} needs a name."
+    if kind == "keys":
+        from abdoh.system import parse_keys
+
+        try:
+            parse_keys(value)
+        except ValueError as e:
+            return f"keys: {e}"
+    try:
+        if kind == "wait":
+            wait_seconds(value)
+        if kind == "window" and value not in WINDOW_WORDS:
+            parse_window(value)
+    except ActionError as e:
+        return str(e)
+    return None
 
 
 def _is_percent(arg: str) -> bool:

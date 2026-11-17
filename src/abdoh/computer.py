@@ -271,6 +271,8 @@ class Computer:
         reminders=None,
         pictures: Path | None = None,
         now: Callable[[], datetime] = datetime.now,
+        system=None,
+        displays=None,
     ):
         self.timers = timers or Timers(announce=lambda text: log.info(text))
         self.apps = apps or AppIndex()
@@ -279,6 +281,8 @@ class Computer:
         self._notes = notes
         self._reminders = reminders
         self._pictures = pictures  # where screenshots go
+        self._system = system  # abdoh.system, or a fake: theme, power, keys, windows, folders
+        self.displays = displays  # abdoh.displays.Displays, or None (no monitor control)
         self.now = now
         self._press_key = press_key
         self._lock = lock
@@ -422,10 +426,194 @@ class Computer:
         return self._desk
 
     def brightness(self) -> int:
-        return self._on_desk().get_brightness()
+        """The laptop screen's brightness, or the first monitor that can tell."""
+        try:
+            return self._on_desk().get_brightness()
+        except ActionError:
+            for display in self._external_screens():
+                level = self.displays.brightness(display)
+                if level is not None:
+                    return level
+            raise
 
-    def set_brightness(self, percent: float) -> int:
-        return self._on_desk().set_brightness(percent)
+    def set_brightness(self, percent: float, screen: str | None = None) -> int:
+        """Every screen that's on and can change it (the laptop's own, and monitors that
+        support DDC/CI), or just the one you named."""
+        level = max(0, min(100, round(percent)))
+        targets = self._screens_named(screen) if screen else None
+        done = False
+        problem = None
+        if targets is None or any(d.internal for d in targets):
+            try:
+                level = self._on_desk().set_brightness(level)
+                done = True
+            except ActionError as e:
+                problem = e
+        for display in self._external_screens(targets):
+            done = self.displays.set_brightness(display, level) or done
+        if not done:
+            raise problem or ActionError("That screen's brightness can't be changed from here.")
+        return level
+
+    def _external_screens(self, among=None) -> list:
+        if self.displays is None:
+            return []
+        displays = among if among is not None else self.displays.all()
+        return [d for d in displays if d.active and not d.internal]
+
+    def _screens_named(self, spoken: str) -> list:
+        if self.displays is None:
+            raise ActionError("I can't control the screens here.")
+        found = self.displays.find(spoken)
+        if not found:
+            raise ActionError(f"I don't know which screen '{spoken.strip()}' is.")
+        return found
+
+    # ----- monitors on and off -----
+
+    def screens(self, layout: str) -> str:
+        """'all', 'only 2', '1 off', '3 on'. Returns which screens are on, to say."""
+        if self.displays is None:
+            raise ActionError("I can't control the screens here.")
+        return self.displays.apply(layout)
+
+    def screens_status(self) -> str:
+        if self.displays is None:
+            raise ActionError("I can't control the screens here.")
+        return self.displays.describe()
+
+    # ----- Windows settings, keys, windows, folders, clipboard -----
+
+    def _on_system(self):
+        if self._system is None:
+            from abdoh import system
+
+            self._system = system
+        return self._system
+
+    def audio_outputs(self) -> list:
+        return self._mixer().outputs()
+
+    def set_audio_output(self, spoken: str) -> str:
+        """Send the sound to the speakers you named. Returns their name."""
+        outputs = self.audio_outputs()
+        chosen = find_output(spoken, outputs)
+        if chosen is None:
+            names = ", ".join(short_output_name(o.name) for o in outputs) or "none"
+            raise ActionError(f"I can't tell which speakers you mean. You have: {names}.")
+        if not chosen.default:
+            self._mixer().set_default_output(chosen.id)
+        return short_output_name(chosen.name)
+
+    def dark_mode(self) -> bool:
+        return self._on_system().dark_mode()
+
+    def set_dark_mode(self, on: bool) -> None:
+        self._on_system().set_dark_mode(on)
+
+    def power_mode(self) -> str:
+        return self._on_system().power_mode()
+
+    def set_power_mode(self, name: str) -> None:
+        self._on_system().set_power_mode(name)
+
+    def power(self, what: str) -> None:
+        """'sleep', 'lock' or 'screens_off'."""
+        what = what.strip().lower().replace(" ", "_")
+        if what == "sleep":
+            self._on_system().sleep()
+        elif what == "lock":
+            self.lock()
+        elif what in ("screens_off", "screen_off", "monitors_off"):
+            self._on_system().screens_off()
+        else:
+            raise ActionError("Power is one of sleep, lock or screens_off.")
+
+    def shutdown(self, seconds: int, restart: bool = False) -> None:
+        self._on_system().shutdown(seconds, restart)
+
+    def cancel_shutdown(self) -> bool:
+        return self._on_system().cancel_shutdown()
+
+    def press_keys(self, keys: str) -> None:
+        self._on_system().press_keys(keys)
+
+    def close_app(self, name: str) -> int:
+        count = self._on_system().close_app(name)
+        if not count:
+            raise ActionError(f"{name.strip().capitalize()} isn't open.")
+        return count
+
+    def focus_app(self, name: str) -> str:
+        return self._on_system().focus_app(name)
+
+    def is_open(self, name: str) -> bool:
+        return bool(self._on_system().app_windows(name))
+
+    def move_window(self, app: str | None, screen: str, how: str = "maximized") -> str:
+        """Put a program's window (or the one in front) on a screen. Returns the screen."""
+        system = self._on_system()
+        if app:
+            windows = system.app_windows(app)
+            if not windows:
+                raise ActionError(f"{app.strip().capitalize()} isn't open.")
+            handle = windows[0][0]
+        else:
+            handle = system.front_window_handle()
+            if handle is None:
+                raise ActionError("There's no window in front.")
+        if self.displays is None:
+            raise ActionError("I can't control the screens here.")
+        on = [d for d in self.displays.all() if d.active and d.rect]
+        current = display_at(system.window_rect(handle), on)
+        spoken = screen.lower().strip()
+        if spoken in ("current", "this", "this screen", "same screen"):
+            target = current
+        elif spoken in ("other", "next", "other screen", "next screen", "another screen"):
+            if len(on) < 2:
+                raise ActionError("Only one screen is on.")
+            target = on[(on.index(current) + 1) % len(on)] if current in on else on[0]
+        else:
+            named = [d for d in self._screens_named(screen) if d.active]
+            if not named:
+                raise ActionError("That screen is off.")
+            target = named[0]
+        system.move_window(handle, target.rect, how)
+        return self.displays.numbers([target])
+
+    def screen_in_front(self):
+        """The screen with the window you're working in (the primary one if none)."""
+        if self.displays is None:
+            raise ActionError("I can't control the screens here.")
+        from abdoh.claude.screen import front_window
+
+        on = [d for d in self.displays.all() if d.active and d.rect]
+        if not on:
+            raise ActionError("I can't see any screens.")
+        window = front_window()
+        if window.rect is None:
+            return next((d for d in on if d.primary), on[0])
+        left, top, right, bottom = window.rect
+        return display_at((left, top, right - left, bottom - top), on)
+
+    def open_folder(self, name: str) -> None:
+        system = self._on_system()
+        system.open_path(system.folder(name))
+
+    def open_newest(self, name: str) -> str:
+        """Open the newest file in a folder ("downloads"). Returns its name."""
+        system = self._on_system()
+        newest = system.newest_file(system.folder(name))
+        if newest is None:
+            raise ActionError(f"Your {name} folder is empty.")
+        system.open_path(newest)
+        return newest.name
+
+    def clipboard(self) -> str:
+        return self._on_system().get_clipboard()
+
+    def set_clipboard(self, text: str) -> None:
+        self._on_system().set_clipboard(text)
 
     def battery(self) -> tuple[int, bool] | None:
         return self._on_desk().battery()
@@ -538,3 +726,55 @@ def find_sessions(name: str, sessions) -> list:
     if found or len(squeezed) < 4:
         return found
     return [s for s in candidates if fuzz.ratio(squeezed, (s.program or "").lower()) >= 80]
+
+
+# ----- naming speakers -----
+
+_HEADPHONE_WORDS = ("headphone", "headset", "earphone", "airpods", "buds", "earbuds")
+
+
+def short_output_name(name: str) -> str:
+    """'Speakers (Realtek(R) Audio)' -> 'Speakers'; 'C34H89x (NVIDIA ...)' -> 'C34H89x'."""
+    return name.split(" (")[0].strip() or name
+
+
+def find_output(spoken: str, outputs) -> object | None:
+    """The speakers you named: "headphones", "the speakers", "the monitor", a name."""
+    wanted = re.sub(r"^(?:the|my) |(?: speakers?| output| audio)$", "", spoken.lower().strip())
+    if not outputs or not wanted:
+        return None
+    names = [(o, o.name.lower()) for o in outputs]
+    if any(w in wanted for w in ("headphone", "headset", "earphone", "airpod", "bud")):
+        hits = [o for o, n in names if any(w in n for w in _HEADPHONE_WORDS)]
+        return hits[0] if len(hits) == 1 else None
+    if wanted in ("speaker", "speakers", "laptop", "computer", "pc", "built in"):
+        hits = [o for o, n in names if n.startswith("speakers")]
+        return hits[0] if len(hits) == 1 else None
+    if wanted in ("monitor", "screen", "display", "tv", "hdmi", "big screen"):
+        hits = [
+            o for o, n in names
+            if not n.startswith("speakers") and not any(w in n for w in _HEADPHONE_WORDS)
+        ]  # fmt: skip
+        return hits[0] if len(hits) == 1 else None
+    hits = [o for o, n in names if wanted.replace(" ", "") in n.replace(" ", "")]
+    if len(hits) == 1:
+        return hits[0]
+    scored = sorted(((fuzz.partial_ratio(wanted, n), o) for o, n in names), key=lambda s: -s[0])
+    if scored and scored[0][0] >= 80 and (len(scored) == 1 or scored[1][0] < scored[0][0]):
+        return scored[0][1]
+    return None
+
+
+def display_at(rect: tuple[int, int, int, int], displays: list):
+    """The display holding the middle of a window (left, top, width, height); the nearest one
+    if none does."""
+    left, top, width, height = rect
+    x, y = left + width // 2, top + height // 2
+
+    def distance(d) -> int:
+        dl, dt, dw, dh = d.rect
+        dx = max(dl - x, 0, x - (dl + dw - 1))
+        dy = max(dt - y, 0, y - (dt + dh - 1))
+        return dx * dx + dy * dy
+
+    return min(displays, key=distance)

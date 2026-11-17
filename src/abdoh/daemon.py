@@ -19,6 +19,7 @@ from abdoh.events import Bus
 from abdoh.router import Router
 from abdoh.speech.earcons import Earcons
 from abdoh.speech.tts import Speaker
+from abdoh.system_skills import Question
 
 log = logging.getLogger(__name__)
 
@@ -394,6 +395,9 @@ class Daemon:
                     if reply:
                         self._answered = True
                         self.say(reply)
+                    if voice and isinstance(reply, Question) and not self._interrupted.is_set():
+                        self._awaiting_answer = True  # "Shut down the computer?": just answer
+                        self._answer_wait, self._soft_chime = ANSWER_WAIT_SECONDS, False
                 else:
                     filler = threading.Timer(FILLER_SECONDS, self._still_working)
                     filler.daemon = True
@@ -782,6 +786,7 @@ class Daemon:
         from abdoh.commands.registry import CommandRegistry
         from abdoh.computer import AppIndex, Computer, Timers
         from abdoh.desk import Notes, Reminders
+        from abdoh.displays import Displays
         from abdoh.speech.tts import make_speaker
 
         speaker = speaker or make_speaker(cfg.tts_rate, cfg.tts_voice)
@@ -820,6 +825,7 @@ class Daemon:
             notes=Notes(cfg.app_dir / "notes.txt"),
             reminders=Reminders(cfg.app_dir / "reminders.json", announce=daemon.announce),
             pictures=user_folders()["Pictures"] / "Screenshots",
+            displays=Displays(cfg.app_dir / "displays.json"),
         )
         router.computer.apps.load_in_background()
         return daemon

@@ -150,7 +150,26 @@ def _com():
                       (["out"], POINTER(POINTER(IAudioSessionEnumerator)), "sessions")),
         )  # fmt: skip
 
+    class IPolicyConfig(IUnknown):  # undocumented, but what every audio switcher uses
+        _iid_ = GUID("{F8679F50-850A-41CF-9C72-430F290290C8}")
+        _methods_ = (
+            unused("GetMixFormat"),
+            unused("GetDeviceFormat"),
+            unused("ResetDeviceFormat"),
+            unused("SetDeviceFormat"),
+            unused("GetProcessingPeriod"),
+            unused("SetProcessingPeriod"),
+            unused("GetShareMode"),
+            unused("SetShareMode"),
+            unused("GetPropertyValue"),
+            unused("SetPropertyValue"),
+            COMMETHOD([], HRESULT, "SetDefaultEndpoint",
+                      (["in"], c_wchar_p, "device"), (["in"], c_uint, "role")),
+        )  # fmt: skip
+
     _com.cache = {
+        "policy": IPolicyConfig,
+        "policy_clsid": GUID("{870AF99C-171D-4F9E-AF0D-E63DF40C2BC9}"),
         "sessions": IAudioSessionManager2,
         "session": IAudioSessionControl2,
         "app_volume": ISimpleAudioVolume,
@@ -244,6 +263,64 @@ class Endpoint:
 
     def set_muted(self, muted: bool) -> None:
         self._volume.SetMute(1 if muted else 0, None)
+
+
+# ----- which speakers sound comes out of -----
+
+
+@dataclass(frozen=True)
+class Output:
+    """A speaker, headset or monitor that can play sound."""
+
+    id: str
+    name: str  # "Speakers (Realtek(R) Audio)"
+    default: bool
+
+
+def _devices():
+    import comtypes
+
+    try:
+        comtypes.CoInitialize()
+    except OSError:
+        pass  # this thread already uses COM another way
+    com = _com()
+    return comtypes.CoCreateInstance(com["clsid"], com["enumerator"], comtypes.CLSCTX_ALL)
+
+
+def outputs() -> list[Output]:
+    """The speakers you can switch to (Windows only; [] if they can't be read)."""
+    if sys.platform != "win32":
+        return []
+    try:
+        devices = _devices()
+        current = device_id(devices.GetDefaultAudioEndpoint(RENDER, 0))
+        found = devices.EnumAudioEndpoints(RENDER, ACTIVE)
+        listed = []
+        for i in range(found.GetCount()):
+            device = found.Item(i)
+            ident = device_id(device)
+            listed.append(Output(ident, _friendly_name(device), ident == current))
+        return listed
+    except Exception as e:
+        log.warning("Couldn't list the speakers: %s", e)
+        return []
+
+
+def set_default_output(output_id: str) -> None:
+    """Send all sound to these speakers (the console and multimedia roles; calls keep theirs)."""
+    if sys.platform != "win32":
+        raise AudioError("Switching speakers only works on Windows for now.")
+    import comtypes
+
+    try:
+        _devices()  # COM is initialized on this thread
+        com = _com()
+        policy = comtypes.CoCreateInstance(com["policy_clsid"], com["policy"], comtypes.CLSCTX_ALL)
+        for role in (0, 1):  # eConsole, eMultimedia
+            policy.SetDefaultEndpoint(output_id, role)
+    except Exception as e:
+        raise AudioError(f"Windows didn't switch the speakers: {e}") from e
 
 
 # ----- each app's volume (the volume mixer) -----

@@ -101,9 +101,11 @@
           claudeSwitch("allow_files")),
         folderBlock(),
       ]),
-      card("Your commands", null, [
+      card("Your computer", null, [
         row("Your commands may run programs", "Needed for the “Run a program” action on the Commands page.",
           toggle(settings.allow_run, (on, input) => saveOrUndo({ allow_run: on }, input), "allow_run")),
+        row("Sleep, shut down and restart", "When you ask (“shut down in 30 minutes”, “restart the computer”). Abdoh asks before shutting down now.",
+          toggle(settings.allow_power, (on, input) => saveOrUndo({ allow_power: on }, input), "allow_power")),
       ]),
       instructionsCard());
   }
