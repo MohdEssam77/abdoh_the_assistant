@@ -1,4 +1,5 @@
 import threading
+import time
 
 from abdoh.speech.tts import (
     SVSF_ASYNC,
@@ -360,3 +361,121 @@ def test_newer_windows_voices_are_listed_once():
         raise OSError("no OneCore voices")
 
     assert len(installed_voices(factory(), broken)) == 2
+
+
+# ----- going quiet when you talk, and going on -----
+
+
+class Status:
+    def __init__(self, voice):
+        self.voice = voice
+
+    @property
+    def InputWordPosition(self):  # noqa: N802 - SAPI's name
+        return self.voice.word
+
+
+class WordVoice(FakeSapiVoice):
+    """Reaches one more word (6 characters) on every poll."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.word = 0
+        self.Status = Status(self)
+
+    def Speak(self, text, flags):  # noqa: N802 - SAPI's name
+        super().Speak(text, flags)
+        self.word = 0
+
+    def WaitUntilDone(self, ms):  # noqa: N802
+        time.sleep(0.005)  # like a real voice, a text takes a while
+        done = super().WaitUntilDone(ms)
+        if not done:
+            self.word += 6
+        return done
+
+
+def paused_speaker(**kwargs):
+    voices = []
+
+    def factory():
+        voice = WordVoice(polls=400, **kwargs)
+        voices.append(voice)
+        return voice
+
+    speaker = SapiSpeaker(voice_factory=factory)
+    return speaker, voices
+
+
+def say_in_background(speaker, text):
+
+    thread = threading.Thread(target=speaker.say, args=(text,), daemon=True)
+    thread.start()
+    return thread
+
+
+def wait_for(condition, seconds=2.0):
+
+    end = time.perf_counter() + seconds
+    while not condition():
+        assert time.perf_counter() < end, "timed out"
+        time.sleep(0.005)
+
+
+QUIET = ("", SVSF_ASYNC | SVSF_PURGE_BEFORE_SPEAK)
+
+
+def test_pause_goes_quiet_and_resume_goes_on_from_the_same_word():
+    speaker, voices = paused_speaker()
+    text = "alpha bravo delta gamma omega sigma kappa theta"  # every word starts 6 apart
+    thread = say_in_background(speaker, text)
+    wait_for(lambda: voices and voices[0].word >= 12)
+    assert speaker.pause() is True
+    wait_for(lambda: voices[0].calls[-1] == QUIET)
+    heard_up_to = len(voices[0].calls)
+    time.sleep(0.15)
+    assert len(voices[0].calls) == heard_up_to  # nothing more is said while paused
+    assert thread.is_alive()  # say() waits: the reply waits with it
+    speaker.resume()
+    wait_for(lambda: len(voices[0].calls) > heard_up_to)
+    rest, flags = voices[0].calls[-1]
+    assert flags == SVSF_ASYNC | SVSF_IS_NOT_XML
+    assert text.endswith(rest) and rest.split()[0] in text.split() and len(rest) < len(text)
+    speaker.stop()
+    thread.join(2)
+    assert not thread.is_alive()
+
+
+def test_stop_while_paused_ends_the_text():
+    speaker, voices = paused_speaker()
+    thread = say_in_background(speaker, "one two three four five six")
+    wait_for(lambda: voices and voices[0].word >= 6)
+    speaker.pause()
+    wait_for(lambda: voices[0].calls[-1] == QUIET)
+    speaker.stop()
+    thread.join(2)
+    assert not thread.is_alive()
+    assert voices[0].calls[-1] == QUIET  # nothing was read after the stop
+
+
+def test_pause_when_nothing_is_being_said():
+    speaker, _ = paused_speaker()
+    assert speaker.pause() is False
+    speaker.say("hello")  # and a later text isn't held up
+    assert FakeSpeaker().pause() is True
+
+
+def test_a_voice_that_cant_continue_just_stops():
+    class Plain(Speaker):
+        def __init__(self):
+            self.stops = 0
+
+        def say(self, text):
+            pass
+
+        def stop(self):
+            self.stops += 1
+
+    plain = Plain()
+    assert plain.pause() is False and plain.stops == 1
+    plain.resume()  # nothing to go on with; no error
