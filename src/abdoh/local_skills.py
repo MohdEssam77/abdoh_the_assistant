@@ -218,9 +218,12 @@ def _at(when: datetime, now: datetime) -> str:
 
 
 class LocalSkills:
-    def __init__(self, computer, last_reply=lambda: ""):
+    def __init__(self, computer, last_reply=lambda: "", allow_power=lambda: True):
+        from abdoh.system_skills import SystemSkills
+
         self.computer = computer
         self._last_reply = last_reply  # what Abdoh said last, for "repeat that"
+        self.system = SystemSkills(computer, allow_power, last_reply)
 
     def handle(self, request: str, original: str = "") -> str | None:
         """The reply ("" = done quietly) if this is a local skill, or None to let Claude try.
@@ -237,6 +240,9 @@ class LocalSkills:
 
     def _handle(self, request: str, original: str) -> str | None:
         computer = self.computer
+        answer = self.system.answer(request)  # "yes" to "Shut down the computer?"
+        if answer is not None:
+            return answer
         if _DONE.fullmatch(request):
             return ""
         if _REPEAT.fullmatch(request):
@@ -264,6 +270,9 @@ class LocalSkills:
         if _LOCK.fullmatch(request):
             computer.lock()
             return ""
+        reply = self.system.handle(request, original)
+        if reply is not None:
+            return reply
         found = _OPEN.fullmatch(request)
         if found and computer.apps.find(found.group("app")):
             return f"Opening {computer.open_app(found.group('app'))}."

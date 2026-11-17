@@ -93,6 +93,7 @@ class Config:
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
     duck_others: bool = True  # other apps go quieter while Abdoh listens and answers
     duck_percent: int = 30  # ... to this share of their volume
+    allow_power: bool = True  # Abdoh may put the computer to sleep, shut it down, restart it
     max_record_seconds: float = 10
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice

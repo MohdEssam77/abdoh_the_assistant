@@ -21,6 +21,7 @@ voice_interrupts: true           # or just start talking: Abdoh goes quiet and l
 voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Abdoh
 duck_others: true                # other apps (music, videos) go quieter while Abdoh listens
 duck_percent: 30                 # ... to this share of their own volume
+allow_power: true                # Abdoh may put the computer to sleep, shut it down or restart it
 tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # a voice's name (pick one in the app); "" = Windows' default voice
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default

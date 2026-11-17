@@ -26,12 +26,17 @@ from abdoh.commands.matcher import (
 from abdoh.commands.registry import Command, CommandRegistry
 from abdoh.config import Config
 from abdoh.local_skills import LocalSkills
+from abdoh.system_skills import Question
 
 log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
 SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 LOOKING = "Looking at your screen"
+# Claude gets your clipboard only when you mention it.
+_CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
+CLIPBOARD_LIMIT = 4000
+CLIPBOARD_NOTE = '\n\nThe user\'s clipboard contains:\n"""\n{text}\n"""'
 COMMANDS_FILE_ERROR = "Your commands file has an error."
 NOTHING_TO_REMEMBER = (
     "There's nothing to remember yet. Ask me to do something, then say: remember that."
@@ -95,7 +100,11 @@ class Router:
         self._computer = computer
         self.local = None
         if computer is not None:
-            self.local = LocalSkills(computer, last_reply=lambda: self.last_reply)
+            self.local = LocalSkills(
+                computer,
+                last_reply=lambda: self.last_reply,
+                allow_power=lambda: self.cfg.allow_power,
+            )
 
     @property
     def wake_words(self) -> list[str]:
@@ -122,7 +131,9 @@ class Router:
         if isinstance(reply, str):
             if reply:
                 self.last_reply = reply
-            return f"{prefix} {reply}".strip()
+            asks = isinstance(reply, Question)
+            reply = f"{prefix} {reply}".strip()
+            return Question(reply) if asks else reply
         return _prepend(prefix, reply) if prefix else reply
 
     def _route(self, request: str, original: str) -> Reply:
@@ -170,7 +181,7 @@ class Router:
 
         # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
-            return self._ask(self._with_context(original), original)
+            return self._ask(self._with_context(original) + self._clipboard(request), original)
 
         # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"
@@ -235,6 +246,16 @@ class Router:
                 self.last_reply = turn.answer
             turn.finished_at = time.monotonic()
             self.last_turn = turn
+
+    def _clipboard(self, request: str) -> str:
+        """Your clipboard, for Claude, when you talk about it ("translate what I copied")."""
+        if not _CLIPBOARD.search(request) or self.computer is None:
+            return ""
+        try:
+            text = self.computer.clipboard().strip()
+        except (ActionError, AttributeError):
+            return ""
+        return CLIPBOARD_NOTE.format(text=text[:CLIPBOARD_LIMIT]) if text else ""
 
     def _with_context(self, text: str) -> str:
         if getattr(self.brain, "remembers", False):

@@ -84,7 +84,18 @@ def front_window() -> FrontWindow:
         return FrontWindow()
 
 
-def _front_window_windows() -> FrontWindow:
+def front_window_handle() -> int | None:
+    """The handle of the window you're working in (not Abdoh's own), or None."""
+    if sys.platform != "win32":
+        return None
+    try:
+        return _front_handle()
+    except Exception:
+        log.debug("Couldn't find the window in front", exc_info=True)
+        return None
+
+
+def _front_handle() -> int | None:
     import ctypes
     from ctypes import wintypes
 
@@ -120,6 +131,15 @@ def _front_window_windows() -> FrontWindow:
 
         user32.EnumWindows(callback_type(visit), 0)
         chosen = found[0] if found else None
+    return chosen
+
+
+def _front_window_windows() -> FrontWindow:
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    chosen = _front_handle()
     if chosen is None:
         return FrontWindow()
     length = user32.GetWindowTextLengthW(chosen)

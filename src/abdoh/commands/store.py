@@ -23,8 +23,19 @@ HEADER = """\
 #   media: <key>           play_pause, next, previous, volume_up, volume_down or mute
 #   timer: <duration>      e.g. "25 minutes"; Abdoh tells you when it's done
 #   volume: <0-100>        set the speakers to exactly that volume
-#   brightness: <0-100>    set the laptop screen's brightness
+#   app_volume: <app> <0-100>  one app in the volume mixer ("browser 30", "Spotify 0")
+#   brightness: <0-100>    every screen's brightness that can be changed
 #   type: <text>           type the text into the app in front ({slots} are replaced)
+#   displays: <layout>     screens on and off: "all", "only 2", "1 off", "3 on"
+#   audio_output: <name>   send the sound to these speakers ("headphones", "C34H89x")
+#   dark_mode: on|off|toggle
+#   power_mode: best_performance|balanced|efficiency
+#   power: sleep|lock|screens_off
+#   keys: <keys>           press keys: "ctrl+shift+esc", "win+d, alt+tab", "f11"
+#   wait: <time>           wait before the next action (up to 60 seconds)
+#   close_app: <program>   close a program's windows ("Spotify")
+#   focus_app: <program>   bring a program to the front
+#   window: <program> to <screen> [maximized|left|right], or minimize, maximize, ...
 #   run: <shell command>   run a command (only if allow_run: true in config.yaml; no {slots})
 """
 
