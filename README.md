@@ -373,6 +373,34 @@ python -m abdoh list-commands
 python -m abdoh test-command "good morning abdoh"
 ```
 
+### Modes
+
+A mode switches a set of things at once, and puts them back when you're done. Say
+"**movie mode**", "**switch to work mode**", and "**back to normal**" (or "exit movie mode") to
+undo everything the mode changed. "Which mode am I in?" and "what modes do I have?" work too.
+
+Make modes on the **Modes** page, or in `modes.yaml` in Abdoh's data folder:
+
+```yaml
+- name: Movie
+  settings:            # put back when the mode ends
+    displays: [2]      # only screen 2 on ("all" for every screen)
+    volume: 60
+- name: Work
+  settings:
+    displays: all
+    brightness: 100
+  actions:             # run when the mode starts, like a command's
+    - play_youtube: "jazz music"
+    - open_app: "Visual Studio Code"
+```
+
+Settings: `displays`, `brightness`, `volume`, `audio_output`, `dark_mode`, `power_mode`, and
+Abdoh's own `wake_word`, `voice_replies` and `follow_up`. Actions: anything a command can do,
+plus `exit_actions` for when the mode ends. Switching from one mode to another first puts back
+what the new one leaves alone. A mode that is on when Abdoh restarts can still be undone. Your
+own commands can switch modes too (`mode: Movie`, `mode: normal`).
+
 ## 6. Install it like an app
 
 ```
