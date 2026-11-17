@@ -18,11 +18,12 @@ SETTINGS = (
     "brightness",
     "dark_mode",
     "power_mode",
+    "night_light",
     "wake_word",
     "voice_replies",
     "follow_up",
 )
-SWITCHES = ("dark_mode", "wake_word", "voice_replies", "follow_up")  # on or off
+SWITCHES = ("dark_mode", "night_light", "wake_word", "voice_replies", "follow_up")  # on or off
 PERCENTS = ("volume", "brightness")
 POWER_MODES = ("best_performance", "balanced", "efficiency")
 ICONS = ("sparkles", "film", "briefcase", "moon", "target", "presentation", "music", "game",

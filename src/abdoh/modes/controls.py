@@ -36,6 +36,8 @@ class ModeControls:
             return c.dark_mode()
         if key == "power_mode":
             return c.power_mode()
+        if key == "night_light":
+            return c.night_light()
         if key == "wake_word":
             return not d.paused
         if key == "voice_replies":
@@ -58,6 +60,8 @@ class ModeControls:
             c.set_dark_mode(bool(value))
         elif key == "power_mode":
             c.set_power_mode(value)
+        elif key == "night_light":
+            c.set_night_light(bool(value))
         elif key == "wake_word":
             d.set_paused(not value)
         elif key == "voice_replies":

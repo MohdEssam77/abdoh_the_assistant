@@ -54,6 +54,91 @@ def set_dark_mode(on: bool) -> None:
     )  # HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG
 
 
+# ----- night light -----
+#
+# Windows keeps night light's state in an undocumented binary value. Its layout (checked on
+# Windows 11, build 26200, both ways): a fixed header, the time it last changed (Unix seconds
+# as a 5-byte varint), a block that says on or off, and three zero bytes. Abdoh only writes
+# when the value has exactly this layout; otherwise it opens Windows' night light settings.
+
+NIGHT_LIGHT_KEY = (
+    r"Software\Microsoft\Windows\CurrentVersion\CloudStore\Store\DefaultAccount\Current"
+    r"\default$windows.data.bluelightreduction.bluelightreductionstate"
+    r"\windows.data.bluelightreduction.bluelightreductionstate"
+)
+_NL_HEAD = bytes.fromhex("43420100 0a020100 2a06".replace(" ", ""))
+_NL_MID = bytes.fromhex("2a2b0e")
+_NL_BLOCK = bytes.fromhex("43420100")
+_NL_ON = bytes.fromhex("1000")
+NIGHT_LIGHT_SETTINGS = "ms-settings:nightlight"
+
+
+def _varint(value: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte, value = value & 0x7F, value >> 7
+        out.append(byte | (0x80 if value else 0))
+        if not value:
+            return bytes(out)
+
+
+def parse_night_light(data: bytes) -> bool:
+    """Is night light on in this value? Raises ValueError for a layout Abdoh doesn't know."""
+    if not data.startswith(_NL_HEAD) or len(data) < 27 or data[15:18] != _NL_MID:
+        raise ValueError("unknown night light layout")
+    size = data[18]
+    block = data[19 : 19 + size]
+    if len(block) != size or not block.startswith(_NL_BLOCK) or data[19 + size :] != b"\0\0\0":
+        raise ValueError("unknown night light layout")
+    return block[4:6] == _NL_ON
+
+
+def night_light_value(data: bytes, on: bool, now: float) -> bytes:
+    """The value with night light on or off, stamped with `now` so Windows notices it."""
+    if parse_night_light(data) == on:
+        return data
+    stamp = _varint(int(now))
+    if len(stamp) != 5:
+        raise ValueError("unexpected time stamp size")
+    # As Windows writes it, both ways: the on flag (only when on), then since when it changed
+    # (a FILETIME: 100 ns since 1601). Without that time Windows ignores the change.
+    since = _varint(int((now + 11_644_473_600) * 10_000_000))
+    flag = _NL_ON if on else b""
+    block = _NL_BLOCK + flag + bytes.fromhex("d00a02c614") + since + b"\0"
+    return _NL_HEAD + stamp + _NL_MID + bytes([len(block)]) + block + b"\0\0\0"
+
+
+def _night_light_data() -> bytes:
+    import winreg
+
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, NIGHT_LIGHT_KEY) as key:
+        return winreg.QueryValueEx(key, "Data")[0]
+
+
+def night_light() -> bool:
+    _windows()
+    try:
+        return parse_night_light(_night_light_data())
+    except (OSError, ValueError) as e:
+        raise ActionError("I can't tell whether night light is on.") from e
+
+
+def set_night_light(on: bool) -> None:
+    _windows()
+    import time
+    import winreg
+
+    try:
+        value = night_light_value(_night_light_data(), on, time.time())
+    except (OSError, ValueError) as e:
+        log.warning("Night light: %s", e)
+        os.startfile(NIGHT_LIGHT_SETTINGS)  # type: ignore[attr-defined]
+        message = "I can't switch night light on this Windows; I opened its settings."
+        raise ActionError(message) from e
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, NIGHT_LIGHT_KEY, 0, winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key, "Data", 0, winreg.REG_BINARY, value)
+
+
 # ----- the power mode (Settings > System > Power) -----
 
 POWER_MODES = {

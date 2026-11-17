@@ -34,6 +34,7 @@
     if (s.brightness !== undefined) chips.push(`Brightness ${s.brightness}%`);
     if (s.audio_output) chips.push(`Sound: ${s.audio_output}`);
     if (s.dark_mode !== undefined) chips.push(s.dark_mode ? "Dark" : "Light");
+    if (s.night_light !== undefined) chips.push(s.night_light ? "Night light" : "No night light");
     if (s.power_mode) chips.push((POWER.find(([v]) => v === s.power_mode) || [, s.power_mode])[1]);
     if (s.wake_word === false) chips.push("Wake word off");
     if (s.voice_replies === false) chips.push("Quiet replies");
@@ -225,6 +226,7 @@
     const output = choice([KEEP, ...state.outputs.map((o) => [o, o])], s.audio_output || UNSET, "Speakers");
     const theme = choice([KEEP, ["true", "Dark"], ["false", "Light"]], s.dark_mode === undefined ? UNSET : String(s.dark_mode), "Theme");
     const power = choice([KEEP, ...POWER], s.power_mode || UNSET, "Power mode");
+    const night = onOff(s.night_light, "On (warmer screens)", "Off");
     const wake = onOff(s.wake_word, "Listens for its name", "Doesn't listen");
     const voice = onOff(s.voice_replies, "Speaks replies", "Quiet (shows them)");
     const follow = onOff(s.follow_up, "Keeps listening after a reply", "Doesn't");
@@ -247,6 +249,7 @@
           setRow("Speakers", output),
           setRow("Theme", theme),
           setRow("Power", power),
+          setRow("Night light", night),
           setRow("Wake word", wake),
           setRow("Voice replies", voice),
           setRow("Follow-up", follow)),
@@ -262,7 +265,7 @@
       const bool = (node) => (node.value === UNSET ? undefined : node.value === "true");
       const settings = {
         displays: screens.value(), volume: volume.value(), brightness: brightness.value(),
-        audio_output: pick(output), dark_mode: bool(theme), power_mode: pick(power),
+        audio_output: pick(output), dark_mode: bool(theme), power_mode: pick(power), night_light: bool(night),
         wake_word: bool(wake), voice_replies: bool(voice), follow_up: bool(follow),
       };
       Object.keys(settings).forEach((k) => settings[k] === undefined && delete settings[k]);

@@ -503,3 +503,44 @@ def test_brightness_on_every_screen_that_can(tmp_path):
     assert no_wmi.set_brightness(55) == 55  # a desktop PC: only the monitor that can
     with pytest.raises(ActionError):
         no_wmi.set_brightness(55, screen="2")  # the HP 32f can't
+
+
+# ----- night light (the values captured from Windows 11 build 26200) -----
+
+WINDOWS_START = "434201000a0201002a06b3d6b1d6062a2b0e054342010000000000"  # never switched yet
+WINDOWS_ON = (
+    "434201000a0201002a06b0b4f1d7062a2b0e15434201001000d00a02c614e1f0cae89bd3ddee0100000000"
+)
+WINDOWS_OFF = "434201000a0201002a0688b6f1d7062a2b0e1343420100d00a02c614eaedc8eba3d3ddee0100000000"
+
+
+def test_night_light_is_read_from_windows_values():
+    from abdoh.system import parse_night_light
+
+    assert parse_night_light(bytes.fromhex(WINDOWS_START)) is False
+    assert parse_night_light(bytes.fromhex(WINDOWS_ON.replace(" ", ""))) is True
+    assert parse_night_light(bytes.fromhex(WINDOWS_OFF)) is False
+    with pytest.raises(ValueError):
+        parse_night_light(b"\x00" * 30)  # a layout Abdoh doesn't know: never written
+
+
+def test_night_light_is_written_the_way_windows_writes_it():
+    from abdoh.system import night_light_value, parse_night_light
+
+    when = 1794923056  # 2026-11-17 13:44:16 UTC, the time in WINDOWS_ON
+    on = night_light_value(bytes.fromhex(WINDOWS_START), True, when + 0.517744)
+    expected = bytes.fromhex(WINDOWS_ON.replace(" ", ""))
+    assert on[:15] == expected[:15]  # the same header and change time
+    assert on[15:29] == expected[15:29] and len(on) == len(expected)  # the same "on since" block
+    off = night_light_value(on, False, when + 60)
+    assert parse_night_light(off) is False
+    assert len(off) == len(bytes.fromhex(WINDOWS_OFF))  # off keeps "since when", like Windows
+    assert night_light_value(off, False, when + 90) == off  # already off: unchanged
+
+
+def test_night_light_by_voice(abdoh):
+    done = []
+    abdoh.computer.set_night_light = lambda on: done.append(on)
+    assert abdoh("turn on night light") == "Night light on."
+    assert abdoh("night light off") == "Night light off."
+    assert done == [True, False]

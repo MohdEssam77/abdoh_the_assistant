@@ -49,6 +49,10 @@ _THEME = re.compile(
     r"(?:switch to |turn on |enable |use |go )?(?P<mode>dark|light) (?:mode|theme)(?: on)?"
 )
 _THEME_OFF = re.compile(r"(?:turn off|disable) (?P<mode>dark|light) (?:mode|theme)")
+_NIGHT_LIGHT = re.compile(
+    r"(?:turn |switch )?(?P<on>on|off) (?:the )?night ?light"
+    r"|(?:turn |switch )?(?:the )?night ?light (?P<on2>on|off)|night ?light"
+)
 _POWER_MODES = {
     "best_performance": r"(?:best |high )?performance",
     "balanced": r"balanced",
@@ -195,6 +199,11 @@ class SystemSkills:
         if found:
             computer.set_dark_mode(found["mode"] != "dark")
             return f"{'Light' if found['mode'] == 'dark' else 'Dark'} mode."
+        found = _NIGHT_LIGHT.fullmatch(request)
+        if found:
+            on = (found["on"] or found["on2"] or "on") == "on"
+            computer.set_night_light(on)
+            return f"Night light {'on' if on else 'off'}."
         found = _POWER_MODE.fullmatch(request)
         if found:
             mode = "efficiency" if found["saver"] else next(k for k in _POWER_MODES if found[k])

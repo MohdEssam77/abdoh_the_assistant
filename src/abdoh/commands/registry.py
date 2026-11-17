@@ -29,6 +29,7 @@ ACTION_TYPES = (
     "close_app",
     "focus_app",
     "window",
+    "night_light",
     "mode",
     "type",
     "run",
@@ -171,6 +172,8 @@ def _system_problem(kind: str, arg: str) -> str | None:
         return "displays is like 'all', 'only 2', '1 off' or '3 on'."
     if kind == "dark_mode" and value not in (*ON_WORDS, "toggle"):
         return "dark_mode is on, off or toggle."
+    if kind == "night_light" and value not in ON_WORDS:
+        return "night_light is on or off."
     if kind == "power_mode" and value not in ("best_performance", "balanced", "efficiency"):
         return "power_mode is best_performance, balanced or efficiency."
     if kind == "power" and value not in ("sleep", "lock", "screens_off"):
