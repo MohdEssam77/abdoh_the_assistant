@@ -60,7 +60,7 @@ class ClaudeConfig:
     effort: str = "low"
     allow_web: bool = True  # Claude Code may search the web
     allow_files: bool = True  # Claude Code may work with your files and run commands
-    allow_screen: bool = True  # Claude may look at the screen (translate / summarize it)
+    allow_screen: bool = True  # Claude may look at the screen you're using when you ask about it
     actions: list[str] = field(default_factory=lambda: list(CLAUDE_ACTIONS))  # it may do these
     folders: list[str] = field(default_factory=list)  # where it may work with files; [] = home
     instructions: str = ""  # your own instructions, sent with every request

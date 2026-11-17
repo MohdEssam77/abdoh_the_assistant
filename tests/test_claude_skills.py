@@ -5,7 +5,7 @@ import io
 import pytest
 from PIL import Image
 
-from abdoh.claude.screen import ScreenCaptureError, capture_screen
+from abdoh.claude.screen import FrontWindow, ScreenCaptureError, capture_screen, pick_monitor
 from abdoh.claude.skills import (
     is_summarize_request,
     is_translate_request,
@@ -14,14 +14,46 @@ from abdoh.claude.skills import (
 
 
 def fake_screenshot(color="white", size=(3200, 1800)):
-    return lambda: Image.new("RGB", size, color)
+    return lambda which="active": Image.new("RGB", size, color)
 
 
-def test_capture_downscales_to_1600():
+def test_capture_downscales_to_2000():
     png = capture_screen(grab=fake_screenshot())
     img = Image.open(io.BytesIO(png))
     assert img.format == "PNG"
-    assert img.size == (1600, 900)
+    assert img.size == (2000, 1125)
+
+
+def test_capture_asks_for_the_screen_you_want():
+    asked = []
+
+    def grab(which):
+        asked.append(which)
+        return Image.new("RGB", (100, 100), "white")
+
+    capture_screen(grab=grab)
+    capture_screen(grab=grab, which="all")
+    assert asked == ["active", "all"]
+
+
+# The owner's three monitors, as mss lists them (the big one is the primary, at 0,0).
+LAPTOP = {"left": -3840, "top": 0, "width": 1920, "height": 1080}
+HP = {"left": -1920, "top": 0, "width": 1920, "height": 1080}
+WIDE = {"left": 0, "top": 0, "width": 3440, "height": 1440}
+
+
+def test_the_screen_with_the_window_in_front_is_the_one_you_use():
+    monitors = [WIDE, LAPTOP, HP]
+    assert pick_monitor(monitors, (-1000, 500)) is HP
+    assert pick_monitor(monitors, (-3000, 200)) is LAPTOP
+    assert pick_monitor(monitors, (1700, 700)) is WIDE
+    assert pick_monitor(monitors, (-1000, 1300)) is HP  # below the HP's bottom edge: nearest
+    assert pick_monitor(monitors, None) is WIDE  # no window: the primary
+
+
+def test_a_window_knows_its_middle():
+    assert FrontWindow("Inbox", "chrome", (-1920, 0, 0, 1080)).center == (-960, 540)
+    assert FrontWindow().center is None
 
 
 def test_small_screens_are_not_enlarged():
@@ -35,7 +67,7 @@ def test_black_capture_is_reported():
 
 
 def test_capture_failure_is_reported():
-    def broken():
+    def broken(which):
         raise OSError("no display")
 
     with pytest.raises(ScreenCaptureError, match="couldn't capture"):

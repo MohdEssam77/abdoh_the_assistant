@@ -31,6 +31,9 @@ ACTION_HELP: dict[str, str] = {
     "note": "ACTION note: <text>   (adds a line to the user's notes)",
 }
 
+# Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).
+LOOK = "look"
+
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _URL = re.compile(r"https?://\S+")
