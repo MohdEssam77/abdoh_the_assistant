@@ -566,9 +566,10 @@ Developer scripts:
 ## Known issues
 
 - **Talking over Abdoh is weaker under loud sound.** With music or a film playing loudly on the
-  speakers, Abdoh may not notice you start talking; the wake word and the hotkey still work. In
-  a simulated room it heard normal speech in about 0.3 s and never mistook its own voice for
-  yours; a quiet voice under a loud, distorting speaker took up to 3 s.
+  speakers, Abdoh may not notice you start talking; the wake word and the hotkey still work.
+  Measured on a laptop with its own speakers and microphone: it heard the user within 0.3 s and
+  never mistook its own voice for theirs. In a simulated loud room it heard normal speech in
+  about 0.3 s; a quiet voice under a loud, distorting speaker took up to 3 s.
 
 - **Memory while idle is about 860 MB**: the Parakeet speech model is big. The Lighter quality
   setting (Whisper) brings it down to about 350 MB.
