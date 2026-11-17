@@ -79,6 +79,7 @@ class Daemon:
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
         self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
+        self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self._watching = False  # the voice watch is following a reply
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
@@ -210,6 +211,11 @@ class Daemon:
             self.speaker.say(text)
         except Exception:
             log.exception("Could not speak the voice sample")
+
+    def set_voice(self, on: bool) -> None:
+        """Voice replies on or off (the window's switch, or a mode)."""
+        self.voice_enabled = bool(on)
+        self.bus.emit("voice", self.voice_enabled)
 
     def set_paused(self, paused: bool) -> None:
         self.paused = paused
@@ -585,8 +591,7 @@ class Daemon:
         elif kind == "listen":
             self.push_to_talk()  # the window's Talk button
         elif kind == "voice":
-            self.voice_enabled = bool(value)
-            self.bus.emit("voice", self.voice_enabled)
+            self.set_voice(bool(value))
         elif kind == "set_key":
             self._set_key(value or "")
         elif kind == "quit":
@@ -652,6 +657,11 @@ class Daemon:
         if self.engine is not None:
             self.bus.emit("wake", self.engine.label)
         self.bus.emit("hearing", self._hearing_problem())
+        if self.modes is not None:
+            try:
+                self.modes.start()  # a mode that was on before a restart
+            except Exception:
+                log.exception("Couldn't restore the mode")
         self._status_idle()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
@@ -676,6 +686,13 @@ class Daemon:
             finally:
                 self.mic = None
                 mic.stop()
+
+    def use_modes(self, engine) -> None:
+        """Modes: the router hears "movie mode", the `mode:` action reaches them."""
+        self.modes = engine
+        self.router.modes = engine
+        if self.router.computer is not None:
+            self.router.computer.modes = engine
 
     def _hearing_problem(self) -> str:
         """Why Abdoh can't hear you over its own voice ("" when it can)."""
@@ -828,6 +845,7 @@ class Daemon:
             displays=Displays(cfg.app_dir / "displays.json"),
         )
         router.computer.apps.load_in_background()
+        daemon.use_modes(make_modes(cfg, router, daemon))
         return daemon
 
 
@@ -852,4 +870,27 @@ def make_voice_watch(cfg: Config):
         tap.start()
     return VoiceWatch(
         tap, canceller, load_vad(), cfg.voice_interrupt_sensitivity, raw_vad=load_vad()
+    )
+
+
+def make_modes(cfg: Config, router: Router, daemon: Daemon):
+    """Your modes (modes.yaml), switched with the real computer and this daemon."""
+    from abdoh.commands.actions import run_actions
+    from abdoh.commands.registry import Command
+    from abdoh.modes.controls import ModeControls
+    from abdoh.modes.engine import ModeEngine
+    from abdoh.modes.store import ModesStore
+
+    store = ModesStore(cfg.app_dir / "modes.yaml")
+
+    def run(actions):
+        return run_actions(Command("mode", [], list(actions)), cfg.allow_run,
+                           computer=router.computer)  # fmt: skip
+
+    return ModeEngine(
+        store.load,
+        ModeControls(router.computer, daemon),
+        run,
+        cfg.app_dir / "mode_state.json",
+        emit=lambda name: daemon.bus.emit("mode", name),
     )

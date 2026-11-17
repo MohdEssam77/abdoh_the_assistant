@@ -353,6 +353,9 @@ class Computer:
             speaker.set_muted(False)
         return level
 
+    def muted(self) -> bool:
+        return self._speaker().muted()
+
     def set_muted(self, muted: bool) -> None:
         try:
             self._speaker().set_muted(muted)
@@ -454,6 +457,34 @@ class Computer:
         if not done:
             raise problem or ActionError("That screen's brightness can't be changed from here.")
         return level
+
+    def screen_brightness(self) -> dict:
+        """Each screen's brightness that can be read: {"laptop" or monitor id: percent}."""
+        levels = {}
+        try:
+            levels["laptop"] = self._on_desk().get_brightness()
+        except ActionError:
+            pass
+        for display in self._external_screens():
+            level = self.displays.brightness(display)
+            if level is not None:
+                levels[display.id] = level
+        return levels
+
+    def restore_brightness(self, levels: dict) -> None:
+        """Put each screen back to the brightness `screen_brightness()` read."""
+        if "laptop" in levels:
+            try:
+                self._on_desk().set_brightness(levels["laptop"])
+            except ActionError:
+                pass
+        for display in self._external_screens():
+            if display.id in levels:
+                self.displays.set_brightness(display, levels[display.id])
+
+    def restore_audio_output(self, output_id: str) -> None:
+        if any(o.id == output_id for o in self.audio_outputs()):
+            self._mixer().set_default_output(output_id)
 
     def _external_screens(self, among=None) -> list:
         if self.displays is None:

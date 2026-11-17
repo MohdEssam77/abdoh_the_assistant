@@ -46,6 +46,23 @@ User: {request}
 Abdoh: {answer}
 
 The user now says: {text}"""
+# Modes: "movie mode", "switch to work mode", "back to normal", "which mode am I in".
+_MODE_ON = (
+    "{name} mode", "{name} mode on", "switch to {name} mode", "go to {name} mode",
+    "change to {name} mode", "turn on {name} mode", "activate {name} mode", "start {name} mode",
+    "enable {name} mode", "set {name} mode", "put on {name} mode", "{name} time",
+)  # fmt: skip
+_MODE_END = re.compile(
+    r"(?:exit|leave|end|stop|quit|turn off|switch off|disable|cancel|close) "
+    r"(?:the |this |current )?(?:(?P<name>[\w ]+?) )?mode"
+    r"|(?P<name2>[\w ]+?) mode off|(?:go )?back to normal(?: mode)?"
+    r"|normal mode"
+)
+_MODE_WHICH = re.compile(
+    r"(?:which|what) mode (?:am i in|is on|is this|are we in)|am i in (?:a|any) mode"
+)
+_MODE_LIST = re.compile(r"(?:what|which) modes (?:do i have|are there)|list (?:my |the )?modes")
+MODE_MATCH = 90  # mode names are short: only a close match counts ("dark" isn't "park")
 _REMEMBER = re.compile(
     r"(?:please )?(?:remember|save) (?:that|this|it)(?: (?:as|for) (?P<phrase>.+?))?(?: please)?"
 )
@@ -88,6 +105,7 @@ class Router:
         self._act = act
         self._capture = capture
         self._window = window
+        self.modes = None  # abdoh.modes.engine.ModeEngine, or None
         self._builtins: dict[str, Callable[[], str]] = {}
         self._builtin_commands: list[Command] = []
 
@@ -148,6 +166,13 @@ class Router:
             log.info("Built-in command %r", builtin[0].name)
             return self._builtins[builtin[0].name]()
 
+        # 1b. Modes ("movie mode", "back to normal"): before your commands and the built-in
+        # skills, so a mode called Dark wins over the dark theme.
+        if self.modes is not None:
+            reply = self._mode(request)
+            if reply is not None:
+                return reply
+
         # 2. Commands from commands.yaml
         found = match_command(request, self.registry.commands, self.cfg.match_threshold)
         if found:
@@ -185,6 +210,39 @@ class Router:
 
         # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"
+
+    def _mode(self, request: str) -> str | None:
+        modes = self.modes
+        if _MODE_WHICH.fullmatch(request):
+            return modes.describe()
+        if _MODE_LIST.fullmatch(request):
+            names = modes.names()
+            if not names:
+                return "You don't have any modes yet. Make one on the Modes page."
+            return f"Your modes: {', '.join(names)}."
+        ending = _MODE_END.fullmatch(request)
+        if ending:
+            name = ending["name"] or ending["name2"]
+            if name and name not in ("the", "this", "current") and modes.find(name) is None:
+                return None  # "turn off dark mode": not one of your modes
+            if name and modes.find(name) and modes.current != modes.find(name).name:
+                return f"{modes.find(name).name} mode isn't on."
+            try:
+                return modes.deactivate()
+            except ActionError as e:
+                return str(e)
+        choices = [
+            Command(m.name, [p.format(name=m.name.lower()) for p in _MODE_ON] + list(m.phrases), [])
+            for m in modes.modes()
+        ]
+        found = match(request, choices, max(MODE_MATCH, self.cfg.match_threshold))
+        if not found:
+            return None
+        log.info("Mode %r (score %.0f)", found[0].name, found[1])
+        try:
+            return modes.activate(found[0].name)
+        except ActionError as e:
+            return str(e)
 
     def _ask(self, prompt: str, request: str, screen: bool = False) -> Reply:
         if self.brain is None:

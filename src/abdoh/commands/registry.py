@@ -29,6 +29,7 @@ ACTION_TYPES = (
     "close_app",
     "focus_app",
     "window",
+    "mode",
     "type",
     "run",
 )
@@ -72,21 +73,34 @@ def parse_commands(data) -> list[Command]:
         actions_raw = item.get("actions")
         if not isinstance(actions_raw, list) or not actions_raw:
             raise CommandsFileError(f"{where}: 'actions' must be a non-empty list.")
-        actions = []
-        for action in actions_raw:
-            if not isinstance(action, dict) or len(action) != 1:
-                raise CommandsFileError(f"{where}: each action must have exactly one key.")
-            ((kind, arg),) = action.items()
-            if kind not in ACTION_TYPES:
-                raise CommandsFileError(
-                    f"{where}: unknown action '{kind}' (use one of {', '.join(ACTION_TYPES)})."
-                )
-            if not isinstance(arg, str | int | float) or not str(arg).strip():
-                raise CommandsFileError(f"{where}: action '{kind}' needs a text value.")
-            actions.append((kind, str(arg)))
-        _check_slots(where, triggers, actions)
+        actions = parse_actions(where, actions_raw, triggers)
         commands.append(Command(name.strip(), [t.strip() for t in triggers], actions))
     return commands
+
+
+def parse_actions(where: str, raw, triggers=()) -> list[tuple[str, str]]:
+    """A list of `- kind: value` items -> [(kind, value)], each checked (modes use this too).
+    Raises CommandsFileError."""
+    actions = []
+    for action in raw:
+        if not isinstance(action, dict) or len(action) != 1:
+            raise CommandsFileError(f"{where}: each action must have exactly one key.")
+        ((kind, arg),) = action.items()
+        if kind not in ACTION_TYPES:
+            raise CommandsFileError(
+                f"{where}: unknown action '{kind}' (use one of {', '.join(ACTION_TYPES)})."
+            )
+        if isinstance(arg, bool):  # YAML reads `dark_mode: on` as true
+            arg = "on" if arg else "off"
+        if not isinstance(arg, str | int | float) or not str(arg).strip():
+            raise CommandsFileError(f"{where}: action '{kind}' needs a text value.")
+        actions.append((kind, str(arg)))
+    if not triggers:  # a mode's actions: nothing fills {slots}
+        for kind, arg in actions:
+            if set(PLACEHOLDER.findall(arg)) - BUILTIN_PLACEHOLDERS:
+                raise CommandsFileError(f"{where}: '{kind}' can't use {{slots}} here.")
+    _check_slots(where, list(triggers), actions)
+    return actions
 
 
 def trigger_slots(trigger: str) -> list[str]:
@@ -128,6 +142,8 @@ def _check_slots(where: str, triggers: list[str], actions: list[tuple[str, str]]
             raise CommandsFileError(f"{where}: {problem}")
         if kind in ("keys", "close_app") and PLACEHOLDER.search(arg):
             raise CommandsFileError(f"{where}: '{kind}' actions can't use slots (that's unsafe).")
+        if kind == "mode" and not arg.strip():
+            raise CommandsFileError(f"{where}: mode needs a mode's name, or normal.")
         if kind == "app_volume":
             app, _, level = arg.replace("|", " ").strip().rpartition(" ")
             if not app.strip() or not _is_percent(level):
