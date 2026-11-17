@@ -2,8 +2,8 @@
 
 Needs PyInstaller:  pip install -e .[build]
 Bundles the example files and the models in models/ (openWakeWord feature models, the trained
-wake word, the Vosk fallback, and the Parakeet speech model, so nothing downloads on the first
-start). Run scripts/download_models.py first.
+wake word, and the Parakeet speech model, so nothing downloads on the first start). Run
+scripts/download_models.py first.
 Usage: python scripts/build_app.py
 """
 
@@ -14,16 +14,13 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLED_MODELS = [
     "openwakeword",
     "hey_abdoh.onnx",
-    "vosk-model-small-en-us-0.15",
     "parakeet-tdt-0.6b-v2",  # speech recognition: no download on the first start
-    "faster-whisper-base.en",  # optional English fallback (only bundled if you downloaded it)
 ]
 # Packages with data files or native libraries PyInstaller doesn't find on its own.
 COLLECT = [
     "faster_whisper",
     "ctranslate2",
     "onnxruntime",
-    "vosk",
     "_sounddevice_data",
     "pystray",
     "webview",
