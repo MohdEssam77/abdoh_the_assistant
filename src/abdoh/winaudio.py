@@ -76,6 +76,8 @@ def _com():
             COMMETHOD([], HRESULT, "OpenPropertyStore",
                       (["in"], c_uint, "access"),
                       (["out"], POINTER(POINTER(IPropertyStore)), "store")),
+            COMMETHOD([], HRESULT, "GetId", (["out"], POINTER(c_void_p), "id")),
+            COMMETHOD([], HRESULT, "GetState", (["out"], POINTER(c_uint), "state")),
         )  # fmt: skip
 
     class IMMDeviceCollection(IUnknown):
@@ -111,6 +113,29 @@ def _friendly_name(device) -> str:
         return device.OpenPropertyStore(0).GetValue(_com()["name_key"]).text or ""
     except Exception:
         return ""
+
+
+def device_id(device) -> str:
+    """Windows' id for an audio device ("{0.0.0.00000000}.{...}"); "" if it can't tell."""
+    import ctypes
+
+    try:
+        pointer = device.GetId()
+    except Exception:
+        return ""
+    try:
+        return ctypes.wstring_at(pointer) if pointer else ""
+    finally:
+        ctypes.windll.ole32.CoTaskMemFree(ctypes.c_void_p(pointer))
+
+
+def default_device(flow: int = RENDER):
+    """The default speakers (or microphone) as a COM device. COM must be initialized."""
+    import comtypes
+
+    com = _com()
+    devices = comtypes.CoCreateInstance(com["clsid"], com["enumerator"], comtypes.CLSCTX_ALL)
+    return devices.GetDefaultAudioEndpoint(flow, 0)
 
 
 def same_device(friendly: str, wanted: str) -> bool:

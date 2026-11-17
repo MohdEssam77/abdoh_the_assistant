@@ -28,6 +28,7 @@ COLLECT = [
     "pystray",
     "webview",
     "onnx_asr",
+    "livekit",  # the echo canceller: livekit/rtc/resources/livekit_ffi.dll
 ]
 HIDDEN = ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes.stream"]
 
