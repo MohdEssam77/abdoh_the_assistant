@@ -3,6 +3,7 @@ import threading
 from fakes import FakeMic, FakeTranscriber, FakeWakeWord, silent_block, tone_block
 
 from abdoh.audio.mic import MicrophoneError
+from abdoh.audio.wakeword import NoWakeWord
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import ClaudeConfig, Config
 from abdoh.daemon import MIC_TOO_QUIET, SORRY, Daemon
@@ -79,7 +80,8 @@ def run_until(daemon, condition, timeout=5.0):
 
 
 def speech_mic():
-    return FakeMic([tone_block()] * 2 + [silent_block()] * 12)
+    """ "Hey Abdoh" (the wake word fires on the 2nd block), then a request, then silence."""
+    return FakeMic([tone_block()] * 2 + [tone_block()] * 3 + [silent_block()] * 12)
 
 
 def test_handle_text_speaks_reply():
@@ -476,7 +478,7 @@ def test_hotkey_request_works_while_paused(monkeypatch):
         router,
         FakeSpeaker(),
         lambda: mic,
-        FakeWakeWord(fire_on=999),
+        NoWakeWord(),
         FakeTranscriber(["what time is it"]),
         mic_retry_seconds=0.01,
     )
@@ -488,12 +490,12 @@ def test_hotkey_request_works_while_paused(monkeypatch):
 
 
 def question_daemon(replies, texts, cfg=None):
-    """A daemon whose mic hears: a request (with the wake word), a pause, then an answer."""
-    mic = FakeMic(
-        [tone_block()] * 2 + [silent_block()] * 12 + [tone_block()] * 3 + [silent_block()] * 20
-    )
+    """A daemon whose mic hears: the wake word and a request, a pause, then an answer."""
+    wake, said = [tone_block()] * 2, [tone_block()] * 3
+    mic = FakeMic(wake + said + [silent_block()] * 12 + said + [silent_block()] * 20)
     return Daemon(
-        cfg or Config(),
+        # No watch over the reply: it would read this instant fake mic dry while Abdoh answers.
+        cfg or Config(wake_word_interrupts=False),
         StubRouter(replies),
         FakeSpeaker(),
         lambda: mic,
@@ -523,7 +525,7 @@ def test_after_a_reply_abdoh_keeps_listening_for_a_moment(monkeypatch):
     daemon.earcons.play = sounds.append
     run_until(daemon, lambda: len(daemon.speaker.said) >= 2)
     assert daemon.router.requests == ["Abdoh, weather?", "And tomorrow?"]  # no wake word needed
-    assert "ready" in sounds and "listening" not in sounds  # the softer "go on" sound
+    assert sounds[:2] == ["listening", "ready"]  # after the wake word; then the softer "go on"
 
 
 def test_no_extra_listening_after_a_statement_when_follow_up_is_off(monkeypatch):
@@ -591,7 +593,7 @@ def test_hotkey_with_a_silent_mic_says_it_may_be_muted(monkeypatch):
         StubRouter([]),
         FakeSpeaker(),
         lambda: FakeMic([]),  # a muted mic: nothing but zeros
-        FakeWakeWord(fire_on=999),
+        NoWakeWord(),
         FakeTranscriber([]),
         mic_retry_seconds=0.01,
     )

@@ -52,6 +52,8 @@ CLAUDE_ACTIONS = (
     "audio_output",
     "dark_mode",
 )
+# Settings older versions wrote that no longer do anything (vosk_model: the old wake word).
+REMOVED_KEYS = {"vosk_model"}
 # By the config version that added them: switched on for people upgrading from before it.
 NEW_ACTIONS = {
     3: ("volume", "brightness", "remind", "note"),
@@ -85,11 +87,11 @@ class ClaudeConfig:
 class Config:
     config_version: int = CONFIG_VERSION  # for upgrading settings files from older versions
     wake_words: list[str] = field(default_factory=lambda: ["abdoh", "hey abdoh", "ya abdoh"])
+    # Other spellings speech recognition may write for "Abdoh", left out of your requests.
     wake_word_aliases: list[str] = field(default_factory=lambda: ["abdo", "ab doe", "abdul"])
-    wake_word_model: str = "models/hey_abdoh.onnx"  # openWakeWord; missing -> Vosk fallback
+    wake_word_model: str = "models/hey_abdoh.onnx"  # openWakeWord; missing -> hotkey only
     wake_word_threshold: float = 0.4
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
-    vosk_model: str = "models/vosk-model-small-en-us-0.15"
     languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Abdoh
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
     whisper_model: str = "small"  # Whisper size, used for languages other than English
@@ -221,7 +223,7 @@ def load_config(app_dir: Path | None = None) -> Config:
     raw = upgrade(raw)
     known = {f.name for f in fields(Config)} - {"app_dir", "anthropic_api_key", "claude"}
     kwargs = {k: v for k, v in raw.items() if k in known}
-    for k in raw.keys() - known - {"claude"}:
+    for k in raw.keys() - known - {"claude"} - REMOVED_KEYS:
         log.warning("Unknown config key ignored: %s", k)
 
     claude_raw = raw.get("claude") or {}

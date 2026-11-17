@@ -1,4 +1,5 @@
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,18 @@ def app_dir(tmp_path, monkeypatch):
     for name in ("config.example.yaml", "commands.example.yaml"):
         shutil.copyfile(REPO / name, tmp_path / name)
     return tmp_path
+
+
+@pytest.fixture(autouse=True)
+def no_real_key_presses(monkeypatch):
+    """Tests never press real keys: a media key changes this computer's volume."""
+    if sys.platform == "win32":
+        import ctypes
+
+        def refuse(*args):
+            raise AssertionError("a test pressed a real key")
+
+        monkeypatch.setattr(ctypes.windll.user32, "keybd_event", refuse)
 
 
 @pytest.fixture(autouse=True)

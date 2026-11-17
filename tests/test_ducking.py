@@ -127,7 +127,7 @@ def daemon_with(router, texts, cfg=None):
     from abdoh.daemon import Daemon
     from abdoh.speech.tts import FakeSpeaker
 
-    mic = FakeMic([tone_block()] * 2 + [silent_block()] * 12)
+    mic = FakeMic([tone_block()] * 2 + [tone_block()] * 3 + [silent_block()] * 12)  # wake, request
     order = []
     daemon = Daemon(
         cfg or Config(follow_up_seconds=0),
@@ -146,7 +146,8 @@ def daemon_with(router, texts, cfg=None):
 def test_other_apps_are_quiet_from_the_wake_word_until_the_answer_is_said():
     daemon, mic, order = daemon_with(Router("It's noon."), ["Abdoh what time is it"])
     daemon._listen_once(mic)
-    assert order == [("duck", 30), ("say", "It's noon."), ("release",)]
+    # Ducked on the wake word and again when recording starts (the real Ducker ignores that).
+    assert order == [("duck", 30), ("duck", 30), ("say", "It's noon."), ("release",)]
 
 
 def test_they_stay_quiet_while_abdoh_listens_for_more():

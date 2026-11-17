@@ -30,10 +30,6 @@ class Router:
         return self.reply() if callable(self.reply) else self.reply
 
 
-class TrainedWakeWord(FakeWakeWord):
-    trusted = True
-
-
 def make_daemon(reply, engine=None, cfg=None):
     bus = Bus()
     daemon = Daemon(
@@ -124,7 +120,7 @@ def long_reply(daemon):
 
 
 def test_the_wake_word_stops_a_reply_and_abdoh_listens():
-    engine = TrainedWakeWord(fire_on=30)  # "Hey Abdoh", a moment into the reply
+    engine = FakeWakeWord(fire_on=30)  # "Hey Abdoh", a moment into the reply
     daemon, _ = make_daemon(None, engine)
     daemon.router.reply = long_reply(daemon)
     daemon.mic = FakeMic([])
@@ -136,7 +132,7 @@ def test_the_wake_word_stops_a_reply_and_abdoh_listens():
 
 
 def test_the_watch_ends_with_the_reply():
-    engine = TrainedWakeWord(fire_on=10**9)
+    engine = FakeWakeWord(fire_on=10**9)
     daemon, _ = make_daemon(lambda: iter(["Short."]), engine)
     daemon.mic = FakeMic([])
     daemon.handle_text("hi", voice=True)
@@ -146,11 +142,8 @@ def test_the_watch_ends_with_the_reply():
     assert daemon.speaker.stops == 0
 
 
-def test_no_watch_without_a_trained_model_or_when_turned_off():
-    daemon, _ = make_daemon("", FakeWakeWord(fire_on=1))  # Vosk would hear Abdoh's own voice
-    daemon.mic = FakeMic([])
-    assert daemon._watch_reply() is None
-    off, _ = make_daemon("", TrainedWakeWord(), Config(wake_word_interrupts=False))
+def test_no_watch_when_turned_off():
+    off, _ = make_daemon("", FakeWakeWord(), Config(wake_word_interrupts=False))
     off.mic = FakeMic([])
     assert off._watch_reply() is None
 
@@ -186,7 +179,7 @@ def test_the_speaker_learns_which_language_you_spoke():
     transcriber = FakeTranscriber(["ما الوقت الآن؟"])
     transcriber.last_language = "ar"
     daemon = Daemon(
-        Config(), Router(""), FakeSpeaker(), lambda: mic, TrainedWakeWord(fire_on=2), transcriber
+        Config(), Router(""), FakeSpeaker(), lambda: mic, FakeWakeWord(fire_on=2), transcriber
     )
     daemon._listen_once(mic)
     assert daemon.speaker.language == "ar"

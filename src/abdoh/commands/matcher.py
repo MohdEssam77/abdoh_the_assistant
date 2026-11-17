@@ -40,17 +40,6 @@ def remove_wake_words(text: str, wake_words: list[str]) -> str:
     return text.strip().lstrip(",.!?- ").strip()
 
 
-def has_wake_word(text: str, wake_words: list[str], threshold: float = 75) -> bool:
-    """True if the transcript contains a wake word, allowing near spellings ("Abdo", "Abdou")."""
-    words = normalize(text).split()
-    for phrase in {normalize(w) for w in wake_words if w.strip()}:
-        n = len(phrase.split())
-        for i in range(len(words) - n + 1):
-            if fuzz.ratio(" ".join(words[i : i + n]), phrase) >= threshold:
-                return True
-    return False
-
-
 def score(text: str, trigger: str) -> float:
     """Similarity 0-100 between normalized text and a trigger.
 

@@ -32,7 +32,6 @@ RESTART_KEYS = (
     "wake_words",
     "wake_word_aliases",
     "wake_word_model",
-    "vosk_model",
     "whisper_model",
     "languages",
     "speech_engine",
