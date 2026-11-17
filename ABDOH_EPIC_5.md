@@ -396,6 +396,15 @@ kept (the `interrupt` path against the real Claude Code).
 mean?", "read this to me", "which of these should I click?" Abdoh takes a picture of the
 monitor he is working on and Claude answers about it.
 
+> **As built (2026-11-17, the owner's decision):** no list of phrases. The owner wants Claude to
+> *think* about whether a request needs the screen, so items 2, 3 and 5 below (`wants_screen`,
+> `SCREEN_PROMPT`, the router step) were **not** built. The system prompt tells Claude it can see
+> the screen; Claude writes `ACTION look:` when a request points at it, and the router sends the
+> picture of the monitor with the window in front (not Abdoh's own window), that window's title
+> and program, and the request (`skills.look_follow_up`). Translate and summarize stay as they
+> were. Live check: "What am I looking at?" was answered from the picture in 5.2 s; "What's the
+> capital of Japan?" didn't look (2.0 s).
+
 1. **Which screen** (`claude/screen.py`):
    - `capture_screen(which="active", grab=...)`. `"active"`: the monitor that holds the window
      in front (`GetForegroundWindow` → `MonitorFromWindow` → `GetMonitorInfoW`; match it to the
@@ -452,6 +461,51 @@ monitor he is working on and Claude answers about it.
 **Done when:** the tests pass and a live check with the real Claude Code answers a question
 about a screenshot of the active monitor (ask the owner first: a screenshot of his screen goes
 to Claude).
+
+---
+
+### Story 38b: Quieter while I talk, app volumes, a fresh chat each day (`story/38b-mixer-and-chat`)
+
+Added by the owner on 2026-11-17, before story 39. It replaces story 42's item 3.
+
+**What the owner gets:**
+1. **Other sounds go down while Abdoh listens.** When he says the wake word (or presses the
+   hotkey, or Abdoh listens for a follow-up), every other app that is playing sound (the
+   browser, Spotify, a film) drops to 30% of its volume in the Windows volume mixer. Abdoh's own
+   voice stays as it is. They come back when the request has been answered. An app whose volume
+   he changed in the meantime is left alone. Settings: `duck_others: true`, `duck_percent: 30`
+   (Settings → Conversation: "Lower other sounds while I talk to Abdoh").
+2. **App volumes, by voice and for Claude.** "Lower the browser", "set Spotify to 20 percent",
+   "turn up the browser", "mute Spotify", "what's playing?". The same as an action for Claude
+   (`app_volume: <app> | <0-100>`, a new switch in Permissions) and for commands and modes
+   (`app_volume: "browser 30"`). "Browser" means any of Chrome, Edge, Brave, Firefox, Opera,
+   Vivaldi, Arc.
+3. **The chat starts fresh every day.** The conversation in the window only shows today's
+   messages. The log file keeps today's and yesterday's only (it used to keep up to 4 MB, any
+   age). Nothing else stores what he says (Claude Code runs with `--no-session-persistence`).
+
+**How:**
+- `winaudio.py`: the Windows audio sessions (`IAudioSessionManager2` →
+  `IAudioSessionEnumerator` → `IAudioSessionControl2` + `ISimpleAudioVolume`) on every active
+  output. `app_sessions()` lists them as plain values (process id, program name, display name,
+  volume, muted, playing); `set_session_volume(...)` changes one, found again by its session
+  instance id. COM objects never leave the call that made them, so any thread can use them.
+- `audio/ducking.py`: `Ducker(sessions=..., own_pid=os.getpid())`. `duck(percent)` lowers every
+  *playing* session that isn't Abdoh's own process and remembers (instance id, before, after);
+  `release()` puts each back if it still has the lowered value. Idempotent.
+- The daemon ducks on the wake word and when it starts listening (`_on_wake`, `_on_listen`), and
+  releases when the request has been handled, unless it is about to listen for a follow-up.
+  Also on `stop()`.
+- `Computer.app_volume(name) / set_app_volume(name, percent) / change_app_volume(name, step) /
+  mute_app(name, on)`; local skills for the phrases above (an app that isn't playing anything
+  or isn't found falls through to Claude); the `app_volume` action.
+- `ui/api.py` `UiState`: the history remembers each line's date and drops older days; at the
+  first event of a new day it tells the page (`("clear", None)`), which empties the chat.
+  `config.setup_logging`: `TimedRotatingFileHandler(when="midnight", backupCount=1)`.
+
+**Done when:** tests with fake sessions pass (duck only playing apps, never Abdoh's own, restore
+only untouched ones, app names and aliases, the phrases, the chat clearing at midnight with a fake
+clock), and a live check lowers and restores a real browser tab's volume.
 
 ---
 
@@ -819,7 +873,7 @@ file, try them, and switch them from the window, the tray and by voice.
    screen, 2 HP 32f (TV), 3 C34H89x.` so Claude can turn "put the film on the big one" into
    `ACTION displays: only 3`. (`same_setup` already restarts the Claude session when the prompt
    changes.) Never `keys`, `close_app`, `type`, `power`.
-3. **Quieter while Abdoh listens.** `duck_while_listening: true`: when a request recording
+3. **(Done in story 38b, per app instead of the master volume.)** `duck_while_listening: true`: when a request recording
    starts (wake word, hotkey, follow-up, an interruption) and `SpeakerTap.level()` shows the
    computer is playing sound, lower the master volume to 30% of its value until the recording
    ends, then put it back (only if it still has the lowered value: the owner may have changed
