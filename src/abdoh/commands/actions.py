@@ -129,6 +129,11 @@ def run_action(
         computer.set_app_volume(*app_and_level(arg))
     elif kind in SYSTEM_ACTIONS:
         return system_action(kind, arg, computer)
+    elif kind == "mode":
+        modes = getattr(computer, "modes", None)
+        if modes is None:
+            raise ActionError("Modes aren't available here.")
+        return modes.switch(arg)
     elif kind == "type":
         computer.type_text(arg)
     elif kind == "open_url":
@@ -156,7 +161,7 @@ SYSTEM_ACTIONS = (
     "close_app", "focus_app", "window",
 )  # fmt: skip
 LOCAL_ONLY = (
-    "media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type",
+    "media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type", "mode",
     *SYSTEM_ACTIONS,
 )  # fmt: skip
 ON_WORDS = {"on": True, "true": True, "yes": True, "dark": True, "off": False, "false": False,

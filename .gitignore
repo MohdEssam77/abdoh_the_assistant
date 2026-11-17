@@ -22,3 +22,8 @@ dist/
 
 # graphify knowledge graph output (generated, not source)
 graphify-out/
+
+# Your own modes, screens and state (made by Abdoh in its data folder)
+modes.yaml
+mode_state.json
+displays.json

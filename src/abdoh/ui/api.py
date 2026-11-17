@@ -47,6 +47,7 @@ class UiState:
         self._claude = ""
         self._wake = ""
         self._hearing = ""
+        self._mode = ""
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
 
@@ -70,6 +71,8 @@ class UiState:
                 self._wake = value
             elif kind == "hearing":
                 self._hearing = value
+            elif kind == "mode":
+                self._mode = value or ""
             elif kind == "voice":
                 self._voice = bool(value)
             elif kind == "history":
@@ -92,6 +95,7 @@ class UiState:
                 "claude": self._claude,
                 "wake": self._wake,
                 "hearing": self._hearing,
+                "mode": self._mode,
                 "voice": self._voice,
                 "history": list(self._history),
             }
