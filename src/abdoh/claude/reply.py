@@ -39,6 +39,8 @@ ACTION_HELP: dict[str, str] = {
     "audio_output": "ACTION audio_output: <speakers>   (sends the sound to other speakers: "
     "headphones, speakers, or a name)",
     "dark_mode": "ACTION dark_mode: <on | off>   (Windows' dark theme)",
+    "lamp": "ACTION lamp: <a lamp's name, or all> | <on, off, 40%, red, warm white, blue 30%>   "
+    "(the user's smart lamps)",
 }
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).

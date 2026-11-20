@@ -1021,6 +1021,7 @@ class Daemon:
         from abdoh.computer import AppIndex, Computer, Timers
         from abdoh.desk import Notes, Reminders
         from abdoh.displays import Displays
+        from abdoh.lights import Lamps
         from abdoh.speech.piper_voice import make_voice
 
         speaker = speaker or make_voice(cfg)
@@ -1061,6 +1062,7 @@ class Daemon:
             pictures=user_folders()["Pictures"] / "Screenshots",
             displays=Displays(cfg.app_dir / "displays.json"),
         )
+        router.computer.lamps = Lamps(cfg.app_dir / "lamps.json")
         router.computer.apps.load_in_background()
         daemon.use_modes(make_modes(cfg, router, daemon))
         return daemon

@@ -129,7 +129,7 @@ def test_settings_from_abdoh_0_3_are_upgraded(app_dir):
     assert text_before == old  # nothing is rewritten until you save a setting
     save_settings(app_dir, {"tts_rate": 200})
     text = (app_dir / "config.yaml").read_text()
-    assert "config_version: 6" in text and "\nlanguage:" not in text
+    assert "config_version: 7" in text and "\nlanguage:" not in text
     assert load_config(app_dir).languages == ["en", "ar"]
 
 

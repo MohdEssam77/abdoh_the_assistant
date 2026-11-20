@@ -158,7 +158,7 @@ def run_action(
 # Settings and controls of the computer, for your commands and modes.
 SYSTEM_ACTIONS = (
     "displays", "audio_output", "dark_mode", "power_mode", "power", "keys", "wait",
-    "close_app", "focus_app", "window", "night_light",
+    "close_app", "focus_app", "window", "night_light", "lamp",
 )  # fmt: skip
 LOCAL_ONLY = (
     "media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type", "mode",
@@ -207,7 +207,17 @@ def system_action(kind: str, arg: str, computer) -> str | None:
             computer.window(place)
         else:
             computer.move_window(*place)
+    elif kind == "lamp":
+        lamps(computer).command(arg)
     return None
+
+
+def lamps(computer):
+    """Your smart lamps (abdoh.lights.Lamps). Raises ActionError if there are none here."""
+    found = getattr(computer, "lamps", None)
+    if found is None:
+        raise ActionError("Lamps aren't available here.")
+    return found
 
 
 def wait_seconds(text: str) -> float:
@@ -334,5 +344,7 @@ def claude_action(kind: str, arg: str, computer) -> None:
         if on is None:
             raise ActionError("dark_mode is on or off.")
         computer.set_dark_mode(on)
+    elif kind == "lamp":
+        lamps(computer).command(arg)
     else:
         raise ActionError(f"I can't do {kind}.")

@@ -408,6 +408,20 @@ python -m abdoh list-commands
 python -m abdoh test-command "good morning abdoh"
 ```
 
+### Smart lamps
+
+Xanthos switches **WiZ** lamps and bulbs on your home Wi-Fi, without any cloud. Set them up in
+the WiZ app first (2.4 GHz Wi-Fi), then **Settings → Lamps → Find lamps**. Give each one a name
+("Desk lamp"); **Blink** shows which is which.
+
+- By voice: "turn on the lamp", "lights off", "desk lamp blue", "dim the lights to 30",
+  "make the light warm", "lamp 3000k". "The lamp" or "the lights" means all of them.
+- In commands and modes: the **Set a lamp** action, e.g. `lamp: "all | warm white 60%"` or
+  `lamp: "desk lamp | off"`.
+- Claude can switch them too (Permissions → Lamps).
+
+If **Find lamps** finds nothing, turn on **Allow local communication** in the WiZ app's settings.
+
 ### Modes
 
 A mode switches a set of things at once, and puts them back when you're done. Say
@@ -698,6 +712,8 @@ Developer scripts:
 - **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
   every reply off, so Xanthos now uses the Windows voice directly there; macOS and Linux still go
   through pyttsx3.
+- **Lamps are untested with a real WiZ lamp.** They follow WiZ's local protocol as other
+  open-source projects use it; the first real test is still to come.
 - **The installer isn't code-signed**, so Windows SmartScreen warns the first time ("Windows
   protected your PC": click **More info → Run anyway**). Signing needs a paid certificate.
 

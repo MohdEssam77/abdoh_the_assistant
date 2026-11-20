@@ -1,0 +1,210 @@
+"""Smart lamps (WiZ) over a fake network: no lamps, sockets or Wi-Fi needed."""
+
+import json
+
+import pytest
+from test_local_skills import FakeComputer
+
+from abdoh.commands.actions import ActionError, claude_action, system_action
+from abdoh.lights import PORT, Lamps, Wiz, setting
+from abdoh.local_skills import LocalSkills
+from abdoh.system_skills import Done
+
+
+class Network:
+    """Lamps on a pretend network: {mac: ip}. Records what each lamp was told."""
+
+    def __init__(self, lamps, silent=()):
+        self.lamps = dict(lamps)  # mac -> ip
+        self.silent = set(silent)  # ips that never answer
+        self.told: list[tuple[str, str, dict]] = []  # (ip, method, params)
+        self.state = {}
+
+    def socket(self, broadcast=False):
+        return Socket(self)
+
+
+class Socket:
+    def __init__(self, network):
+        self.network = network
+        self.inbox = []
+
+    def settimeout(self, seconds):
+        pass
+
+    def sendto(self, data, address):
+        ip, port = address
+        assert port == PORT
+        message = json.loads(data)
+        method, params = message["method"], message["params"]
+        targets = (
+            list(self.network.lamps.items())
+            if ip == "255.255.255.255"
+            else [(m, i) for m, i in self.network.lamps.items() if i == ip]
+        )
+        for mac, lamp_ip in targets:
+            if lamp_ip in self.network.silent:
+                continue
+            self.network.told.append((lamp_ip, method, params))
+            if method == "getPilot":
+                result = {"mac": mac, "state": True, "dimming": 80, "temp": 4000}
+                result.update(self.network.state.get(mac, {}))
+            else:
+                self.network.state[mac] = params
+                result = {"success": True}
+            self.inbox.append((json.dumps({"method": method, "result": result}).encode(), lamp_ip))
+
+    def recvfrom(self, size):
+        if not self.inbox:
+            raise TimeoutError
+        data, ip = self.inbox.pop(0)
+        return data, (ip, PORT)
+
+    def close(self):
+        pass
+
+
+def lamps_on(tmp_path, network):
+    return Lamps(tmp_path / "lamps.json", Wiz(network.socket))
+
+
+@pytest.mark.parametrize(
+    "said, params",
+    [
+        ("off", {"state": False}),
+        ("on", {"state": True}),
+        ("40%", {"dimming": 40, "state": True}),
+        ("30 percent", {"dimming": 30, "state": True}),
+        ("red", {"r": 255, "g": 0, "b": 0, "state": True}),
+        ("blue 30%", {"dimming": 30, "r": 0, "g": 0, "b": 255, "state": True}),
+        ("warm white", {"temp": 2700, "state": True}),
+        ("cool white 100%", {"dimming": 100, "temp": 6500, "state": True}),
+        ("3000k", {"temp": 3000, "state": True}),
+        ("dim", {"dimming": 30, "state": True}),
+        ("5%", {"dimming": 10, "state": True}),  # the lowest a WiZ lamp goes
+    ],
+)
+def test_what_you_say_becomes_a_setting(said, params):
+    assert setting(said) == params
+
+
+def test_nonsense_is_not_a_setting():
+    with pytest.raises(ActionError):
+        setting("what is it")
+
+
+def test_lamps_are_found_and_named(tmp_path):
+    network = Network({"aa": "192.168.1.41", "bb": "192.168.1.42"})
+    lamps = lamps_on(tmp_path, network)
+    found = lamps.find_new()
+    assert [(lamp.name, lamp.ip) for lamp in found] == [
+        ("Lamp", "192.168.1.41"),
+        ("Lamp 2", "192.168.1.42"),
+    ]
+    lamps.rename("aa", "Desk lamp")
+    assert [lamp.name for lamp in lamps.all()] == ["Desk lamp", "Lamp 2"]
+    network.lamps["aa"] = "192.168.1.77"  # the router gave it a new address
+    lamps.find_new()
+    assert lamps.all()[0].ip == "192.168.1.77" and lamps.all()[0].name == "Desk lamp"
+
+
+def test_setting_one_lamp_or_all(tmp_path):
+    network = Network({"aa": "10.0.0.1", "bb": "10.0.0.2"})
+    lamps = lamps_on(tmp_path, network)
+    lamps.find_new()
+    lamps.rename("aa", "Desk lamp")
+    network.told.clear()
+    assert lamps.set("desk", "red") == ["Desk lamp"]
+    assert network.told == [("10.0.0.1", "setPilot", {"r": 255, "g": 0, "b": 0, "state": True})]
+    network.told.clear()
+    assert lamps.set("all", "off") == ["Desk lamp", "Lamp 2"]
+    assert {ip for ip, _, _ in network.told} == {"10.0.0.1", "10.0.0.2"}
+    with pytest.raises(ActionError, match="called kitchen"):
+        lamps.set("kitchen", "on")
+
+
+def test_a_lamp_that_moved_is_found_again(tmp_path):
+    network = Network({"aa": "10.0.0.1"})
+    lamps = lamps_on(tmp_path, network)
+    lamps.find_new()
+    network.lamps["aa"] = "10.0.0.9"  # it moved, and nobody looked for lamps since
+    lamps.set("lamp", "on")
+    assert network.told[-1] == ("10.0.0.9", "setPilot", {"state": True})
+    assert lamps.all()[0].ip == "10.0.0.9"
+
+
+def test_a_lamp_that_is_switched_off_at_the_wall_says_so(tmp_path):
+    network = Network({"aa": "10.0.0.1"})
+    lamps = lamps_on(tmp_path, network)
+    lamps.find_new()
+    network.silent.add("10.0.0.1")
+    with pytest.raises(ActionError, match="didn't answer"):
+        lamps.set("lamp", "on")
+
+
+def test_no_lamps_yet(tmp_path):
+    with pytest.raises(ActionError, match="no lamps yet"):
+        lamps_on(tmp_path, Network({})).set("all", "on")
+
+
+# ----- by voice, in commands and modes, and from Claude -----
+
+
+@pytest.fixture
+def home(tmp_path):
+    network = Network({"aa": "10.0.0.1", "bb": "10.0.0.2"})
+    computer = FakeComputer()
+    computer.lamps = lamps_on(tmp_path, network)
+    computer.lamps.find_new()
+    computer.lamps.rename("aa", "Desk lamp")
+    network.told.clear()
+    return LocalSkills(computer), network
+
+
+@pytest.mark.parametrize(
+    "said, ips, params",
+    [
+        ("turn off the lamp", {"10.0.0.1", "10.0.0.2"}, {"state": False}),
+        ("lights on", {"10.0.0.1", "10.0.0.2"}, {"state": True}),
+        ("turn the desk lamp blue", {"10.0.0.1"}, {"r": 0, "g": 0, "b": 255, "state": True}),
+        ("dim the lights to 30", {"10.0.0.1", "10.0.0.2"}, {"dimming": 30, "state": True}),
+        ("make the light warm", {"10.0.0.1", "10.0.0.2"}, {"temp": 2700, "state": True}),
+        ("desk lamp 50 percent", {"10.0.0.1"}, {"dimming": 50, "state": True}),
+    ],
+)
+def test_lamps_by_voice(home, said, ips, params):
+    skills, network = home
+    reply = skills.handle(said, said)
+    assert isinstance(reply, Done)
+    assert {ip for ip, _, _ in network.told} == ips
+    assert all(p == params for _, _, p in network.told)
+
+
+def test_questions_about_lamps_are_left_for_claude(home):
+    skills, network = home
+    assert skills.handle("what colour is the lamp") is None
+    assert network.told == []
+
+
+def test_without_lamps_lights_are_left_for_claude():
+    skills = LocalSkills(FakeComputer())
+    assert skills.handle("turn off the lights") is None
+
+
+def test_night_light_and_light_mode_are_not_lamps(home):
+    skills, network = home
+    themes = []
+    skills.computer.set_dark_mode = themes.append
+    skills.handle("switch to light mode")
+    assert themes == [False] and network.told == []
+
+
+def test_the_lamp_action(home):
+    skills, network = home
+    system_action("lamp", "desk lamp | warm white 60%", skills.computer)
+    assert network.told == [("10.0.0.1", "setPilot", {"dimming": 60, "temp": 2700, "state": True})]
+    network.told.clear()
+    claude_action("lamp", "all | off", skills.computer)
+    assert len(network.told) == 2
+    with pytest.raises(ActionError, match="aren't available"):
+        system_action("lamp", "on", FakeComputer())

@@ -30,6 +30,7 @@ ACTION_TYPES = (
     "focus_app",
     "window",
     "night_light",
+    "lamp",
     "mode",
     "type",
     "run",
