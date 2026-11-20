@@ -29,19 +29,19 @@ SORRY = "Sorry, something went wrong."
 # turned right down. Speech is usually in the thousands.
 QUIET_MIC_PEAK = 100
 MIC_TOO_QUIET = "I didn't hear anything. Your microphone may be muted or turned down."
-SAMPLE = "Hi, I'm Abdoh. This is how I sound."
-# When Claude hasn't said anything after this long, Abdoh says it's still on it.
+SAMPLE = "Hi, I'm Xanthos. This is how I sound."
+# When Claude hasn't said anything after this long, Xanthos says it's still on it.
 FILLER_SECONDS = 3.5
 FILLERS = ("One moment.", "Let me think.", "Working on it.", "Just a second.")
 NO_VOICE = (
     "I answered in {language}, but Windows has no {language} voice to read it. Add one in "
     "Windows Settings, under Time & language, Speech."
 )
-# After Abdoh heard you talk over it: how long to wait for the words to start.
+# After Xanthos heard you talk over it: how long to wait for the words to start.
 INTERRUPTION_WAIT_SECONDS = 1.0
-# Why Abdoh can't hear you over its own voice (shown in the settings).
+# Why Xanthos can't hear you over its own voice (shown in the settings).
 NO_ECHO_CANCELLER = "the echo canceller couldn't be loaded"
-NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
+NO_SPEAKER_TAP = "Xanthos can't hear what your speakers play"
 # Why voice input is off (shown as the status; the details are in the log).
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
@@ -77,10 +77,10 @@ class Daemon:
         self.earcons = earcons or Earcons.silent()
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
-        self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
+        self.ducker = ducker  # other apps go quieter while Xanthos listens (audio/ducking.py)
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self._watching = False  # the voice watch is following a reply
-        self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
+        self._floor = threading.Event()  # set: Xanthos may speak; clear: you have the floor
         self._floor.set()
         self._request = ""  # the request being answered
         self._answered = False  # ... and part of its answer was said
@@ -163,7 +163,7 @@ class Daemon:
             self.bus.emit("status", "Thinking...")
 
     def _still_working(self) -> None:
-        """Claude has been quiet for a while: say that Abdoh is on it."""
+        """Claude has been quiet for a while: say that Xanthos is on it."""
         if not self._spoke and self._handle_lock.locked():
             self._say_aside(random.choice(FILLERS))
 
@@ -171,7 +171,7 @@ class Daemon:
         from abdoh.speech.tts import LANGUAGE_NAMES
 
         name = LANGUAGE_NAMES.get(language, language)
-        self.bus.emit("history", "Abdoh: " + NO_VOICE.format(language=name))
+        self.bus.emit("history", "Xanthos: " + NO_VOICE.format(language=name))
 
     def mic_level(self) -> int | None:
         """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
@@ -184,7 +184,7 @@ class Daemon:
 
     def apply_settings(self, new: Config) -> None:
         """Use changed settings right away. Some (like the hotkey or the speech model) are
-        only read when Abdoh starts; the app says those need a restart."""
+        only read when Xanthos starts; the app says those need a restart."""
         from abdoh.claude.brain import make_brain
 
         old_mic = self.cfg.mic_device
@@ -236,7 +236,7 @@ class Daemon:
 
     def _stop_listening(self) -> str:
         self.set_paused(True)
-        return "Okay, I'll stop listening. Say Abdoh, start listening, when you need me."
+        return "Okay, I'll stop listening. Say Xanthos, start listening, when you need me."
 
     def _start_listening(self) -> str:
         self.set_paused(False)
@@ -252,8 +252,8 @@ class Daemon:
 
     def say(self, text: str) -> None:
         """Show text in the history and speak it (if voice replies are on). Never raises."""
-        log.info("Abdoh: %s", text)
-        self.bus.emit("history", f"Abdoh: {text}")
+        log.info("Xanthos: %s", text)
+        self.bus.emit("history", f"Xanthos: {text}")
         self._speak(text)
 
     def _speak(self, text: str) -> None:
@@ -297,8 +297,8 @@ class Daemon:
                 close()  # stops Claude if we were interrupted
         text = " ".join(spoken)
         if text:
-            log.info("Abdoh: %s", text)
-            self.bus.emit("history", f"Abdoh: {text}")
+            log.info("Xanthos: %s", text)
+            self.bus.emit("history", f"Xanthos: {text}")
         if first is not None:
             total = time.perf_counter() - started
             log.info("Timing: Claude began after %.1fs, reply spoken after %.1fs", first, total)
@@ -320,7 +320,7 @@ class Daemon:
         elif self._recording:
             return  # already listening to you
         elif self.listen_error:
-            self.bus.emit("history", f"Abdoh: Voice input isn't available ({self.listen_error}).")
+            self.bus.emit("history", f"Xanthos: Voice input isn't available ({self.listen_error}).")
         else:
             self._listen_now.set()
 
@@ -332,7 +332,7 @@ class Daemon:
         return False
 
     def _duck(self) -> None:
-        """Other apps go quieter: you're about to talk to Abdoh."""
+        """Other apps go quieter: you're about to talk to Xanthos."""
         if self.ducker is None or not self.cfg.duck_others:
             return
         try:
@@ -378,7 +378,7 @@ class Daemon:
     def handle_text(self, text: str, voice: bool = False) -> str:
         """Route one request and speak the reply. Never raises.
 
-        `voice`: the request was spoken, so if Claude's reply ends with a question, Abdoh
+        `voice`: the request was spoken, so if Claude's reply ends with a question, Xanthos
         listens for the answer next (no wake word needed).
         """
         with self._handle_lock:
@@ -438,7 +438,7 @@ class Daemon:
             self._soft_chime = not asked
 
     def _watch_reply(self):
-        """While Abdoh answers something you said, keep an ear on the microphone: you talking
+        """While Xanthos answers something you said, keep an ear on the microphone: you talking
         (or the wake word) stops the reply. The main loop is busy answering, so this thread
         reads the microphone meanwhile. Returns a function that ends the watch."""
         mic, engine = self.mic, self.engine
@@ -479,14 +479,14 @@ class Daemon:
 
         return end
 
-    # ----- hearing you over Abdoh's own voice -----
+    # ----- hearing you over Xanthos's own voice -----
 
     def _can_hear_over_itself(self) -> bool:
         watch = self.voice_watch
         return bool(self.cfg.voice_interrupts and watch is not None and watch.available)
 
     def _observe(self, block: bytes, mic) -> bool:
-        """Every microphone block while Abdoh listens: True when you started talking over a
+        """Every microphone block while Xanthos listens: True when you started talking over a
         reply that is running."""
         watch = self.voice_watch
         if self.paused or not self._can_hear_over_itself() or not self._handle_lock.locked():
@@ -500,8 +500,8 @@ class Daemon:
         return watch.feed(block, getattr(mic, "last_time", 0.0) or time.perf_counter())
 
     def _heard_voice(self, mic) -> str:
-        """You started talking over a reply: Abdoh goes quiet and listens. Returns what to do
-        next, or "" if Abdoh goes on ("okay", a cough) or just stops ("wait", "thanks")."""
+        """You started talking over a reply: Xanthos goes quiet and listens. Returns what to do
+        next, or "" if Xanthos goes on ("okay", a cough) or just stops ("wait", "thanks")."""
         from abdoh.local_skills import interruption_kind
 
         watch = self.voice_watch
@@ -570,7 +570,7 @@ class Daemon:
             error = self.router.registry.refresh(force=True)
             count = len(self.router.registry.commands)
             message = f"Commands file error: {error}" if error else f"Loaded {count} commands."
-            self.bus.emit("history", f"Abdoh: {message}")
+            self.bus.emit("history", f"Xanthos: {message}")
         elif kind == "settings_changed":  # saved in the app
             from abdoh.config import load_config
 
@@ -582,14 +582,14 @@ class Daemon:
         elif kind == "commands_changed":  # saved in the app: use them right away
             error = self.router.registry.refresh(force=True)
             if error:
-                self.bus.emit("history", f"Abdoh: Commands file error: {error}")
+                self.bus.emit("history", f"Xanthos: Commands file error: {error}")
         elif kind == "edit_commands":
             from abdoh.commands.actions import ActionError, open_in_editor
 
             try:
                 open_in_editor(self.cfg.commands_path)
             except ActionError as e:
-                self.bus.emit("history", f"Abdoh: {e}")
+                self.bus.emit("history", f"Xanthos: {e}")
         elif kind == "mode":  # the window or the tray: a mode's name, or "" for normal
             self._switch_mode(str(value or ""))
         elif kind == "stop_speaking":
@@ -612,7 +612,7 @@ class Daemon:
         self.cfg.anthropic_api_key = key or None
         self._use_brain(make_brain(self.cfg))
         self.bus.emit(
-            "history", "Abdoh: Claude key saved." if key else "Abdoh: Claude key removed."
+            "history", "Xanthos: Claude key saved." if key else "Xanthos: Claude key removed."
         )
 
     def _report_claude(self) -> None:
@@ -711,7 +711,7 @@ class Daemon:
         except Exception:
             log.exception("Couldn't switch the mode")
             reply = SORRY
-        self.bus.emit("history", f"Abdoh: {reply}")
+        self.bus.emit("history", f"Xanthos: {reply}")
 
     def use_modes(self, engine) -> None:
         """Modes: the router hears "movie mode", the `mode:` action reaches them."""
@@ -721,7 +721,7 @@ class Daemon:
             self.router.computer.modes = engine
 
     def _hearing_problem(self) -> str:
-        """Why Abdoh can't hear you over its own voice ("" when it can)."""
+        """Why Xanthos can't hear you over its own voice ("" when it can)."""
         watch = self.voice_watch
         if watch is None or watch.canceller is None:
             return NO_ECHO_CANCELLER
@@ -746,7 +746,7 @@ class Daemon:
 
     def _listen_once(self, mic) -> None:
         """Listen for one request and answer it. The other apps get their volume back after
-        the answer, unless Abdoh goes on listening for more."""
+        the answer, unless Xanthos goes on listening for more."""
         try:
             self._listen_and_answer(mic)
         finally:
@@ -840,7 +840,7 @@ class Daemon:
         try:
             engine = load_wake_engine(cfg)
         except Exception:
-            log.exception("Could not set up the wake word; only the hotkey wakes Abdoh")
+            log.exception("Could not set up the wake word; only the hotkey wakes Xanthos")
             engine = NoWakeWord()
         try:
             transcriber = load_transcriber(cfg)
@@ -876,7 +876,7 @@ class Daemon:
 
 
 def make_voice_watch(cfg: Config):
-    """What lets Abdoh hear you over its own voice, or None if part of it is missing (then
+    """What lets Xanthos hear you over its own voice, or None if part of it is missing (then
     only the wake word and the hotkey stop a reply)."""
     from abdoh.audio.bargein import VoiceWatch
     from abdoh.audio.echo import EchoCanceller, echo_available

@@ -3,6 +3,7 @@
 import logging
 import logging.handlers
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -14,8 +15,8 @@ from dotenv import dotenv_values
 
 log = logging.getLogger(__name__)
 
-# Files that ship with Abdoh (example files, bundled models): the project folder, or the
-# inside of the built Abdoh.exe.
+# Files that ship with Xanthos (example files, bundled models): the project folder, or the
+# inside of the built Xanthos.exe.
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
 
 
@@ -23,8 +24,8 @@ def _default_app_dir() -> Path:
     """The folder holding config.yaml, commands.yaml, .env and models/."""
     if os.environ.get("ABDOH_HOME"):
         return Path(os.environ["ABDOH_HOME"])
-    if getattr(sys, "frozen", False):  # the built Abdoh.exe keeps your files in your profile
-        return Path(os.environ.get("APPDATA", Path.home())) / "Abdoh"
+    if getattr(sys, "frozen", False):  # the built Xanthos.exe keeps your files in your profile
+        return Path(os.environ.get("APPDATA", Path.home())) / "Xanthos"
     return Path(__file__).resolve().parents[2]  # the project folder
 
 
@@ -34,7 +35,8 @@ DEFAULT_APP_DIR = _default_app_dir()
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
-CONFIG_VERSION = 5
+# 6: Abdoh became Xanthos (new wake words and wake word model).
+CONFIG_VERSION = 6
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -54,6 +56,12 @@ CLAUDE_ACTIONS = (
 )
 # Settings older versions wrote that no longer do anything (vosk_model: the old wake word).
 REMOVED_KEYS = {"vosk_model"}
+WAKE_WORDS = ("xanthos", "hey xanthos", "ya xanthos")
+WAKE_WORD_ALIASES = ("zanthos", "xantos", "zantos", "santos", "xanthus", "santhos")
+WAKE_WORD_MODEL = "models/hey_xanthos.onnx"
+LOG_FILE = "~/.xanthos/xanthos.log"
+# The old name and the ways speech recognition wrote it ("abdo", "ab doe", "abdul", "ya abdoo").
+_OLD_NAME = re.compile(r"\bab ?d(?:oh?|oo|oe|ul)\b")
 # By the config version that added them: switched on for people upgrading from before it.
 NEW_ACTIONS = {
     3: ("volume", "brightness", "remind", "note"),
@@ -86,13 +94,13 @@ class ClaudeConfig:
 @dataclass
 class Config:
     config_version: int = CONFIG_VERSION  # for upgrading settings files from older versions
-    wake_words: list[str] = field(default_factory=lambda: ["abdoh", "hey abdoh", "ya abdoh"])
-    # Other spellings speech recognition may write for "Abdoh", left out of your requests.
-    wake_word_aliases: list[str] = field(default_factory=lambda: ["abdo", "ab doe", "abdul"])
-    wake_word_model: str = "models/hey_abdoh.onnx"  # openWakeWord; missing -> hotkey only
+    wake_words: list[str] = field(default_factory=lambda: list(WAKE_WORDS))
+    # Other spellings speech recognition may write for "Xanthos", left out of your requests.
+    wake_word_aliases: list[str] = field(default_factory=lambda: list(WAKE_WORD_ALIASES))
+    wake_word_model: str = WAKE_WORD_MODEL  # openWakeWord; missing -> hotkey only
     wake_word_threshold: float = 0.4
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
-    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Abdoh
+    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Xanthos
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
     whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
@@ -101,9 +109,9 @@ class Config:
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
-    duck_others: bool = True  # other apps go quieter while Abdoh listens and answers
+    duck_others: bool = True  # other apps go quieter while Xanthos listens and answers
     duck_percent: int = 30  # ... to this share of their volume
-    allow_power: bool = True  # Abdoh may put the computer to sleep, shut it down, restart it
+    allow_power: bool = True  # Xanthos may put the computer to sleep, shut it down, restart it
     max_record_seconds: float = 10
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice
@@ -112,7 +120,7 @@ class Config:
     check_updates: bool = True  # look for a new version once a day
     setup_done: bool = False  # the first-start setup was finished (or skipped)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
-    log_file: str = "~/.abdoh/abdoh.log"
+    log_file: str = LOG_FILE
     # Not read from config.yaml:
     app_dir: Path = DEFAULT_APP_DIR
     anthropic_api_key: str | None = None
@@ -131,7 +139,7 @@ class Config:
 
     def resolve(self, path: str) -> Path:
         """Resolve a path from config relative to the app dir (and expand ~). If it isn't
-        there, a copy that ships with Abdoh (e.g. models bundled in Abdoh.exe) is used."""
+        there, a copy that ships with Xanthos (e.g. models bundled in Xanthos.exe) is used."""
         p = Path(path).expanduser()
         if p.is_absolute():
             return p
@@ -180,7 +188,7 @@ def save_api_key(env_path: Path, key: str) -> None:
 
 
 def upgrade(raw: dict) -> dict:
-    """Settings from an older Abdoh, brought up to date (the file itself is rewritten the next
+    """Settings from an older Xanthos, brought up to date (the file itself is rewritten the next
     time settings are saved). Only values still at their old default are changed."""
     version = raw.get("config_version", 1)
     if version >= CONFIG_VERSION:
@@ -193,8 +201,14 @@ def upgrade(raw: dict) -> dict:
         actions = [*claude["actions"], *(a for a in added if a not in claude["actions"])]
         raw["claude"] = {**claude, "actions": actions}
     raw["config_version"] = CONFIG_VERSION
-    if version >= 2:
-        return raw
+    if version < 2:
+        _upgrade_from_1(raw)
+    if version < 6:
+        _rename_to_xanthos(raw)
+    return raw
+
+
+def _upgrade_from_1(raw: dict) -> None:
     if "languages" not in raw:  # `language: null` meant "detect it": English and Arabic now
         language = raw.pop("language", "en")
         raw["languages"] = [language] if language else ["en", "ar"]
@@ -203,10 +217,20 @@ def upgrade(raw: dict) -> dict:
         raw["wake_word_threshold"] = 0.4
     if raw.get("whisper_model") == "base":
         raw["whisper_model"] = "small"
-    words = raw.get("wake_words")
-    if isinstance(words, list) and "hey abdoh" in words and "ya abdoh" not in words:
-        raw["wake_words"] = [*words, "ya abdoh"]
-    return raw
+
+
+def _rename_to_xanthos(raw: dict) -> None:
+    """Abdoh became Xanthos: the old name's wake words, spellings, model and log go. Your own
+    other wake words stay."""
+    for key, new in (("wake_words", WAKE_WORDS), ("wake_word_aliases", WAKE_WORD_ALIASES)):
+        words = raw.get(key)
+        if isinstance(words, list):
+            own = [w for w in words if not (isinstance(w, str) and _OLD_NAME.search(w.lower()))]
+            raw[key] = [*new, *(w for w in own if w not in new)]
+    if str(raw.get("wake_word_model", "")).endswith("hey_abdoh.onnx"):
+        raw["wake_word_model"] = WAKE_WORD_MODEL
+    if raw.get("log_file") == "~/.abdoh/abdoh.log":
+        raw["log_file"] = LOG_FILE
 
 
 def load_config(app_dir: Path | None = None) -> Config:
@@ -254,7 +278,7 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
 
     log_path = config.resolve(config.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    # The log has what you said in it: keep today's and yesterday's only. (Abdoh 0.4 kept
+    # The log has what you said in it: keep today's and yesterday's only. (Xanthos 0.4 kept
     # numbered backups of any age: remove them.)
     for number in (1, 2, 3):
         log_path.with_name(f"{log_path.name}.{number}").unlink(missing_ok=True)

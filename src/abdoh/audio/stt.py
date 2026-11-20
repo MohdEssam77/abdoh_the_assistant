@@ -7,7 +7,7 @@ Two engines behind one small interface (`transcribe(audio) -> text`):
 - **Whisper** (faster-whisper): any language. Used when you speak more than English, when
   Parakeet's model isn't there, or when you choose it.
 
-The models ship with Abdoh in models/ (scripts/download_models.py puts them there); a Whisper
+The models ship with Xanthos in models/ (scripts/download_models.py puts them there); a Whisper
 model that isn't there is downloaded the first time it's used.
 """
 
@@ -46,7 +46,7 @@ def model_name(size: str, languages: list[str]) -> str:
 
 
 def model_folder(name: str) -> str:
-    """Where a Whisper model that ships with Abdoh lives, relative to the app folder."""
+    """Where a Whisper model that ships with Xanthos lives, relative to the app folder."""
     return f"models/faster-whisper-{name}"
 
 

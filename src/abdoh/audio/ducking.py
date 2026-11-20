@@ -1,7 +1,7 @@
-"""Other apps go quieter while Abdoh listens and answers: the browser, Spotify, a film.
+"""Other apps go quieter while Xanthos listens and answers: the browser, Spotify, a film.
 
 Each app that is playing sound drops to a share of its own volume in the Windows volume mixer;
-Abdoh's own voice and sounds (this process) stay as they are. Afterwards each app gets its
+Xanthos's own voice and sounds (this process) stay as they are. Afterwards each app gets its
 volume back, unless you changed it in the meantime.
 """
 

@@ -26,7 +26,7 @@ HEADSET = Output("hs", "Headphones (WH-1000XM4)", False)
 
 
 class FakeComputer:
-    """Records what Abdoh did; the screens are the owner's three, faked."""
+    """Records what Xanthos did; the screens are the owner's three, faked."""
 
     def __init__(self, tmp_path):
         self.done = []
@@ -521,7 +521,7 @@ def test_night_light_is_read_from_windows_values():
     assert parse_night_light(bytes.fromhex(WINDOWS_ON.replace(" ", ""))) is True
     assert parse_night_light(bytes.fromhex(WINDOWS_OFF)) is False
     with pytest.raises(ValueError):
-        parse_night_light(b"\x00" * 30)  # a layout Abdoh doesn't know: never written
+        parse_night_light(b"\x00" * 30)  # a layout Xanthos doesn't know: never written
 
 
 def test_night_light_is_written_the_way_windows_writes_it():

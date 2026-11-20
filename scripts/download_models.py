@@ -1,7 +1,7 @@
-"""Download the offline models Abdoh needs into models/.
+"""Download the offline models Xanthos needs into models/.
 
 - openWakeWord's two shared feature models (melspectrogram, speech embedding), used with your
-  own "Hey Abdoh" model (see README: train the wake word).
+  own "Hey Xanthos" model (see README: train the wake word).
 - The Parakeet speech recognition model (English, about 630 MB), so the built app never has to
   download anything on its first start.
 - Your trained wake word model, copied from assets/ if models/ doesn't have one yet.
@@ -46,7 +46,7 @@ PARAKEET_FILES = [
     "decoder_joint-model.int8.onnx",
     "encoder-model.int8.onnx",
 ]
-WAKE_WORD = "hey_abdoh.onnx"
+WAKE_WORD = "hey_xanthos.onnx"
 
 
 def download_openwakeword() -> None:

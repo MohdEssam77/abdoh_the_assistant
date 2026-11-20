@@ -1,4 +1,4 @@
-"""Stop Abdoh from starting at login.
+"""Stop Xanthos from starting at login.
 
 Usage: python scripts/uninstall_autostart.py
 """

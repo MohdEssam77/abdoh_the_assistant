@@ -212,7 +212,7 @@ def default_device(flow: int = RENDER):
 
 
 def same_device(friendly: str, wanted: str) -> bool:
-    """Is this Windows device the one called `wanted` in Abdoh's microphone list (cut short)?"""
+    """Is this Windows device the one called `wanted` in Xanthos's microphone list (cut short)?"""
     return bool(wanted) and friendly[:NAME_LIMIT].strip() == wanted[:NAME_LIMIT].strip()
 
 

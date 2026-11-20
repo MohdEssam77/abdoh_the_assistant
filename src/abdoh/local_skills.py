@@ -1,4 +1,4 @@
-"""Things Abdoh does instantly by itself, without Claude: timers and reminders, volume and
+"""Things Xanthos does instantly by itself, without Claude: timers and reminders, volume and
 brightness, media keys, notes, quick maths, typing what you dictate, screenshots, the window in
 front, locking the computer, and opening any installed app. Your own commands come first."""
 
@@ -95,9 +95,9 @@ _HELP = re.compile(r"what can (?:you do|i say|i ask(?: you)?)|help(?: me)?|what 
 # Ways to end the conversation after a reply: nothing to do, and nothing more to listen for.
 _DONE = re.compile(
     r"(?:no |okay |ok )?(?:thanks|thank you|thanks a lot|thank you very much|thats all|thats it"
-    r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye)(?: abdoh)?"
+    r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye)(?: (?:xanthos|zanthos))?"
 )
-# What you might say while Abdoh is talking: sounds, "I'm listening", and "be quiet".
+# What you might say while Xanthos is talking: sounds, "I'm listening", and "be quiet".
 _FILLER = re.compile(r"(?:(?:uh|um|umm|hmm|hm|mm|mmm|ah|er|erm|oh)\s*)+")
 _BACKCHANNEL = re.compile(
     r"(?:okay|ok|yeah|yes|yep|right|i see|got it|sure|uh huh|mm hmm|mhm|wow|nice|cool|really"
@@ -106,7 +106,7 @@ _BACKCHANNEL = re.compile(
 _HUSH = re.compile(
     r"(?:okay |ok )?(?:wait|hold on|one second|one sec|one moment|just a (?:second|moment)|enough"
     r"|thats enough|be quiet|quiet|shut up|stop talking|stop it|pause|shh+|hush)"
-    r"(?: (?:please|abdoh|a second|a moment))?"
+    r"(?: (?:please|xanthos|zanthos|a second|a moment))?"
 )
 _LOCK = re.compile(r"lock (?:my |the )?(?:computer|pc|laptop|screen|workstation)")
 # One app's volume in the mixer: "lower the browser", "set spotify to 20 percent".
@@ -139,8 +139,8 @@ HELP = (
 
 
 def interruption_kind(text: str) -> str:
-    """What you said while Abdoh was talking: "nothing" (no words, or "um"), "backchannel"
-    ("okay", "right": Abdoh goes on), "stop" ("wait", "thanks", "stop": it goes quiet) or
+    """What you said while Xanthos was talking: "nothing" (no words, or "um"), "backchannel"
+    ("okay", "right": Xanthos goes on), "stop" ("wait", "thanks", "stop": it goes quiet) or
     "request" (anything else: it stops and does that instead)."""
     words = normalize(text)
     if not words or _FILLER.fullmatch(words):
@@ -222,7 +222,7 @@ class LocalSkills:
         from abdoh.system_skills import SystemSkills
 
         self.computer = computer
-        self._last_reply = last_reply  # what Abdoh said last, for "repeat that"
+        self._last_reply = last_reply  # what Xanthos said last, for "repeat that"
         self.system = SystemSkills(computer, allow_power, last_reply)
 
     def handle(self, request: str, original: str = "") -> str | None:

@@ -1,4 +1,4 @@
-"""Build Abdoh as a Windows app: dist/Abdoh/Abdoh.exe (one folder, no console window).
+"""Build Xanthos as a Windows app: dist/Xanthos/Xanthos.exe (one folder, no console window).
 
 Needs PyInstaller:  pip install -e .[build]
 Bundles the example files and the models in models/ (openWakeWord feature models, the trained
@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLED_MODELS = [
     "openwakeword",
-    "hey_abdoh.onnx",
+    "hey_xanthos.onnx",
     "parakeet-tdt-0.6b-v2",  # speech recognition: no download on the first start
 ]
 # Packages with data files or native libraries PyInstaller doesn't find on its own.
@@ -37,7 +37,7 @@ def main() -> int:
     from abdoh.shortcut import make_icon
 
     build = ROOT / "build"
-    icon = make_icon(build / "abdoh.ico")
+    icon = make_icon(build / "xanthos.ico")
     sep = ";" if sys.platform == "win32" else ":"
     data = [
         (ROOT / "config.example.yaml", "."),
@@ -48,13 +48,13 @@ def main() -> int:
         path = ROOT / "models" / name
         if path.exists():
             data.append((path, f"models/{name}" if path.is_dir() else "models"))
-        elif name == "hey_abdoh.onnx" and (ROOT / "assets" / name).exists():
+        elif name == "hey_xanthos.onnx" and (ROOT / "assets" / name).exists():
             data.append((ROOT / "assets" / name, "models"))  # the one kept in the repo
         else:
             print(f"Not bundled (not found): models/{name}")
     args = [
         str(ROOT / "scripts" / "abdoh_app.py"),
-        "--name=Abdoh",
+        "--name=Xanthos",
         "--windowed",
         "--onedir",
         "--noconfirm",
@@ -68,7 +68,7 @@ def main() -> int:
     args += [f"--hidden-import={mod}" for mod in HIDDEN]
     args += [f"--add-data={src}{sep}{dest}" for src, dest in data]
     PyInstaller.__main__.run(args)
-    print(f"Built {ROOT / 'dist' / 'Abdoh' / 'Abdoh.exe'}")
+    print(f"Built {ROOT / 'dist' / 'Xanthos' / 'Xanthos.exe'}")
     return 0
 
 

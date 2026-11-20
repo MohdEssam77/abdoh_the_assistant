@@ -1,4 +1,4 @@
-"""What the app page can ask Abdoh for, and what it shows.
+"""What the app page can ask Xanthos for, and what it shows.
 
 AppApi's public methods are called from JavaScript (window.pywebview.api.<name>). pywebview also
 exposes public attributes, so everything else is kept in _underscore names. Methods return plain
@@ -144,7 +144,7 @@ class AppApi:
         self._check_for_update = check_for_update
         self._audio = audio  # abdoh.winaudio (a fake in tests)
         self._displays = displays  # abdoh.displays.Displays (a fake backend in tests)
-        # What Abdoh started with, to tell which saved changes still need a restart. (The
+        # What Xanthos started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
 
@@ -152,7 +152,7 @@ class AppApi:
         self._daemon = daemon
 
     def _config(self) -> Config:
-        """The settings as saved now (the file may have changed since Abdoh started)."""
+        """The settings as saved now (the file may have changed since Xanthos started)."""
         return load_config(self._cfg.app_dir)
 
     def _restart_needed(self, cfg: Config) -> list[str]:
@@ -163,7 +163,7 @@ class AppApi:
     def boot(self) -> dict:
         """Everything the page needs to draw itself."""
         cfg = self._config()
-        log.info("App window loaded (Abdoh %s)", __version__)
+        log.info("App window loaded (Xanthos %s)", __version__)
         return {
             "version": __version__,
             "platform": sys.platform,
@@ -176,7 +176,7 @@ class AppApi:
         """What happened since the last call, as [kind, value] pairs."""
         return [[kind, value] for kind, value in self._state.drain()]
 
-    # ----- talking to Abdoh -----
+    # ----- talking to Xanthos -----
 
     def send(self, text) -> bool:
         """A typed request."""
@@ -290,7 +290,7 @@ class AppApi:
         return {"ok": True}
 
     def activate_mode(self, name) -> None:
-        """Switch a mode on (on Abdoh's own thread: screens can take a second)."""
+        """Switch a mode on (on Xanthos's own thread: screens can take a second)."""
         self._bus.request("mode", str(name))
 
     def end_mode(self) -> None:
@@ -388,7 +388,7 @@ class AppApi:
             return {"ok": False}
 
     def fix_mic_volume(self) -> dict:
-        """Unmute the microphone in Windows and turn it up, so Abdoh hears you clearly."""
+        """Unmute the microphone in Windows and turn it up, so Xanthos hears you clearly."""
         try:
             mic = self._mic_endpoint()
             mic.set_muted(False)
@@ -417,7 +417,7 @@ class AppApi:
         return self._autostart
 
     def login_item(self) -> dict:
-        """Does Abdoh start when you sign in to your computer?"""
+        """Does Xanthos start when you sign in to your computer?"""
         try:
             return {"ok": True, "on": bool(self._login().is_installed())}
         except Exception as e:
@@ -439,7 +439,7 @@ class AppApi:
         return self._window.pick_folder()
 
     def open_folder(self, which) -> bool:
-        """Open Abdoh's data folder ("data": settings and commands) or its log folder."""
+        """Open Xanthos's data folder ("data": settings and commands) or its log folder."""
         cfg = self._config()
         folders = {"data": cfg.app_dir, "logs": cfg.resolve(cfg.log_file).parent}
         if which not in folders:
@@ -504,13 +504,13 @@ class AppApi:
         return self._claude().check_connection(self._config())
 
     def refresh_claude(self) -> None:
-        """The connection changed (signed in, installed, key): Abdoh reconnects."""
+        """The connection changed (signed in, installed, key): Xanthos reconnects."""
         self._bus.request("settings_changed")
 
     # ----- updates -----
 
     def check_update(self, force=False) -> dict:
-        """Is a newer Abdoh out? At most one check a day (unless force), and only if
+        """Is a newer Xanthos out? At most one check a day (unless force), and only if
         check_updates is on (or you pressed Check now)."""
         if not force and not self._config().check_updates:
             return {"available": False, "current": __version__}

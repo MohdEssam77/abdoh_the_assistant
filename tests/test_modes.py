@@ -306,7 +306,7 @@ def router(tmp_path):
 @pytest.mark.parametrize(
     "said, reply",
     [
-        ("Abdoh, movie mode", "Movie mode. Enjoy the movie."),
+        ("Xanthos, movie mode", "Movie mode. Enjoy the movie."),
         ("switch to work mode", "Work mode."),
         ("turn on movie mode", "Movie mode. Enjoy the movie."),
         ("movie night", "Movie mode. Enjoy the movie."),  # the mode's own phrase
@@ -424,9 +424,9 @@ def test_the_window_switches_modes_through_abdoh(tmp_path):
     daemon.handle_request("mode", "Party")
     history = [v for k, v in bus.pending_events() if k == "history"]
     assert history == [
-        "Abdoh: Movie mode. Enjoy the movie.",
-        "Abdoh: Back to normal.",
-        "Abdoh: You don't have a mode called Party.",
+        "Xanthos: Movie mode. Enjoy the movie.",
+        "Xanthos: Back to normal.",
+        "Xanthos: You don't have a mode called Party.",
     ]
 
 

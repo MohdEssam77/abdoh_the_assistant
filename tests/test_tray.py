@@ -81,7 +81,7 @@ def test_a_long_status_fits_windows_tooltip_limit(tray):
     tray.show_status("Error: " + "x" * 300)
     assert len(tray.icon.title) == TITLE_MAX and tray.icon.title.endswith("…")
     tray.show_status("Listening")
-    assert tray.icon.title == "Abdoh: Listening"
+    assert tray.icon.title == "Xanthos: Listening"
 
 
 def test_status_colors():
@@ -117,7 +117,7 @@ def test_pause_and_voice_follow_the_daemon(tray):
     assert tray.bus.next_request(0) == ("pause", None)
     tray.show_status("Paused")
     assert pause.label() == "Resume listening"
-    assert tray.icon.title == "Abdoh: Paused"
+    assert tray.icon.title == "Xanthos: Paused"
     pause.action()
     assert tray.bus.next_request(0) == ("resume", None)
 
@@ -144,7 +144,7 @@ def test_start_at_login_toggle(tray):
             break
         threading.Event().wait(0.01)
     assert login.checked(login) is True
-    assert ("history", "Abdoh: Installed.") in tray.bus.pending_events()
+    assert ("history", "Xanthos: Installed.") in tray.bus.pending_events()
 
 
 def test_stop(tray):
@@ -174,7 +174,7 @@ def test_the_modes_submenu_follows_your_modes(monkeypatch):
     items[-1].action()
     assert bus.next_request(timeout=1) == ("mode", "")
     tray.show_status("Listening")
-    assert tray.icon.title == "Abdoh: Listening (Movie mode)"
+    assert tray.icon.title == "Xanthos: Listening (Movie mode)"
 
 
 def test_no_modes_yet_points_to_the_window(tray):

@@ -1,31 +1,31 @@
-# Abdoh configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
+# Xanthos configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
 
-config_version: 5                # written by Abdoh, for upgrading this file; don't change it
-wake_words: ["abdoh", "hey abdoh", "ya abdoh"]
+config_version: 5                # written by Xanthos, for upgrading this file; don't change it
+wake_words: ["xanthos", "hey xanthos", "ya xanthos"]
 # Your openWakeWord model (see README: train the wake word). Without it, only the hotkey works.
-wake_word_model: "models/hey_abdoh.onnx"
+wake_word_model: "models/hey_xanthos.onnx"
 wake_word_threshold: 0.4         # higher = fewer false wake-ups, lower = wakes more easily
 hotkey: "ctrl+alt+space"         # press to talk without the wake word, or to stop a reply; "" = off
-# Other spellings speech recognition may write for "Abdoh"; they're left out of your requests.
+# Other spellings speech recognition may write for "Xanthos"; they're left out of your requests.
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
-languages: ["en"]                # what you speak to Abdoh, e.g. ["en"] or ["en", "ar"]
+languages: ["en"]                # what you speak to Xanthos, e.g. ["en"] or ["en", "ar"]
 speech_engine: "auto"            # auto | parakeet (English only, most accurate) | whisper
 whisper_model: "small"           # Whisper size for languages other than English: base | small | medium
 match_threshold: 85
 silence_seconds: 0.6              # pause that ends a request (speech is detected by a VAD)
 max_record_seconds: 10
 follow_up_seconds: 6             # after Claude answers, keep listening this long (no wake word); 0 = off
-wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
-voice_interrupts: true           # or just start talking: Abdoh goes quiet and listens
-voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Abdoh
-duck_others: true                # other apps (music, videos) go quieter while Abdoh listens
+wake_word_interrupts: true       # say the wake word while Xanthos is talking to stop it
+voice_interrupts: true           # or just start talking: Xanthos goes quiet and listens
+voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Xanthos
+duck_others: true                # other apps (music, videos) go quieter while Xanthos listens
 duck_percent: 30                 # ... to this share of their own volume
-allow_power: true                # Abdoh may put the computer to sleep, shut it down or restart it
+allow_power: true                # Xanthos may put the computer to sleep, shut it down or restart it
 tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # a voice's name (pick one in the app); "" = Windows' default voice
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default
 allow_run: false                 # let your commands run programs (the "run" action)
-check_updates: true              # look for a new version of Abdoh once a day
+check_updates: true              # look for a new version of Xanthos once a day
 setup_done: false                # the first-start setup was finished or skipped
 claude:
   backend: "auto"                # auto: Claude Code if installed (your subscription), else API key
@@ -48,4 +48,4 @@ claude:
   listen_after_question: true    # when Claude asks you something, just answer (no wake word)
   translate_target: "English"
   voice_reply_max_sentences: 4
-log_file: "~/.abdoh/abdoh.log"
+log_file: "~/.xanthos/xanthos.log"
