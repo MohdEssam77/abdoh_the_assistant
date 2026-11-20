@@ -7,6 +7,7 @@ there, so replies were silent. pyttsx3 is still used on macOS and Linux.
 import logging
 import math
 import queue
+import re
 import sys
 import threading
 from abc import ABC, abstractmethod
@@ -165,16 +166,40 @@ def voice_language(attribute: str) -> str:
         return ""
 
 
+# Everyday German words that aren't English words too (so "die", "was", "war", "in", "man" and
+# "bin" are left out), to hear a German sentence in Latin letters.
+GERMAN_WORDS = frozenset(
+    "ich du er sie es wir ihr und oder aber auch nicht kein keine ein eine einen einem der das dem "
+    "ist sind bin bist habe hast haben hatte wird werden kann kannst muss soll will gibt geht "
+    "mit von zu auf aus bei nach für über um im zum zur vom beim ans mir dir mich dich uns euch "
+    "sich mein dein sein wie wo wer wann warum weil wenn dass noch schon nur sehr ja nein "
+    "danke bitte hallo guten morgen heute gestern jetzt hier dort gut gern genau vielleicht "
+    "doch mal denn dann also wirklich ganz mehr immer nichts alles etwas".split()
+)
+_WORD = re.compile(r"[^\W\d_]+(?:'[^\W\d_]+)?")
+
+
+def looks_german(text: str) -> bool:
+    """Is this Latin-letter sentence German? Two German function words, or one in a very short
+    sentence ("Ja.", "Guten Morgen!"). Mixed sentences ("Das war Wie geht's, right?") count."""
+    words = [w.lower() for w in _WORD.findall(text)]
+    found = sum(w in GERMAN_WORDS or w.split("'")[0] in GERMAN_WORDS for w in words)
+    return found >= 2 or (found == 1 and len(words) <= 3)
+
+
 def text_language(text: str, hint: str = "") -> str:
     """The language to read `text` in: its writing system decides when it can (Arabic letters
-    are never read by an English voice); otherwise `hint` (the language you spoke), else
-    English."""
+    are never read by an English voice). For Latin letters, `hint` (the language you spoke)
+    unless that's English (or unknown) and the sentence itself is German: Claude answers in
+    German even when speech recognition only knew English. Otherwise English."""
     letters = [ord(c) for c in text if c.isalpha()]
     if letters:
         for first, last, languages in _SCRIPTS:
             if sum(first <= c <= last for c in letters) >= max(1, len(letters) * 0.3):
                 return hint if hint in languages else languages[0]
-    return hint if hint in LATIN else "en"
+    if hint in LATIN and hint != "en":
+        return hint
+    return "de" if looks_german(text) else "en"
 
 
 # ----- Windows: SAPI -----
