@@ -203,7 +203,12 @@ class Daemon:
         self._use_brain(make_brain(self.cfg))  # permissions, folders, API key
         configure = getattr(self.speaker, "configure", None)
         if configure:
-            configure(rate=self.cfg.tts_rate, voice=self.cfg.tts_voice)
+            changes = {"rate": self.cfg.tts_rate, "voice": self.cfg.tts_voice}
+            if hasattr(self.speaker, "voices"):  # Piper: your voices for English and German
+                from abdoh.speech.piper_voice import your_voices
+
+                changes["voices"] = your_voices(self.cfg)
+            configure(**changes)
         if self.engine is not None and hasattr(self.engine, "threshold"):
             self.engine.threshold = self.cfg.wake_word_threshold
             self.engine.voice_threshold = self.cfg.wake_word_voice_threshold
@@ -1016,9 +1021,9 @@ class Daemon:
         from abdoh.computer import AppIndex, Computer, Timers
         from abdoh.desk import Notes, Reminders
         from abdoh.displays import Displays
-        from abdoh.speech.tts import make_speaker
+        from abdoh.speech.piper_voice import make_voice
 
-        speaker = speaker or make_speaker(cfg.tts_rate, cfg.tts_voice)
+        speaker = speaker or make_voice(cfg)
         getattr(speaker, "warm_up", lambda: None)()  # the first reply shouldn't pay for it
 
         engine = transcriber = None

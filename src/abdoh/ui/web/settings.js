@@ -45,6 +45,10 @@
 
   /* ---------- voice ---------- */
 
+  const ENGLISH_VOICES = ["en_US-lessac-medium", "en_US-amy-medium", "en_US-ryan-medium", "en_US-joe-medium",
+    "en_US-kristin-medium", "en_GB-alan-medium", "en_GB-cori-medium", "en_GB-jenny_dioco-medium"];
+  const GERMAN_VOICES = ["de_DE-thorsten-medium", "de_DE-kerstin-medium"];
+
   function voiceCard(voices) {
     const settings = App.settings;
     const list = (voices && voices.voices) || [];
@@ -58,10 +62,26 @@
     speed.addEventListener("input", describeSpeed);
     speed.addEventListener("change", () => saveSettings({ tts_rate: Number(speed.value) }));
     const voiceOptions = [["", "Windows default voice"], ...list.map((v) => [v, v.replace(/ - .*$/, "")])];
+    const natural = (settings.tts_engine || "piper") === "piper";
+    const pretty = (name) => {  // "en_GB-jenny_dioco-medium" -> "Jenny Dioco (British)"
+      const [code, who] = name.split("-");
+      const accent = { en_US: "American", en_GB: "British", de_DE: "German" }[code] || code;
+      return `${who.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} (${accent})`;
+    };
+    const voicePick = (key, names, label) => select(names.map((n) => [n, pretty(n)]), settings[key], (value) => saveSettings({ [key]: value }), label);
     return card("Voice", null,
       row("Voice replies", "Speak answers out loud. Turn off to only see them here.",
         toggle($("#voice-toggle").checked, (on) => call("set_voice", on), "Voice replies")),
-      row("Voice", list.length ? "For English. Replies in other languages use a voice for that language, if Windows has one (add voices in Windows Settings → Time & language → Speech)." : "No voices found.",
+      row("Kind of voice", natural
+        ? "Natural voices for English, German and other languages, made on this computer. A new language's voice downloads the first time (about 60 MB); the Windows voice speaks meanwhile."
+        : "The Windows voice. Natural voices sound much better, especially in German.",
+        select([["piper", "Natural (recommended)"], ["windows", "Windows voice"]], natural ? "piper" : "windows",
+          (value) => saveSettings({ tts_engine: value }).then(() => render()), "Kind of voice")),
+      natural ? row("English voice", null, voicePick("piper_voice_en", ENGLISH_VOICES, "English voice")) : null,
+      natural ? row("German voice", null, voicePick("piper_voice_de", GERMAN_VOICES, "German voice")) : null,
+      row(natural ? "Windows voice" : "Voice", natural
+        ? "Speaks while a natural voice is still downloading."
+        : list.length ? "For English. Replies in other languages use a voice for that language, if Windows has one (add voices in Windows Settings → Time & language → Speech)." : "No voices found.",
         select(voiceOptions, settings.tts_voice || "", (value) => saveSettings({ tts_voice: value }), "Voice")),
       row("Speed", speedText, speed),
       row("Hear it", "Play a short sample with this voice and speed.",

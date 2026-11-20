@@ -158,9 +158,14 @@ back to its old, simple window.
 - **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window
   shows what it's doing ("Searching the web…"), and after a few quiet seconds Xanthos says it's
   still on it.
+- **A natural voice**: Xanthos speaks with Piper, natural voices made on this computer (no
+  internet needed to speak). The English voice comes with the app; Settings → Voice lets you
+  pick another English or German voice.
 - **Other languages**: add the languages you speak in Settings. Xanthos answers in the language
-  you used, with a Windows voice for it (add voices in Windows Settings → Time & language →
-  Speech; the window tells you when one is missing).
+  you used, with a natural voice for it: German's downloads on the first start, any other
+  language's the first time you use it (about 60 MB each, into `models/piper` in the data
+  folder). Meanwhile the Windows voice speaks. Prefer the Windows voice? Settings → Voice →
+  **Kind of voice** → Windows voice (`tts_engine: windows`).
 
 Each of these can be turned off under **Settings → Conversation**.
 
@@ -574,7 +579,10 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `duck_others` | `true` | Other apps go quieter while Xanthos listens and answers |
 | `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |
-| `tts_voice` | `""` | A Windows voice's name; empty means the default voice |
+| `tts_engine` | `piper` | `piper` (natural voices) or `windows` (the Windows voice) |
+| `piper_voice_en` | `en_US-lessac-medium` | The natural voice for English (see Settings for the choices) |
+| `piper_voice_de` | `de_DE-thorsten-medium` | The natural voice for German |
+| `tts_voice` | `""` | A Windows voice's name (it also speaks while a natural voice downloads); empty means the default voice |
 | `mic_device` | `""` | A microphone's name; empty means Windows' default microphone |
 | `allow_run` | `false` | Allow `run:` actions |
 | `check_updates` | `true` | Look for a new version once a day |
@@ -618,7 +626,7 @@ hear you. Xanthos uses your default microphone: on Windows open Settings → Sys
 Input, choose the microphone you talk into, make sure it isn't muted, and set its volume to
 about 80%. A webcam's microphone is often the default.
 
-**You can't hear Xanthos.** It speaks through your default speakers with the Windows voice. Check
+**You can't hear Xanthos.** It speaks through your default speakers. Check
 that the window says **Voice replies: On** and that your volume is up, then try
 `python -m abdoh say "Hello"`.
 
@@ -672,10 +680,17 @@ Developer scripts:
   setting (Whisper) brings it down to about 350 MB.
 - **English is the most accurate language.** Other languages use Whisper (`small` by default),
   which is slower and makes more mistakes; `medium` is better if your computer is fast.
-- **Replies in other languages need a Windows voice for that language** (Windows Settings → Time
-  & language → Speech). Without one, the reply is only shown.
+- **A language's natural voice needs the internet once** (about 60 MB). Until it's there (or
+  if you're offline), the Windows voice speaks, which needs a Windows voice for that language
+  (Windows Settings → Time & language → Speech); without one, the reply is only shown.
 - **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
   every reply off, so Xanthos now uses the Windows voice directly there; macOS and Linux still go
   through pyttsx3.
 - **The installer isn't code-signed**, so Windows SmartScreen warns the first time ("Windows
   protected your PC": click **More info → Run anyway**). Signing needs a paid certificate.
+
+## License
+
+Xanthos is free software under the GNU General Public License, version 3 or later (see
+`LICENSE`), because it includes Piper (piper-tts, GPL-3.0) for its natural voices. Each Piper
+voice has its own license, listed on its model card at huggingface.co/rhasspy/piper-voices.

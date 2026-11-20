@@ -115,6 +115,9 @@ class Config:
     duck_percent: int = 30  # ... to this share of their volume
     allow_power: bool = True  # Xanthos may put the computer to sleep, shut it down, restart it
     max_record_seconds: float = 10
+    tts_engine: str = "piper"  # piper: natural voices; windows: the Windows voice
+    piper_voice_en: str = "en_US-lessac-medium"  # Piper's voice for English ...
+    piper_voice_de: str = "de_DE-thorsten-medium"  # ... and for German
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice
     mic_device: str = ""  # a microphone's name; "" = the system's default microphone

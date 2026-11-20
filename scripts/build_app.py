@@ -15,6 +15,8 @@ BUNDLED_MODELS = [
     "openwakeword",
     "hey_xanthos.onnx",
     "parakeet-tdt-0.6b-v2",  # speech recognition: no download on the first start
+    "piper/en_US-lessac-medium.onnx",  # the natural English voice (others download when needed)
+    "piper/en_US-lessac-medium.onnx.json",
 ]
 # Packages with data files or native libraries PyInstaller doesn't find on its own.
 COLLECT = [
@@ -26,6 +28,7 @@ COLLECT = [
     "webview",
     "onnx_asr",
     "livekit",  # the echo canceller: livekit/rtc/resources/livekit_ffi.dll
+    "piper",  # the natural voice: espeakbridge.pyd and espeak-ng-data
 ]
 HIDDEN = ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "comtypes.stream"]
 
@@ -47,7 +50,9 @@ def main() -> int:
     for name in BUNDLED_MODELS:
         path = ROOT / "models" / name
         if path.exists():
-            data.append((path, f"models/{name}" if path.is_dir() else "models"))
+            data.append(
+                (path, f"models/{name}" if path.is_dir() else str(Path("models", name).parent))
+            )
         elif name == "hey_xanthos.onnx" and (ROOT / "assets" / name).exists():
             data.append((ROOT / "assets" / name, "models"))  # the one kept in the repo
         else:
