@@ -62,13 +62,17 @@ window, the sidebar shows `Wake word: openWakeWord (hey_xanthos)`.
 
 If it misses you, move **Settings → Sensitivity** to the left (`wake_word_threshold`, e.g.
 0.3); if it wakes up by itself, move it right (e.g. 0.6). The log shows every wake-up's score
-and every near miss, to help you choose.
+and every near miss, to help you choose. If it misses you, just say it again: two near misses
+within four seconds count as a wake-up ("Wake word on the second try" in the log).
 
 **Only your voice.** In **Settings → Wake word → Only my voice**, press **Teach it your voice**,
-say "Hey Xanthos" ten times, then read a short text aloud for 20 seconds. From then on the wake
+say "Hey Xanthos" ten times (the first five close, the rest from where you usually are), then
+read a short text aloud for 20 seconds. From then on the wake
 word only counts when it sounds like you (`wake_word_voice_threshold`, default 0.5: higher is
 stricter). The recordings stay on this computer (`voice/` in the data folder);
-**Forget my voice** deletes them. A new wake word model needs the voice taught again.
+**Forget my voice** deletes them. A new wake word model needs the voice taught again. With your
+voice taught, a lower **Sensitivity** (e.g. 0.3) catches you from further away without other
+voices waking it.
 
 **Your own wake word.** Train an openWakeWord model in Google Colab (free, a couple of hours):
 

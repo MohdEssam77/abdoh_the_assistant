@@ -129,3 +129,64 @@ def test_no_model_is_an_error_the_daemon_turns_into_hotkey_only(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_wake_engine(Config(app_dir=tmp_path), oww=oww)
     assert oww.calls == []
+
+
+# ----- the second try: you call again when it missed you -----
+
+
+def scripted(scores, threshold=0.45):
+    """An engine whose model gives these scores, one per 80 ms."""
+    oww, _, _ = engine(threshold)
+    feed = iter(scores)
+    oww.step = lambda frame: next(feed)
+    return oww
+
+
+def run(oww, steps):
+    """Feed `steps` frames one block at a time; the steps at which it woke."""
+    woke = []
+    for i in range(steps):
+        oww._steps = i  # step() is scripted, so count the frames here
+        if oww.detect(np.zeros(FRAME, dtype=np.int16).tobytes()):
+            woke.append(i)
+    return woke
+
+
+def quiet(n):
+    return [0.05] * n
+
+
+def test_two_near_misses_a_moment_apart_wake_it():
+    # "Hey Xanthos" (0.36) ... 2 seconds ... "Hey Xanthos" again (0.38): it was you.
+    scores = quiet(5) + [0.30, 0.36, 0.33] + quiet(25) + [0.31, 0.38] + quiet(5)
+    assert run(scripted(scores), len(scores)) == [34]  # 0.31 is under the 0.315 floor: 0.38 counts
+
+
+def test_one_near_miss_is_not_enough():
+    scores = quiet(5) + [0.30, 0.36, 0.33] + quiet(40)
+    assert run(scripted(scores), len(scores)) == []
+
+
+def test_a_dip_inside_one_call_is_not_a_second_try():
+    scores = quiet(5) + [0.34, 0.05, 0.36] + quiet(20)  # 80 ms apart: the same "Hey Xanthos"
+    assert run(scripted(scores), len(scores)) == []
+
+
+def test_near_misses_far_apart_dont_add_up():
+    scores = quiet(5) + [0.36] + quiet(60) + [0.37] + quiet(5)  # almost 5 seconds apart
+    assert run(scripted(scores), len(scores)) == []
+
+
+def test_too_low_to_count_as_a_try():
+    scores = quiet(5) + [0.25] + quiet(20) + [0.28] + quiet(5)  # under 70% of 0.45
+    assert run(scripted(scores), len(scores)) == []
+
+
+def test_the_second_try_still_needs_your_voice():
+    class NotYou:
+        def prob(self, window):
+            return 0.1
+
+    oww = scripted(quiet(5) + [0.36] + quiet(20) + [0.37] + quiet(5))
+    oww.voice_check = NotYou()
+    assert run(oww, 32) == []

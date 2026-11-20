@@ -414,8 +414,8 @@ class AppApi:
     # ----- your voice check: the wake word only counts in your voice -----
 
     def voice_check(self) -> dict:
-        if self._daemon is None:
-            return {"possible": False, "active": False, "stale": False, "recorded": 0}
+        if self._daemon is None:  # still loading its models: ask again in a moment
+            return {"starting": True, "possible": False, "active": False, "recorded": 0}
         return self._daemon.voice_status()
 
     def record_voice(self, kind, number=1) -> dict:

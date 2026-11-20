@@ -188,7 +188,7 @@
         el("small", {}, "The wake word model listens for “Hey Xanthos” and “Ya Xanthos”. The words here are removed from what you say or type, so they never become part of a request.")), words.box),
       row("Sensitivity", "Left: wakes more easily. Right: fewer false wake-ups.",
         el("div", { class: "range-wrap" }, sensitivity, el("div", { class: "range-ends" }, el("span", {}, "More easily"), el("span", {}, "Fewer mistakes")))),
-      row("Only my voice", "Say “Hey Xanthos” ten times and talk for 20 seconds, and only your voice wakes it. The recordings stay on this computer.", voiceCheck()),
+      row("Only my voice", "Say “Hey Xanthos” ten times (some close, some from across the room) and talk for 20 seconds, and only your voice wakes it. Then you can move Sensitivity to the left without false wake-ups. The recordings stay on this computer.", voiceCheck()),
       row("Hotkey", "Press it anywhere to talk without the wake word, or to stop a reply. Empty turns it off.",
         el("div", { class: "btn-row" }, hotkey, saveHotkey)),
       row("Listening with", null, el("span", { class: "tag", id: "wake-engine" }, $("#side-wake").textContent.replace(/^Wake word: /, ""))));
@@ -204,6 +204,11 @@
     const box = el("div", { class: "voice-check" });
     const show = async () => {
       const state = (await call("voice_check")) || {};
+      if (state.starting) {  // Xanthos is still loading its models
+        box.replaceChildren(el("span", { class: "tag" }, "Starting…"));
+        if (box.isConnected || !box.parentNode) setTimeout(show, 1500);
+        return;
+      }
       if (!state.possible) return box.replaceChildren(el("span", { class: "tag" }, "Needs the wake word model"));
       const note = state.stale ? "It was made for another wake word model: teach it again." : "";
       box.replaceChildren(el("div", { class: "btn-row" },
@@ -240,7 +245,8 @@
       let missed = false;
       for (let n = from; n <= to && !cancelled;) {
         say(`Say “Hey Xanthos” (${n} of ${to})`, missed ? "I didn't hear that one. Once more, please."
-          : "The way you'd call it from across the room. Wait for the number to change after each one.");
+          : n <= 5 ? "Close to the laptop, the way you normally talk. Wait for the number to change after each one."
+            : "Now from where you usually are: across the room, or a few steps away. Wait for the number to change.");
         const result = await call("record_voice", "phrase", n);
         if (!result || !result.ok) { if (result) toast(result.error, true); return false; }
         missed = !result.heard;
