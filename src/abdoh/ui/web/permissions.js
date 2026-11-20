@@ -18,6 +18,7 @@
     ["displays", "Screens on and off", "Turns your monitors on and off. At least one always stays on."],
     ["audio_output", "Speakers", "Sends the sound to other speakers or headphones."],
     ["dark_mode", "Dark mode", "Switches Windows between dark and light."],
+    ["lamp", "Lamps", "Switches your smart lamps on and off, and sets their brightness and colour."],
   ];
   const MAX_INSTRUCTIONS = 2000;
   let draft = null; // instructions being typed, kept across redraws

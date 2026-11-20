@@ -19,7 +19,7 @@ const Bridge = (() => {
       claude: {
         backend: "auto", code_path: "", code_model: "", model: "claude-opus-5-5", max_tokens: 4000,
         effort: "low", allow_web: true, allow_files: true, allow_screen: true,
-        actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode"], folders: [], connectors: ["Gmail", "Google Calendar"],
+        actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp"], folders: [], connectors: ["Gmail", "Google Calendar"],
         instructions: "", timeout_seconds: 120, followup_seconds: 60, listen_after_question: true,
         translate_target: "English", voice_reply_max_sentences: 4,
       },
@@ -56,6 +56,7 @@ const Bridge = (() => {
     const MODE_ICONS = ["sparkles", "film", "briefcase", "moon", "target", "presentation", "music", "game", "coffee", "book", "sun", "home"];
     let currentMode = params.get("mode") || "";
     let voiceActive = false;
+    let demoLamps = [{ name: "Desk lamp", mac: "a8bb5006f1e2", ip: "192.168.1.41" }];
     let displays = [
       { id: "laptop", number: 1, label: "Laptop screen", name: "", nickname: "", active: true, internal: true, primary: false, rect: [-3840, 0, 1920, 1080] },
       { id: "hp", number: 2, label: "TV", name: "HP 32f", nickname: "TV", active: true, internal: false, primary: false, rect: [-1920, 0, 1920, 1080] },
@@ -155,6 +156,11 @@ const Bridge = (() => {
         current: settings.tts_voice,
       }),
       test_voice: async () => {},
+      lamps: async () => ({ lamps: demoLamps }),
+      find_lamps: async () => { await new Promise((r) => setTimeout(r, 1200)); demoLamps = [{ name: "Desk lamp", mac: "a8bb5006f1e2", ip: "192.168.1.41" }, { name: "Lamp 2", mac: "a8bb5006f1e3", ip: "192.168.1.42" }]; return { ok: true, lamps: demoLamps }; },
+      rename_lamp: async (mac, name) => { demoLamps = demoLamps.map((l) => (l.mac === mac ? { ...l, name } : l)); return { ok: true, lamps: demoLamps }; },
+      blink_lamp: async () => ({ ok: true, lamps: demoLamps }),
+      forget_lamp: async (mac) => { demoLamps = demoLamps.filter((l) => l.mac !== mac); return { ok: true, lamps: demoLamps }; },
       connectors: async () => ({
         available: true, url: "https://claude.ai/settings/connectors",
         connectors: [

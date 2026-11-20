@@ -129,6 +129,7 @@ class AppApi:
         check_for_update=None,
         audio=None,
         displays=None,
+        lamps=None,
     ):
         self._bus = bus
         self._state = state
@@ -144,6 +145,7 @@ class AppApi:
         self._check_for_update = check_for_update
         self._audio = audio  # abdoh.winaudio (a fake in tests)
         self._displays = displays  # abdoh.displays.Displays (a fake backend in tests)
+        self._lamps = lamps  # abdoh.lights.Lamps (a fake network in tests)
         # What Xanthos started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
@@ -495,6 +497,45 @@ class AppApi:
         if refresh:
             self.refresh_claude()
         return {"ok": True}
+
+    # ----- smart lamps -----
+
+    def _lamp_list(self):
+        if self._lamps is None:
+            from abdoh.lights import Lamps
+
+            self._lamps = Lamps(self._cfg.app_dir / "lamps.json")
+        return self._lamps
+
+    def lamps(self) -> dict:
+        return {"lamps": [vars(lamp) for lamp in self._lamp_list().all()]}
+
+    def find_lamps(self) -> dict:
+        """Look for WiZ lamps on your network (a couple of seconds)."""
+        try:
+            found = self._lamp_list().find_new()
+        except Exception:
+            log.warning("Couldn't look for lamps", exc_info=True)
+            return {"ok": False, "error": "Couldn't look for lamps on your network."}
+        return {"ok": True, "lamps": [vars(lamp) for lamp in found]}
+
+    def rename_lamp(self, mac, name) -> dict:
+        return self._lamp_action(self._lamp_list().rename, str(mac), str(name))
+
+    def blink_lamp(self, mac) -> dict:
+        return self._lamp_action(self._lamp_list().blink, str(mac))
+
+    def forget_lamp(self, mac) -> dict:
+        return self._lamp_action(self._lamp_list().forget, str(mac))
+
+    def _lamp_action(self, action, *args) -> dict:
+        from abdoh.commands.actions import ActionError
+
+        try:
+            action(*args)
+        except ActionError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, **self.lamps()}
 
     def connectors(self) -> dict:
         """Your claude.ai connectors (Gmail, Google Calendar, ...) and which ones Claude may use."""

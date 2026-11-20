@@ -224,6 +224,7 @@ const ACTIONS = {
   audio_output: { label: "Switch the speakers", placeholder: "headphones" },
   dark_mode: { label: "Dark mode", options: [["on", "On"], ["off", "Off"], ["toggle", "Switch it"]] },
   night_light: { label: "Night light", options: [["on", "On"], ["off", "Off"]] },
+  lamp: { label: "Set a lamp", placeholder: "all | warm white 60%   (or: desk lamp | off)" },
   power_mode: { label: "Power mode", options: [["best_performance", "Best performance"], ["balanced", "Balanced"], ["efficiency", "Best power efficiency"]] },
   power: { label: "Sleep or lock", options: [["screens_off", "Screens off"], ["lock", "Lock the computer"], ["sleep", "Sleep"]] },
   keys: { label: "Press keys", placeholder: "win+d" },

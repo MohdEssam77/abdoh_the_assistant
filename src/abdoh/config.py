@@ -35,8 +35,8 @@ DEFAULT_APP_DIR = _default_app_dir()
 CLAUDE_BACKENDS = ("auto", "code", "api", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
-# 6: Abdoh became Xanthos (new wake words and wake word model).
-CONFIG_VERSION = 6
+# 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
+CONFIG_VERSION = 7
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -53,6 +53,7 @@ CLAUDE_ACTIONS = (
     "displays",
     "audio_output",
     "dark_mode",
+    "lamp",
 )
 # Settings older versions wrote that no longer do anything (vosk_model: the old wake word).
 REMOVED_KEYS = {"vosk_model"}
@@ -67,6 +68,7 @@ NEW_ACTIONS = {
     3: ("volume", "brightness", "remind", "note"),
     4: ("app_volume",),
     5: ("mode", "displays", "audio_output", "dark_mode"),
+    7: ("lamp",),
 }
 
 

@@ -270,6 +270,49 @@
     }
   }
 
+  /* ---------- smart lamps ---------- */
+
+  function lampsCard() {
+    const body = el("div", {});
+    const draw = (lamps) => {
+      const rows = lamps.map((lamp) => {
+        const name = el("input", { class: "input", value: lamp.name, "aria-label": "Lamp name", style: "width:160px" });
+        name.addEventListener("change", async () => {
+          const result = await call("rename_lamp", lamp.mac, name.value);
+          if (result && !result.ok) toast(result.error, true);
+          else if (result) toast(`Say “turn on the ${name.value.trim().toLowerCase()}”.`);
+        });
+        return row(lamp.name, `On your network at ${lamp.ip}.`, el("div", { class: "btn-row" }, name,
+          el("button", { class: "btn small", onclick: async () => {
+            const result = await call("blink_lamp", lamp.mac);
+            if (result && !result.ok) toast(result.error, true);
+          } }, "Blink"),
+          el("button", { class: "btn small", onclick: async () => {
+            const result = await call("forget_lamp", lamp.mac);
+            if (result && result.ok) draw(result.lamps);
+          } }, "Forget")));
+      });
+      const find = el("button", { class: "btn small primary", onclick: async (e) => {
+        const button = e.currentTarget;
+        button.disabled = true;
+        button.textContent = "Looking…";
+        const result = await call("find_lamps");
+        if (result && result.ok) {
+          draw(result.lamps);
+          if (!result.lamps.length) toast("No lamps answered. In the WiZ app, turn on “Allow local communication”.", true);
+        } else {
+          button.disabled = false;
+          button.textContent = "Find lamps";
+          if (result) toast(result.error, true);
+        }
+      } }, "Find lamps");
+      body.replaceChildren(...(rows.length ? rows : [el("p", { class: "faint" }, "No lamps yet. Set them up in the WiZ app on your Wi-Fi, then press Find lamps.")]),
+        el("div", { class: "btn-row", style: "margin-top:10px" }, find));
+    };
+    call("lamps").then((state) => draw((state && state.lamps) || []));
+    return card("Lamps", "WiZ smart lamps on your Wi-Fi. Say “turn on the lamp”, “desk lamp blue” or “dim the lights to 30 percent”, or use them in your modes and commands.", body);
+  }
+
   /* ---------- conversation ---------- */
 
   function conversationCard() {
@@ -374,7 +417,7 @@
       el("div", { class: "page-head" }, el("h1", {}, "Settings")),
       restartBanner(),
       ...extra,
-      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speechCard(), generalCard(login),
+      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speechCard(), lampsCard(), generalCard(login),
       el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Xanthos ${App.version}`),
     ].filter(Boolean));
     startMeter();

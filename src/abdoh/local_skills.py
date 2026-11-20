@@ -94,6 +94,12 @@ _REPEAT = re.compile(
 )
 _HELP = re.compile(r"what can (?:you do|i say|i ask(?: you)?)|help(?: me)?|what do you do")
 # Ways to end the conversation after a reply: nothing to do, and nothing more to listen for.
+# "The lamp" or "the lights": all of your lamps; and the words around what you want them to do.
+_LAMP_WORDS = ("lamps", "lights", "lamp", "light")
+_LAMP_FILLER = re.compile(
+    r"\b(?:turn|switch|set|make|change|put|the|my|to|into|at|please|colou?r|brightness|a|it|both"
+    r"|all|of)\b"
+)
 _DONE = re.compile(
     r"(?:no |okay |ok )?(?:thanks|thank you|thanks a lot|thank you very much|thats all|thats it"
     r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye|okay|ok|alright|all right"
@@ -279,6 +285,9 @@ class LocalSkills:
         reply = self.system.handle(request, original)
         if reply is not None:
             return reply
+        reply = self._lamps(request)
+        if reply is not None:
+            return reply
         found = _OPEN.fullmatch(request)
         if found and computer.apps.find(found.group("app")):
             return Done(f"Opening {computer.open_app(found.group('app'))}.")
@@ -301,6 +310,34 @@ class LocalSkills:
         if level is not None and level <= 100:
             return Done(f"Volume at {computer.set_volume(level)} percent.")
         return None
+
+    def _lamps(self, request: str) -> str | None:
+        """Your smart lamps (abdoh/lights.py): "turn off the lamp", "lights blue", "dim the desk
+        lamp to 30 percent", "make the light warm". Only once you have lamps; anything it can't
+        read is left for Claude."""
+        from abdoh.lights import setting
+
+        lamps = getattr(self.computer, "lamps", None)
+        known = lamps.all() if lamps is not None else []
+        if not known:
+            return None
+        names = {lamp.name.lower() for lamp in known} | set(_LAMP_WORDS)
+        longest_first = sorted(names, key=len, reverse=True)  # "desk lamp" before "lamp"
+        said = next((n for n in longest_first if re.search(rf"\b{re.escape(n)}\b", request)), None)
+        if said is None:
+            return None
+        how = re.sub(rf"\b{re.escape(said)}\b", " ", request, count=1)
+        how = " ".join(_LAMP_FILLER.sub(" ", how).split())
+        if re.fullmatch(r"\d{1,3}", how):
+            how += "%"  # "dim the lamp to 30"
+        elif request.startswith("dim") and not how:
+            how = "dim"
+        try:
+            setting(how)
+        except ActionError:
+            return None  # "what colour is the lamp": a question for Claude
+        names_set = lamps.set("all" if said in _LAMP_WORDS else said, how)
+        return Done(f"{' and '.join(names_set)}: {how}.")
 
     def _app_sound(self, request: str, original: str) -> str | None:
         """One app's volume. Only for apps in the volume mixer: anything else ("turn the
