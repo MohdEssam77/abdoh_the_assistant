@@ -479,3 +479,39 @@ def test_a_voice_that_cant_continue_just_stops():
     plain = Plain()
     assert plain.pause() is False and plain.stops == 1
     plain.resume()  # nothing to go on with; no error
+
+
+# ----- German replies get the German voice, even when recognition only knew English -----
+
+
+def test_a_german_sentence_is_read_in_german_whatever_you_were_heard_in():
+    from abdoh.speech.tts import text_language
+
+    for text in (
+        "Mir geht's gut, danke! Und dir?",
+        'Das war "Wie geht\'s?", right?',  # mixed sentences count
+        "Guten Morgen!",
+        "Heute ist ein guter Tag für Fußball.",
+    ):
+        assert text_language(text, "en") == "de" and text_language(text, "") == "de"
+
+
+def test_english_stays_english():
+    from abdoh.speech.tts import text_language
+
+    for text in (
+        "Okay.",
+        "That means I'm doing well, thanks.",
+        "Tomorrow you have three things: breakfast and dinner.",
+        "What was that?",  # "was" is German too, but one word in six isn't German
+        "Open the Saarbrücken page.",
+    ):
+        assert text_language(text, "en") == "en"
+
+
+def test_the_language_you_spoke_wins_when_it_isnt_english():
+    from abdoh.speech.tts import text_language
+
+    assert text_language("Okay.", "de") == "de"
+    assert text_language("Merci beaucoup.", "fr") == "fr"
+    assert text_language("Das ist gut, danke.", "fr") == "fr"
