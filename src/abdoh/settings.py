@@ -21,6 +21,7 @@ from abdoh.config import (
     load_config,
     write_atomic,
 )
+from abdoh.speech.piper_voice import ENGLISH_VOICES, GERMAN_VOICES
 
 TEMPLATE = "config.example.yaml"
 # Config fields that aren't settings: where the files live, the API key (kept in .env), and the
@@ -36,6 +37,7 @@ RESTART_KEYS = (
     "languages",
     "speech_engine",
     "log_file",
+    "tts_engine",
 )
 _RANGES = {
     "wake_word_threshold": (0.05, 0.95),
@@ -56,6 +58,9 @@ _CHOICES = {
     "speech_engine": SPEECH_ENGINES,
     "voice_interrupt_sensitivity": ("low", "medium", "high"),
     "confirm_actions": ("sound", "words"),
+    "tts_engine": ("piper", "windows"),
+    "piper_voice_en": ENGLISH_VOICES,
+    "piper_voice_de": GERMAN_VOICES,
 }
 _LIST_CHOICES = {"claude.actions": CLAUDE_ACTIONS}
 _NULLABLE: set[str] = set()
@@ -64,6 +69,9 @@ LABELS = {
     "wake_word_threshold": "Wake word sensitivity",
     "wake_word_voice_threshold": "How sure it must be that it's you",
     "confirm_actions": "When it does something for you",
+    "tts_engine": "Voice",
+    "piper_voice_en": "English voice",
+    "piper_voice_de": "German voice",
     "hotkey": "Hotkey",
     "match_threshold": "Command matching",
     "silence_seconds": "Pause that ends a request",

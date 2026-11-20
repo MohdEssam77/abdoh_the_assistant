@@ -5,6 +5,8 @@
 - The Parakeet speech recognition model (English, about 630 MB), so the built app never has to
   download anything on its first start.
 - Your trained wake word model, copied from assets/ if models/ doesn't have one yet.
+- Piper's English voice (about 60 MB), bundled so Xanthos speaks naturally from the first start.
+  Other languages' voices are downloaded by the app when first needed.
 
 Whisper models (used for other languages, or with --whisper as an English fallback) are
 downloaded by faster-whisper when first used.
@@ -47,6 +49,14 @@ PARAKEET_FILES = [
     "encoder-model.int8.onnx",
 ]
 WAKE_WORD = "hey_xanthos.onnx"
+PIPER_DIR = MODELS_DIR / "piper"
+# Piper's English voice (rhasspy/piper-voices, MIT; the voice's dataset is in its model card) at a
+# fixed revision.
+PIPER_URL = (
+    "https://huggingface.co/rhasspy/piper-voices/resolve/"
+    "e929968c3761f1c281875787685a745863db838d/en/en_US/lessac/medium/{name}"
+)
+PIPER_FILES = ["en_US-lessac-medium.onnx.json", "en_US-lessac-medium.onnx"]
 
 
 def download_openwakeword() -> None:
@@ -92,6 +102,10 @@ def download_parakeet(folder: Path = PARAKEET_DIR, fetch=urllib.request.urlretri
     download_files(folder, PARAKEET_URL, PARAKEET_FILES, fetch)
 
 
+def download_piper_voice(folder: Path = PIPER_DIR, fetch=urllib.request.urlretrieve) -> None:
+    download_files(folder, PIPER_URL, PIPER_FILES, fetch)
+
+
 def copy_wake_word(models: Path = MODELS_DIR, assets: Path = MODELS_DIR.parent / "assets") -> None:
     """The trained wake word model that's kept in the repo, unless you have your own."""
     target, source = models / WAKE_WORD, assets / WAKE_WORD
@@ -105,6 +119,7 @@ def copy_wake_word(models: Path = MODELS_DIR, assets: Path = MODELS_DIR.parent /
 def main() -> int:
     download_openwakeword()
     download_parakeet()
+    download_piper_voice()
     copy_wake_word()
     if "--whisper" in sys.argv[1:]:
         download_whisper()
