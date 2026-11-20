@@ -146,10 +146,13 @@ back to its old, simple window.
   `python scripts/echo_check.py` (it speaks two sentences; `--talk` lets you try talking over it).
 - **Interrupt with the wake word**: say "Hey Xanthos" while it's talking (or press the hotkey) to
   stop it and say something new.
-- **Other sounds go down while you talk**: from the wake word until Xanthos has answered, every
-  other app that is playing (your browser, Spotify, a film) drops to 30% of its volume in the
-  Windows volume mixer, then comes back. Xanthos's own voice stays as it is, and an app you turned
-  up or down yourself meanwhile keeps your volume.
+- **Other sounds stay down for the whole conversation**: from the wake word (or whenever Xanthos
+  speaks, also for typed requests) until the conversation is over, every other app that is
+  playing (your browser, Spotify, a film) drops to 30% of its volume in the Windows volume mixer.
+  An app that starts playing in the middle (the next song) goes down too. Afterwards they all
+  come back. Xanthos's own voice stays as it is, and an app you turned up or down yourself
+  meanwhile keeps your volume. After something you asked it to do ("play some jazz") nothing
+  stays down.
 - **Only today's conversation**: the chat in the window starts empty every day. The log file
   (which also has what you said) keeps today's and yesterday's only.
 - **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window

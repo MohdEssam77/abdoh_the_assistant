@@ -146,8 +146,9 @@ def daemon_with(router, texts, cfg=None):
 def test_other_apps_are_quiet_from_the_wake_word_until_the_answer_is_said():
     daemon, mic, order = daemon_with(Router("It's noon."), ["Xanthos what time is it"])
     daemon._listen_once(mic)
-    # Ducked on the wake word and again when recording starts (the real Ducker ignores that).
-    assert order == [("duck", 30), ("duck", 30), ("say", "It's noon."), ("release",)]
+    # Ducked on the wake word, when recording starts and when speaking (the real Ducker ignores
+    # the repeats).
+    assert order == [("duck", 30)] * 3 + [("say", "It's noon."), ("release",)]
 
 
 def test_they_stay_quiet_while_abdoh_listens_for_more():
@@ -184,3 +185,59 @@ def test_quitting_gives_the_volume_back():
     daemon, _, order = daemon_with(Router(), [])
     daemon.stop()
     assert order == [("release",)]
+
+
+# ----- for the whole conversation -----
+
+
+def test_an_app_that_starts_playing_later_goes_down_too():
+    later = app("b", "spotify.exe", 80, playing=False, pid=2)
+    mixer = Mixer(app("a", "chrome.exe", 100), later)
+    ducker = Ducker(mixer.list, mixer.set, own_pid=OWN, follow_seconds=None)
+    assert ducker.duck(30) == 1
+    assert ducker.refresh() == 0  # nothing new yet
+    mixer.sessions["b"] = replace(later, playing=True)  # the next song starts
+    assert ducker.refresh() == 1
+    assert (mixer.volume("a"), mixer.volume("b")) == (30, 24)
+    assert ducker.refresh() == 0  # once is enough
+    ducker.release()
+    assert (mixer.volume("a"), mixer.volume("b")) == (100, 80)
+
+
+def test_nothing_is_lowered_after_the_conversation():
+    mixer = Mixer(app("a", "chrome.exe", 100, playing=False))
+    ducker = Ducker(mixer.list, mixer.set, own_pid=OWN, follow_seconds=None)
+    ducker.duck(30)
+    ducker.release()
+    mixer.sessions["a"] = replace(mixer.sessions["a"], playing=True)
+    assert ducker.refresh() == 0 and mixer.volume("a") == 100
+
+
+def test_the_mixer_is_followed_in_the_background():
+    import time
+
+    later = app("b", "spotify.exe", 80, playing=False, pid=2)
+    mixer = Mixer(later)
+    ducker = Ducker(mixer.list, mixer.set, own_pid=OWN, follow_seconds=0.01)
+    ducker.duck(50)
+    mixer.sessions["b"] = replace(later, playing=True)
+    for _ in range(200):
+        if mixer.volume("b") == 40:
+            break
+        time.sleep(0.01)
+    ducker.release()
+    assert mixer.volume("b") == 80 and ("b", 40) in mixer.changes
+
+
+def test_a_typed_requests_spoken_reply_lowers_the_others_and_gives_them_back():
+    daemon, _, order = daemon_with(Router("It's noon."), [])
+    daemon.handle_text("what time is it")
+    assert order == [("duck", 30), ("say", "It's noon."), ("release",)]
+
+
+def test_a_quiet_action_doesnt_touch_the_others():
+    from abdoh.system_skills import Done
+
+    daemon, _, order = daemon_with(Router(Done("Opening Spotify.")), [])
+    daemon.handle_text("open spotify")
+    assert ("duck", 30) not in order
