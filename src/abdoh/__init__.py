@@ -1,3 +1,3 @@
 """Xanthos: a simple, voice-first personal assistant."""
 
-__version__ = "0.5.3"  # the one place for the version (pyproject.toml and releases read it)
+__version__ = "0.6.0"  # the one place for the version (pyproject.toml and releases read it)
