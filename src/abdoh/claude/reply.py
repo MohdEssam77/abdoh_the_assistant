@@ -43,6 +43,8 @@ ACTION_HELP: dict[str, str] = {
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).
 LOOK = "look"
+# Said after a reply, but meant for someone else in the room: Claude stays quiet.
+IGNORE = "ignore"
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")

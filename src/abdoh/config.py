@@ -106,6 +106,7 @@ class Config:
     whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
     silence_seconds: float = 0.6
+    confirm_actions: str = "sound"  # sound: a short sound after "open Spotify"; words: say it
     follow_up_seconds: float = 6.0  # after a reply, keep listening this long (0 = off)
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)

@@ -55,6 +55,7 @@ _CHOICES = {
     "claude.backend": CLAUDE_BACKENDS,
     "speech_engine": SPEECH_ENGINES,
     "voice_interrupt_sensitivity": ("low", "medium", "high"),
+    "confirm_actions": ("sound", "words"),
 }
 _LIST_CHOICES = {"claude.actions": CLAUDE_ACTIONS}
 _NULLABLE: set[str] = set()
@@ -62,6 +63,7 @@ LABELS = {
     "wake_words": "Wake words",
     "wake_word_threshold": "Wake word sensitivity",
     "wake_word_voice_threshold": "How sure it must be that it's you",
+    "confirm_actions": "When it does something for you",
     "hotkey": "Hotkey",
     "match_threshold": "Command matching",
     "silence_seconds": "Pause that ends a request",

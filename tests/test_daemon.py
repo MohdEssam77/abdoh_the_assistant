@@ -26,7 +26,7 @@ class StubRouter:
     def builtin_name(self, text):
         return self.builtin
 
-    def handle(self, text):
+    def handle(self, text, aside=False):
         self.requests.append(text)
         reply = self.replies.pop(0)
         if isinstance(reply, Exception):
@@ -260,7 +260,7 @@ class RecordingEarcons:
 class ThinkingRouter(StubRouter):
     """Calls on_thinking like the real router does before a Claude request."""
 
-    def handle(self, text):
+    def handle(self, text, aside=False):
         self.on_thinking()
         return super().handle(text)
 
@@ -348,7 +348,7 @@ class StreamingRouter(StubRouter):
         self.closed = False
         self.read = 0
 
-    def handle(self, text):
+    def handle(self, text, aside=False):
         self.requests.append(text)
         return self._gen()
 
@@ -396,7 +396,7 @@ def test_stop_during_a_streamed_reply_stops_reading_claude():
 
 def test_error_while_streaming_is_spoken():
     class Broken(StubRouter):
-        def handle(self, text):
+        def handle(self, text, aside=False):
             def gen():
                 yield "Starting."
                 raise RuntimeError("boom")
