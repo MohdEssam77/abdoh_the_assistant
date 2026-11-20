@@ -270,6 +270,7 @@ class Daemon:
             return
         self._spoke = True
         self.bus.emit("status", "Speaking")
+        self._duck()  # the others stay down while Xanthos talks (also for typed requests)
         try:
             self.speaker.say(text)
         except Exception:
@@ -319,6 +320,7 @@ class Daemon:
             self.earcons.play("alarm")  # even when voice replies are off
             self.stop_event.wait(self.ALARM_SECONDS)  # let the alarm finish before speaking
             self.say(text)
+            self._unduck_unless_listening()
             self._status_idle()
 
     def push_to_talk(self) -> None:
@@ -355,6 +357,12 @@ class Daemon:
             self.ducker.release()
         except Exception:
             log.exception("Couldn't give the other apps their volume back")
+
+    def _unduck_unless_listening(self) -> None:
+        """The others get their volume back, unless a spoken conversation is still going on
+        (the main loop gives it back when that ends)."""
+        if not self._recording and not self._awaiting_answer:
+            self._unduck()
 
     def _on_listen(self) -> None:
         self._duck()
@@ -439,6 +447,8 @@ class Daemon:
                 if watcher is not None:
                     watcher()
             self.earcons.stop_ticking()
+            if not voice:
+                self._unduck_unless_listening()  # a typed request: its reply is over
             self._status_idle()
             return reply
 
