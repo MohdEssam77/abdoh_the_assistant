@@ -72,12 +72,16 @@ class OpenWakeWord(WakeWordEngine):
         audio = np.concatenate([self._pending, np.frombuffer(block, dtype=np.int16)])
         usable = len(audio) // FRAME * FRAME
         self._pending = audio[usable:]
-        heard = False
+        heard, best = False, 0.0
         for start in range(0, usable, FRAME):
-            if self.step(audio[start : start + FRAME]) >= self.threshold:
+            score = self.step(audio[start : start + FRAME])
+            best = max(best, score)
+            if score >= self.threshold:
                 heard = True
         if heard:
-            log.debug("Wake word score %.2f", self.last_score)
+            log.info("Wake word score %.2f", best)
+        elif best >= self.threshold / 2:
+            log.info("Wake word near miss %.2f (needs %.2f)", best, self.threshold)
         return heard
 
     def step(self, frame: np.ndarray) -> float:
