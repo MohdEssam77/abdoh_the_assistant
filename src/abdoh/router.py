@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
-from abdoh.claude.reply import LOOK, speakable
+from abdoh.claude.reply import IGNORE, LOOK, speakable
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
 from abdoh.commands.actions import ActionError, claude_action, run_actions
 from abdoh.commands.learn import append_command
@@ -26,7 +26,7 @@ from abdoh.commands.matcher import (
 from abdoh.commands.registry import Command, CommandRegistry
 from abdoh.config import Config
 from abdoh.local_skills import LocalSkills
-from abdoh.system_skills import Question
+from abdoh.system_skills import Done, Question
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +40,12 @@ CLIPBOARD_NOTE = '\n\nThe user\'s clipboard contains:\n"""\n{text}\n"""'
 COMMANDS_FILE_ERROR = "Your commands file has an error."
 NOTHING_TO_REMEMBER = (
     "There's nothing to remember yet. Ask me to do something, then say: remember that."
+)
+# What you say right after a reply, without the wake word, may be meant for someone else.
+ASIDE = (
+    "(Said right after your last reply, without your name. It may be meant for someone else "
+    "in the room. If it isn't meant for you, write only the line ACTION ignore: not for me, "
+    "and nothing else.)\n"
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
@@ -78,6 +84,7 @@ class ClaudeTurn:
     answer: str = ""
     actions: list[tuple[str, str]] = field(default_factory=list)
     finished_at: float = 0.0
+    ignored: bool = False  # it wasn't meant for Xanthos (ACTION ignore)
 
 
 class Router:
@@ -139,22 +146,25 @@ class Router:
         found = match(request, self._builtin_commands, self.cfg.match_threshold)
         return found[0].name if found else None
 
-    def handle(self, text: str) -> Reply:
-        """Route one request. Returns the reply ("" means nothing to say)."""
+    def handle(self, text: str, aside: bool = False) -> Reply:
+        """Route one request. Returns the reply ("" means nothing to say). `aside`: said right
+        after a reply without the wake word, so maybe to someone else (Claude decides)."""
         prefix = COMMANDS_FILE_ERROR if self.registry.refresh() else ""
         request = strip_wake_words(text, self.wake_words)
         if not request:
             return prefix
-        reply = self._route(request, remove_wake_words(text, self.wake_words) or request)
+        reply = self._route(request, remove_wake_words(text, self.wake_words) or request, aside)
         if isinstance(reply, str):
             if reply:
                 self.last_reply = reply
+            if not prefix:
+                return reply  # keeps its kind: Question, Done or plain words
             asks = isinstance(reply, Question)
             reply = f"{prefix} {reply}".strip()
             return Question(reply) if asks else reply
         return _prepend(prefix, reply) if prefix else reply
 
-    def _route(self, request: str, original: str) -> Reply:
+    def _route(self, request: str, original: str, aside: bool = False) -> Reply:
         # 0. "Remember that": save what Claude just did as a command
         remember = _REMEMBER.fullmatch(request)
         if remember:
@@ -181,7 +191,7 @@ class Router:
                 spoken = self._run(
                     found.command, self.cfg.allow_run, computer=self.computer, slots=found.slots
                 )
-                return " ".join(spoken)
+                return " ".join(spoken) or Done("")  # your own "say" actions are spoken
             except ActionError as e:
                 return str(e)
 
@@ -206,7 +216,8 @@ class Router:
 
         # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
-            return self._ask(self._with_context(original) + self._clipboard(request), original)
+            prompt = self._with_context(original) + self._clipboard(request)
+            return self._ask(ASIDE + prompt if aside else prompt, original, aside=aside)
 
         # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"
@@ -244,13 +255,15 @@ class Router:
         except ActionError as e:
             return str(e)
 
-    def _ask(self, prompt: str, request: str, screen: bool = False) -> Reply:
+    def _ask(self, prompt: str, request: str, screen: bool = False, aside: bool = False) -> Reply:
         if self.brain is None:
             return NOT_CONNECTED
         self.on_thinking()
-        return self._stream(self.brain, prompt, request, screen)
+        return self._stream(self.brain, prompt, request, screen, aside)
 
-    def _stream(self, brain, prompt: str, request: str, screen: bool) -> Iterator[str]:
+    def _stream(
+        self, brain, prompt: str, request: str, screen: bool, aside: bool = False
+    ) -> Iterator[str]:
         """Claude's answer as sentences; runs the actions it asks for along the way."""
         turn = ClaudeTurn(request)
         problems: list[str] = []
@@ -262,6 +275,10 @@ class Router:
             if kind == LOOK:
                 looks.append(arg)
                 return
+            if kind == IGNORE:
+                log.info("Not meant for Xanthos: staying quiet")
+                turn.ignored = True
+                return
             try:
                 self._act(kind, arg, self.computer)
                 turn.actions.append((kind, arg))  # only what worked can be remembered
@@ -271,16 +288,20 @@ class Router:
         allowed = list(self.cfg.claude.actions)
         if self.cfg.claude.allow_screen and not screen:
             allowed.append(LOOK)  # at most once: the follow-up can't ask again
+        if aside:
+            allowed.append(IGNORE)
         chunks = None
         try:
             image = self._capture() if screen else None
             chunks = brain.stream(prompt, image)
             for sentence in speakable(chunks, act, allowed=allowed):
+                if turn.ignored:
+                    break  # not for Xanthos: nothing is said
                 yield from _drain(problems)
                 spoken.append(sentence)
                 yield sentence
             yield from _drain(problems)
-            if looks:
+            if looks and not turn.ignored:
                 log.info("Claude asked to look at the screen: %s", looks[0])
                 chunks.close()
                 self.on_activity(LOOKING)

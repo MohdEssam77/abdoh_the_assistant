@@ -19,7 +19,7 @@ from abdoh.events import Bus
 from abdoh.router import Router
 from abdoh.speech.earcons import Earcons
 from abdoh.speech.tts import Speaker
-from abdoh.system_skills import Question
+from abdoh.system_skills import Done, Question
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +44,11 @@ NO_ECHO_CANCELLER = "the echo canceller couldn't be loaded"
 NO_SPEAKER_TAP = "Xanthos can't hear what your speakers play"
 # Why voice input is off (shown as the status; the details are in the log).
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
+
+
+def _what_was_done(actions: list[tuple[str, str]]) -> str:
+    """For the window, when Claude did something without a word: "Done: open app Spotify."."""
+    return "Done: " + "; ".join(f"{kind.replace('_', ' ')} {arg}" for kind, arg in actions) + "."
 
 
 class Daemon:
@@ -378,11 +383,12 @@ class Daemon:
         if self.voice_enabled:
             self.earcons.start_ticking("thinking")
 
-    def handle_text(self, text: str, voice: bool = False) -> str:
+    def handle_text(self, text: str, voice: bool = False, aside: bool = False) -> str:
         """Route one request and speak the reply. Never raises.
 
         `voice`: the request was spoken, so if Claude's reply ends with a question, Xanthos
-        listens for the answer next (no wake word needed).
+        listens for the answer next (no wake word needed). `aside`: it was said right after a
+        reply, without the wake word, so it may be meant for someone else in the room.
         """
         with self._handle_lock:
             self._interrupted.clear()
@@ -399,14 +405,17 @@ class Daemon:
             watcher = self._watch_reply() if voice else None
             try:
                 try:
-                    reply = self.router.handle(text)
+                    handle = self.router.handle
+                    reply = handle(text, aside=True) if aside else handle(text)
                 except Exception:
                     log.exception("Error handling %r", text)
                     reply = SORRY
                 if isinstance(reply, str):
                     spent = time.perf_counter() - started
                     log.info("Timing: answered in %.2fs, without Claude", spent)
-                    if reply:
+                    if isinstance(reply, Done) and self.cfg.confirm_actions != "words":
+                        self._done(reply)  # "open Spotify": done, no words needed
+                    elif reply:
                         self._answered = True
                         self.say(reply)
                     if voice and isinstance(reply, Question) and not self._interrupted.is_set():
@@ -420,8 +429,12 @@ class Daemon:
                         reply = self._speak_stream(reply, started)
                     finally:
                         filler.cancel()
+                    turn = getattr(self.router, "last_turn", None)
+                    acted = bool(turn is not None and turn.actions)
+                    if acted and not reply:
+                        self._done(_what_was_done(turn.actions))  # Claude did it without a word
                     if voice:
-                        self._listen_for_more(reply)
+                        self._listen_for_more(reply, acted)
             finally:
                 if watcher is not None:
                     watcher()
@@ -429,12 +442,26 @@ class Daemon:
             self._status_idle()
             return reply
 
-    def _listen_for_more(self, reply: str) -> None:
+    def _done(self, text: str) -> None:
+        """Something you asked for was done: it shows in the window, and a short sound says so
+        instead of words."""
+        self._answered = True
+        self.earcons.stop_ticking()
+        if text:
+            log.info("Xanthos (done): %s", text)
+            self.bus.emit("history", f"Xanthos: {text}")
+        if self.voice_enabled:
+            self.earcons.play("done")
+
+    def _listen_for_more(self, reply: str, acted: bool = False) -> None:
         """After Claude's reply to something you said: listen again without the wake word, if
-        it asked you something, or for a moment in case you want to go on."""
+        it asked you something, or for a moment in case you want to go on (a conversation, not
+        after Claude just did something for you)."""
         if not reply or self._interrupted.is_set():
             return
         asked = self._asked_question(reply)
+        if acted and not asked:
+            return
         wait = max(ANSWER_WAIT_SECONDS if asked else 0.0, float(self.cfg.follow_up_seconds))
         if wait > 0:
             self._awaiting_answer, self._answer_wait = True, wait
@@ -795,10 +822,11 @@ class Daemon:
             self._recording = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
         via_voice, self._via_voice = self._via_voice, False
+        aside = answer and self._soft_chime  # the moment after a reply, not an answer to it
         self._soft_chime = False
         self.speaker.language = getattr(self.transcriber, "last_language", "")
         if text and (via_hotkey or answer or via_voice):
-            self._handle_spoken(text)  # the hotkey and answers work even while paused
+            self._handle_spoken(text, aside)  # the hotkey and answers work even while paused
         elif text and self.paused:
             # While paused, only the built-in "start listening" command is honored.
             if self.router.builtin_name(text) == "start_listening":
@@ -949,10 +977,11 @@ class Daemon:
             self.bus.emit("wake", self.engine.label)
         log.info("Voice check forgotten")
 
-    def _handle_spoken(self, text: str) -> None:
+    def _handle_spoken(self, text: str, aside: bool = False) -> None:
         """Answer a spoken request, then whatever you said over that answer, and so on."""
         while text and not self.stop_event.is_set():
-            self.handle_text(text, voice=True)
+            self.handle_text(text, voice=True, aside=aside)
+            aside = False
             text, self._next_request = self._next_request, None
             if text:
                 self.speaker.language = getattr(self.transcriber, "last_language", "")

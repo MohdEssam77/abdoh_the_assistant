@@ -125,8 +125,15 @@ back to its old, simple window.
 
 - **Say the wake word and keep going**: "Hey Xanthos, what's the weather tomorrow?" A soft chime
   tells you it woke up. If you only say "Hey Xanthos", it answers "Yes?" and waits.
-- **Keep talking**: after Claude answers, Xanthos listens for about six more seconds (one soft
-  note), so you can go on without the wake word. Say "thanks" or stay quiet to end it.
+- **Things you ask it to do are just done**: "open Spotify", "volume 30", "play some jazz",
+  "work mode". Xanthos does it and plays a short falling sound instead of talking (the window
+  shows what it did), and it doesn't listen for more afterwards. It only asks when it can't tell
+  what you want and a wrong guess would matter. Prefer to hear what it did? Settings →
+  Conversation → **When it does something for you** → Say what it did (`confirm_actions`).
+- **Keep talking**: after Claude answers a question or chats with you, Xanthos listens for about
+  six more seconds (one soft note), so you can go on without the wake word. Say "thanks",
+  "okay" or "that's it", or stay quiet, to end it. If what you say then was meant for someone
+  else in the room, Claude notices and Xanthos stays quiet.
 - **Just start talking**: while Xanthos explains something, talk and it goes quiet at once and
   listens. "Okay" or "go on" lets it carry on from the same word; "wait" or "thanks" stops it;
   anything else becomes your next request, and Claude still remembers the conversation. If you
@@ -556,6 +563,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |
 | `follow_up_seconds` | `6` | After Claude answers, keep listening this long without the wake word (0 = off) |
+| `confirm_actions` | `sound` | After it does something for you: `sound` (a short sound) or `words` (says what it did) |
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |

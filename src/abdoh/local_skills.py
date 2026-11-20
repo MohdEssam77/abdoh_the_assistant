@@ -10,6 +10,7 @@ from abdoh.commands.actions import ActionError
 from abdoh.commands.matcher import normalize
 from abdoh.computer import _NUMBERS, parse_duration
 from abdoh.desk import calculate, clock_text, parse_clock
+from abdoh.system_skills import Done
 
 log = logging.getLogger(__name__)
 
@@ -95,7 +96,9 @@ _HELP = re.compile(r"what can (?:you do|i say|i ask(?: you)?)|help(?: me)?|what 
 # Ways to end the conversation after a reply: nothing to do, and nothing more to listen for.
 _DONE = re.compile(
     r"(?:no |okay |ok )?(?:thanks|thank you|thanks a lot|thank you very much|thats all|thats it"
-    r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye)(?: (?:xanthos|zanthos))?"
+    r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye|okay|ok|alright|all right"
+    r"|great|perfect|cool|awesome|got it|good|nice|done|thats great|thats perfect|sounds good)"
+    r"(?: (?:thanks|thank you))?(?: (?:xanthos|zanthos))?"
 )
 # What you might say while Xanthos is talking: sounds, "I'm listening", and "be quiet".
 _FILLER = re.compile(r"(?:(?:uh|um|umm|hmm|hm|mm|mmm|ah|er|erm|oh)\s*)+")
@@ -234,9 +237,12 @@ class LocalSkills:
         request = _POLITE.sub("", request).strip()
         original = (original or request).strip()
         try:
-            return self._handle(request, original)
+            reply = self._handle(request, original)
         except ActionError as e:
             return str(e)
+        if reply == "" and not isinstance(reply, Done) and not _DONE.fullmatch(request):
+            return Done("")  # did something quietly (a media key, a window): the done sound
+        return reply
 
     def _handle(self, request: str, original: str) -> str | None:
         computer = self.computer
@@ -275,7 +281,7 @@ class LocalSkills:
             return reply
         found = _OPEN.fullmatch(request)
         if found and computer.apps.find(found.group("app")):
-            return f"Opening {computer.open_app(found.group('app'))}."
+            return Done(f"Opening {computer.open_app(found.group('app'))}.")
         return None
 
     def _sound(self, request: str, original: str) -> str | None:
@@ -287,13 +293,13 @@ class LocalSkills:
             computer.set_muted(True)
             return ""
         if _VOLUME_MAX.fullmatch(request):
-            return f"Volume at {computer.set_volume(100)} percent."
+            return Done(f"Volume at {computer.set_volume(100)} percent.")
         if _ASK_VOLUME.fullmatch(request):
             return f"The volume is at {computer.volume()} percent."
         found = _VOLUME.fullmatch(request)
         level = spoken_number(found["level"]) if found else None
         if level is not None and level <= 100:
-            return f"Volume at {computer.set_volume(level)} percent."
+            return Done(f"Volume at {computer.set_volume(level)} percent.")
         return None
 
     def _app_sound(self, request: str, original: str) -> str | None:
@@ -312,19 +318,19 @@ class LocalSkills:
             level = spoken_number(found["level"])
             if level is not None and level <= 100 and computer.find_app_audio(found["app"]):
                 name = computer.set_app_volume(found["app"], level)
-                return f"{name} at {level} percent."
+                return Done(f"{name} at {level} percent.")
             return None
         for patterns, step in ((_APP_DOWN, -APP_STEP), (_APP_UP, APP_STEP)):
             for pattern in patterns:
                 found = pattern.fullmatch(request)
                 if found and computer.find_app_audio(found["app"]):
                     name, level = computer.change_app_volume(found["app"], step)
-                    return f"{name} at {level} percent."
+                    return Done(f"{name} at {level} percent.")
         for pattern, muted in ((_APP_MUTE, True), (_APP_UNMUTE, False)):
             found = pattern.fullmatch(request)
             if found and computer.find_app_audio(found["app"]):
                 name = computer.mute_app(found["app"], muted)
-                return f"{name} {'muted' if muted else 'unmuted'}."
+                return Done(f"{name} {'muted' if muted else 'unmuted'}.")
         return None
 
     def _screen(self, request: str, original: str) -> str | None:
@@ -332,7 +338,7 @@ class LocalSkills:
         found = _BRIGHTNESS.fullmatch(request)
         level = spoken_number(found["level"]) if found else None
         if level is not None and level <= 100:
-            return f"Brightness at {computer.set_brightness(level)} percent."
+            return Done(f"Brightness at {computer.set_brightness(level)} percent.")
         if _BRIGHTER.fullmatch(request):
             computer.set_brightness(min(100, computer.brightness() + BRIGHTNESS_STEP))
             return ""
@@ -341,7 +347,7 @@ class LocalSkills:
             return ""
         if _SCREENSHOT.fullmatch(request):
             path = computer.screenshot()
-            return f"Saved a screenshot in your {path.parent.name} folder."
+            return Done(f"Saved a screenshot in your {path.parent.name} folder.")
         if _BATTERY.fullmatch(request):
             state = computer.battery()
             if state is None:
@@ -358,12 +364,14 @@ class LocalSkills:
         if _DATE.fullmatch(request):
             return f"It's {now:%A}, {now:%B} {now.day}."
         if _CANCEL_TIMER.search(request):
-            return computer.timers.cancel_all()
+            reply = computer.timers.cancel_all()
+            return Done(reply) if reply.startswith("Timer cancelled") else reply
         if _TIMER.search(request) and parse_duration(request):
-            return computer.timer(request)
+            reply = computer.timer(request)
+            return Done(reply) if reply.startswith("Okay,") else reply
         if _CANCEL_REMINDERS.fullmatch(request):
             count = computer.reminders.cancel_all()
-            return "Your reminders are cancelled." if count else "You have no reminders."
+            return Done("Your reminders are cancelled.") if count else "You have no reminders."
         if _LIST_REMINDERS.fullmatch(request):
             pending = computer.reminders.pending()
             if not pending:
@@ -377,7 +385,7 @@ class LocalSkills:
                 return None  # Claude can work out what was meant (and use its remind action)
             when, what, said = parsed
             computer.reminders.add(when, _yours(what))
-            return f"Okay, I'll remind you to {_yours(what)} {said}."
+            return Done(f"Okay, I'll remind you to {_yours(what)} {said}.")
         return None
 
     def _writing(self, request: str, original: str) -> str | None:
@@ -393,7 +401,7 @@ class LocalSkills:
         found = _NOTE.match(original)
         if found:
             computer.notes.add(found["text"].strip())
-            return "Noted."
+            return Done("Noted.")
         found = _TYPE.match(original)
         if found:
             computer.type_text(found["text"].strip())

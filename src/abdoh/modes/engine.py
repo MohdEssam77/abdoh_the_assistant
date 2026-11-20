@@ -14,6 +14,7 @@ from pathlib import Path
 
 from abdoh.commands.actions import ActionError
 from abdoh.modes.model import SETTINGS, Mode, ModesFileError, parse_schedule
+from abdoh.system_skills import Done
 
 log = logging.getLogger(__name__)
 
@@ -109,8 +110,9 @@ class ModeEngine:
         log.info("Mode on: %s", mode.name)
         spoken = self._run_quietly(mode.actions, problems)
         reply = f"{mode.name} mode."
-        if problems:
-            reply += f" But {problems[0][:1].lower()}{problems[0][1:]}"
+        if not problems:
+            return " ".join(spoken) if spoken else Done(reply)  # your mode's own words, if any
+        reply += f" But {problems[0][:1].lower()}{problems[0][1:]}"
         return " ".join([reply, *spoken]).strip()
 
     def deactivate(self) -> str:
@@ -129,7 +131,7 @@ class ModeEngine:
             log.info("Back to normal")
             if problems:
                 return f"{BACK_TO_NORMAL} But {problems[0][:1].lower()}{problems[0][1:]}"
-            return BACK_TO_NORMAL
+            return Done(BACK_TO_NORMAL)
 
     def start(self) -> None:
         """When Xanthos starts: if a mode is on, its own switches again (they live in memory)."""

@@ -113,6 +113,12 @@ class Question(str):
     """A reply that asks something: Xanthos listens for the answer without the wake word."""
 
 
+class Done(str):
+    """A reply saying that something was done ("Opening Spotify.", or "" for nothing to say).
+    Xanthos shows it in the window and plays a short sound instead of saying it (unless
+    confirm_actions is "words"), and doesn't listen for more afterwards."""
+
+
 class SystemSkills:
     def __init__(self, computer, allow_power=lambda: True, last_reply=lambda: "", clock=None):
         self.computer = computer
@@ -156,17 +162,17 @@ class SystemSkills:
         if _WHICH_ON.fullmatch(request):
             return computer.screens_status()
         if _ALL_ON.fullmatch(request):
-            return computer.screens("all")
+            return Done(computer.screens("all"))
         if _OTHERS_OFF.fullmatch(request):
             current = computer.screen_in_front()
-            return computer.screens(f"only {current.number}")
+            return Done(computer.screens(f"only {current.number}"))
         for pattern in _SCREENS_ONOFF:
             found = pattern.fullmatch(request)
             if found and displays.find(found["which"]):
-                return computer.screens(f"{found['which']} {found['onoff']}")
+                return Done(computer.screens(f"{found['which']} {found['onoff']}"))
         found = _ONLY.fullmatch(request)
         if found and any(w in request for w in _SCREEN_WORDS) and displays.find(found["which"]):
-            return computer.screens(f"only {found['which']}")
+            return Done(computer.screens(f"only {found['which']}"))
         if _SCREENS_SLEEP.fullmatch(request):
             computer.power("screens_off")
             return ""
@@ -186,7 +192,7 @@ class SystemSkills:
         found = _OUTPUT.fullmatch(request)
         if found:
             name = computer.set_audio_output(found["out"] or found["out2"] or found["out3"])
-            return f"Sound is coming out of {name}."
+            return Done(f"Sound is coming out of {name}.")
         return None
 
     def _settings(self, request: str) -> str | None:
@@ -194,21 +200,21 @@ class SystemSkills:
         found = _THEME.fullmatch(request)
         if found:
             computer.set_dark_mode(found["mode"] == "dark")
-            return f"{found['mode'].capitalize()} mode."
+            return Done(f"{found['mode'].capitalize()} mode.")
         found = _THEME_OFF.fullmatch(request)
         if found:
             computer.set_dark_mode(found["mode"] != "dark")
-            return f"{'Light' if found['mode'] == 'dark' else 'Dark'} mode."
+            return Done(f"{'Light' if found['mode'] == 'dark' else 'Dark'} mode.")
         found = _NIGHT_LIGHT.fullmatch(request)
         if found:
             on = (found["on"] or found["on2"] or "on") == "on"
             computer.set_night_light(on)
-            return f"Night light {'on' if on else 'off'}."
+            return Done(f"Night light {'on' if on else 'off'}.")
         found = _POWER_MODE.fullmatch(request)
         if found:
             mode = "efficiency" if found["saver"] else next(k for k in _POWER_MODES if found[k])
             computer.set_power_mode(mode)
-            return f"Power mode: {POWER_NAMES[mode]}."
+            return Done(f"Power mode: {POWER_NAMES[mode]}.")
         return None
 
     # ----- sleep, shutdown -----
@@ -217,7 +223,7 @@ class SystemSkills:
         computer = self.computer
         if _CANCEL_SHUTDOWN.fullmatch(request):
             if computer.cancel_shutdown():
-                return "Okay, the shutdown is cancelled."
+                return Done("Okay, the shutdown is cancelled.")
             return "No shutdown was waiting."
         sleep = _SLEEP.fullmatch(request)
         shutdown = _SHUTDOWN.fullmatch(request)
@@ -265,7 +271,7 @@ class SystemSkills:
             app = None if app in ("this", "it", "this window", "the window", "window") else app
             if app is None or computer.is_open(app):
                 screen = computer.move_window(app, found["screen"], found["how"] or "maximized")
-                return f"On {screen}."
+                return Done(f"On {screen}.")
         found = _CLOSE.fullmatch(request)
         if found and found["app"] not in ("this window", "the window", "window", "this", "it"):
             if computer.is_open(found["app"]):
@@ -283,7 +289,7 @@ class SystemSkills:
         found = _NEWEST.fullmatch(request)
         if found:
             folder = "downloads" if found["kind"] == "download" else "screenshots"
-            return f"Opening {self.computer.open_newest(folder)}."
+            return Done(f"Opening {self.computer.open_newest(folder)}.")
         found = _FOLDER.fullmatch(request)
         if found:
             self.computer.open_folder(found["folder"])
@@ -296,7 +302,7 @@ class SystemSkills:
             if not text:
                 return "I haven't said anything to copy yet."
             self.computer.set_clipboard(text)
-            return "Copied."
+            return Done("Copied.")
         if _READ_CLIPBOARD.fullmatch(request):
             text = " ".join(self.computer.clipboard().split())
             if not text:

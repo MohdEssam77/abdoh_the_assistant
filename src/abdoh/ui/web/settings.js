@@ -257,7 +257,10 @@
     const claude = settings.claude || {};
     const save = (changes, input, on) => saveSettings(changes).then((ok) => { if (!ok) input.checked = !on; });
     return card("Conversation", "How talking with Xanthos flows.",
-      row("Keep listening after a reply", "After Claude answers, Xanthos listens for a few more seconds, so you can go on without the wake word. Say “thanks” or just stay quiet to end.",
+      row("When it does something for you", "“Open Spotify”, “volume 30”, “work mode”: it does it and plays a short sound, or says what it did. It speaks anyway if something goes wrong.",
+        select([["sound", "A short sound"], ["words", "Say what it did"]], settings.confirm_actions || "sound",
+          (value) => saveSettings({ confirm_actions: value }), "When it does something for you")),
+      row("Keep listening after a reply", "After Claude answers a question, Xanthos listens for a few more seconds, so you can go on without the wake word. Not after it did something for you. Say “thanks” or just stay quiet to end.",
         toggle(settings.follow_up_seconds > 0, (on, input) => save({ follow_up_seconds: on ? 6 : 0 }, input, on), "Keep listening after a reply")),
       row("Answer Claude's questions right away", "When Claude asks you something, just answer.",
         toggle(claude.listen_after_question, (on, input) => save({ claude: { listen_after_question: on } }, input, on), "Answer questions right away")),

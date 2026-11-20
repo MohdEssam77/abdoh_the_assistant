@@ -179,7 +179,7 @@ def test_the_templates_are_valid(tmp_path):
 
 def test_movie_mode_keeps_only_screen_2(tmp_path):
     engine, controls, ran, shown = make(tmp_path)
-    assert engine.activate("movie") == "Movie mode. Enjoy the movie."
+    assert engine.activate("movie") == "Enjoy the movie."
     assert controls.applied == [("displays", ["2"]), ("volume", 60)]
     assert ran == [("say", "Enjoy the movie.")]
     assert shown == ["Movie"] and engine.current == "Movie"
@@ -306,10 +306,10 @@ def router(tmp_path):
 @pytest.mark.parametrize(
     "said, reply",
     [
-        ("Xanthos, movie mode", "Movie mode. Enjoy the movie."),
+        ("Xanthos, movie mode", "Enjoy the movie."),
         ("switch to work mode", "Work mode."),
-        ("turn on movie mode", "Movie mode. Enjoy the movie."),
-        ("movie night", "Movie mode. Enjoy the movie."),  # the mode's own phrase
+        ("turn on movie mode", "Enjoy the movie."),
+        ("movie night", "Enjoy the movie."),  # the mode's own phrase
         ("dark mode", "Dark mode."),  # your mode wins over the dark theme
     ],
 )
@@ -424,7 +424,7 @@ def test_the_window_switches_modes_through_abdoh(tmp_path):
     daemon.handle_request("mode", "Party")
     history = [v for k, v in bus.pending_events() if k == "history"]
     assert history == [
-        "Xanthos: Movie mode. Enjoy the movie.",
+        "Xanthos: Enjoy the movie.",
         "Xanthos: Back to normal.",
         "Xanthos: You don't have a mode called Party.",
     ]
