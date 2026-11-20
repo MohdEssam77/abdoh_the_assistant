@@ -40,11 +40,12 @@ def test_parakeet_model_comes_from_a_fixed_revision(models, tmp_path):
         fetched.append(url)
         Path(path).write_bytes(b"onnx")
 
-    folder = tmp_path / "parakeet-tdt-0.6b-v2"
+    folder = tmp_path / "parakeet-tdt-0.6b-v3"
     models.download_parakeet(folder, fetch)
     assert is_complete(folder, PARAKEET_FILES)  # exactly the files Xanthos checks for
     assert sorted(models.PARAKEET_FILES) == sorted(PARAKEET_FILES)
-    assert all("/resolve/0bbb45a3365852604aef28b538a8f066f4ccaa85/" in url for url in fetched)
+    assert all("/resolve/8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce/" in url for url in fetched)
+    assert all("/parakeet-tdt-0.6b-v3-onnx/" in url for url in fetched)
 
 
 def test_the_repos_wake_word_is_copied_unless_you_have_your_own(models, tmp_path):

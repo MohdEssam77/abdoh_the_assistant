@@ -222,3 +222,78 @@ def test_a_language_you_dont_speak_is_heard_as_one_of_yours(tmp_path):
 def test_whisper_does_not_load_until_needed(tmp_path):
     transcriber, made = whisper(tmp_path, ["en"])
     assert transcriber.transcribe(b"") == "" and made == []
+
+
+# ----- Parakeet v3: English and German (and more) with one model -----
+
+
+class GermanParakeet(FakeParakeet):
+    def __init__(self, text):
+        super().__init__()
+        self.text = text
+
+    def recognize(self, samples, sample_rate):
+        return self.text
+
+
+def v3(tmp_path, text, languages):
+    folder = tmp_path / "parakeet-tdt-0.6b-v3"
+    return ParakeetTranscriber(
+        folder, make_model=lambda *a, **k: GermanParakeet(text), languages=languages
+    )
+
+
+def test_english_and_german_use_parakeet_v3(tmp_path):
+    for languages in (["en"], ["en", "de"], ["de"], ["fr"]):
+        cfg = app(tmp_path / "-".join(languages), languages=languages)
+        transcriber = make_transcriber(cfg)
+        assert isinstance(transcriber, ParakeetTranscriber) and transcriber.v3, languages
+        assert transcriber.model_dir.name == "parakeet-tdt-0.6b-v3"
+
+
+def test_other_mixes_and_languages_it_lacks_use_whisper(tmp_path):
+    for languages in (["en", "fr"], ["en", "ar"], ["ar"], ["tr"], ["hi", "en"]):
+        cfg = app(tmp_path / "-".join(languages), languages=languages)
+        assert isinstance(make_transcriber(cfg), WhisperTranscriber), languages
+
+
+def test_the_english_only_model_of_older_installs_still_works(tmp_path):
+    from abdoh.audio.stt import PARAKEET_V2, PARAKEET_V2_DIR
+
+    bundle(tmp_path / PARAKEET_V2_DIR, PARAKEET_FILES)
+    only_english = make_transcriber(Config(app_dir=tmp_path))
+    assert isinstance(only_english, ParakeetTranscriber) and not only_english.v3
+    assert only_english.model_id == PARAKEET_V2
+    german_too = make_transcriber(Config(app_dir=tmp_path, languages=["en", "de"]))
+    assert isinstance(german_too, WhisperTranscriber)  # v2 can't do German
+
+
+def test_v3_is_preferred_when_both_are_there(tmp_path):
+    from abdoh.audio.stt import PARAKEET, PARAKEET_V2_DIR
+
+    bundle(tmp_path / PARAKEET_DIR, PARAKEET_FILES)
+    bundle(tmp_path / PARAKEET_V2_DIR, PARAKEET_FILES)
+    transcriber = make_transcriber(Config(app_dir=tmp_path))
+    assert transcriber.v3 and transcriber.model_id == PARAKEET
+
+
+def test_parakeet_v3_says_when_it_heard_german(tmp_path):
+    german = v3(tmp_path, "Wie wird das Wetter morgen?", ["en", "de"])
+    assert german.transcribe(pcm(300)) == "Wie wird das Wetter morgen?"
+    assert german.last_language == "de"
+    english = v3(tmp_path, "What is the weather tomorrow?", ["en", "de"])
+    english.transcribe(pcm(300))
+    assert english.last_language == "en"
+
+
+def test_german_is_noticed_even_when_only_english_is_chosen(tmp_path):
+    # v3 understands it anyway, and the German voice should answer.
+    transcriber = v3(tmp_path, "Guten Morgen, wie geht es dir?", ["en"])
+    transcriber.transcribe(pcm(300))
+    assert transcriber.last_language == "de"
+
+
+def test_a_single_language_is_the_language_heard(tmp_path):
+    transcriber = v3(tmp_path, "Quel temps fait-il demain ?", ["fr"])
+    transcriber.transcribe(pcm(300))
+    assert transcriber.last_language == "fr"

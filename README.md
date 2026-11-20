@@ -48,9 +48,10 @@ python scripts/download_models.py
 ```
 
 This downloads into `models/` the two small openWakeWord feature models (about 2 MB) and the **Parakeet** speech recognition
-model (about 630 MB; English, the most accurate). It also copies the trained "Hey Xanthos" wake word model from
-`assets/` if you don't have your own. Whisper models (used when you speak other languages)
-download themselves the first time they're used.
+model (about 640 MB; Parakeet v3, which understands English, German and 23 other European
+languages by itself). It also copies the trained "Hey Xanthos" wake word model from
+`assets/` if you don't have your own. Whisper models (used for languages Parakeet doesn't have,
+like Arabic) download themselves the first time they're used.
 
 ### The wake word
 
@@ -560,7 +561,7 @@ Measured on my laptop (Windows 11, i7-13650HX), 2026-11-16:
 | Understanding a 4-second request | 0.7 s (Whisper base.en) | 0.6 s (Parakeet) |
 | Word errors on Arabic-accented English | 8.8% | 4.4% |
 | Startup | about 5 s | about 6 s |
-| Memory while idle | about 320 MB | about 860 MB (Parakeet's model is 630 MB) |
+| Memory while idle | about 320 MB | about 870 MB (Parakeet's model is 640 MB) |
 | CPU while idle | about 1.5% of one core | about 1.6% of one core |
 
 Where the time goes for a request: 0.6 s to be sure you stopped talking (`silence_seconds`),
@@ -589,9 +590,9 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `wake_word_voice_threshold` | `0.5` | With your voice taught: how sure it must be that it's you |
 | `hotkey` | `ctrl+alt+space` | Press to talk without the wake word, or to stop a reply (`""` = off) |
 | `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Other spellings speech recognition may write for "Xanthos"; left out of your requests |
-| `languages` | `["en"]` | What you speak to Xanthos. English only uses Parakeet (fastest, most accurate); with more languages (e.g. `["en", "ar"]`) Whisper is used and Xanthos answers in the language you spoke |
-| `speech_engine` | `auto` | `auto`, `parakeet` (English only) or `whisper` (lighter: about 700 MB less memory, more mistakes) |
-| `whisper_model` | `small` | Whisper size for other languages: `base` (fast), `small`, `medium` (slow) |
+| `languages` | `["en"]` | What you speak to Xanthos. English and German (together, or either alone, or any one of Parakeet's 25 languages) use Parakeet, which tells them apart by itself; other languages, or other mixes (e.g. `["en", "ar"]`), use Whisper. Xanthos answers in the language you spoke |
+| `speech_engine` | `auto` | `auto`, `parakeet` or `whisper` (lighter: about 700 MB less memory, more mistakes) |
+| `whisper_model` | `small` | Whisper size for languages Parakeet doesn't have: `base` (fast), `small`, `medium` (slow) |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |
@@ -702,10 +703,15 @@ Developer scripts:
   never mistook its own voice for theirs. In a simulated loud room it heard normal speech in
   about 0.3 s; a quiet voice under a loud, distorting speaker took up to 3 s.
 
-- **Memory while idle is about 860 MB**: the Parakeet speech model is big. The Lighter quality
+- **Memory while idle is about 870 MB**: the Parakeet speech model is big. The Lighter quality
   setting (Whisper) brings it down to about 350 MB.
-- **English is the most accurate language.** Other languages use Whisper (`small` by default),
-  which is slower and makes more mistakes; `medium` is better if your computer is fast.
+- **Languages Parakeet doesn't have use Whisper** (Arabic, Turkish, Hindi, Chinese, ...): `small`
+  by default, which is about seven times slower and makes more mistakes; `medium` is better if
+  your computer is fast. Parakeet v3 knows English, German, French, Spanish, Italian,
+  Portuguese, Dutch, Polish, Russian, Ukrainian and 15 more European languages. On made-up
+  test clips its English was about as good as the English-only v2 (1% and 2.5% mistakes, clean
+  and noisy), German 5% and 18% (v2: not usable; Whisper small: 14% and 19%). Names and loan
+  words ("Saarbrücken", "Spotify") are the usual mistakes in every model.
 - **A language's natural voice needs the internet once** (about 60 MB). Until it's there (or
   if you're offline), the Windows voice speaks, which needs a Windows voice for that language
   (Windows Settings → Time & language → Speech); without one, the reply is only shown.
