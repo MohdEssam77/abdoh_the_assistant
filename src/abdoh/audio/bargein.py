@@ -1,14 +1,14 @@
-"""Hearing you while Abdoh talks: the microphone, minus Abdoh's own voice, watched for speech.
+"""Hearing you while Xanthos talks: the microphone, minus Xanthos's own voice, watched for speech.
 
 The daemon feeds every microphone block to `VoiceWatch.feed()` while a reply is running. Each
 block is cleaned with what the speakers played at the same time (audio/loopback.py and
 audio/echo.py), then Silero VAD looks for speech in 32 ms frames. `feed()` turns True once
 enough recent frames are speech that is clearly louder than what is left of the echo.
 
-The watch also learns how much of Abdoh's voice reaches the microphone at all. Where that is
+The watch also learns how much of Xanthos's voice reaches the microphone at all. Where that is
 very little (a quiet microphone, a laptop with its speakers far from it), the echo canceller
 has nothing to learn from and plays safe: it muffles you too for a while. So speech on the
-raw microphone that is much louder than Abdoh's voice could be there counts as well.
+raw microphone that is much louder than Xanthos's voice could be there counts as well.
 """
 
 import logging
@@ -29,11 +29,11 @@ FLOOR_FACTOR = 3.0  # and a frame must be this many times louder than the backgr
 FLOOR_RISE = 1.01  # the background level creeps up by 1% a frame, and drops at once
 KEEP_SECONDS = 1.0  # audio kept for the start of what you said
 PRE_ROLL_SECONDS = 0.5  # how far before the moment of detection the recording starts
-# The speakers' newest ~30 ms reach Abdoh late; take the reference a little further back. The
+# The speakers' newest ~30 ms reach Xanthos late; take the reference a little further back. The
 # echo canceller finds the real delay itself (anything from 0 to 800 ms works).
 REFERENCE_LEAD_SECONDS = 0.04
 RESYNC_SECONDS = 0.03  # follow the microphone's timing when it is this far off on average
-# How much of Abdoh's voice reaches the microphone: learned from blocks where the speakers
+# How much of Xanthos's voice reaches the microphone: learned from blocks where the speakers
 # played at least REFERENCE_ACTIVE, over the last ECHO_BLOCKS of them (the median, so you
 # talking now and then doesn't count). Until ECHO_LEARNED blocks, assume all of it does.
 REFERENCE_ACTIVE = 32768 * 10 ** (-50 / 20)
@@ -49,7 +49,7 @@ def _rms(frame: bytes) -> float:
 
 
 class VoiceWatch:
-    """Tells when you start talking over Abdoh. `tap`: SpeakerTap, `canceller`: EchoCanceller,
+    """Tells when you start talking over Xanthos. `tap`: SpeakerTap, `canceller`: EchoCanceller,
     `vad` and `raw_vad`: SileroVads of its own, for the cleaned and the raw microphone (their
     state is separate from the recorder's). Without `raw_vad` only the cleaned audio counts."""
 
@@ -103,20 +103,20 @@ class VoiceWatch:
             if vad is not None:
                 vad.reset()
 
-    # ----- how much of Abdoh reaches the microphone -----
+    # ----- how much of Xanthos reaches the microphone -----
 
     def echo_gain(self) -> float:
-        """The microphone's level over the speakers' level while Abdoh talks (1.0: unknown)."""
+        """The microphone's level over the speakers' level while Xanthos talks (1.0: unknown)."""
         if len(self._echo_ratios) < ECHO_LEARNED:
             return 1.0
         return float(np.median(self._echo_ratios))
 
     def _echo_level(self) -> float:
-        """The loudest Abdoh's voice could be at the microphone right now."""
+        """The loudest Xanthos's voice could be at the microphone right now."""
         return self.echo_gain() * max(self._played, default=0.0)
 
     def _quiet_echo(self) -> bool:
-        """Abdoh's voice can't be heard at the microphone now: the raw audio is as good."""
+        """Xanthos's voice can't be heard at the microphone now: the raw audio is as good."""
         return self._echo_level() * RAW_MARGIN < MIN_LEVEL
 
     def _learn(self, raw: bytes, speakers: bytes) -> None:
@@ -129,7 +129,7 @@ class VoiceWatch:
 
     def clean(self, block: bytes, arrival: float) -> bytes:
         """The block without the speakers' sound (`arrival`: when it came from the mic). Where
-        Abdoh's voice doesn't reach the microphone anyway, the block as it was."""
+        Xanthos's voice doesn't reach the microphone anyway, the block as it was."""
         usable = len(block) - len(block) % FRAME_BYTES
         if not usable:
             return block
@@ -193,7 +193,7 @@ class VoiceWatch:
             if sum(list(self._hot)[-window:]) >= need:
                 self._fired = True
                 log.info(
-                    "You started talking (%s sensitivity; Abdoh's voice reaches the mic at "
+                    "You started talking (%s sensitivity; Xanthos's voice reaches the mic at "
                     "%.0f dB)",
                     self._sensitivity,
                     20 * np.log10(max(self.echo_gain(), 1e-9)),
@@ -209,7 +209,7 @@ class VoiceWatch:
 
     def pre_roll(self) -> bytes:
         """Audio from a little before you were heard until now (your first words), cleaned
-        unless Abdoh's voice doesn't reach the microphone anyway."""
+        unless Xanthos's voice doesn't reach the microphone anyway."""
         size = int((PRE_ROLL_SECONDS + 0.1) * BYTES_PER_SECOND)
         source = self._recent_raw if self._quiet_echo() else self._recent
         return bytes(source[-size:])

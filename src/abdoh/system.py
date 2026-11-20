@@ -1,4 +1,4 @@
-"""Windows settings and controls Abdoh can change: dark mode, the power mode, sleep and
+"""Windows settings and controls Xanthos can change: dark mode, the power mode, sleep and
 shutdown, key presses, other programs' windows, folders, and the clipboard.
 
 Small functions over the Windows API (ctypes, winreg) that `Computer` reaches through this
@@ -58,7 +58,7 @@ def set_dark_mode(on: bool) -> None:
 #
 # Windows keeps night light's state in an undocumented binary value. Its layout (checked on
 # Windows 11, build 26200, both ways): a fixed header, the time it last changed (Unix seconds
-# as a 5-byte varint), a block that says on or off, and three zero bytes. Abdoh only writes
+# as a 5-byte varint), a block that says on or off, and three zero bytes. Xanthos only writes
 # when the value has exactly this layout; otherwise it opens Windows' night light settings.
 
 NIGHT_LIGHT_KEY = (
@@ -83,7 +83,7 @@ def _varint(value: int) -> bytes:
 
 
 def parse_night_light(data: bytes) -> bool:
-    """Is night light on in this value? Raises ValueError for a layout Abdoh doesn't know."""
+    """Is night light on in this value? Raises ValueError for a layout Xanthos doesn't know."""
     if not data.startswith(_NL_HEAD) or len(data) < 27 or data[15:18] != _NL_MID:
         raise ValueError("unknown night light layout")
     size = data[18]

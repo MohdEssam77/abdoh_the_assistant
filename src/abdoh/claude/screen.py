@@ -1,6 +1,6 @@
 """Screenshots for Claude: the monitor you are working on, as a downscaled PNG.
 
-"The screen you're using" is the monitor that holds the window in front. Abdoh's own window
+"The screen you're using" is the monitor that holds the window in front. Xanthos's own window
 doesn't count (you may have just typed into it): the window behind it does.
 """
 
@@ -74,7 +74,7 @@ def pick_monitor(monitors: list[dict], point: tuple[int, int] | None) -> dict:
 
 
 def front_window() -> FrontWindow:
-    """The window you're working in (not Abdoh's own). Empty if it can't tell."""
+    """The window you're working in (not Xanthos's own). Empty if it can't tell."""
     if sys.platform != "win32":
         return FrontWindow()
     try:
@@ -85,7 +85,7 @@ def front_window() -> FrontWindow:
 
 
 def front_window_handle() -> int | None:
-    """The handle of the window you're working in (not Abdoh's own), or None."""
+    """The handle of the window you're working in (not Xanthos's own), or None."""
     if sys.platform != "win32":
         return None
     try:

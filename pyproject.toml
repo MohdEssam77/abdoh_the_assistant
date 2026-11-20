@@ -25,7 +25,7 @@ dependencies = [
     "python-dotenv>=1.0",
     "pystray>=0.19",
     "pywebview>=6.0",
-    "livekit>=1.3", # WebRTC's echo canceller: hearing you while Abdoh talks
+    "livekit>=1.3", # WebRTC's echo canceller: hearing you while Xanthos talks
 ]
 
 [project.optional-dependencies]

@@ -1,9 +1,9 @@
 """Connect Claude from the app: is Claude Code installed, signed in, and with which plan?
 
-Abdoh never handles your Claude account. Signing in happens in Claude Code's own window and in
-your browser, on Anthropic's sign-in page (`claude auth login`); Abdoh only asks Claude Code
+Xanthos never handles your Claude account. Signing in happens in Claude Code's own window and in
+your browser, on Anthropic's sign-in page (`claude auth login`); Xanthos only asks Claude Code
 whether it's signed in (`claude auth status`). An API key, if you use one, is your own and stays
-in Abdoh's settings folder on this computer.
+in Xanthos's settings folder on this computer.
 """
 
 import logging
@@ -28,7 +28,7 @@ class SetupError(RuntimeError):
 
 
 def using(cfg: Config, exe: Path | None) -> str | None:
-    """How Abdoh reaches Claude now: "code" (your account), "api" (your key), or None."""
+    """How Xanthos reaches Claude now: "code" (your account), "api" (your key), or None."""
     backend = cfg.claude.backend
     if backend in ("auto", "code") and exe:
         return "code"
@@ -78,7 +78,7 @@ def install_claude_code(popen=subprocess.Popen, platform: str = sys.platform) ->
     script = (
         "Write-Host 'Installing Claude Code from Anthropic...'; Write-Host '';"
         f"irm {INSTALL_URL} | iex; Write-Host '';"
-        "Write-Host 'Done. Close this window and go back to Abdoh to sign in.'"
+        "Write-Host 'Done. Close this window and go back to Xanthos to sign in.'"
     )
     try:
         popen(
@@ -93,7 +93,7 @@ def sign_in(exe: Path, popen=subprocess.Popen) -> None:
     """Open Claude Code's own sign-in (it continues in your browser) in a window you can see."""
     script = (
         "& $env:ABDOH_CLAUDE auth login; Write-Host '';"
-        "Write-Host 'Signed in? Close this window and go back to Abdoh.'"
+        "Write-Host 'Signed in? Close this window and go back to Xanthos.'"
     )
     env = {**child_env(), "ABDOH_CLAUDE": str(exe)}  # the path goes in safely, never parsed
     try:
@@ -120,7 +120,7 @@ def sign_out(exe: Path, run=subprocess.run) -> None:
 
 
 def set_api_key(cfg: Config, key: str) -> None:
-    """Save your own Anthropic API key (or remove it with "") in Abdoh's .env file."""
+    """Save your own Anthropic API key (or remove it with "") in Xanthos's .env file."""
     key = (key or "").strip()
     if key and not key.startswith(KEY_PREFIX):
         raise SetupError(

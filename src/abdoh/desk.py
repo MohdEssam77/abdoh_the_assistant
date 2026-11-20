@@ -1,4 +1,4 @@
-"""More things Abdoh does by itself, without Claude: screen brightness, the battery, typing what
+"""More things Xanthos does by itself, without Claude: screen brightness, the battery, typing what
 you dictate, the window in front, screenshots, notes, reminders and quick maths.
 
 The Windows calls are small functions that `Computer` reaches through this module, so tests
@@ -202,7 +202,7 @@ def save_screenshot(folder: Path, capture: Callable[[], bytes] | None = None, no
     try:
         png = capture()
         folder.mkdir(parents=True, exist_ok=True)
-        path = folder / f"Abdoh {now:%Y-%m-%d %H.%M.%S}.png"
+        path = folder / f"Xanthos {now:%Y-%m-%d %H.%M.%S}.png"
         path.write_bytes(png)
     except ActionError:
         raise

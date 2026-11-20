@@ -1,6 +1,6 @@
-"""Developer check: Abdoh's openWakeWord code gives the same scores as the official package.
+"""Developer check: Xanthos's openWakeWord code gives the same scores as the official package.
 
-Needs `pip install openwakeword` (not an Abdoh dependency) and the feature models from
+Needs `pip install openwakeword` (not an Xanthos dependency) and the feature models from
 `python scripts/download_models.py`. Downloads the pre-trained "hey jarvis" model, speaks
 "Hey Jarvis, what time is it?" with the system voice into a WAV (or uses the WAV you give it),
 and compares both implementations' scores for every 80 ms frame.

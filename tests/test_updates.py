@@ -151,7 +151,7 @@ def test_finding_inno_setup(tmp_path):
 def test_installer_is_per_user_and_matches_start_at_sign_in():
     iss = (ROOT / "installer" / "abdoh.iss").read_text(encoding="utf-8")
     assert "PrivilegesRequired=lowest" in iss
-    assert "OutputBaseFilename=Abdoh-Setup" in iss and f"{ASSET}" == "Abdoh-Setup.exe"
+    assert "OutputBaseFilename=Xanthos-Setup" in iss and f"{ASSET}" == "Xanthos-Setup.exe"
     assert autostart.RUN_KEY in iss and f'ValueName: "{autostart.TASK_NAME}"' in iss
     assert '"run --minimized"' not in iss and "run --minimized" in iss
 

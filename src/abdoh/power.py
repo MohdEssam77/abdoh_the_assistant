@@ -1,6 +1,6 @@
-"""Keep Abdoh at full speed in the background.
+"""Keep Xanthos at full speed in the background.
 
-Windows 11 slows down apps that have no visible window ("efficiency mode"). Abdoh lives in the
+Windows 11 slows down apps that have no visible window ("efficiency mode"). Xanthos lives in the
 tray and does its heavy work (speech recognition) exactly then, so it asks Windows not to.
 """
 
@@ -45,7 +45,7 @@ def keep_full_speed(kernel32=None) -> bool:
             if kernel32.SetProcessInformation(
                 process, PROCESS_POWER_THROTTLING, ctypes.byref(state), ctypes.sizeof(state)
             ):
-                log.info("Background throttling is off for Abdoh")
+                log.info("Background throttling is off for Xanthos")
                 return True
     except Exception:
         log.debug("Couldn't turn off background throttling", exc_info=True)

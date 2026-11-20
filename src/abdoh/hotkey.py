@@ -1,4 +1,4 @@
-"""A global hotkey: press it anywhere to talk to Abdoh, or to stop it talking.
+"""A global hotkey: press it anywhere to talk to Xanthos, or to stop it talking.
 
 Windows only for now (Win32 RegisterHotKey through ctypes, no extra dependency).
 """

@@ -1,7 +1,7 @@
 """Refresh the app screenshots on the download page (docs/*.png).
 
 Renders the app's page with made-up demo data (index.html?demo) in headless Microsoft Edge, in
-light and dark. No Abdoh, microphone or account needed. Usage: python scripts/take_screenshots.py
+light and dark. No Xanthos, microphone or account needed. Usage: python scripts/take_screenshots.py
 """
 
 import shutil

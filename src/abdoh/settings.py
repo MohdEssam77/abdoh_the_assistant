@@ -1,4 +1,4 @@
-"""Read and change Abdoh's settings from the app.
+"""Read and change Xanthos's settings from the app.
 
 config.yaml is rewritten from config.example.yaml used as a template, so the comments that
 explain each setting stay in the file for people who still edit it by hand.
@@ -26,7 +26,7 @@ TEMPLATE = "config.example.yaml"
 # Config fields that aren't settings: where the files live, the API key (kept in .env), and the
 # claude group (handled as its own section).
 _NOT_SETTINGS = {"app_dir", "anthropic_api_key", "claude"}
-# Settings that only take effect after Abdoh restarts.
+# Settings that only take effect after Xanthos restarts.
 RESTART_KEYS = (
     "hotkey",
     "wake_words",
@@ -70,12 +70,12 @@ LABELS = {
     "whisper_model": "Speech recognition model",
     "languages": "Languages",
     "speech_engine": "Speech recognition",
-    "voice_interrupt_sensitivity": "How easily your voice stops Abdoh",
-    "duck_percent": "Other sounds while Abdoh listens",
+    "voice_interrupt_sensitivity": "How easily your voice stops Xanthos",
+    "duck_percent": "Other sounds while Xanthos listens",
     "claude.actions": "Things Claude may do",
     "claude.folders": "Folders Claude may use",
     "claude.instructions": "Your instructions",
-    "claude.backend": "How Abdoh connects to Claude",
+    "claude.backend": "How Xanthos connects to Claude",
 }
 
 

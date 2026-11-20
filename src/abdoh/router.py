@@ -31,7 +31,7 @@ from abdoh.system_skills import Question
 log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
-SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
+SCREEN_OFF = "Looking at your screen is turned off in Xanthos's permissions."
 LOOKING = "Looking at your screen"
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
@@ -43,7 +43,7 @@ NOTHING_TO_REMEMBER = (
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
-Abdoh: {answer}
+Xanthos: {answer}
 
 The user now says: {text}"""
 # Modes: "movie mode", "switch to work mode", "back to normal", "which mode am I in".
@@ -100,7 +100,7 @@ class Router:
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
         self.last_turn: ClaudeTurn | None = None
-        self.last_reply = ""  # what Abdoh said last, for "repeat that"
+        self.last_reply = ""  # what Xanthos said last, for "repeat that"
         self._run = run
         self._act = act
         self._capture = capture

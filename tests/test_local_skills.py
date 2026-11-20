@@ -96,7 +96,7 @@ class FakeComputer:
 
     def screenshot(self):
         self.calls.append(("screenshot",))
-        return Path("C:/Users/me/Pictures/Screenshots/Abdoh 2026-11-16 14.00.00.png")
+        return Path("C:/Users/me/Pictures/Screenshots/Xanthos 2026-11-16 14.00.00.png")
 
     def open_notes(self):
         self.calls.append(("open_notes",))
@@ -381,7 +381,7 @@ def test_what_can_you_do(skills):
     assert skills.handle("what can you do") == HELP
 
 
-# ----- what you say while Abdoh is talking -----
+# ----- what you say while Xanthos is talking -----
 
 
 def test_what_an_interruption_means():

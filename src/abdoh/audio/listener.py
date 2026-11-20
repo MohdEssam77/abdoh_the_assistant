@@ -13,7 +13,7 @@ from abdoh.speech.tts import Speaker
 log = logging.getLogger(__name__)
 
 FOLLOW_UP_WAIT_SECONDS = 5.0
-# How long to wait for speech right after the wake word ("Hey Abdoh … what time is it").
+# How long to wait for speech right after the wake word ("Hey Xanthos … what time is it").
 START_WAIT_SECONDS = 0.8
 # Audio from before the wake word fed to the VAD, so it knows if you were mid-sentence.
 VAD_WARMUP_SECONDS = 0.5
@@ -22,7 +22,7 @@ PUSH_TO_TALK_WAIT_SECONDS = 4.0
 CHIME_SECONDS = 0.15
 # After Claude asks you something: how long to wait for you to start answering.
 ANSWER_WAIT_SECONDS = 5.0
-# After the wake word ("Hey Abdoh ... what time is it"): how long to wait for the request.
+# After the wake word ("Hey Xanthos ... what time is it"): how long to wait for the request.
 WAKE_WAIT_SECONDS = 3.0
 
 
@@ -46,7 +46,7 @@ def listen_for_request(
     """Wait for the wake word and return the request that was said, or None if stopped.
 
     The request is what you say after the wake word; `on_listen` (a chime) confirms the
-    wake-up. If you say nothing, Abdoh asks "Yes?" and records one more utterance.
+    wake-up. If you say nothing, Xanthos asks "Yes?" and records one more utterance.
     With a `vad` (SileroVad), the end of speech is found by voice activity, else by loudness.
     If `pressed()` turns true (the hotkey), one request is recorded with no wake word needed.
     With `answer` (Claude just asked you something), one reply is recorded right away, the same
@@ -122,7 +122,7 @@ def _push_to_talk(
 ) -> str:
     on_listen()  # the "listening" chime
     time.sleep(CHIME_SECONDS)
-    mic.clear()  # start fresh, without the chime (or the end of Abdoh's own reply)
+    mic.clear()  # start fresh, without the chime (or the end of Xanthos's own reply)
     is_speech = speech_detector(vad, b"")
     loudest = 0
 

@@ -1,7 +1,7 @@
-# Abdoh
+# Xanthos
 
-A simple, voice-first personal assistant for your laptop. Say "Hey Abdoh" (or press
-Ctrl+Alt+Space) and a request: Abdoh runs your own commands (open a link, open an app, tell the
+A simple, voice-first personal assistant for your laptop. Say "Hey Xanthos" (or press
+Ctrl+Alt+Space) and a request: Xanthos runs your own commands (open a link, open an app, tell the
 time), handles everyday things by itself (timers, volume and music, opening any app), and sends
 everything else to Claude, using your Claude subscription through Claude Code. It replies by
 voice and lives in the system tray.
@@ -9,21 +9,21 @@ voice and lives in the system tray.
 Speech recognition runs offline on your machine (openWakeWord for the wake word, Parakeet and
 Whisper for requests). Only Claude requests go over the network.
 
-**Just want to use it?** Download `Abdoh-Setup.exe` from the download page (`docs/index.html`,
+**Just want to use it?** Download `Xanthos-Setup.exe` from the download page (`docs/index.html`,
 see section 6), install it, and follow the short setup. No Python or terminal needed. The rest
-of this README is for running Abdoh from source.
+of this README is for running Xanthos from source.
 
 ## Setup checklist
 
-1. Install Abdoh and download the models (sections 1 and 2).
+1. Install Xanthos and download the models (sections 1 and 2).
 2. Make sure Claude Code is signed in with your Claude account: `python -m abdoh claude-check`
    (section 4).
-3. Say "Hey Abdoh" (or "Ya Abdoh"): the trained wake word model comes with Abdoh. The hotkey
+3. Say "Hey Xanthos" (or "Ya Xanthos"): the trained wake word model comes with Xanthos. The hotkey
    works without any wake word.
 4. Put your own links and apps in `commands.yaml`, e.g. replace `REPLACE_ME` in `good_morning`
    (section 5).
-5. `python -m abdoh install --login` to add Abdoh to the Start Menu and start it at login
-   (section 6). Restart your computer and check that the tray icon appears and Abdoh answers.
+5. `python -m abdoh install --login` to add Xanthos to the Start Menu and start it at login
+   (section 6). Restart your computer and check that the tray icon appears and Xanthos answers.
 
 ## 1. Install
 
@@ -48,16 +48,16 @@ python scripts/download_models.py
 ```
 
 This downloads into `models/` the two small openWakeWord feature models (about 2 MB) and the **Parakeet** speech recognition
-model (about 630 MB; English, the most accurate). It also copies the trained "Hey Abdoh" wake word model from
+model (about 630 MB; English, the most accurate). It also copies the trained "Hey Xanthos" wake word model from
 `assets/` if you don't have your own. Whisper models (used when you speak other languages)
 download themselves the first time they're used.
 
 ### The wake word
 
-Abdoh comes with a trained wake word model (`assets/hey_abdoh.onnx`, an openWakeWord model) for
-**"Hey Abdoh"** and **"Ya Abdoh"** (also the Arabic يا عبدوه: it listens for the sound, not the
+Xanthos comes with a trained wake word model (`assets/hey_xanthos.onnx`, an openWakeWord model) for
+**"Hey Xanthos"** and **"Ya Xanthos"** (it listens for the sound, not the
 spelling). Say the wake word and keep talking; what you say after it is the request. In the
-window, the sidebar shows `Wake word: openWakeWord (hey_abdoh)`.
+window, the sidebar shows `Wake word: openWakeWord (hey_xanthos)`.
 
 If it misses you, move **Settings → Sensitivity** to the left (`wake_word_threshold`, e.g.
 0.3); if it wakes up by itself, move it right (e.g. 0.6).
@@ -71,77 +71,77 @@ If it misses you, move **Settings → Sensitivity** to the left (`wake_word_thre
    dictionary knows ("hey abdo", not "hey abdoh"): the notebook's helper for made-up words is no
    longer downloadable.
 3. Run all cells and download the `.onnx` file. Put it in `models/` and set `wake_word_model`
-   in `config.yaml` to its path (with the installed app: `%APPDATA%\Abdoh\models\`).
+   in `config.yaml` to its path (with the installed app: `%APPDATA%\Xanthos\models\`).
 4. Add your phrase to **Settings → Wake words**, so it's removed from what you say.
 
 If the wake word model is missing or can't start, the status says **Hotkey only**: press the
-hotkey (or the talk button) to talk to Abdoh, and typing works as always.
+hotkey (or the talk button) to talk to Xanthos, and typing works as always.
 
 ## 3. Run
 
 ```
-python -m abdoh run              # starts Abdoh in the system tray and starts listening
+python -m abdoh run              # starts Xanthos in the system tray and starts listening
 python -m abdoh run --show       # same, with the window open
 python -m abdoh run --headless   # no window or tray icon at all (Ctrl+C to quit)
 ```
 
-On first run Abdoh creates `config.yaml` and `commands.yaml` from the example files. Try:
+On first run Xanthos creates `config.yaml` and `commands.yaml` from the example files. Try:
 
-- "Good morning Abdoh"
-- "Hey Abdoh, what time is it"
-- "Hey Abdoh, play Bohemian Rhapsody on YouTube" (starts the top video)
+- "Good morning Xanthos"
+- "Hey Xanthos, what time is it"
+- "Hey Xanthos, play Bohemian Rhapsody on YouTube" (starts the top video)
 - Press **Ctrl+Alt+Space** and say "what time is it" (no wake word needed)
 
-**The tray icon** shows Abdoh's state by color: green = listening, blue = thinking or speaking,
+**The tray icon** shows Xanthos's state by color: green = listening, blue = thinking or speaking,
 gray = paused, red = a problem. Click it to open the window; right-click for the menu: pause or
 resume listening, stop speaking, voice replies on/off, edit commands, start at login, and quit.
 
 **The hotkey** (`Ctrl+Alt+Space`, set `hotkey` in `config.yaml`) works from any app: press it
-and talk, no wake word needed (it works even while listening is paused). Press it while Abdoh
+and talk, no wake word needed (it works even while listening is paused). Press it while Xanthos
 is talking to stop it. Windows only for now.
 
-**The window** is a modern app (light or dark, following Windows). **Home** shows what Abdoh is
+**The window** is a modern app (light or dark, following Windows). **Home** shows what Xanthos is
 doing and the conversation. Type a request (it goes through the same commands and Claude as
 voice), press the round **Talk** button (same as the hotkey; it becomes a stop button while
-Abdoh is busy), turn the **Wake word** off to stop listening for it, or turn **Voice replies**
-off. Closing the window only hides it; Abdoh keeps listening. Bring it back from the tray, by
-saying "Abdoh, show window", or by running `python -m abdoh run` again. Quit from the tray menu.
+Xanthos is busy), turn the **Wake word** off to stop listening for it, or turn **Voice replies**
+off. Closing the window only hides it; Xanthos keeps listening. Bring it back from the tray, by
+saying "Xanthos, show window", or by running `python -m abdoh run` again. Quit from the tray menu.
 
-The first time it opens, a short **setup** checks that Abdoh hears your microphone (with a live
-level meter), lets you pick a voice, connects your Claude, and shows how to talk to Abdoh. Skip
+The first time it opens, a short **setup** checks that Xanthos hears your microphone (with a live
+level meter), lets you pick a voice, connects your Claude, and shows how to talk to Xanthos. Skip
 it any time; **Settings → Run setup again** brings it back.
 
-The window uses Microsoft WebView2, which comes with Windows 10 and 11. Without it, Abdoh falls
+The window uses Microsoft WebView2, which comes with Windows 10 and 11. Without it, Xanthos falls
 back to its old, simple window.
 
-### Talking with Abdoh
+### Talking with Xanthos
 
-- **Say the wake word and keep going**: "Hey Abdoh, what's the weather tomorrow?" A soft chime
-  tells you it woke up. If you only say "Hey Abdoh", it answers "Yes?" and waits.
-- **Keep talking**: after Claude answers, Abdoh listens for about six more seconds (one soft
+- **Say the wake word and keep going**: "Hey Xanthos, what's the weather tomorrow?" A soft chime
+  tells you it woke up. If you only say "Hey Xanthos", it answers "Yes?" and waits.
+- **Keep talking**: after Claude answers, Xanthos listens for about six more seconds (one soft
   note), so you can go on without the wake word. Say "thanks" or stay quiet to end it.
-- **Just start talking**: while Abdoh explains something, talk and it goes quiet at once and
+- **Just start talking**: while Xanthos explains something, talk and it goes quiet at once and
   listens. "Okay" or "go on" lets it carry on from the same word; "wait" or "thanks" stops it;
   anything else becomes your next request, and Claude still remembers the conversation. If you
   add something while it's still thinking ("What's the weather" ... "in Paris"), both parts are
-  one request. Abdoh hears you over its own voice by taking what the speakers play back out of
+  one request. Xanthos hears you over its own voice by taking what the speakers play back out of
   the microphone (echo cancellation); that sound is only used in memory, never saved or sent.
   Works best with headphones or the volume not too loud. Under loud music or a film it may not
-  hear you: use the wake word or the hotkey then. **How easily your voice stops Abdoh** (Low,
+  hear you: use the wake word or the hotkey then. **How easily your voice stops Xanthos** (Low,
   Medium, High) is in Settings → Conversation. Check how well it works in your room with
   `python scripts/echo_check.py` (it speaks two sentences; `--talk` lets you try talking over it).
-- **Interrupt with the wake word**: say "Hey Abdoh" while it's talking (or press the hotkey) to
+- **Interrupt with the wake word**: say "Hey Xanthos" while it's talking (or press the hotkey) to
   stop it and say something new.
-- **Other sounds go down while you talk**: from the wake word until Abdoh has answered, every
+- **Other sounds go down while you talk**: from the wake word until Xanthos has answered, every
   other app that is playing (your browser, Spotify, a film) drops to 30% of its volume in the
-  Windows volume mixer, then comes back. Abdoh's own voice stays as it is, and an app you turned
+  Windows volume mixer, then comes back. Xanthos's own voice stays as it is, and an app you turned
   up or down yourself meanwhile keeps your volume.
 - **Only today's conversation**: the chat in the window starts empty every day. The log file
   (which also has what you said) keeps today's and yesterday's only.
 - **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window
-  shows what it's doing ("Searching the web…"), and after a few quiet seconds Abdoh says it's
+  shows what it's doing ("Searching the web…"), and after a few quiet seconds Xanthos says it's
   still on it.
-- **Other languages**: add the languages you speak in Settings. Abdoh answers in the language
+- **Other languages**: add the languages you speak in Settings. Xanthos answers in the language
   you used, with a Windows voice for it (add voices in Windows Settings → Time & language →
   Speech; the window tells you when one is missing).
 
@@ -149,29 +149,29 @@ Each of these can be turned off under **Settings → Conversation**.
 
 ### Voice controls
 
-- "Abdoh, stop listening": Abdoh ignores everything until "Abdoh, start listening" (or the hotkey)
-- "Abdoh, reload commands": re-reads `commands.yaml` (it also reloads automatically on change)
-- "Abdoh, show window": brings the window back
+- "Xanthos, stop listening": Xanthos ignores everything until "Xanthos, start listening" (or the hotkey)
+- "Xanthos, reload commands": re-reads `commands.yaml` (it also reloads automatically on change)
+- "Xanthos, show window": brings the window back
 
 ## 4. Connect Claude (optional)
 
-Anything that isn't one of your commands goes to Claude. Abdoh uses **your Claude subscription**
+Anything that isn't one of your commands goes to Claude. Xanthos uses **your Claude subscription**
 (Pro or Max) through **Claude Code**, so there's nothing to pay for beyond your plan:
 
-The easy way: open **Settings** in Abdoh's window. The **Claude** card shows whether you're
+The easy way: open **Settings** in Xanthos's window. The **Claude** card shows whether you're
 connected and with which plan. **Install Claude Code** runs Anthropic's official installer in a
 window you can watch (for you only, no admin rights). **Sign in with Claude** opens Claude Code's
 own sign-in, which finishes in your browser; the card updates by itself when you're done.
-**Test** asks Claude one word. Abdoh never sees your password or your Claude login: it only
-asks Claude Code whether it's signed in. Each person who uses Abdoh connects their own Claude.
+**Test** asks Claude one word. Xanthos never sees your password or your Claude login: it only
+asks Claude Code whether it's signed in. Each person who uses Xanthos connects their own Claude.
 
 Claude's **free plan doesn't include Claude Code**. Without Pro, Max, Team or Enterprise, paste
 an API key from the Claude Console into the same card (pay as you go, kept only on this
-computer), or use Abdoh without Claude: commands, timers, apps, media and YouTube all work.
+computer), or use Xanthos without Claude: commands, timers, apps, media and YouTube all work.
 
 By hand:
 
-1. Have Claude Code installed and signed in with your Claude account. Abdoh finds it on your
+1. Have Claude Code installed and signed in with your Claude account. Xanthos finds it on your
    `PATH`, in `~/.local/bin`, or inside the VS Code extension. If it's somewhere else, set
    `claude.code_path` in `config.yaml`.
 2. Check it:
@@ -180,7 +180,7 @@ By hand:
    python -m abdoh claude-check    # shows e.g. "Claude: Pro subscription (Claude Code)" and asks one tiny question
    ```
 
-Abdoh keeps one Claude Code conversation open while it runs, so Claude starts answering in
+Xanthos keeps one Claude Code conversation open while it runs, so Claude starts answering in
 about a second and **remembers what you said** ("what's the capital of Japan?" ... "and how many
 people live there?"). The conversation starts over after ten quiet minutes or when you change
 Claude's settings; when you stop a reply, Claude stops writing it and still knows what it said. In Settings you can pick a faster Claude model
@@ -188,67 +188,67 @@ Claude's settings; when you stop a reply, Claude stops writing it and still know
 
 Then you can say:
 
-- "Abdoh, what's the capital of Japan?"
-- "Abdoh, open the Python website" (Claude can open web pages and installed apps for you)
-- "Abdoh, put on some relaxing jazz" (Claude can start YouTube videos too)
-- "Abdoh, what's the weather in Cairo today?" (Claude can search the web; turn this off with
+- "Xanthos, what's the capital of Japan?"
+- "Xanthos, open the Python website" (Claude can open web pages and installed apps for you)
+- "Xanthos, put on some relaxing jazz" (Claude can start YouTube videos too)
+- "Xanthos, what's the weather in Cairo today?" (Claude can search the web; turn this off with
   `claude.allow_web: false`)
 - Anything about what's on your screen: "what does this error mean?", "which of these should I
   pick?", "read this to me", "what am I looking at?". Claude decides when it needs to see it;
-  Abdoh then says "Looking at your screen" and sends a picture of the screen you're using (the
-  one with the window in front, not Abdoh's own window) with your question.
-- "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
+  Xanthos then says "Looking at your screen" and sends a picture of the screen you're using (the
+  one with the window in front, not Xanthos's own window) with your question.
+- "Xanthos, translate what's on my screen" (into `translate_target`, default English), or
   "translate my screen to Arabic"
-- "Abdoh, summarize my screen"
-- "Abdoh, how many files are in my Downloads?", "make a folder called Taxes in my Documents and
+- "Xanthos, summarize my screen"
+- "Xanthos, how many files are in my Downloads?", "make a folder called Taxes in my Documents and
   move the PDFs from Downloads into it", "convert the photos on my desktop to PNG" (Claude can
   work with your files, see below)
 
 **Your files.** Claude can find, read, create, move, rename and convert files in your user
 folder (including a Desktop or Documents folder that OneDrive moved), running PowerShell when it
 needs to. Before it deletes or overwrites anything, it says what it will do and asks; just
-answer "yes" (no wake word needed). Deleted files go to the Recycle Bin. Abdoh can mishear you,
+answer "yes" (no wake word needed). Deleted files go to the Recycle Bin. Xanthos can mishear you,
 so listen to what Claude says it's about to do. `claude.allow_files: false` turns this off.
 
 **Make it instant next time.** When Claude did something for you ("open the Python website"),
-say **"Abdoh, remember that"** (or "remember that as python time"). Abdoh adds it to
+say **"Xanthos, remember that"** (or "remember that as python time"). Xanthos adds it to
 `commands.yaml` as a normal command, so next time it happens instantly, without Claude. The rest
 of your file is left as it is.
 
 **Follow-up questions.** Within a minute of an answer you can follow up ("and what about
-tomorrow?"); Abdoh gives Claude the previous question and answer. Change the window with
+tomorrow?"); Xanthos gives Claude the previous question and answer. Change the window with
 `claude.followup_seconds` (0 turns it off).
 
-**When Claude asks you something** ("Which city?"), just answer: after a question Abdoh plays
+**When Claude asks you something** ("Which city?"), just answer: after a question Xanthos plays
 the listening chime and listens for about 5 seconds, no wake word needed. If you say nothing, it
-goes back to waiting for "Hey Abdoh". This only happens after spoken requests, not typed ones;
+goes back to waiting for "Hey Xanthos". This only happens after spoken requests, not typed ones;
 `claude.listen_after_question: false` turns it off.
 
-Abdoh plays a soft tick while Claude works and starts speaking as soon as the first sentence of
-the answer arrives. Each request runs Claude Code from its own folder (`~/.abdoh/claude`) with
-only the tools Abdoh allows and your Claude Code settings and plugins ignored, and nothing is
+Xanthos plays a soft tick while Claude works and starts speaking as soon as the first sentence of
+the answer arrives. Each request runs Claude Code from its own folder (`~/.xanthos/claude`) with
+only the tools Xanthos allows and your Claude Code settings and plugins ignored, and nothing is
 added to your Claude Code history. Links Claude opens must be web links (`http`/`https`), and
 apps are opened by name from your installed apps. With `allow_files: false`, Claude can't touch
 your files or run commands.
-Your Claude plan's usage limits apply; if you hit one, Abdoh tells you when it resets.
+Your Claude plan's usage limits apply; if you hit one, Xanthos tells you when it resets.
 
-**No subscription?** Abdoh can use an Anthropic API key from https://console.anthropic.com
+**No subscription?** Xanthos can use an Anthropic API key from https://console.anthropic.com
 instead: click **Set Claude key** in the window (or put `ANTHROPIC_API_KEY=...` in `.env`, see
 `.env.example`). Claude Code is used first when it's installed; set `claude.backend: api` to
 always use the key.
 
-Without Claude, everything else still works and Abdoh tells you Claude isn't connected.
+Without Claude, everything else still works and Xanthos tells you Claude isn't connected.
 
 ## 5. Your commands
 
 Open the window's **Commands** page (or **Commands** in the tray menu). Each command has the
-phrases you say and the actions Abdoh runs, in order: say something, open a website or an app,
+phrases you say and the actions Xanthos runs, in order: say something, open a website or an app,
 play on YouTube, press a media key, start a timer, or run a program. Click a command to change
 it, **Try it** to run it now, **New command** to add one, or **Templates** to start from a
-ready-made one (good morning, focus time, Google search, directions, ...). Abdoh checks every
+ready-made one (good morning, focus time, Google search, directions, ...). Xanthos checks every
 command before saving it, and uses it right away.
 
-The commands live in `commands.yaml`, which you can also edit by hand. Don't include "Abdoh" in
+The commands live in `commands.yaml`, which you can also edit by hand. Don't include "Xanthos" in
 triggers; the wake word is removed before matching. Small transcription mistakes are tolerated.
 Changes are picked up automatically.
 
@@ -301,22 +301,22 @@ Changes are picked up automatically.
 | `open_app: <name or path>` | Opens an app, e.g. "Visual Studio Code", "notepad", or a full path. |
 | `play_youtube: <words>` | Plays the top YouTube video for those words (about a second to find it). If none is found, opens the search results. |
 | `media: <key>` | Presses a media key: `play_pause`, `next`, `previous`, `volume_up`, `volume_down`, `mute`. |
-| `timer: <duration>` | Starts a timer, e.g. `"25 minutes"`; Abdoh tells you when it's done. |
+| `timer: <duration>` | Starts a timer, e.g. `"25 minutes"`; Xanthos tells you when it's done. |
 | `run: <shell command>` | Runs a command. Off by default: set `allow_run: true` in `config.yaml`. Can't use `{slots}`. |
 
 Every trigger of a command must have the slots its actions use. A trigger without slots that
 matches exactly wins over one with slots.
 
-### What Abdoh does by itself
+### What Xanthos does by itself
 
 These work instantly, without Claude (your own commands still come first):
 
 - **Timers**: "set a timer for 10 minutes", "cancel the timer"
 - **Reminders**: "remind me to call my mother in 20 minutes", "remind me at 5:30 pm to leave",
   "remind me tomorrow at 9 to water the plants", "what are my reminders", "cancel my
-  reminders". Abdoh says them aloud at their time; they survive a restart.
+  reminders". Xanthos says them aloud at their time; they survive a restart.
 - **Notes**: "take a note: the door code is 4471", "read my notes", "open my notes" (they're
-  lines in `notes.txt` in Abdoh's data folder)
+  lines in `notes.txt` in Xanthos's data folder)
 - **Volume**: "set the volume to 70 percent", "volume up", "turn it down", "mute", "unmute",
   "what's the volume"
 - **One app's volume** (the Windows volume mixer): "lower the browser", "turn up Spotify",
@@ -332,7 +332,7 @@ These work instantly, without Claude (your own commands still come first):
   desktop", "switch window", "lock my computer"
 - **Screens**: "turn off monitor 3", "turn off the laptop screen", "only screen 2", "turn off
   the other screens" (keeps the one you're working on), "turn on all the screens", "which
-  screens are on", "turn off the screens" (they sleep until you move the mouse). Abdoh numbers
+  screens are on", "turn off the screens" (they sleep until you move the mouse). Xanthos numbers
   your monitors the first time it sees them (laptop first) and keeps those numbers; screens come
   back where they were. Try it with `python scripts/display_check.py` (it switches for 8 seconds
   and puts everything back).
@@ -340,13 +340,13 @@ These work instantly, without Claude (your own commands still come first):
   the speakers", "what's my audio output"
 - **Settings**: "dark mode", "light mode", "best performance mode", "battery saver", "balanced
   power mode", "turn on night light", "night light off"
-- **Sleep and shutdown**: "go to sleep", "shut down the computer", "restart the computer" (Abdoh
+- **Sleep and shutdown**: "go to sleep", "shut down the computer", "restart the computer" (Xanthos
   asks first: just say yes), "shut down in 30 minutes" (no question: it's for later), "cancel the
   shutdown". These can be turned off in Permissions.
 - **Programs**: "close Spotify", "switch to Chrome", "move Chrome to screen 2", "move this to the
   other screen", "snap this to the left"
 - **Folders**: "open my downloads", "open my latest download", "open the newest screenshot"
-- **Clipboard**: "copy that" (Abdoh's last answer), "read my clipboard". Claude gets your
+- **Clipboard**: "copy that" (Xanthos's last answer), "read my clipboard". Claude gets your
   clipboard only when you mention it ("translate what I copied into French").
 - **Apps**: "open {any installed app}", e.g. "open calculator", "open chrome", "open vs code".
   If no installed app matches, the request goes to Claude (so "open YouTube" still works).
@@ -367,7 +367,7 @@ Your own commands can use `volume: 30`, `app_volume: browser 30`, `brightness: 7
 
 These skills are Windows-only for now.
 
-If the file has a mistake, Abdoh says "Your commands file has an error" and keeps using the last
+If the file has a mistake, Xanthos says "Your commands file has an error" and keeps using the last
 working version. Check your commands without speaking:
 
 ```
@@ -383,11 +383,11 @@ undo everything the mode changed. "Which mode am I in?" and "what modes do I hav
 
 Make modes on the **Modes** page: pick an icon, click the screens to keep on in a drawing of your
 desk, set the volume, brightness, speakers, theme and power, and add actions. **Save and try it**
-switches it on; if your screens change, Abdoh asks "Keep these screens?" and goes back by itself
-after 15 seconds. **Your screens** at the bottom shows Abdoh's numbers for your monitors, lets you
+switches it on; if your screens change, Xanthos asks "Keep these screens?" and goes back by itself
+after 15 seconds. **Your screens** at the bottom shows Xanthos's numbers for your monitors, lets you
 name them ("TV") or renumber them, and **Show the numbers on the screens** puts a big number on
 each. The Home page shows the mode that's on (with a way back), and the tray icon has a **Modes**
-menu. You can also write modes by hand in `modes.yaml` in Abdoh's data folder:
+menu. You can also write modes by hand in `modes.yaml` in Xanthos's data folder:
 
 ```yaml
 - name: Movie
@@ -404,30 +404,30 @@ menu. You can also write modes by hand in `modes.yaml` in Abdoh's data folder:
 ```
 
 Settings: `displays`, `brightness`, `volume`, `audio_output`, `dark_mode`, `power_mode`,
-`night_light`, and Abdoh's own `wake_word`, `voice_replies` and `follow_up`. Actions: anything a command can do,
+`night_light`, and Xanthos's own `wake_word`, `voice_replies` and `follow_up`. Actions: anything a command can do,
 plus `exit_actions` for when the mode ends. Switching from one mode to another first puts back
-what the new one leaves alone. A mode that is on when Abdoh restarts can still be undone. Your
+what the new one leaves alone. A mode that is on when Xanthos restarts can still be undone. Your
 own commands can switch modes too (`mode: Movie`, `mode: normal`).
 
 **A mode at a time.** A mode can switch on by itself: turn on **At** in the editor and pick a
 time and days, or write `schedule: ["daily 23:00", "weekdays 09:00", "sat,sun 10:30"]` (days:
-`daily`, `weekdays`, `weekends`, or `mon` to `sun` joined by commas; 24-hour time). Abdoh says
-the mode aloud when it starts. Times that passed while Abdoh wasn't running are skipped.
+`daily`, `weekdays`, `weekends`, or `mon` to `sun` joined by commas; 24-hour time). Xanthos says
+the mode aloud when it starts. Times that passed while Xanthos wasn't running are skipped.
 
-**Night light** (Windows 11) is switched through a setting Windows doesn't document. Abdoh only
+**Night light** (Windows 11) is switched through a setting Windows doesn't document. Xanthos only
 changes it when it recognizes how your Windows stores it; otherwise it opens the Night light
 settings for you.
 
 ## 6. Install it like an app
 
 ```
-python -m abdoh install            # adds "Abdoh" to the Start Menu, with its own icon
+python -m abdoh install            # adds "Xanthos" to the Start Menu, with its own icon
 python -m abdoh install --login    # ...and starts it at login, in the tray
 python -m abdoh uninstall          # removes both
 ```
 
-Run these with the Python where Abdoh is installed (the `.venv`). The shortcut starts Abdoh
-with `pythonw` (no console window) and opens its window; if Abdoh is already running, it just
+Run these with the Python where Xanthos is installed (the `.venv`). The shortcut starts Xanthos
+with `pythonw` (no console window) and opens its window; if Xanthos is already running, it just
 shows the window.
 
 You can also turn start at login on and off with **Start at login** in the tray menu, or with
@@ -438,40 +438,40 @@ python scripts/install_autostart.py
 python scripts/uninstall_autostart.py
 ```
 
-Only one copy of Abdoh ever runs.
+Only one copy of Xanthos ever runs.
 
-- **Windows:** a Task Scheduler task "Abdoh" running `pythonw -m abdoh run --minimized` (no console
-  window). Creating logon tasks needs admin rights on many PCs; without them the script adds Abdoh
+- **Windows:** a Task Scheduler task "Xanthos" running `pythonw -m abdoh run --minimized` (no console
+  window). Creating logon tasks needs admin rights on many PCs; without them the script adds Xanthos
   to your user's startup programs instead (`HKCU\...\Run`), which works the same way.
 - **macOS:** `~/Library/LaunchAgents/com.abdoh.agent.plist` (restarted if it crashes, not after Quit).
 - **Linux:** `~/.config/systemd/user/abdoh.service`, enabled with `systemctl --user enable --now abdoh`.
 
-### A standalone Abdoh.exe (Windows)
+### A standalone Xanthos.exe (Windows)
 
 To get an app folder that runs without Python (for example to copy to another PC):
 
 ```
 pip install -e .[build]
-python scripts/build_app.py        # about 3 minutes; creates dist/Abdoh/Abdoh.exe
+python scripts/build_app.py        # about 3 minutes; creates dist/Xanthos/Xanthos.exe
 ```
 
-The folder (about 950 MB) contains Abdoh and the models in your `models/` folder (the
-openWakeWord files, your `hey_abdoh.onnx` and the Parakeet speech model, so nothing downloads
-on the first start). Double-click `Abdoh.exe` to start it. It keeps your
-`config.yaml`, `commands.yaml` and `.env` in `%APPDATA%\Abdoh` (created on first start), and a
-model you put in `%APPDATA%\Abdoh\models` is used instead of the bundled one. `Abdoh.exe install`
+The folder (about 950 MB) contains Xanthos and the models in your `models/` folder (the
+openWakeWord files, your `hey_xanthos.onnx` and the Parakeet speech model, so nothing downloads
+on the first start). Double-click `Xanthos.exe` to start it. It keeps your
+`config.yaml`, `commands.yaml` and `.env` in `%APPDATA%\Xanthos` (created on first start), and a
+model you put in `%APPDATA%\Xanthos\models` is used instead of the bundled one. `Xanthos.exe install`
 adds the built app to the Start Menu.
 
 ### The installer and releases (Windows)
 
-`Abdoh-Setup.exe` is a normal Windows installer: it installs Abdoh for the current user (no admin
-rights), adds it to the Start Menu, can add a desktop shortcut and start Abdoh at sign-in, and
-comes with an uninstaller (your settings in `%APPDATA%\Abdoh` are kept). To build it yourself,
+`Xanthos-Setup.exe` is a normal Windows installer: it installs Xanthos for the current user (no admin
+rights), adds it to the Start Menu, can add a desktop shortcut and start Xanthos at sign-in, and
+comes with an uninstaller (your settings in `%APPDATA%\Xanthos` are kept). To build it yourself,
 install [Inno Setup 6](https://jrsoftware.org/isdl.php), then:
 
 ```
 pip install -e .[build]
-python scripts/build_installer.py   # builds the app, then dist/Abdoh-Setup.exe
+python scripts/build_installer.py   # builds the app, then dist/Xanthos-Setup.exe
 ```
 
 **To publish a release**, bump `__version__` in `src/abdoh/__init__.py` (for example to
@@ -482,19 +482,19 @@ git tag v0.3.1
 git push origin v0.3.1
 ```
 
-GitHub Actions (`.github/workflows/release.yml`) runs the tests, builds `Abdoh-Setup.exe` on
+GitHub Actions (`.github/workflows/release.yml`) runs the tests, builds `Xanthos-Setup.exe` on
 Windows and publishes it as a GitHub Release. The download page and the app's update check
 always point at the latest release. To bundle a trained wake word model, upload it somewhere
 (for example as an asset of a release) and set the repository variable `WAKE_WORD_URL` to its
 download link.
 
-Abdoh checks for a new release once a day (Settings → **Check for updates**; it only asks
+Xanthos checks for a new release once a day (Settings → **Check for updates**; it only asks
 GitHub for the latest version number) and shows a **Download** button when there is one.
 
 ### The download page
 
-`docs/index.html` is Abdoh's download page: a **Download for Windows** button that always gets
-the latest release's `Abdoh-Setup.exe`, what Abdoh does, how to connect your own Claude, and a
+`docs/index.html` is Xanthos's download page: a **Download for Windows** button that always gets
+the latest release's `Xanthos-Setup.exe`, what Xanthos does, how to connect your own Claude, and a
 FAQ (SmartScreen, requirements, plans, privacy, uninstalling). To put it online with GitHub
 Pages: repository **Settings → Pages → Deploy from a branch**, branch `main`, folder `/docs`.
 It's then at `https://mohdessam77.github.io/abdoh_the_assistant/`. Refresh its screenshots with
@@ -505,7 +505,7 @@ another repository, change `REPO` at the bottom of the page and in `src/abdoh/up
 
 Measured on my laptop (Windows 11, i7-13650HX), 2026-11-16:
 
-| What | Abdoh 0.3 | Abdoh 0.4 |
+| What | Xanthos 0.3 | Xanthos 0.4 |
 |---|---|---|
 | A built-in skill or one of your commands | about 1 s after you stop talking | the same; the skill itself takes a few milliseconds |
 | "Set the volume to 75%" | 18 s (Claude wrote PowerShell) | instant (built in) |
@@ -524,7 +524,7 @@ Short on memory? **Settings → Speech recognition → Quality → Lighter** use
 Parakeet: about 700 MB less memory, about twice the mistakes.
 
 Developers can measure this themselves without a microphone:
-`python scripts/measure_latency.py "Hey Abdoh, what time is it?"`.
+`python scripts/measure_latency.py "Hey Xanthos, what time is it?"`.
 
 ## Configuration
 
@@ -536,12 +536,12 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 
 | Key | Default | Meaning |
 |---|---|---|
-| `wake_words` | `["abdoh", "hey abdoh", "ya abdoh"]` | What you say to wake Abdoh; removed from requests before matching |
-| `wake_word_model` | `models/hey_abdoh.onnx` | Your openWakeWord model; without it, only the hotkey works |
+| `wake_words` | `["xanthos", "hey xanthos", "ya xanthos"]` | What you say to wake Xanthos; removed from requests before matching |
+| `wake_word_model` | `models/hey_xanthos.onnx` | Your openWakeWord model; without it, only the hotkey works |
 | `wake_word_threshold` | `0.4` | openWakeWord: higher means fewer false wake-ups |
 | `hotkey` | `ctrl+alt+space` | Press to talk without the wake word, or to stop a reply (`""` = off) |
-| `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Other spellings speech recognition may write for "Abdoh"; left out of your requests |
-| `languages` | `["en"]` | What you speak to Abdoh. English only uses Parakeet (fastest, most accurate); with more languages (e.g. `["en", "ar"]`) Whisper is used and Abdoh answers in the language you spoke |
+| `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Other spellings speech recognition may write for "Xanthos"; left out of your requests |
+| `languages` | `["en"]` | What you speak to Xanthos. English only uses Parakeet (fastest, most accurate); with more languages (e.g. `["en", "ar"]`) Whisper is used and Xanthos answers in the language you spoke |
 | `speech_engine` | `auto` | `auto`, `parakeet` (English only) or `whisper` (lighter: about 700 MB less memory, more mistakes) |
 | `whisper_model` | `small` | Whisper size for other languages: `base` (fast), `small`, `medium` (slow) |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
@@ -551,8 +551,8 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
-| `allow_power` | `true` | Abdoh may put the computer to sleep, shut it down or restart it when you ask |
-| `duck_others` | `true` | Other apps go quieter while Abdoh listens and answers |
+| `allow_power` | `true` | Xanthos may put the computer to sleep, shut it down or restart it when you ask |
+| `duck_others` | `true` | Other apps go quieter while Xanthos listens and answers |
 | `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |
 | `tts_voice` | `""` | A Windows voice's name; empty means the default voice |
@@ -576,15 +576,15 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.listen_after_question` | `true` | When Claude asks you something, listen for your answer without the wake word |
 | `claude.translate_target` | `English` | Default language for screen translation |
 | `claude.voice_reply_max_sentences` | `4` | Keeps spoken answers short |
-| `log_file` | `~/.abdoh/abdoh.log` | Log file (today's and yesterday's) |
+| `log_file` | `~/.xanthos/xanthos.log` | Log file (today's and yesterday's) |
 
 ## Troubleshooting
 
-**Abdoh doesn't wake up.** The window's `Wake word:` line shows which engine is used. With your
+**Xanthos doesn't wake up.** The window's `Wake word:` line shows which engine is used. With your
 openWakeWord model, lower `wake_word_threshold`. If it says **Hotkey only**, the model couldn't
 start: the log says why. `python -m abdoh listen-once` should print your request.
 
-**Abdoh wakes up by itself.** Raise `wake_word_threshold` (for example to 0.5 or 0.6).
+**Xanthos wakes up by itself.** Raise `wake_word_threshold` (for example to 0.5 or 0.6).
 
 **The tray icon is red and the status says "the speech recognition model couldn't be loaded".**
 Voice input is off because the Whisper model is missing or broken (an interrupted download
@@ -592,34 +592,34 @@ leaves an empty `model.bin`); typing still works. From source, run
 `python scripts/download_models.py`; with the installed app, install the latest version. If you
 changed the speech model in Settings, delete its folder in
 `%USERPROFILE%\.cache\huggingface\hub` (`models--Systran--faster-whisper-...`) and restart
-Abdoh to download it again. The log (Settings → Open logs) has the details.
+Xanthos to download it again. The log (Settings → Open logs) has the details.
 
-**Abdoh chimes, then nothing happens** (or it says "Your microphone may be muted"). It didn't
-hear you. Abdoh uses your default microphone: on Windows open Settings → System → Sound →
+**Xanthos chimes, then nothing happens** (or it says "Your microphone may be muted"). It didn't
+hear you. Xanthos uses your default microphone: on Windows open Settings → System → Sound →
 Input, choose the microphone you talk into, make sure it isn't muted, and set its volume to
 about 80%. A webcam's microphone is often the default.
 
-**You can't hear Abdoh.** It speaks through your default speakers with the Windows voice. Check
+**You can't hear Xanthos.** It speaks through your default speakers with the Windows voice. Check
 that the window says **Voice replies: On** and that your volume is up, then try
 `python -m abdoh say "Hello"`.
 
 **No microphone / mic permission.** Check your OS privacy settings allow microphone access for
 Python (Windows: Settings → Privacy & security → Microphone, "Let desktop apps access your
 microphone"; macOS: System Settings → Privacy & Security → Microphone for Terminal/Python). If the
-mic is unplugged, Abdoh retries every 5 seconds.
+mic is unplugged, Xanthos retries every 5 seconds.
 
 **Screen translate/summarize says the screenshot is black.** On macOS, give Terminal (or Python)
-**Screen Recording** permission in System Settings → Privacy & Security, then restart Abdoh.
+**Screen Recording** permission in System Settings → Privacy & Security, then restart Xanthos.
 
 **Claude doesn't answer.** Run `python -m abdoh claude-check`. If it says Claude Code isn't
 signed in, open Claude Code and sign in with your Claude account (`claude auth status` shows the
 current login). If Claude Code isn't found, set `claude.code_path`. With an API key instead,
 check the key in `.env` and that `claude.model` is a model your key can use.
 
-**Edit commands opens nothing on Windows.** If no app is associated with `.yaml` files, Abdoh
+**Edit commands opens nothing on Windows.** If no app is associated with `.yaml` files, Xanthos
 opens Notepad.
 
-**See what's happening.** Logs are in `~/.abdoh/abdoh.log`. For more detail, including timing
+**See what's happening.** Logs are in `~/.xanthos/xanthos.log`. For more detail, including timing
 for each stage (recording, transcription, reply), run `python -m abdoh -v run`.
 
 ## Development
@@ -633,18 +633,18 @@ is the current plan (`ABDOH_EPIC.md`, v1, is done) and `CLAUDE.md` has the worki
 
 Developer scripts:
 
-- `scripts/measure_latency.py`: time from the end of a spoken request to Abdoh's reply.
-- `scripts/check_wakeword.py`: checks Abdoh's openWakeWord code against the official package
+- `scripts/measure_latency.py`: time from the end of a spoken request to Xanthos's reply.
+- `scripts/check_wakeword.py`: checks Xanthos's openWakeWord code against the official package
   (needs `pip install openwakeword`).
-- `scripts/build_app.py`: builds `dist/Abdoh/Abdoh.exe` (needs `pip install -e .[build]`).
+- `scripts/build_app.py`: builds `dist/Xanthos/Xanthos.exe` (needs `pip install -e .[build]`).
 - `scripts/display_check.py`: turns all monitors but one off for 8 seconds, then back on.
-- `scripts/echo_check.py`: measures how well Abdoh hears you over its own voice in your room
+- `scripts/echo_check.py`: measures how well Xanthos hears you over its own voice in your room
   (it speaks; `--talk` to try talking over it).
 
 ## Known issues
 
-- **Talking over Abdoh is weaker under loud sound.** With music or a film playing loudly on the
-  speakers, Abdoh may not notice you start talking; the wake word and the hotkey still work.
+- **Talking over Xanthos is weaker under loud sound.** With music or a film playing loudly on the
+  speakers, Xanthos may not notice you start talking; the wake word and the hotkey still work.
   Measured on a laptop with its own speakers and microphone: it heard the user within 0.3 s and
   never mistook its own voice for theirs. In a simulated loud room it heard normal speech in
   about 0.3 s; a quiet voice under a loud, distorting speaker took up to 3 s.
@@ -656,7 +656,7 @@ Developer scripts:
 - **Replies in other languages need a Windows voice for that language** (Windows Settings → Time
   & language → Speech). Without one, the reply is only shown.
 - **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
-  every reply off, so Abdoh now uses the Windows voice directly there; macOS and Linux still go
+  every reply off, so Xanthos now uses the Windows voice directly there; macOS and Linux still go
   through pyttsx3.
 - **The installer isn't code-signed**, so Windows SmartScreen warns the first time ("Windows
   protected your PC": click **More info → Run anyway**). Signing needs a paid certificate.

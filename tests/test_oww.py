@@ -93,9 +93,9 @@ def test_threshold():
 
 def test_missing_files_are_reported(tmp_path):
     try:
-        OpenWakeWord(tmp_path / "hey_abdoh.onnx", tmp_path)
+        OpenWakeWord(tmp_path / "hey_xanthos.onnx", tmp_path)
     except FileNotFoundError as e:
-        assert "hey_abdoh.onnx" in str(e) and "melspectrogram" in str(e)
+        assert "hey_xanthos.onnx" in str(e) and "melspectrogram" in str(e)
     else:
         raise AssertionError("expected FileNotFoundError")
 
@@ -115,13 +115,13 @@ class Recorded:
 
 def test_uses_openwakeword_with_your_model(tmp_path):
     (tmp_path / "models").mkdir()
-    (tmp_path / "models" / "hey_abdoh.onnx").write_bytes(b"onnx")
+    (tmp_path / "models" / "hey_xanthos.onnx").write_bytes(b"onnx")
     oww = Recorded()
     cfg = Config(app_dir=tmp_path, wake_word_threshold=0.6)
     engine = load_wake_engine(cfg, oww=oww)
     assert engine is oww
-    assert oww.calls == [(tmp_path / "models" / "hey_abdoh.onnx", 0.6)]
-    assert engine.label == "openWakeWord (hey_abdoh)"
+    assert oww.calls == [(tmp_path / "models" / "hey_xanthos.onnx", 0.6)]
+    assert engine.label == "openWakeWord (hey_xanthos)"
 
 
 def test_no_model_is_an_error_the_daemon_turns_into_hotkey_only(tmp_path):

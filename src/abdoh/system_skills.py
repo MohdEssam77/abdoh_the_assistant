@@ -15,7 +15,7 @@ from abdoh.system import POWER_NAMES
 
 CONFIRM_SECONDS = 60
 SHUTDOWN_DELAY = 20  # seconds: time to say "cancel the shutdown"
-NO_POWER = "Sleep, shutdown and restart are turned off in Abdoh's permissions."
+NO_POWER = "Sleep, shutdown and restart are turned off in Xanthos's permissions."
 _YES = re.compile(
     r"(?:yes|yeah|yep|sure|ok|okay|do it|go ahead|confirm|please do)(?: please| do it)?"
 )
@@ -110,7 +110,7 @@ class Pending:
 
 
 class Question(str):
-    """A reply that asks something: Abdoh listens for the answer without the wake word."""
+    """A reply that asks something: Xanthos listens for the answer without the wake word."""
 
 
 class SystemSkills:
@@ -132,7 +132,7 @@ class SystemSkills:
     # ----- asking first -----
 
     def answer(self, request: str) -> str | None:
-        """If Abdoh just asked something ("Shut down the computer?"), the answer to it."""
+        """If Xanthos just asked something ("Shut down the computer?"), the answer to it."""
         pending, self._pending = self._pending, None
         if pending is None or self._clock() > pending.until:
             return None

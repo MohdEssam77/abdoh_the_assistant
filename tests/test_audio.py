@@ -79,7 +79,7 @@ def test_after_the_wake_word_the_request_is_what_follows():
 
 
 def test_after_the_wake_word_abdoh_waits_for_you_to_go_on():
-    pause = [silent_block()] * 20  # two seconds of thinking after "Hey Abdoh"
+    pause = [silent_block()] * 20  # two seconds of thinking after "Hey Xanthos"
     mic = FakeMic([silent_block()] * 2 + pause + [tone_block()] * 4 + [silent_block()] * 20)
     speaker = FakeSpeaker()
     stt = FakeTranscriber(["open my mail"])

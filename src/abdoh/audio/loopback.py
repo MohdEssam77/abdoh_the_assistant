@@ -1,7 +1,7 @@
 """What the speakers are playing, as 16 kHz mono audio by time (Windows' loopback capture).
 
-Abdoh hears its own voice through the microphone. Knowing exactly what the speakers played lets
-the echo canceller (audio/echo.py) take it back out, so Abdoh can tell when you talk over it.
+Xanthos hears its own voice through the microphone. Knowing exactly what the speakers played lets
+the echo canceller (audio/echo.py) take it back out, so Xanthos can tell when you talk over it.
 The audio is kept in memory for a few seconds only; nothing is saved or sent.
 
 Windows sends no packets at all while nothing is playing, so the tap places every packet by

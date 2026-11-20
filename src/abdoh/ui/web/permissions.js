@@ -1,5 +1,5 @@
 /* The Permissions page: what Claude may do and see, whether your commands may run programs,
-   and your own instructions for Abdoh. Every switch saves right away (AppApi.save_settings). */
+   and your own instructions for Xanthos. Every switch saves right away (AppApi.save_settings). */
 "use strict";
 
 (() => {
@@ -8,8 +8,8 @@
     ["open_app", "Open apps", "Programs installed on this computer, by name."],
     ["play_youtube", "Play on YouTube", "Starts the top video for a search."],
     ["media", "Music and volume", "Play, pause, skip tracks, volume up and down, mute."],
-    ["timer", "Timers", "Abdoh tells you when the time is up."],
-    ["remind", "Reminders", "Abdoh says them aloud at their time."],
+    ["timer", "Timers", "Xanthos tells you when the time is up."],
+    ["remind", "Reminders", "Xanthos says them aloud at their time."],
     ["note", "Notes", "Adds lines to your notes file."],
     ["volume", "Exact volume", "Sets the speakers to a level you name."],
     ["brightness", "Screen brightness", "Changes the laptop screen's brightness."],
@@ -83,8 +83,8 @@
       else update();
     });
     update();
-    return card("Your instructions for Abdoh",
-      "Tell Claude about yourself and how Abdoh should behave. They're sent with every request to Claude.",
+    return card("Your instructions for Xanthos",
+      "Tell Claude about yourself and how Xanthos should behave. They're sent with every request to Claude.",
       [text, el("div", { class: "row", style: "border:0;padding-bottom:0" }, counter, el("div", { class: "spacer" }), button)]);
   }
 
@@ -92,13 +92,13 @@
     const settings = App.settings;
     $("#perm-content").replaceChildren(
       el("div", { class: "page-head" }, el("h1", {}, "Permissions"),
-        el("p", {}, "What Abdoh may do on your computer when Claude handles a request. Your own commands always work.")),
-      card("What Claude may do", "When you ask Claude for something, Abdoh can also do these things for you.",
+        el("p", {}, "What Xanthos may do on your computer when Claude handles a request. Your own commands always work.")),
+      card("What Claude may do", "When you ask Claude for something, Xanthos can also do these things for you.",
         CLAUDE_ACTIONS.map(([name, title, help]) => row(title, help, actionSwitch(name)))),
       card("What Claude may see and use", null, [
         row("Search the web", "For news, weather, prices and anything recent.", claudeSwitch("allow_web")),
         row("Look at your screen when you ask",
-          "When what you say is about something on your screen (“what does this error mean?”, “read this to me”), Claude asks to see it, and Abdoh sends a picture of the screen you're using. Abdoh always says when it looks.",
+          "When what you say is about something on your screen (“what does this error mean?”, “read this to me”), Claude asks to see it, and Xanthos sends a picture of the screen you're using. Xanthos always says when it looks.",
           claudeSwitch("allow_screen")),
         row("Work with your files and run PowerShell",
           "Create, read, change and sort files. Claude asks before deleting or overwriting anything, and deletes to the Recycle Bin.",
@@ -108,7 +108,7 @@
       card("Your computer", null, [
         row("Your commands may run programs", "Needed for the “Run a program” action on the Commands page.",
           toggle(settings.allow_run, (on, input) => saveOrUndo({ allow_run: on }, input), "allow_run")),
-        row("Sleep, shut down and restart", "When you ask (“shut down in 30 minutes”, “restart the computer”). Abdoh asks before shutting down now.",
+        row("Sleep, shut down and restart", "When you ask (“shut down in 30 minutes”, “restart the computer”). Xanthos asks before shutting down now.",
           toggle(settings.allow_power, (on, input) => saveOrUndo({ allow_power: on }, input), "allow_power")),
       ]),
       instructionsCard());

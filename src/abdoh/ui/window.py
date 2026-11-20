@@ -14,7 +14,7 @@ class Window:
         self.bus = bus
         self.tray = tray  # the tray icon also shows status and voice state
         self.root = tk.Tk()
-        self.root.title("Abdoh")
+        self.root.title("Xanthos")
         self.root.geometry("520x420")
         self.root.protocol("WM_DELETE_WINDOW", self.root.withdraw)  # closing only hides
 
@@ -23,7 +23,7 @@ class Window:
         app_menu.add_command(label="Hide window", command=self.root.withdraw)
         app_menu.add_separator()
         app_menu.add_command(label="Quit", command=self.quit)
-        menu.add_cascade(label="Abdoh", menu=app_menu)
+        menu.add_cascade(label="Xanthos", menu=app_menu)
         self.root.config(menu=menu)
 
         self.status = tk.StringVar(value="Status: Starting...")

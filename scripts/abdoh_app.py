@@ -1,4 +1,4 @@
-"""Entry point for the built Abdoh.exe (see scripts/build_app.py)."""
+"""Entry point for the built Xanthos.exe (see scripts/build_app.py)."""
 
 import sys
 

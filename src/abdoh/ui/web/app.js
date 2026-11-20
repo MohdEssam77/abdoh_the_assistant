@@ -1,4 +1,4 @@
-/* Abdoh's window: shows what Abdoh says and does, and forwards what you do. The logic lives in
+/* Xanthos's window: shows what Xanthos says and does, and forwards what you do. The logic lives in
    Python (AppApi and the daemon); this file only draws and forwards. */
 "use strict";
 
@@ -205,7 +205,7 @@ function chipsInput(values, placeholder, onChange) {
 }
 
 
-/* What Abdoh can do: commands and modes use the same actions. */
+/* What Xanthos can do: commands and modes use the same actions. */
 const ACTIONS = {
   say: { label: "Say something", placeholder: "Good morning! It's {time} on {date}." },
   open_url: { label: "Open a website", placeholder: "https://www.youtube.com" },
@@ -236,14 +236,14 @@ const ACTIONS = {
   run: { label: "Run a program", placeholder: "notepad.exe" },
 };
 
-/* Rows of actions ("what Abdoh does"), for commands and modes. A mode may have none. */
+/* Rows of actions ("what Xanthos does"), for commands and modes. A mode may have none. */
 function actionRows(actions, canBeEmpty = false) {
   const rows = actions.length ? actions.map((a) => ({ ...a }))
     : canBeEmpty ? [] : [{ type: "say", value: "" }];
   const box = el("div", { class: "action-rows" });
   const draw = () => {
     box.replaceChildren(...rows.map((row, i) => {
-      const type = el("select", { class: "input", "aria-label": "What Abdoh does" },
+      const type = el("select", { class: "input", "aria-label": "What Xanthos does" },
         Object.entries(ACTIONS).map(([value, spec]) => el("option", { value, selected: value === row.type }, spec.label)));
       type.addEventListener("change", () => {
         row.type = type.value;
@@ -365,7 +365,7 @@ function hideBanner(source) {
 /* ---------- status ---------- */
 
 const STATUS = {
-  "Listening": ["listening", "Listening", () => `Say “Hey Abdoh” or press ${hotkeyText(App.settings.hotkey)}`],
+  "Listening": ["listening", "Listening", () => `Say “Hey Xanthos” or press ${hotkeyText(App.settings.hotkey)}`],
   "Paused": ["idle", "Paused", () => "Not listening for the wake word. The hotkey still works."],
   "Hotkey only": ["listening", "Hotkey only", () => `The wake word couldn't start. Press ${hotkeyText(App.settings.hotkey)} to talk.`],
   "Listening to you...": ["hearing", "Listening to you", () => "Go ahead, I'm listening"],
@@ -376,7 +376,7 @@ const STATUS = {
 
 function explainError(detail) {
   if (/microphone/i.test(detail)) {
-    return "Abdoh can't use your microphone. Check that it's connected and not muted. Abdoh keeps trying.";
+    return "Xanthos can't use your microphone. Check that it's connected and not muted. Xanthos keeps trying.";
   }
   return `Voice input isn't working: ${detail}. You can still type requests.`;
 }
@@ -392,7 +392,7 @@ function setStatus(status) {
   const busy = status === "Thinking..." || status === "Speaking";
   const talk = $("#talk");
   talk.dataset.state = status === "Listening to you..." ? "hearing" : busy ? "busy" : "idle";
-  talk.title = busy ? "Stop" : `Talk to Abdoh (${hotkeyText(App.settings.hotkey)})`;
+  talk.title = busy ? "Stop" : `Talk to Xanthos (${hotkeyText(App.settings.hotkey)})`;
   $("#talk-mic").hidden = busy;
   $("#talk-stop").hidden = !busy;
   if (status === "Listening" || status === "Paused") $("#listen-toggle").checked = status === "Listening";
@@ -410,7 +410,7 @@ function avatar() {
 }
 
 function addHistory(line) {
-  const match = /^(You|Abdoh): ([\s\S]*)$/.exec(line);
+  const match = /^(You|Xanthos): ([\s\S]*)$/.exec(line);
   const who = match ? (match[1] === "You" ? "you" : "abdoh") : "note";
   const text = match ? match[2] : line;
   if (!text.trim()) return;
@@ -450,11 +450,11 @@ function scrollChat() {
 
 function renderHowToTalk() {
   const words = (App.settings.wake_words || []).filter((w) => w.split(" ").length > 1);
-  const wake = words.length ? words.map((w) => `“${w.replace(/\b\w/g, (c) => c.toUpperCase())}”`) : ["“Hey Abdoh”"];
+  const wake = words.length ? words.map((w) => `“${w.replace(/\b\w/g, (c) => c.toUpperCase())}”`) : ["“Hey Xanthos”"];
   const p = $("#how-to-talk");
   p.replaceChildren("Say ", el("b", {}, wake.slice(0, 2).join(" or ")), ", press ", ...kbds(App.settings.hotkey), ", or type below.");
   $("#composer-hint").textContent = App.settings.hotkey
-    ? `Press ${hotkeyText(App.settings.hotkey)} anywhere to talk to Abdoh, or to stop a reply.`
+    ? `Press ${hotkeyText(App.settings.hotkey)} anywhere to talk to Xanthos, or to stop a reply.`
     : "";
 }
 
@@ -463,7 +463,7 @@ function renderHowToTalk() {
 function setClaude(text) { $("#side-claude").textContent = `Claude: ${text}`; }
 function setWake(text) { $("#side-wake").textContent = `Wake word: ${text}`; }
 function setVoice(on) { $("#voice-toggle").checked = !!on; }
-// Why Abdoh can't hear you over its own voice ("" when it can).
+// Why Xanthos can't hear you over its own voice ("" when it can).
 function setHearing(why) { App.hearing = why || ""; }
 // The mode that is on ("" for none): a chip on Home, and the Modes page marks it.
 function setMode(name) {
@@ -474,7 +474,7 @@ function setMode(name) {
   $("#mode-chip-name").textContent = App.mode ? `${App.mode} mode` : "";
 }
 
-/* ---------- events from Abdoh ---------- */
+/* ---------- events from Xanthos ---------- */
 
 function setActivity(text) {
   if (App.status === "Thinking..." || App.status === "Speaking") $("#status-hint").textContent = `${text}…`;
@@ -551,7 +551,7 @@ function bindHome() {
 /* ---------- updates ---------- */
 
 function showUpdate(update) {
-  showBanner("info", `Abdoh ${update.version} is out (you have ${update.current}).`, "update",
+  showBanner("info", `Xanthos ${update.version} is out (you have ${update.current}).`, "update",
     { label: "Download", run: () => call("open_link", update.download || update.url) });
 }
 
@@ -564,11 +564,11 @@ async function checkUpdate(force = false) {
 /* ---------- a microphone that's turned down ---------- */
 
 async function checkMicVolume() {
-  /* A muted or quiet microphone is the usual reason Abdoh mishears: offer to fix it. */
+  /* A muted or quiet microphone is the usual reason Xanthos mishears: offer to fix it. */
   const mic = await call("mic_volume");
   if (!mic || !mic.ok || !(mic.muted || mic.volume < 50)) return hideBanner("mic");
-  const text = mic.muted ? "Your microphone is muted in Windows, so Abdoh can't hear you."
-    : `Your microphone is turned down in Windows (${mic.volume}%), so Abdoh may mishear you.`;
+  const text = mic.muted ? "Your microphone is muted in Windows, so Xanthos can't hear you."
+    : `Your microphone is turned down in Windows (${mic.volume}%), so Xanthos may mishear you.`;
   showBanner("warn", text, "mic", { label: "Turn it up", run: async () => {
     const fixed = await call("fix_mic_volume");
     if (fixed && fixed.ok) { hideBanner("mic"); toast("Microphone turned up."); }
@@ -585,7 +585,7 @@ async function start() {
   App.restart = boot.restart || [];
   App.version = boot.version || "";
   App.demo = !!boot.demo;
-  $("#version").textContent = App.version ? `Abdoh ${App.version}` : "";
+  $("#version").textContent = App.version ? `Xanthos ${App.version}` : "";
   const params = new URLSearchParams(location.search);
   applyTheme(params.get("theme") || store("abdoh.theme"));
   const state = boot.state || {};

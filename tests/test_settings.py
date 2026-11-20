@@ -32,9 +32,9 @@ def test_save_changes_a_value_and_keeps_the_comments(app_dir):
     cfg = save_settings(app_dir, {"tts_rate": 200, "claude": {"allow_web": False}})
     assert cfg.tts_rate == 200
     assert cfg.claude.allow_web is False
-    assert cfg.wake_words == ["abdoh", "hey abdoh", "ya abdoh"]  # untouched
+    assert cfg.wake_words == ["xanthos", "hey xanthos", "ya xanthos"]  # untouched
     text = (app_dir / "config.yaml").read_text(encoding="utf-8")
-    assert "# Abdoh configuration." in text
+    assert "# Xanthos configuration." in text
     assert "tts_rate: 200" in text and "# speaking speed in words per minute" in text
     assert "# higher = fewer false wake-ups" in text
     assert "  allow_web: false" in text
@@ -123,13 +123,13 @@ def test_settings_from_abdoh_0_3_are_upgraded(app_dir):
     cfg = load_config(app_dir)
     assert cfg.languages == ["en", "ar"]  # "detect automatically" became your two languages
     assert (cfg.wake_word_threshold, cfg.whisper_model) == (0.4, "small")  # the new defaults
-    assert cfg.wake_words == ["abdoh", "hey abdoh", "ya abdoh"]
+    assert cfg.wake_words == ["xanthos", "hey xanthos", "ya xanthos"]
     assert cfg.tts_rate == 190  # your own choices stay
     text_before = (app_dir / "config.yaml").read_text()
     assert text_before == old  # nothing is rewritten until you save a setting
     save_settings(app_dir, {"tts_rate": 200})
     text = (app_dir / "config.yaml").read_text()
-    assert "config_version: 5" in text and "\nlanguage:" not in text
+    assert "config_version: 6" in text and "\nlanguage:" not in text
     assert load_config(app_dir).languages == ["en", "ar"]
 
 
@@ -157,3 +157,24 @@ def test_yaml_values():
     assert yaml_value(False) == "false"
     assert yaml_value(0.5) == "0.5"
     assert yaml_value(["a", 'b"c']) == '["a", "b\\"c"]'
+
+
+def test_settings_from_abdoh_become_xanthos(app_dir):
+    old = (
+        'config_version: 5\nwake_words: ["abdoh", "hey abdoh", "ya abdoh", "computer"]\n'
+        'wake_word_aliases: ["abdo", "ab doe", "abdul", "ya abdoo", "jarvis"]\n'
+        'wake_word_model: "models/hey_abdoh.onnx"\nlog_file: "~/.abdoh/abdoh.log"\n'
+    )
+    (app_dir / "config.yaml").write_text(old)
+    cfg = load_config(app_dir)
+    assert cfg.wake_words == ["xanthos", "hey xanthos", "ya xanthos", "computer"]  # yours stay
+    assert cfg.wake_word_aliases[:2] == ["zanthos", "xantos"]
+    assert cfg.wake_word_aliases[-1] == "jarvis"
+    assert not any("abd" in w for w in cfg.wake_word_aliases)
+    assert cfg.wake_word_model == "models/hey_xanthos.onnx"
+    assert cfg.log_file == "~/.xanthos/xanthos.log"
+
+
+def test_your_own_wake_word_model_is_kept(app_dir):
+    (app_dir / "config.yaml").write_text('config_version: 5\nwake_word_model: "models/mine.onnx"\n')
+    assert load_config(app_dir).wake_word_model == "models/mine.onnx"

@@ -80,7 +80,7 @@ def run_until(daemon, condition, timeout=5.0):
 
 
 def speech_mic():
-    """ "Hey Abdoh" (the wake word fires on the 2nd block), then a request, then silence."""
+    """ "Hey Xanthos" (the wake word fires on the 2nd block), then a request, then silence."""
     return FakeMic([tone_block()] * 2 + [tone_block()] * 3 + [silent_block()] * 12)
 
 
@@ -98,9 +98,9 @@ def test_router_exception_does_not_crash():
 
 def test_voice_request_end_to_end():
     router = StubRouter(["Good morning!"])
-    daemon = make_daemon(router, transcriber=FakeTranscriber(["Good morning Abdoh."]))
+    daemon = make_daemon(router, transcriber=FakeTranscriber(["Good morning Xanthos."]))
     run_until(daemon, lambda: daemon.speaker.said)
-    assert router.requests == ["Good morning Abdoh."]
+    assert router.requests == ["Good morning Xanthos."]
     assert daemon.speaker.said == ["Good morning!"]
 
 
@@ -114,7 +114,7 @@ def test_mic_failure_is_retried():
         return speech_mic()
 
     router = StubRouter(["ok"])
-    daemon = make_daemon(router, flaky_mic, FakeTranscriber(["Abdoh time"]))
+    daemon = make_daemon(router, flaky_mic, FakeTranscriber(["Xanthos time"]))
     run_until(daemon, lambda: daemon.speaker.said)
     assert len(attempts) >= 3
     assert daemon.speaker.said == ["ok"]
@@ -122,7 +122,7 @@ def test_mic_failure_is_retried():
 
 def test_paused_ignores_voice_requests():
     router = StubRouter(["should not run"])
-    daemon = make_daemon(router, transcriber=FakeTranscriber(["Abdoh good morning"]))
+    daemon = make_daemon(router, transcriber=FakeTranscriber(["Xanthos good morning"]))
     daemon.set_paused(True)
     done = threading.Event()
     original = daemon.engine.reset
@@ -137,7 +137,7 @@ def test_events_and_history():
     daemon.handle_request("text", "hello")
     events = bus.pending_events()
     assert ("history", "You: hello") in events
-    assert ("history", "Abdoh: Hi") in events
+    assert ("history", "Xanthos: Hi") in events
     assert ("status", "Thinking...") in events
     assert events[-1] == ("status", "Listening")
 
@@ -148,7 +148,7 @@ def test_voice_toggle_off_only_shows_text():
     daemon.handle_request("voice", False)
     daemon.handle_request("text", "hello")
     assert daemon.speaker.said == []
-    assert ("history", "Abdoh: Hi") in bus.pending_events()
+    assert ("history", "Xanthos: Hi") in bus.pending_events()
 
 
 def test_pause_and_resume_requests():
@@ -191,24 +191,24 @@ def test_show_window_by_voice(tmp_path):
     cfg, router = real_router(tmp_path)
     bus = Bus()
     daemon = make_daemon(router, cfg=cfg, bus=bus)
-    assert daemon.handle_text("Abdoh, show window") == ""
+    assert daemon.handle_text("Xanthos, show window") == ""
     assert ("show", None) in bus.pending_events()
 
 
 def test_stop_and_start_listening_by_voice(tmp_path):
     cfg, router = real_router(tmp_path)
     daemon = make_daemon(router, cfg=cfg)
-    assert "stop listening" in daemon.handle_text("Abdoh, stop listening")
+    assert "stop listening" in daemon.handle_text("Xanthos, stop listening")
     assert daemon.paused
-    assert router.builtin_name("Hey Abdoh, start listening") == "start_listening"
-    assert router.builtin_name("Abdoh, good morning") is None
-    assert daemon.handle_text("Abdoh, start listening") == "I'm listening again."
+    assert router.builtin_name("Hey Xanthos, start listening") == "start_listening"
+    assert router.builtin_name("Xanthos, good morning") is None
+    assert daemon.handle_text("Xanthos, start listening") == "I'm listening again."
     assert not daemon.paused
 
 
 def test_paused_honors_start_listening_by_voice(tmp_path):
     cfg, router = real_router(tmp_path)
-    daemon = make_daemon(router, cfg=cfg, transcriber=FakeTranscriber(["Abdoh, start listening"]))
+    daemon = make_daemon(router, cfg=cfg, transcriber=FakeTranscriber(["Xanthos, start listening"]))
     daemon.set_paused(True)
     run_until(daemon, lambda: not daemon.paused)
     assert not daemon.paused
@@ -218,7 +218,7 @@ def test_paused_honors_start_listening_by_voice(tmp_path):
 def test_reload_commands_by_voice(tmp_path):
     cfg, router = real_router(tmp_path)
     daemon = make_daemon(router, cfg=cfg)
-    assert daemon.handle_text("Abdoh, reload commands") == "Reloaded 1 commands."
+    assert daemon.handle_text("Xanthos, reload commands") == "Reloaded 1 commands."
 
 
 def test_reload_request(tmp_path):
@@ -226,7 +226,7 @@ def test_reload_request(tmp_path):
     bus = Bus()
     daemon = make_daemon(router, cfg=cfg, bus=bus)
     daemon.handle_request("reload")
-    assert ("history", "Abdoh: Loaded 1 commands.") in bus.pending_events()
+    assert ("history", "Xanthos: Loaded 1 commands.") in bus.pending_events()
 
 
 def test_quit_request():
@@ -296,7 +296,7 @@ def test_stop_speaking_silences_the_rest_of_the_reply():
     daemon.say("this is not spoken")
     assert daemon.speaker.stops == 1
     assert daemon.speaker.said == []
-    assert ("history", "Abdoh: this is not spoken") in bus.pending_events()
+    assert ("history", "Xanthos: this is not spoken") in bus.pending_events()
 
 
 def test_new_request_speaks_again_after_a_stop():
@@ -368,7 +368,7 @@ def test_streamed_reply_is_spoken_sentence_by_sentence():
     assert daemon.handle_text("capital of japan") == "Tokyo is the capital. It's big."
     assert daemon.speaker.said == ["Tokyo is the capital.", "It's big."]
     history = [v for k, v in bus.pending_events() if k == "history"]
-    assert history == ["You: capital of japan", "Abdoh: Tokyo is the capital. It's big."]
+    assert history == ["You: capital of japan", "Xanthos: Tokyo is the capital. It's big."]
     assert router.closed
 
 
@@ -494,7 +494,7 @@ def question_daemon(replies, texts, cfg=None):
     wake, said = [tone_block()] * 2, [tone_block()] * 3
     mic = FakeMic(wake + said + [silent_block()] * 12 + said + [silent_block()] * 20)
     return Daemon(
-        # No watch over the reply: it would read this instant fake mic dry while Abdoh answers.
+        # No watch over the reply: it would read this instant fake mic dry while Xanthos answers.
         cfg or Config(wake_word_interrupts=False),
         StubRouter(replies),
         FakeSpeaker(),
@@ -509,39 +509,39 @@ def test_claude_question_is_answered_without_the_wake_word(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
     daemon = question_daemon(
         [["Sure.", "Which city?"], ["It's sunny in Cairo."]],  # streamed, like Claude
-        ["Abdoh, what's the weather?", "Cairo."],
+        ["Xanthos, what's the weather?", "Cairo."],
     )
     run_until(daemon, lambda: len(daemon.speaker.said) >= 3)
-    assert daemon.router.requests == ["Abdoh, what's the weather?", "Cairo."]
+    assert daemon.router.requests == ["Xanthos, what's the weather?", "Cairo."]
     assert daemon.speaker.said == ["Sure.", "Which city?", "It's sunny in Cairo."]
 
 
 def test_after_a_reply_abdoh_keeps_listening_for_a_moment(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
     daemon = question_daemon(
-        [["It's sunny."], ["Rain tomorrow."]], ["Abdoh, weather?", "And tomorrow?"]
+        [["It's sunny."], ["Rain tomorrow."]], ["Xanthos, weather?", "And tomorrow?"]
     )
     sounds = []
     daemon.earcons.play = sounds.append
     run_until(daemon, lambda: len(daemon.speaker.said) >= 2)
-    assert daemon.router.requests == ["Abdoh, weather?", "And tomorrow?"]  # no wake word needed
+    assert daemon.router.requests == ["Xanthos, weather?", "And tomorrow?"]  # no wake word needed
     assert sounds[:2] == ["listening", "ready"]  # after the wake word; then the softer "go on"
 
 
 def test_no_extra_listening_after_a_statement_when_follow_up_is_off(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
     cfg = Config(follow_up_seconds=0)
-    daemon = question_daemon([["It's sunny."], ["should not run"]], ["Abdoh, weather?", "x"], cfg)
+    daemon = question_daemon([["It's sunny."], ["should not run"]], ["Xanthos, weather?", "x"], cfg)
     run_until(daemon, lambda: daemon.engine.count > 80)  # long past where an answer would be
-    assert daemon.router.requests == ["Abdoh, weather?"]
+    assert daemon.router.requests == ["Xanthos, weather?"]
 
 
 def test_no_extra_listening_when_everything_is_turned_off(monkeypatch):
     monkeypatch.setattr("abdoh.audio.listener.CHIME_SECONDS", 0)
     cfg = Config(follow_up_seconds=0, claude=ClaudeConfig(listen_after_question=False))
-    daemon = question_daemon([["Which city?"], ["should not run"]], ["Abdoh, weather?", "x"], cfg)
+    daemon = question_daemon([["Which city?"], ["should not run"]], ["Xanthos, weather?", "x"], cfg)
     run_until(daemon, lambda: daemon.engine.count > 80)
-    assert daemon.router.requests == ["Abdoh, weather?"]
+    assert daemon.router.requests == ["Xanthos, weather?"]
 
 
 def test_a_question_waits_at_least_as_long_as_a_follow_up():
@@ -576,7 +576,7 @@ def test_hotkey_without_voice_input_says_why():
     daemon = Daemon(Config(), StubRouter([]), FakeSpeaker(), None, None, None, bus,
                     listen_error="no model")  # fmt: skip
     daemon.push_to_talk()
-    assert ("history", "Abdoh: Voice input isn't available (no model).") in bus.pending_events()
+    assert ("history", "Xanthos: Voice input isn't available (no model).") in bus.pending_events()
 
 
 def test_voice_toggle_is_announced_to_the_ui():
