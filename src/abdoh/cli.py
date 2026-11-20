@@ -293,6 +293,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 0
+    from abdoh.rename import move_old_folders
+
+    moved = move_old_folders()  # Abdoh's folders, the first time Xanthos starts
     cfg = load_config()
     # pythonw (used for autostart) has no console: sys.stdout/stderr are None there, which
     # crashes libraries that print progress bars (e.g. the first Whisper model download).
@@ -302,4 +305,6 @@ def main(argv: list[str] | None = None) -> int:
     if sys.stderr is None:
         sys.stderr = open(os.devnull, "w")  # noqa: SIM115
     setup_logging(cfg, console=console, level=logging.DEBUG if args.verbose else logging.INFO)
+    for line in moved:
+        logging.getLogger(__name__).info(line)
     return args.func(cfg, args)

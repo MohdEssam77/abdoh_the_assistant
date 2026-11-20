@@ -37,3 +37,10 @@ def no_bundled_models(tmp_path_factory, monkeypatch):
         shutil.copyfile(REPO / name, bundle / name)
     monkeypatch.setattr("abdoh.config.BUNDLE_DIR", bundle)
     monkeypatch.setattr("abdoh.settings.BUNDLE_DIR", bundle)
+
+
+@pytest.fixture(autouse=True)
+def no_real_folder_moves(monkeypatch):
+    """Tests that start the app never move this computer's real Abdoh folders to Xanthos's
+    (tests/test_rename.py tests the real function on temporary folders)."""
+    monkeypatch.setattr("abdoh.rename.move_old_folders", lambda *a, **k: [])
