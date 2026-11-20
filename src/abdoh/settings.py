@@ -39,6 +39,7 @@ RESTART_KEYS = (
 )
 _RANGES = {
     "wake_word_threshold": (0.05, 0.95),
+    "wake_word_voice_threshold": (0.1, 0.9),
     "match_threshold": (50, 100),
     "silence_seconds": (0.2, 5),
     "follow_up_seconds": (0, 30),
@@ -60,6 +61,7 @@ _NULLABLE: set[str] = set()
 LABELS = {
     "wake_words": "Wake words",
     "wake_word_threshold": "Wake word sensitivity",
+    "wake_word_voice_threshold": "How sure it must be that it's you",
     "hotkey": "Hotkey",
     "match_threshold": "Command matching",
     "silence_seconds": "Pause that ends a request",

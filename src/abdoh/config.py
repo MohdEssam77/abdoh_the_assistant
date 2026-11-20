@@ -99,6 +99,7 @@ class Config:
     wake_word_aliases: list[str] = field(default_factory=lambda: list(WAKE_WORD_ALIASES))
     wake_word_model: str = WAKE_WORD_MODEL  # openWakeWord; missing -> hotkey only
     wake_word_threshold: float = 0.4
+    wake_word_voice_threshold: float = 0.5  # with your voice check: how sure it must be it's you
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
     languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Xanthos
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper

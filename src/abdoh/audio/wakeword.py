@@ -38,7 +38,20 @@ def load_wake_engine(cfg, oww=None) -> WakeWordEngine:
         oww = lambda m, t: OpenWakeWord(m, cfg.resolve(FEATURES_DIR), t)  # noqa: E731
     engine = oww(model, cfg.wake_word_threshold)
     engine.label = f"openWakeWord ({model.stem})"
+    use_voice_check(engine, cfg)
     return engine
+
+
+def use_voice_check(engine, cfg) -> bool:
+    """Load your voice check (audio/voicecheck.py) into the engine, if there is one for its
+    model. The label says so. Returns whether one is in use."""
+    from abdoh.audio.voicecheck import FILE, VoiceCheck
+
+    model = cfg.resolve(cfg.wake_word_model)
+    engine.voice_check = VoiceCheck.load(cfg.app_dir / FILE, model)
+    engine.voice_threshold = cfg.wake_word_voice_threshold
+    engine.label = f"openWakeWord ({model.stem})" + (", your voice" if engine.voice_check else "")
+    return engine.voice_check is not None
 
 
 def wait_for_trigger(

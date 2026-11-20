@@ -60,7 +60,14 @@ spelling). Say the wake word and keep talking; what you say after it is the requ
 window, the sidebar shows `Wake word: openWakeWord (hey_xanthos)`.
 
 If it misses you, move **Settings → Sensitivity** to the left (`wake_word_threshold`, e.g.
-0.3); if it wakes up by itself, move it right (e.g. 0.6).
+0.3); if it wakes up by itself, move it right (e.g. 0.6). The log shows every wake-up's score
+and every near miss, to help you choose.
+
+**Only your voice.** In **Settings → Wake word → Only my voice**, press **Teach it your voice**,
+say "Hey Xanthos" ten times, then read a short text aloud for 20 seconds. From then on the wake
+word only counts when it sounds like you (`wake_word_voice_threshold`, default 0.5: higher is
+stricter). The recordings stay on this computer (`voice/` in the data folder);
+**Forget my voice** deletes them. A new wake word model needs the voice taught again.
 
 **Your own wake word.** Train an openWakeWord model in Google Colab (free, a couple of hours):
 
@@ -539,6 +546,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `wake_words` | `["xanthos", "hey xanthos", "ya xanthos"]` | What you say to wake Xanthos; removed from requests before matching |
 | `wake_word_model` | `models/hey_xanthos.onnx` | Your openWakeWord model; without it, only the hotkey works |
 | `wake_word_threshold` | `0.4` | openWakeWord: higher means fewer false wake-ups |
+| `wake_word_voice_threshold` | `0.5` | With your voice taught: how sure it must be that it's you |
 | `hotkey` | `ctrl+alt+space` | Press to talk without the wake word, or to stop a reply (`""` = off) |
 | `wake_word_aliases` | `["abdo", "ab doe", "abdul", ...]` | Other spellings speech recognition may write for "Xanthos"; left out of your requests |
 | `languages` | `["en"]` | What you speak to Xanthos. English only uses Parakeet (fastest, most accurate); with more languages (e.g. `["en", "ar"]`) Whisper is used and Xanthos answers in the language you spoke |
