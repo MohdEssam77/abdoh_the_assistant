@@ -84,6 +84,8 @@ class ClaudeConfig:
     actions: list[str] = field(default_factory=lambda: list(CLAUDE_ACTIONS))  # it may do these
     folders: list[str] = field(default_factory=list)  # where it may work with files; [] = home
     instructions: str = ""  # your own instructions, sent with every request
+    # claude.ai connectors Claude Code may use (connect them at claude.ai → Settings → Connectors)
+    connectors: list[str] = field(default_factory=lambda: ["Gmail", "Google Calendar"])
     timeout_seconds: float = 120
     followup_seconds: float = 60  # a follow-up within this time gets the last exchange as context
     listen_after_question: bool = True  # answer Claude's questions without the wake word

@@ -88,6 +88,34 @@
       [text, el("div", { class: "row", style: "border:0;padding-bottom:0" }, counter, el("div", { class: "spacer" }), button)]);
   }
 
+  /* Your services connected at claude.ai (Gmail, Google Calendar, ...): which ones Claude may use. */
+  function connectorsCard() {
+    const body = el("div", {}, el("p", { class: "faint" }, "Checking your connectors…"));
+    const draw = async () => {
+      const state = (await call("connectors")) || {};
+      if (!state.available) return body.replaceChildren(el("p", { class: "faint" }, state.reason || "Not available."));
+      const allowed = new Set((App.settings.claude || {}).connectors || []);
+      const words = { connected: "", "sign in": "Sign in again at claude.ai.", failed: "Not working right now.",
+        "not connected": "Not connected yet: turn it on at claude.ai first." };
+      const rows = (state.connectors || []).map((c) => row(c.name, words[c.status] || null,
+        toggle(c.on, async (on, input) => {
+          const next = new Set(allowed);
+          if (on) next.add(c.name); else next.delete(c.name);
+          if (!(await saveSettings({ claude: { connectors: [...next] } }))) input.checked = !on;
+          else allowed.clear(), next.forEach((n) => allowed.add(n));
+        }, c.name)));
+      const open = el("button", { class: "btn small", onclick: () => call("open_link", state.url) }, "Manage at claude.ai");
+      const refresh = el("button", { class: "btn small", onclick: () => { body.replaceChildren(el("p", { class: "faint" }, "Checking your connectors…")); draw(); } }, "Refresh");
+      body.replaceChildren(
+        ...(rows.length ? rows : [el("p", { class: "faint" }, "No connectors yet. Connect Gmail, Google Calendar and others at claude.ai, then press Refresh.")]),
+        el("div", { class: "btn-row", style: "margin-top:10px" }, open, refresh));
+    };
+    draw();
+    return card("Your connected services",
+      "Gmail, Google Calendar and the other services you connected to your Claude account. Claude may read them when you ask (“what's on my calendar tomorrow?”), and asks before it sends, creates or changes anything.",
+      [body]);
+  }
+
   function render() {
     const settings = App.settings;
     $("#perm-content").replaceChildren(
@@ -111,6 +139,7 @@
         row("Sleep, shut down and restart", "When you ask (“shut down in 30 minutes”, “restart the computer”). Xanthos asks before shutting down now.",
           toggle(settings.allow_power, (on, input) => saveOrUndo({ allow_power: on }, input), "allow_power")),
       ]),
+      connectorsCard(),
       instructionsCard());
   }
 

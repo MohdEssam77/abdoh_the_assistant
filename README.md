@@ -232,6 +232,17 @@ needs to. Before it deletes or overwrites anything, it says what it will do and 
 answer "yes" (no wake word needed). Deleted files go to the Recycle Bin. Xanthos can mishear you,
 so listen to what Claude says it's about to do. `claude.allow_files: false` turns this off.
 
+**Gmail, Google Calendar and your other connectors.** Connect them to your Claude account at
+claude.ai → Settings → Connectors (each person connects their own). Xanthos lets Claude use the
+ones switched on under **Permissions → Your connected services** (Gmail and Google Calendar by
+default): "what's on my calendar tomorrow?", "any new email from Sara?". Reading is free; before
+Claude sends, creates or changes anything there, it asks and waits for your yes. Text in your
+emails is never taken as instructions. Connectors need Claude Code (your Claude account), not
+an API key. To load them, Xanthos starts Claude Code without `--safe-mode`; `--restricted`
+still keeps your own Claude Code settings, hooks, plugins and CLAUDE.md out, and a connector you
+didn't switch on is refused. `claude.connectors: []` turns them all off (and brings
+`--safe-mode` back).
+
 **Make it instant next time.** When Claude did something for you ("open the Python website"),
 say **"Xanthos, remember that"** (or "remember that as python time"). Xanthos adds it to
 `commands.yaml` as a normal command, so next time it happens instantly, without Claude. The rest
@@ -579,6 +590,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `duck_others` | `true` | Other apps go quieter while Xanthos listens and answers |
 | `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |
+| `claude.connectors` | `[Gmail, Google Calendar]` | claude.ai connectors Claude may use (Claude Code only) |
 | `tts_engine` | `piper` | `piper` (natural voices) or `windows` (the Windows voice) |
 | `piper_voice_en` | `en_US-lessac-medium` | The natural voice for English (see Settings for the choices) |
 | `piper_voice_de` | `de_DE-thorsten-medium` | The natural voice for German |

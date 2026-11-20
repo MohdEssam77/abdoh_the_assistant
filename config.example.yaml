@@ -48,6 +48,7 @@ claude:
   # What Claude may do on the computer (turn them on and off on the Permissions page):
   actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode"]
   instructions: ""               # your own instructions for Claude, sent with every request
+  connectors: ["Gmail", "Google Calendar"]   # your claude.ai connectors Claude may use (Claude Code only)
   timeout_seconds: 120
   followup_seconds: 60           # a question within this time can follow up on the last answer
   listen_after_question: true    # when Claude asks you something, just answer (no wake word)
