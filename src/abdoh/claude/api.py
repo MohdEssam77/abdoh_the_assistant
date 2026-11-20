@@ -4,6 +4,7 @@ import base64
 import logging
 from collections.abc import Iterator
 
+from abdoh.about import about
 from abdoh.claude.brain import Brain, BrainError, system_prompt
 from abdoh.config import Config
 
@@ -43,12 +44,14 @@ class ApiBrain(Brain):
             data = base64.standard_b64encode(image_png).decode("ascii")
             source = {"type": "base64", "media_type": "image/png", "data": data}
             content.append({"type": "image", "source": source})
-        content.append({"type": "text", "text": prompt})
+        state = self.state_now()  # the mode that's on, ... (abdoh.about.state_line)
+        text = f"[Xanthos now: {state}]\n{prompt}" if state else prompt
+        content.append({"type": "text", "text": text})
         model = self.cfg.claude.model
         params: dict = {
             "model": model,
             "max_tokens": self.cfg.claude.max_tokens,
-            "system": system_prompt(self.cfg),
+            "system": system_prompt(self.cfg, about=about(self.cfg, "api")),
             "messages": [{"role": "user", "content": content}],
         }
         if self.cfg.claude.effort:

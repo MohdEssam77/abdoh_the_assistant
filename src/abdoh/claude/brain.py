@@ -27,13 +27,14 @@ wrong, go by what they most likely meant; ask only when you really can't tell.
 {actions}
 {look}{files}{web}{tools}If you need more information, ask one short question. Don't end with a \
 question otherwise.
-{clock}{instructions}"""
+{clock}{about}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
 # For a conversation that stays open: the time comes with every message instead.
 STAMPED = (
-    "Each message starts with the current date and time in square brackets. Use it when it "
-    "matters, and never read it out unless the user asks for the time or the date."
+    "Each message starts with the current date and time in square brackets, and how Xanthos is "
+    "right now (the mode that's on, voice replies). Use it when it matters, and never read it "
+    "out unless the user asks."
 )
 
 ACTIONS = """You can do things on the computer. To do one, write an action line before your \
@@ -130,10 +131,12 @@ def _screen_names(path: Path) -> str:
     return ", ".join(names)
 
 
-def stamp(prompt: str, now: datetime | None = None) -> str:
-    """A message with the current date and time in front (see STAMPED)."""
+def stamp(prompt: str, now: datetime | None = None, state: str = "") -> str:
+    """A message with the current date and time in front, and how Xanthos is right now (see
+    STAMPED and abdoh.about.state_line)."""
     now = now or datetime.now()
-    return f"[{_date(now)}, {_time(now)}]\n{prompt}"
+    extra = f"; {state}" if state else ""
+    return f"[{_date(now)}, {_time(now)}{extra}]\n{prompt}"
 
 
 def system_prompt(
@@ -145,6 +148,7 @@ def system_prompt(
     only: list[Path] | None = None,
     stamped: bool = False,
     connectors: list[str] | None = None,
+    about: str = "",
 ) -> str:
     """Xanthos's instructions for Claude, following your permissions (claude.actions and
     claude.instructions). With `home`, Claude may work with your files: anywhere in your home
@@ -180,6 +184,7 @@ def system_prompt(
         tools=(CONNECTORS.format(names=", ".join(connectors)) if connectors else "")
         + (TOOLS_LINE if web or files or connectors else ""),
         clock=STAMPED if stamped else CLOCK.format(date=_date(now), time=_time(now)),
+        about=about,
         instructions=INSTRUCTIONS.format(text=instructions) if instructions else "",
     )
 
@@ -194,6 +199,14 @@ class Brain(ABC):
     remembers = False
     # Called with a few words when Claude starts something slow ("Searching the web").
     on_activity = None
+    # How Xanthos is right now ("mode on: Work; voice replies on"), sent with every message.
+    state = None
+
+    def state_now(self) -> str:
+        try:
+            return self.state() if self.state else ""
+        except Exception:
+            return ""
 
     def close(self) -> None:  # noqa: B027 - optional hook
         """Let go of anything kept open (a Claude Code process)."""

@@ -150,9 +150,16 @@ class Daemon:
         if brain is None:
             return
         brain.on_activity = self._activity
+        brain.state = self._state_line  # the mode that's on, with every message
         warm_up = getattr(brain, "warm_up", None)
         if warm_up:
             warm_up()
+
+    def _state_line(self) -> str:
+        from abdoh.about import state_line
+
+        mode = getattr(self.modes, "current", None) if self.modes is not None else None
+        return state_line(mode, self.voice_enabled, self.paused)
 
     def _activity(self, text: str) -> None:
         """Claude started something slow (a web search, a file): show it, and say it if Claude

@@ -485,3 +485,26 @@ def test_the_schedule_runs_until_abdoh_stops(tmp_path):
     thread.start()
     thread.join(2)
     assert said == ["Night mode."] and not thread.is_alive()
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "what is the mode that is on now",
+        "which mode is on right now",
+        "whats the current mode",
+        "what mode are we in",
+        "is any mode on",
+        "am i in a mode now",
+        "current mode",
+        "what mode is active",
+    ],
+)
+def test_asking_which_mode_is_on_in_your_own_words(router, said):
+    router.handle("movie mode")
+    assert router.handle(said) == "Movie mode is on."
+
+
+@pytest.mark.parametrize("said", ["what does movie mode do", "which mode should i use for work"])
+def test_questions_about_modes_are_left_for_claude(router, said):
+    assert router.handle(said) != "No mode is on."

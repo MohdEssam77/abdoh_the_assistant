@@ -154,6 +154,10 @@ back to its old, simple window.
   come back. Xanthos's own voice stays as it is, and an app you turned up or down yourself
   meanwhile keeps your volume. After something you asked it to do ("play some jazz") nothing
   stays down.
+- **It knows about itself**: "which mode is on?", "which speech model do you use?", "is my voice
+  check on?", "what commands do I have?". Claude is told Xanthos's version, models, voices and
+  settings, your modes, commands and lamps, and with every message the mode that's on. It
+  can't change settings itself, but says where they are.
 - **Only today's conversation**: the chat in the window starts empty every day. The log file
   (which also has what you said) keeps today's and yesterday's only.
 - **It keeps you posted**: before slow work Claude says so ("Let me look that up"), the window
