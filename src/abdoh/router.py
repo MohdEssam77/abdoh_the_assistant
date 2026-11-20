@@ -64,8 +64,13 @@ _MODE_END = re.compile(
     r"|(?P<name2>[\w ]+?) mode off|(?:go )?back to normal(?: mode)?"
     r"|normal mode"
 )
+# "Which mode am I in?", "what is the mode that is on now", "is any mode on", "current mode"
 _MODE_WHICH = re.compile(
-    r"(?:which|what) mode (?:am i in|is on|is this|are we in)|am i in (?:a|any) mode"
+    r"(?:(?:which|what|whats)(?: is)?(?: the)? (?:current |active )?mode(?: that s| that is"
+    r"| thats| is| am i| are we| do i have)? ?(?:on|active|running|in|using|enabled|is this"
+    r"|this|right now|now)?(?: right now| now| at the moment| currently)?"
+    r"|(?:am i|are we) in (?:a|any) mode(?: now| right now)?|is (?:a|any) mode on(?: now)?"
+    r"|(?:the )?current mode|which mode is it|what mode is it)"
 )
 _MODE_LIST = re.compile(r"(?:what|which) modes (?:do i have|are there)|list (?:my |the )?modes")
 MODE_MATCH = 90  # mode names are short: only a close match counts ("dark" isn't "park")

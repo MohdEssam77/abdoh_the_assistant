@@ -34,6 +34,7 @@ from collections.abc import Iterable, Iterator
 from datetime import datetime
 from pathlib import Path
 
+from abdoh.about import about
 from abdoh.claude.brain import Brain, BrainError, stamp, system_prompt
 from abdoh.config import Config
 
@@ -447,6 +448,7 @@ class ClaudeCodeBrain(Brain):
         return system_prompt(
             self.cfg,
             connectors=self.cfg.claude.connectors,
+            about=about(self.cfg, "code"),
             web=self.cfg.claude.allow_web,
             home=self.home if files else None,
             folders=self.folders if files else None,
@@ -568,9 +570,9 @@ class ClaudeCodeBrain(Brain):
 
     # ----- asking -----
 
-    @staticmethod
-    def _send(session: _Session, prompt: str) -> None:
-        message = {"type": "user", "message": {"role": "user", "content": stamp(prompt)}}
+    def _send(self, session: _Session, prompt: str) -> None:
+        content = stamp(prompt, state=self.state_now())
+        message = {"type": "user", "message": {"role": "user", "content": content}}
         session.proc.stdin.write(json.dumps(message) + "\n")
         session.proc.stdin.flush()
 
