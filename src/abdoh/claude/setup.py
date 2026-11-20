@@ -13,7 +13,13 @@ import sys
 from pathlib import Path
 
 from abdoh.claude.brain import NOT_CONNECTED, BrainError, make_brain
-from abdoh.claude.code import NO_WINDOW, auth_status, child_env, find_claude_code
+from abdoh.claude.code import (
+    NO_WINDOW,
+    auth_status,
+    child_env,
+    find_claude_code,
+    list_connectors,
+)
 from abdoh.config import Config, save_api_key
 
 log = logging.getLogger(__name__)
@@ -68,6 +74,29 @@ def claude_state(cfg: Config, find=find_claude_code, status=auth_status) -> dict
         "using": via,
         "connected": (via == "code" and signed_in) or via == "api",
         "summary": summary,
+    }
+
+
+CONNECTORS_URL = "https://claude.ai/settings/connectors"
+
+
+def connectors(cfg: Config, find=find_claude_code, listing=list_connectors) -> dict:
+    """The services connected to your Claude account and which ones Xanthos may use. Only
+    with Claude Code (your account); takes a few seconds (Claude Code checks each one)."""
+    exe = find(cfg.claude.code_path)
+    if using(cfg, exe) != "code":
+        return {"available": False, "reason": "Connectors need Claude Code (your Claude account)."}
+    try:
+        found = listing(exe)
+    except BrainError as e:
+        return {"available": False, "reason": str(e)}
+    names = [c["name"] for c in found]
+    allowed = cfg.claude.connectors
+    missing = [{"name": n, "status": "not connected"} for n in allowed if n not in names]
+    return {
+        "available": True,
+        "connectors": [{**c, "on": c["name"] in allowed} for c in found + missing],
+        "url": CONNECTORS_URL,
     }
 
 

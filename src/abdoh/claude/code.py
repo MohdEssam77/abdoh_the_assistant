@@ -5,10 +5,20 @@ each), so answers start sooner and Claude remembers what was said. It runs in an
 (~/.xanthos/claude) with Xanthos's own system
 prompt, only the tools Xanthos allows, no plugins/MCP/CLAUDE.md (--safe-mode), your Claude Code
 settings ignored (--restricted), nothing saved to your Claude Code history, and anything that
-would need permission denied. With claude.allow_files, Claude can also read and change files in
-your home folder (--add-dir) and run PowerShell commands; otherwise file access is limited to
-that empty folder. Requests go in on stdin, never on the command line. API keys are removed
-from its environment so the subscription (not an API account) pays for it.
+would need permission denied.
+
+Connectors (claude.connectors): the services you connected at claude.ai (Gmail, Google
+Calendar, ...) only load without --safe-mode and --strict-mcp-config. With connectors on, those
+two are left out; --restricted still keeps your settings, hooks, plugins and CLAUDE.md out, and
+only the tools of the connectors you allowed are permitted (a server-wide rule such as
+mcp__claude_ai_Gmail); anything else needs permission, which is denied. Checked with Claude Code
+2.1.327: the connectors are ready a few seconds after the process starts (warm_up), and a
+connector that isn't allowed is refused.
+
+With claude.allow_files, Claude can also read and change files in your home folder (--add-dir)
+and run PowerShell commands; otherwise file access is limited to that empty folder. Requests go
+in on stdin, never on the command line. API keys are removed from its environment so the
+subscription (not an API account) pays for it.
 """
 
 import json
@@ -90,6 +100,50 @@ def editor_binaries(home: Path) -> list[Path]:
             if exe.is_file():
                 found.append((_version(ext.name), exe))
     return [exe for _, exe in sorted(found, reverse=True)]
+
+
+def connector_rule(name: str) -> str:
+    """The permission rule for all of a claude.ai connector's tools: "Google Calendar" ->
+    "mcp__claude_ai_Google_Calendar"."""
+    return "mcp__" + re.sub(r"[^A-Za-z0-9_-]", "_", f"claude.ai {name}")
+
+
+_MCP_LINE = re.compile(r"^claude\.ai (?P<name>.+?): \S+ - (?P<status>.+)$")
+
+
+def list_connectors(exe: Path, run=subprocess.run, workdir: Path = WORKDIR) -> list[dict]:
+    """The services connected to your Claude account (claude.ai → Settings → Connectors), as
+    Claude Code sees them: [{"name": "Gmail", "status": "connected" | "sign in" | "failed"}].
+    Raises BrainError if Claude Code couldn't tell."""
+    workdir.mkdir(parents=True, exist_ok=True)
+    try:
+        result = run(
+            [str(exe), "mcp", "list"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=60,
+            cwd=workdir,
+            env=child_env(),
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise BrainError(f"Couldn't ask Claude Code about your connectors ({e}).") from e
+    found = []
+    for line in (result.stdout or "").splitlines():
+        match = _MCP_LINE.match(line.strip())
+        if not match:
+            continue
+        status = match["status"].lower()
+        if "connected" in status and "fail" not in status:
+            state = "connected"
+        elif "auth" in status or "sign" in status:
+            state = "sign in"
+        else:
+            state = "failed"
+        found.append({"name": match["name"], "status": state})
+    return found
 
 
 def find_claude_code(configured: str = "", home: Path | None = None, which=shutil.which):
@@ -352,6 +406,8 @@ class ClaudeCodeBrain(Brain):
 
     def command(self, prompt_file: Path) -> list[str]:
         tools = ",".join(self.tools())
+        connectors = [connector_rule(name) for name in self.cfg.claude.connectors]
+        allowed = ",".join([*self.tools(), *connectors])
         args = [
             str(self.exe),
             "-p",
@@ -373,8 +429,10 @@ class ClaudeCodeBrain(Brain):
             "--tools",
             tools,
             "--allowedTools",
-            tools,
+            allowed,
         ]
+        if connectors:  # they only load without these two (see the module's docstring)
+            args = [a for a in args if a not in ("--safe-mode", "--strict-mcp-config")]
         if self.cfg.claude.allow_files:
             for folder in self.file_dirs():
                 args += ["--add-dir", str(folder)]
@@ -388,6 +446,7 @@ class ClaudeCodeBrain(Brain):
         files = self.cfg.claude.allow_files
         return system_prompt(
             self.cfg,
+            connectors=self.cfg.claude.connectors,
             web=self.cfg.claude.allow_web,
             home=self.home if files else None,
             folders=self.folders if files else None,

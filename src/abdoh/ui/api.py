@@ -496,6 +496,14 @@ class AppApi:
             self.refresh_claude()
         return {"ok": True}
 
+    def connectors(self) -> dict:
+        """Your claude.ai connectors (Gmail, Google Calendar, ...) and which ones Claude may use."""
+        try:
+            return self._claude().connectors(self._config())
+        except Exception:
+            log.warning("Couldn't list the connectors", exc_info=True)
+            return {"available": False, "reason": "Couldn't check your connectors."}
+
     def install_claude(self) -> dict:
         """Run Anthropic's installer for Claude Code in a window you can watch."""
         return self._claude_action(self._claude().install_claude_code)

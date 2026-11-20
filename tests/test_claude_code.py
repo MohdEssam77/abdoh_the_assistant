@@ -1,6 +1,7 @@
 """Claude Code backend with a fake `claude` process (no Claude Code, no network)."""
 
 import json
+import subprocess
 import threading
 from pathlib import Path
 
@@ -317,7 +318,7 @@ def test_messages():
 
 
 def test_command_flags(tmp_path):
-    brain = make_brain(tmp_path, FakePopen(), effort="low", code_model="sonnet")
+    brain = make_brain(tmp_path, FakePopen(), effort="low", code_model="sonnet", connectors=[])
     args = brain.command(tmp_path / "prompt.txt")
     for flag in (
         "-p",
@@ -649,3 +650,55 @@ def test_real_errors_are_not_retried(tmp_path):
     with pytest.raises(BrainError, match=LIMIT):
         list(brain.stream("hello"))
     assert len(popen.procs) == 1
+
+
+# ----- your claude.ai connectors (Gmail, Google Calendar, ...) -----
+
+
+def test_connectors_load_and_only_yours_are_allowed(tmp_path):
+    from abdoh.claude.code import connector_rule
+
+    brain = make_brain(tmp_path, FakePopen(), connectors=["Gmail", "Google Calendar"])
+    args = brain.command(tmp_path / "prompt.txt")
+    assert "--safe-mode" not in args and "--strict-mcp-config" not in args  # else none load
+    assert "--restricted" in args  # your settings, hooks, plugins and CLAUDE.md stay out
+    allowed = args[args.index("--allowedTools") + 1].split(",")
+    assert allowed[-2:] == ["mcp__claude_ai_Gmail", "mcp__claude_ai_Google_Calendar"]
+    assert "mcp__" not in args[args.index("--tools") + 1]  # only built-in tools there
+    assert connector_rule("Google Drive") == "mcp__claude_ai_Google_Drive"
+    assert "Gmail, Google Calendar" in brain.instructions()
+
+
+def test_changing_the_connectors_starts_a_new_conversation(tmp_path):
+    one = make_brain(tmp_path, FakePopen(), connectors=["Gmail"])
+    one._started_with = one._setup()
+    assert one.same_setup(make_brain(tmp_path, FakePopen(), connectors=["Gmail"]))
+    assert not one.same_setup(make_brain(tmp_path, FakePopen(), connectors=[]))
+
+
+def test_listing_your_connectors(tmp_path):
+    from abdoh.claude.code import list_connectors
+
+    out = "\n".join(
+        [
+            "Checking MCP server health…",
+            "",
+            "claude.ai Gmail: https://gmailmcp.googleapis.com/mcp/v1 - ✔ Connected",
+            "claude.ai Google Calendar: https://calendarmcp.googleapis.com/mcp/v1 - ! Needs auth",
+            "claude.ai Notion: https://mcp.notion.com/mcp - ✗ Failed to connect",
+            "my-server: node server.js - ✔ Connected",
+        ]
+    )
+    seen = {}
+
+    def run(args, **kw):
+        seen["args"] = args
+        return subprocess.CompletedProcess(args, 0, out, "")
+
+    found = list_connectors(Path("claude.exe"), run, tmp_path)
+    assert seen["args"][1:] == ["mcp", "list"]
+    assert found == [
+        {"name": "Gmail", "status": "connected"},
+        {"name": "Google Calendar", "status": "sign in"},
+        {"name": "Notion", "status": "failed"},
+    ]

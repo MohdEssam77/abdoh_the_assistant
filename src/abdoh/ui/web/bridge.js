@@ -10,7 +10,7 @@ const Bridge = (() => {
     const push = (kind, value) => queue.push([kind, value]);
     let paused = false;
     const settings = {
-      wake_words: ["xanthos", "hey xanthos", "ya xanthos"], wake_word_aliases: ["abdo", "ab doe"],
+      wake_words: ["xanthos", "hey xanthos", "ya xanthos"], wake_word_aliases: ["zanthos", "santos"],
       wake_word_model: "models/hey_xanthos.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
       silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, confirm_actions: "sound", wake_word_interrupts: true, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
@@ -19,7 +19,7 @@ const Bridge = (() => {
       claude: {
         backend: "auto", code_path: "", code_model: "", model: "claude-opus-5-5", max_tokens: 4000,
         effort: "low", allow_web: true, allow_files: true, allow_screen: true,
-        actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode"], folders: [],
+        actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode"], folders: [], connectors: ["Gmail", "Google Calendar"],
         instructions: "", timeout_seconds: 120, followup_seconds: 60, listen_after_question: true,
         translate_target: "English", voice_reply_max_sentences: 4,
       },
@@ -155,6 +155,14 @@ const Bridge = (() => {
         current: settings.tts_voice,
       }),
       test_voice: async () => {},
+      connectors: async () => ({
+        available: true, url: "https://claude.ai/settings/connectors",
+        connectors: [
+          { name: "Gmail", status: "connected", on: (settings.claude.connectors || []).includes("Gmail") },
+          { name: "Google Calendar", status: "connected", on: (settings.claude.connectors || []).includes("Google Calendar") },
+          { name: "Google Drive", status: "connected", on: (settings.claude.connectors || []).includes("Google Drive") },
+        ],
+      }),
       voice_check: async () => ({ possible: true, active: voiceActive, stale: false, recorded: voiceActive ? 10 : 0 }),
       record_voice: async (kind) => { await new Promise((r) => setTimeout(r, kind === "talk" ? 2500 : 900)); return { ok: true, heard: true }; },
       train_voice: async () => { voiceActive = true; push("wake", "openWakeWord (hey_xanthos), your voice"); return { ok: true, passed: 10, total: 10, woke: 10, recorded: 10 }; },

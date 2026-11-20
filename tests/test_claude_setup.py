@@ -212,3 +212,27 @@ def test_app_explains_problems(app_dir):
     assert failing.install_claude() == {"ok": False, "error": "install failed"}
     assert failing.set_api_key("x") == {"ok": False, "error": "key failed"}
     assert requests(bus) == []
+
+
+# ----- your claude.ai connectors -----
+
+
+def test_connectors_show_which_ones_claude_may_use():
+    from abdoh.claude.setup import connectors
+
+    cfg = Config()
+    found = [{"name": "Gmail", "status": "connected"}, {"name": "Notion", "status": "failed"}]
+    state = connectors(cfg, find=lambda path: Path("claude.exe"), listing=lambda exe: found)
+    assert state["available"] and state["url"].startswith("https://claude.ai/")
+    assert state["connectors"] == [
+        {"name": "Gmail", "status": "connected", "on": True},
+        {"name": "Notion", "status": "failed", "on": False},
+        {"name": "Google Calendar", "status": "not connected", "on": True},  # turn it on there
+    ]
+
+
+def test_connectors_need_claude_code():
+    from abdoh.claude.setup import connectors
+
+    state = connectors(Config(), find=lambda path: None, listing=lambda exe: [])
+    assert state["available"] is False and "Claude Code" in state["reason"]
