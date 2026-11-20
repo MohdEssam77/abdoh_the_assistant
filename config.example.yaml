@@ -5,6 +5,7 @@ wake_words: ["xanthos", "hey xanthos", "ya xanthos"]
 # Your openWakeWord model (see README: train the wake word). Without it, only the hotkey works.
 wake_word_model: "models/hey_xanthos.onnx"
 wake_word_threshold: 0.4         # higher = fewer false wake-ups, lower = wakes more easily
+wake_word_voice_threshold: 0.5   # with your voice check (Settings): how sure it must be that it's you
 hotkey: "ctrl+alt+space"         # press to talk without the wake word, or to stop a reply; "" = off
 # Other spellings speech recognition may write for "Xanthos"; they're left out of your requests.
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]

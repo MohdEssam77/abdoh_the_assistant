@@ -11,7 +11,7 @@ const Bridge = (() => {
     let paused = false;
     const settings = {
       wake_words: ["xanthos", "hey xanthos", "ya xanthos"], wake_word_aliases: ["abdo", "ab doe"],
-      wake_word_model: "models/hey_xanthos.onnx", wake_word_threshold: 0.5, hotkey: "ctrl+alt+space",
+      wake_word_model: "models/hey_xanthos.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
       silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, wake_word_interrupts: true, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.xanthos/xanthos.log",
@@ -55,6 +55,7 @@ const Bridge = (() => {
     ];
     const MODE_ICONS = ["sparkles", "film", "briefcase", "moon", "target", "presentation", "music", "game", "coffee", "book", "sun", "home"];
     let currentMode = params.get("mode") || "";
+    let voiceActive = false;
     let displays = [
       { id: "laptop", number: 1, label: "Laptop screen", name: "", nickname: "", active: true, internal: true, primary: false, rect: [-3840, 0, 1920, 1080] },
       { id: "hp", number: 2, label: "TV", name: "HP 32f", nickname: "TV", active: true, internal: false, primary: false, rect: [-1920, 0, 1920, 1080] },
@@ -154,6 +155,10 @@ const Bridge = (() => {
         current: settings.tts_voice,
       }),
       test_voice: async () => {},
+      voice_check: async () => ({ possible: true, active: voiceActive, stale: false, recorded: voiceActive ? 10 : 0 }),
+      record_voice: async (kind) => { await new Promise((r) => setTimeout(r, kind === "talk" ? 2500 : 900)); return { ok: true, heard: true }; },
+      train_voice: async () => { voiceActive = true; push("wake", "openWakeWord (hey_xanthos), your voice"); return { ok: true, passed: 10, total: 10, woke: 10, recorded: 10 }; },
+      forget_voice: async () => { voiceActive = false; push("wake", "openWakeWord (hey_xanthos)"); return { possible: true, active: false, stale: false, recorded: 0 }; },
       login_item: async () => ({ ok: true, on: true }),
       set_login_item: async (on) => ({ ok: true, on }),
       pick_folder: async () => "C:\\Users\\you\\Documents\\Projects",

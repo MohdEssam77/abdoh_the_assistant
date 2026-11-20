@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import fields
 
 from abdoh.audio.listener import ANSWER_WAIT_SECONDS, listen_for_request, speech_detector
-from abdoh.audio.mic import MicrophoneError
+from abdoh.audio.mic import BYTES_PER_SECOND, MicrophoneError
 from abdoh.audio.recorder import record_until_silence
 from abdoh.audio.wakeword import NoWakeWord, WakeWordEngine
 from abdoh.config import ClaudeConfig, Config, save_api_key
@@ -91,6 +91,8 @@ class Daemon:
         self._reopen_mic = threading.Event()  # a new microphone was chosen
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self._listen_now = threading.Event()  # the hotkey was pressed
+        self._capture: dict | None = None  # a recording for your voice check (record_voice)
+        self.voice_scorer = None  # makes the wake word model the voice check trains with
         self._via_hotkey = False
         self._awaiting_answer = False  # listen for one more thing next, without the wake word
         self._answer_wait = ANSWER_WAIT_SECONDS  # ... for this long
@@ -199,6 +201,7 @@ class Daemon:
             configure(rate=self.cfg.tts_rate, voice=self.cfg.tts_voice)
         if self.engine is not None and hasattr(self.engine, "threshold"):
             self.engine.threshold = self.cfg.wake_word_threshold
+            self.engine.voice_threshold = self.cfg.wake_word_voice_threshold
         if self.voice_watch is not None:
             self.voice_watch.sensitivity = self.cfg.voice_interrupt_sensitivity
         if self.cfg.mic_device != old_mic:
@@ -692,7 +695,10 @@ class Daemon:
             self._status_idle()
             try:
                 while not self.stop_event.is_set() and not self._reopen_mic.is_set():
-                    self._listen_once(mic)
+                    if self._capture is not None:
+                        self._record_capture(mic)
+                    else:
+                        self._listen_once(mic)
             except MicrophoneError as e:
                 self._mic_problem(e)
             finally:
@@ -764,7 +770,11 @@ class Daemon:
                 self.transcriber,
                 self,  # speaks "Yes?" through say(), respecting the voice toggle
                 self.cfg,
-                should_stop=lambda: self.stop_event.is_set() or self._reopen_mic.is_set(),
+                should_stop=lambda: (
+                    self.stop_event.is_set()
+                    or self._reopen_mic.is_set()
+                    or self._capture is not None
+                ),
                 on_wake=self._on_wake,
                 vad=self.vad,
                 pressed=self._take_listen_now,
@@ -801,6 +811,143 @@ class Daemon:
         self._status_idle()
         mic.clear()  # don't react to our own voice
         self.engine.reset()
+
+    # ----- your voice check (audio/voicecheck.py) -----
+
+    def _voice_files(self):
+        from abdoh.audio.voicecheck import FILE, VOICE_DIR, Recordings
+
+        return Recordings(self.cfg.app_dir / VOICE_DIR), self.cfg.app_dir / FILE
+
+    def voice_status(self) -> dict:
+        recordings, saved = self._voice_files()
+        active = getattr(self.engine, "voice_check", None) is not None
+        return {
+            "possible": hasattr(self.engine, "voice_check"),  # a wake word model is running
+            "active": active,
+            "stale": saved.exists() and not active,  # made for another wake word model
+            "recorded": recordings.count(),
+            "talk": recordings.talk_path.exists(),
+        }
+
+    def record_voice(self, kind: str, number: int = 1) -> dict:
+        """Record for your voice check (from the window): "phrase" (you say the wake word once,
+        saved as recording `number`; number 1 starts afresh) or "talk" (TALK_SECONDS of you
+        talking normally). The main loop records it from the open microphone."""
+        from abdoh.audio.voicecheck import TALK_SECONDS, write_wav
+
+        if self.mic is None:
+            return {"ok": False, "error": "The microphone isn't open."}
+        request = {"kind": kind, "done": threading.Event(), "audio": b""}
+        self._capture = request
+        if not request["done"].wait(TALK_SECONDS + 30):
+            self._capture = None
+            return {"ok": False, "error": "Xanthos is busy. Try again in a moment."}
+        audio = request["audio"]
+        recordings, _ = self._voice_files()
+        if kind == "talk":
+            if len(audio) < BYTES_PER_SECOND * TALK_SECONDS / 2:
+                return {"ok": True, "heard": False}
+            write_wav(recordings.talk_path, audio)
+            return {"ok": True, "heard": True}
+        if not audio:
+            return {"ok": True, "heard": False}
+        if number <= 1:
+            for path in recordings.folder.glob("phrase-*.wav"):
+                path.unlink(missing_ok=True)
+        write_wav(recordings.phrase_path(number), audio)
+        return {"ok": True, "heard": True}
+
+    def _record_capture(self, mic) -> None:
+        """Record what record_voice() asked for, then go back to listening."""
+        from abdoh.audio.voicecheck import TALK_SECONDS
+
+        request, audio = self._capture, b""
+        self.bus.emit("status", "Learning your voice...")
+        try:
+            mic.clear()
+            if request["kind"] == "talk":
+                chunks, size = [], 0
+                while size < BYTES_PER_SECOND * TALK_SECONDS and not self.stop_event.is_set():
+                    block = mic.read()
+                    chunks.append(block)
+                    size += len(block)
+                audio = b"".join(chunks)
+            else:
+                audio = record_until_silence(
+                    mic.read,
+                    speech_detector(self.vad, b""),
+                    silence_seconds=0.6,
+                    max_seconds=4.0,
+                    wait_seconds=5.0,
+                )
+        except MicrophoneError:
+            raise
+        except Exception:
+            log.exception("Couldn't record for the voice check")
+        finally:
+            request["audio"] = audio
+            self._capture = None
+            request["done"].set()
+            mic.clear()
+            if self.engine is not None:
+                self.engine.reset()
+            self._status_idle()
+
+    def train_voice(self) -> dict:
+        """Train your voice check from the recordings, save it and use it right away."""
+        from abdoh.audio.voicecheck import train
+        from abdoh.audio.wakeword import use_voice_check
+
+        recordings, saved = self._voice_files()
+        phrases, talk = recordings.phrases(), recordings.talk()
+        if not hasattr(self.engine, "voice_check"):
+            return {"ok": False, "error": "The wake word model isn't running."}
+        if not phrases or not talk:
+            return {"ok": False, "error": "Record the wake word and some normal talk first."}
+        model = self.cfg.resolve(self.cfg.wake_word_model)
+        try:
+            scorer = (self.voice_scorer or self._make_scorer)(model)
+            result = train(scorer, phrases, talk, model, self.cfg.wake_word_threshold)
+            result.check.save(saved)
+        except Exception:
+            log.exception("Couldn't train the voice check")
+            return {"ok": False, "error": "Something went wrong while learning your voice."}
+        use_voice_check(self.engine, self.cfg)
+        self.bus.emit("wake", self.engine.label)
+        log.info(
+            "Voice check trained: knows you in %d of %d recordings (the wake word model woke "
+            "for %d of %d)",
+            result.passed,
+            result.total,
+            result.woke,
+            len(phrases),
+        )
+        return {
+            "ok": True,
+            "passed": result.passed,
+            "total": result.total,
+            "woke": result.woke,
+            "recorded": len(phrases),
+        }
+
+    def _make_scorer(self, model):
+        from abdoh.audio.oww import FEATURES_DIR, OpenWakeWord
+
+        # Its own copy: the main loop keeps using the running one meanwhile.
+        return OpenWakeWord(model, self.cfg.resolve(FEATURES_DIR), self.cfg.wake_word_threshold)
+
+    def forget_voice(self) -> None:
+        """Delete your recordings and the voice check: any voice wakes Xanthos again."""
+        recordings, saved = self._voice_files()
+        recordings.forget()
+        saved.unlink(missing_ok=True)
+        if hasattr(self.engine, "voice_check"):
+            from abdoh.audio.wakeword import use_voice_check
+
+            use_voice_check(self.engine, self.cfg)
+            self.bus.emit("wake", self.engine.label)
+        log.info("Voice check forgotten")
 
     def _handle_spoken(self, text: str) -> None:
         """Answer a spoken request, then whatever you said over that answer, and so on."""

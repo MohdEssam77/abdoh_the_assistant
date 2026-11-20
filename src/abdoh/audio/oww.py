@@ -57,6 +57,8 @@ class OpenWakeWord(WakeWordEngine):
         self._wake_input = wake_input.name
         self._wake_frames = int(wake_input.shape[1])  # embeddings per prediction (16)
         self.threshold = threshold
+        self.voice_check = None  # audio/voicecheck.py: the wake word only counts in your voice
+        self.voice_threshold = 0.5
         self.last_score = 0.0
         self.reset()
 
@@ -66,20 +68,29 @@ class OpenWakeWord(WakeWordEngine):
         self._mel_buffer = np.ones((MEL_WINDOW, 32), dtype=np.float32)
         noise = np.random.randint(-1000, 1000, 16000 * 4).astype(np.int16)
         self._embeddings = self._embed_clip(noise)  # start from noise, as openWakeWord does
+        self.last_window = self._embeddings[-self._wake_frames :]
         self._steps = 0
 
     def detect(self, block: bytes) -> bool:
         audio = np.concatenate([self._pending, np.frombuffer(block, dtype=np.int16)])
         usable = len(audio) // FRAME * FRAME
         self._pending = audio[usable:]
-        heard, best = False, 0.0
+        heard, best, voice = False, 0.0, None
         for start in range(0, usable, FRAME):
             score = self.step(audio[start : start + FRAME])
             best = max(best, score)
-            if score >= self.threshold:
-                heard = True
-        if heard:
+            if score >= self.threshold and not heard:
+                if self.voice_check is None:
+                    heard = True
+                else:
+                    voice = max(voice or 0.0, self.voice_check.prob(self.last_window))
+                    heard = voice >= self.voice_threshold
+        if heard and voice is None:
             log.info("Wake word score %.2f", best)
+        elif heard:
+            log.info("Wake word score %.2f (your voice %.2f)", best, voice)
+        elif voice is not None:
+            log.info("Wake word score %.2f, but it didn't sound like you (%.2f)", best, voice)
         elif best >= self.threshold / 2:
             log.info("Wake word near miss %.2f (needs %.2f)", best, self.threshold)
         return heard
@@ -94,6 +105,7 @@ class OpenWakeWord(WakeWordEngine):
         embedding = self._embed.run(None, {"input_1": window})[0].reshape(1, -1)
         self._embeddings = np.vstack([self._embeddings, embedding])[-EMBED_KEEP:]
         features = self._embeddings[-self._wake_frames :][None].astype(np.float32)
+        self.last_window = features[0]  # what was scored: the voice check looks at it too
         score = float(np.ravel(self._wake.run(None, {self._wake_input: features})[0])[0])
         self._steps += 1
         if self._steps <= WARMUP_FRAMES:

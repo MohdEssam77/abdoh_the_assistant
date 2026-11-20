@@ -409,6 +409,29 @@ class AppApi:
     def test_voice(self) -> None:
         self._bus.request("say_sample")
 
+    # ----- your voice check: the wake word only counts in your voice -----
+
+    def voice_check(self) -> dict:
+        if self._daemon is None:
+            return {"possible": False, "active": False, "stale": False, "recorded": 0}
+        return self._daemon.voice_status()
+
+    def record_voice(self, kind, number=1) -> dict:
+        """Record once for the voice check: "phrase" (the wake word) or "talk" (20 s)."""
+        if self._daemon is None:
+            return {"ok": False, "error": "Xanthos is still starting."}
+        return self._daemon.record_voice(str(kind), int(number or 1))
+
+    def train_voice(self) -> dict:
+        if self._daemon is None:
+            return {"ok": False, "error": "Xanthos is still starting."}
+        return self._daemon.train_voice()
+
+    def forget_voice(self) -> dict:
+        if self._daemon is not None:
+            self._daemon.forget_voice()
+        return self.voice_check()
+
     def _login(self):
         if self._autostart is None:
             from abdoh import autostart

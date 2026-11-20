@@ -168,9 +168,86 @@
         el("small", {}, "The wake word model listens for “Hey Xanthos” and “Ya Xanthos”. The words here are removed from what you say or type, so they never become part of a request.")), words.box),
       row("Sensitivity", "Left: wakes more easily. Right: fewer false wake-ups.",
         el("div", { class: "range-wrap" }, sensitivity, el("div", { class: "range-ends" }, el("span", {}, "More easily"), el("span", {}, "Fewer mistakes")))),
+      row("Only my voice", "Say “Hey Xanthos” ten times and talk for 20 seconds, and only your voice wakes it. The recordings stay on this computer.", voiceCheck()),
       row("Hotkey", "Press it anywhere to talk without the wake word, or to stop a reply. Empty turns it off.",
         el("div", { class: "btn-row" }, hotkey, saveHotkey)),
       row("Listening with", null, el("span", { class: "tag", id: "wake-engine" }, $("#side-wake").textContent.replace(/^Wake word: /, ""))));
+  }
+
+  /* ---------- your voice check ---------- */
+
+  const READ_ALOUD = "This morning was mild, so I walked to the bakery on the corner and bought fresh bread. " +
+    "On the way back I called a friend, and we talked about the weekend, a film we both want to see, and where to have dinner. " +
+    "Later I made coffee, read a few pages of my book, and answered some emails before lunch.";
+
+  function voiceCheck() {
+    const box = el("div", { class: "voice-check" });
+    const show = async () => {
+      const state = (await call("voice_check")) || {};
+      if (!state.possible) return box.replaceChildren(el("span", { class: "tag" }, "Needs the wake word model"));
+      const note = state.stale ? "It was made for another wake word model: teach it again." : "";
+      box.replaceChildren(el("div", { class: "btn-row" },
+        el("span", { class: state.active ? "tag good" : "tag" }, state.active ? "On" : "Off"),
+        el("button", { class: state.active ? "btn small" : "btn small primary", onclick: () => teachVoice(box, show) },
+          state.active ? "Teach it again" : "Teach it your voice"),
+        state.active || state.recorded ? el("button", { class: "btn small", onclick: async () => {
+          await call("forget_voice");
+          toast("Your voice recordings are deleted. Any voice wakes Xanthos again.");
+          show();
+        } }, "Forget my voice") : null),
+        ...(note ? [el("small", { class: "warn-text" }, note)] : []));
+    };
+    show();
+    return box;
+  }
+
+  async function teachVoice(box, done) {
+    let cancelled = false;
+    const title = el("b", {});
+    const hint = el("small", {});
+    const bar = el("i", {});
+    box.replaceChildren(el("div", { class: "voice-teach" }, title, hint,
+      el("div", { class: "meter" }, bar),
+      el("div", { class: "btn-row" }, el("button", { class: "btn small", onclick: () => { cancelled = true; title.textContent = "Stopping..."; } }, "Cancel"))));
+    const say = (text, help) => { title.textContent = text; hint.textContent = help; };
+    const timer = setInterval(async () => {
+      let level = null;
+      try { level = await App.api.mic_level(); } catch (e) { level = null; }
+      const db = 20 * Math.log10(Math.max(level || 1, 1) / 32768);
+      bar.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
+    }, 120);
+    const record = async (from, to) => {
+      let missed = false;
+      for (let n = from; n <= to && !cancelled;) {
+        say(`Say “Hey Xanthos” (${n} of ${to})`, missed ? "I didn't hear that one. Once more, please."
+          : "The way you'd call it from across the room. Wait for the number to change after each one.");
+        const result = await call("record_voice", "phrase", n);
+        if (!result || !result.ok) { if (result) toast(result.error, true); return false; }
+        missed = !result.heard;
+        if (result.heard) n++;
+      }
+      return !cancelled;
+    };
+    try {
+      if (!(await record(1, 10))) return;
+      say("Now read this aloud in your normal voice (20 seconds)", READ_ALOUD);
+      const talk = await call("record_voice", "talk");
+      if (cancelled || !talk) return;
+      if (!talk.ok || !talk.heard) return toast(talk.error || "I couldn't hear you talking. Try again.", true);
+      say("Learning your voice...", "This takes a few seconds.");
+      let result = await call("train_voice");
+      if (result && result.ok && result.total && result.passed < result.total - 2) {
+        say(`It knew you in ${result.passed} of ${result.total}. Five more, please.`, "");
+        if (!(await record(11, 15))) return;
+        say("Learning your voice...", "This takes a few seconds.");
+        result = await call("train_voice");
+      }
+      if (result && result.ok) toast("Done. Now only your voice wakes Xanthos.");
+      else if (result) toast(result.error, true);
+    } finally {
+      clearInterval(timer);
+      done();
+    }
   }
 
   /* ---------- conversation ---------- */
