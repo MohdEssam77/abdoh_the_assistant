@@ -562,3 +562,8 @@ def test_identify_shows_numbers_on_the_screens(modes_api):
     api._window = type("W", (), {"identify": lambda self, displays: shown.append(displays)})()
     api.identify_displays()
     assert [d["number"] for d in shown[0]] == [1, 2, 3]
+
+
+def test_the_voice_check_says_xanthos_is_still_starting(api):
+    api._daemon = None
+    assert api.voice_check()["starting"] is True

@@ -30,6 +30,12 @@ MEL_STEP = 8  # mel frames per 80 ms
 MEL_KEEP = 10 * 97  # ~10 s of mel frames
 EMBED_KEEP = 120  # ~10 s of embeddings
 WARMUP_FRAMES = 5  # like openWakeWord, ignore the first predictions after a reset
+# The second try: when it misses you, you say it again. Two near misses (each at least this share
+# of the threshold) that start between MIN_GAP and REPEAT seconds apart count as a wake-up.
+SECOND_TRY = 0.7
+REPEAT_SECONDS = 4.0
+MIN_GAP_SECONDS = 0.8
+STEP_SECONDS = FRAME / 16000
 
 
 def _session(path: Path):
@@ -70,22 +76,34 @@ class OpenWakeWord(WakeWordEngine):
         self._embeddings = self._embed_clip(noise)  # start from noise, as openWakeWord does
         self.last_window = self._embeddings[-self._wake_frames :]
         self._steps = 0
+        self._trying = False  # a near miss is going on right now
+        self._tried_at: int | None = None  # the step the last near miss ended at
+        self._first_try = self._try_best = 0.0  # the best score of the last and the current one
 
     def detect(self, block: bytes) -> bool:
         audio = np.concatenate([self._pending, np.frombuffer(block, dtype=np.int16)])
         usable = len(audio) // FRAME * FRAME
         self._pending = audio[usable:]
-        heard, best, voice = False, 0.0, None
+        heard, best, voice, again = False, 0.0, None, None
         for start in range(0, usable, FRAME):
             score = self.step(audio[start : start + FRAME])
             best = max(best, score)
-            if score >= self.threshold and not heard:
+            if heard:
+                continue
+            candidate = score >= self.threshold
+            if not candidate and self._second_try(score):
+                candidate, again = True, (self._first_try, score)
+            if candidate:
                 if self.voice_check is None:
                     heard = True
                 else:
                     voice = max(voice or 0.0, self.voice_check.prob(self.last_window))
                     heard = voice >= self.voice_threshold
-        if heard and voice is None:
+        if heard:
+            self._trying, self._tried_at = False, None
+        if heard and again is not None:
+            log.info("Wake word on the second try (%.2f, then %.2f)", *again)
+        elif heard and voice is None:
             log.info("Wake word score %.2f", best)
         elif heard:
             log.info("Wake word score %.2f (your voice %.2f)", best, voice)
@@ -94,6 +112,22 @@ class OpenWakeWord(WakeWordEngine):
         elif best >= self.threshold / 2:
             log.info("Wake word near miss %.2f (needs %.2f)", best, self.threshold)
         return heard
+
+    def _second_try(self, score: float) -> bool:
+        """Follow near misses; True when this one is the second within REPEAT_SECONDS."""
+        if score < self.threshold * SECOND_TRY:
+            if self._trying:  # that near miss is over
+                self._trying, self._tried_at = False, self._steps
+                self._first_try = self._try_best
+            return False
+        if self._trying:  # still the same one
+            self._try_best = max(self._try_best, score)
+            return False
+        self._trying, self._try_best = True, score  # a new near miss starts
+        if self._tried_at is None:
+            return False
+        gap = (self._steps - self._tried_at) * STEP_SECONDS
+        return MIN_GAP_SECONDS <= gap <= REPEAT_SECONDS
 
     def step(self, frame: np.ndarray) -> float:
         """Process 80 ms (1280 samples) and return the wake word score."""
