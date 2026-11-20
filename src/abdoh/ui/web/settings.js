@@ -360,7 +360,7 @@
     const lighter = settings.speech_engine === "whisper";
     const how = !fast ? "With these languages Xanthos uses the Whisper model below. It's slower, and it answers in the language you spoke."
       : lighter ? "The lighter Whisper model: less memory, more mistakes."
-        : "English, German and 23 other European languages: the fastest and most accurate recognition. Xanthos tells which one you spoke by itself.";
+        : "English and German work without choosing: Xanthos hears which one you spoke, with the fastest and most accurate model. Add any other language you speak here.";
     return card("Speech recognition", "How Xanthos turns what you say into text. Everything runs on this computer.",
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Xanthos"), el("small", {}, how)), picks),
       fast ? row("Quality", "Best accuracy uses about 700 MB more memory.",
