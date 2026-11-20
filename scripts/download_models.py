@@ -2,8 +2,8 @@
 
 - openWakeWord's two shared feature models (melspectrogram, speech embedding), used with your
   own "Hey Xanthos" model (see README: train the wake word).
-- The Parakeet speech recognition model (English, about 630 MB), so the built app never has to
-  download anything on its first start.
+- The Parakeet v3 speech recognition model (English, German and 23 other languages, about 640
+  MB), so the built app never has to download anything on its first start.
 - Your trained wake word model, copied from assets/ if models/ doesn't have one yet.
 - Piper's English voice (about 60 MB), bundled so Xanthos speaks naturally from the first start.
   Other languages' voices are downloaded by the app when first needed.
@@ -35,11 +35,13 @@ WHISPER_URL = (
 )
 WHISPER_FILES = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
 
-# NVIDIA Parakeet TDT 0.6b v2 (CC-BY-4.0), exported to ONNX for onnx-asr.
-PARAKEET_DIR = MODELS_DIR / "parakeet-tdt-0.6b-v2"
+# NVIDIA Parakeet TDT 0.6b v3 (CC-BY-4.0), exported to ONNX for onnx-asr. (Xanthos 0.6.0 and
+# earlier shipped v2, English only: the same size and speed, 0.5% against 1% English mistakes on
+# synthetic clips, but 92% against 5% on German; ABDOH_EPIC_6.md.)
+PARAKEET_DIR = MODELS_DIR / "parakeet-tdt-0.6b-v3"
 PARAKEET_URL = (
-    "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/resolve/"
-    "0bbb45a3365852604aef28b538a8f066f4ccaa85/{name}"
+    "https://huggingface.co/istupakov/parakeet-tdt-0.6b-v3-onnx/resolve/"
+    "8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce/{name}"
 )
 PARAKEET_FILES = [
     "config.json",

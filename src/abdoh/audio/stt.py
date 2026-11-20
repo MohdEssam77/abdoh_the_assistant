@@ -2,10 +2,13 @@
 
 Two engines behind one small interface (`transcribe(audio) -> text`):
 
-- **Parakeet** (NVIDIA Parakeet TDT 0.6b v2, through onnx-asr): English only. On accented
-  English it made half the mistakes of Whisper base.en at the same speed (ABDOH_EPIC_4.md).
-- **Whisper** (faster-whisper): any language. Used when you speak more than English, when
-  Parakeet's model isn't there, or when you choose it.
+- **Parakeet** (NVIDIA Parakeet TDT 0.6b v3, through onnx-asr): English, German and 23 other
+  European languages, detected by itself. On accented English the v2 model made half the
+  mistakes of Whisper base.en at the same speed (ABDOH_EPIC_4.md); v3 is as fast and as big
+  (checked in ABDOH_EPIC_6.md: English about equal, German 5% mistakes against Whisper small's
+  14% and seven times faster). Older installs have v2 (English only); it still works.
+- **Whisper** (faster-whisper): any language. Used for languages Parakeet doesn't have
+  (Arabic, Turkish, Hindi, ...), when its model isn't there, or when you choose it.
 
 The models ship with Xanthos in models/ (scripts/download_models.py puts them there); a Whisper
 model that isn't there is downloaded the first time it's used.
@@ -24,8 +27,16 @@ log = logging.getLogger(__name__)
 # Whisper sizes that have an English-only version (more accurate for English, same speed).
 ENGLISH_ONLY = {"tiny", "base", "small", "medium"}
 ENGLISH_FALLBACK = "base"  # Whisper size for English when Parakeet can't be used
-PARAKEET = "nemo-parakeet-tdt-0.6b-v2"
-PARAKEET_DIR = "models/parakeet-tdt-0.6b-v2"
+PARAKEET = "nemo-parakeet-tdt-0.6b-v3"
+PARAKEET_DIR = "models/parakeet-tdt-0.6b-v3"
+PARAKEET_V2 = "nemo-parakeet-tdt-0.6b-v2"  # English only: what Xanthos 0.5 and 0.6.0 shipped
+PARAKEET_V2_DIR = "models/parakeet-tdt-0.6b-v2"
+# The 25 languages of Parakeet v3 (NVIDIA's model card).
+PARAKEET_LANGUAGES = frozenset(
+    "bg hr cs da nl en et fi fr de el hu it lv lt mt pl pt ro sk sl es sv ru uk".split()
+)
+# With several languages Parakeet is used for these two: they can be told apart from the text.
+PARAKEET_MIXES = frozenset({"en", "de"})
 PARAKEET_FILES = (
     "config.json",
     "vocab.txt",
@@ -104,9 +115,17 @@ class Transcriber:
 class ParakeetTranscriber(Transcriber):
     name = "Parakeet"
 
-    def __init__(self, model_dir: Path, make_model: Callable | None = None):
+    def __init__(
+        self,
+        model_dir: Path,
+        make_model: Callable | None = None,
+        languages: list[str] | None = None,
+    ):
         super().__init__()
         self.model_dir = Path(model_dir)
+        self.v3 = not self.model_dir.name.endswith("v2")
+        self.model_id = PARAKEET if self.v3 else PARAKEET_V2
+        self.languages = list(languages or ["en"])
         self._make_model = make_model  # onnx_asr.load_model (a fake in tests)
 
     def _load(self):
@@ -116,10 +135,23 @@ class ParakeetTranscriber(Transcriber):
 
             make = onnx_asr.load_model
         log.info("Loading the Parakeet speech model from %s", self.model_dir)
-        return make(PARAKEET, self.model_dir, quantization="int8")
+        return make(self.model_id, self.model_dir, quantization="int8")
 
     def _recognize(self, model, samples: np.ndarray) -> str:
-        return str(model.recognize(samples.astype(np.float32), sample_rate=16000))
+        text = str(model.recognize(samples.astype(np.float32), sample_rate=16000))
+        self.last_language = self._language_of(text)
+        return text
+
+    def _language_of(self, text: str) -> str:
+        """The language it was in. v3 picks the language itself and doesn't say which; German
+        shows in the words, and with one language chosen that is it."""
+        if not self.v3:
+            return "en"
+        from abdoh.speech.tts import looks_german
+
+        if looks_german(text):
+            return "de"
+        return self.languages[0] if len(self.languages) == 1 else "en"
 
 
 class WhisperTranscriber(Transcriber):
@@ -184,32 +216,44 @@ class WhisperTranscriber(Transcriber):
 
 
 def parakeet_available(cfg) -> Path | None:
-    """The Parakeet model's folder if it's complete (and onnx-asr is installed)."""
-    folder = cfg.resolve(PARAKEET_DIR)
-    if not is_complete(folder, PARAKEET_FILES):
-        return None
+    """The Parakeet model's folder if it's complete (and onnx-asr is installed): v3, or else
+    the English-only v2 of older installs."""
     import importlib.util
 
-    return folder if importlib.util.find_spec("onnx_asr") else None
+    if not importlib.util.find_spec("onnx_asr"):
+        return None
+    for name in (PARAKEET_DIR, PARAKEET_V2_DIR):
+        folder = cfg.resolve(name)
+        if is_complete(folder, PARAKEET_FILES):
+            return folder
+    return None
+
+
+def parakeet_handles(cfg, parakeet: Path) -> bool:
+    """Can this Parakeet model (v3, or the English-only v2) understand all your languages?"""
+    v3 = not Path(parakeet).name.endswith("v2")
+    languages = set(cfg.languages)
+    if not languages <= (PARAKEET_LANGUAGES if v3 else {"en"}):
+        return False
+    return len(languages) == 1 or languages <= PARAKEET_MIXES
 
 
 def choose_engine(cfg, parakeet: Path | None) -> str:
-    """'parakeet' or 'whisper' for these settings. Parakeet only understands English."""
-    english_only = cfg.languages == ["en"]
-    if cfg.speech_engine == "whisper" or not english_only:
+    """'parakeet' or 'whisper' for these settings."""
+    if cfg.speech_engine == "whisper":
         return "whisper"
     if parakeet is None:
         if cfg.speech_engine == "parakeet":
             log.warning("The Parakeet speech model isn't in %s; using Whisper.", PARAKEET_DIR)
         return "whisper"
-    return "parakeet"
+    return "parakeet" if parakeet_handles(cfg, parakeet) else "whisper"
 
 
 def make_transcriber(cfg) -> Transcriber:
     """The speech recognizer for these settings."""
     parakeet = parakeet_available(cfg)
     if choose_engine(cfg, parakeet) == "parakeet":
-        return ParakeetTranscriber(parakeet)
+        return ParakeetTranscriber(parakeet, languages=cfg.languages)
     return _whisper(cfg, fallback=cfg.speech_engine != "whisper" and cfg.languages == ["en"])
 
 

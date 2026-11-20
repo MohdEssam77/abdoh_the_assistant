@@ -345,7 +345,9 @@
   function speechCard() {
     const settings = App.settings;
     const chosen = new Set(settings.languages || ["en"]);
-    const onlyEnglish = chosen.size === 1 && chosen.has("en");
+    /* Parakeet (fast, accurate) understands these; anything else is Whisper. */
+    const FAST = ["bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk"];
+    const fast = [...chosen].every((c) => FAST.includes(c)) && (chosen.size === 1 || [...chosen].every((c) => c === "en" || c === "de"));
     const picks = el("div", { class: "picks" }, LANGUAGES.map(([code, name]) => {
       const button = el("button", { class: chosen.has(code) ? "pick on" : "pick", "aria-pressed": chosen.has(code) ? "true" : "false" }, name);
       button.addEventListener("click", async () => {
@@ -356,15 +358,15 @@
       return button;
     }));
     const lighter = settings.speech_engine === "whisper";
-    const how = !onlyEnglish ? "With more than English, Xanthos uses the Whisper model below. It's a little slower, and it answers in the language you spoke."
-      : lighter ? "English with the lighter Whisper model: less memory, more mistakes."
-        : "English only: the fastest and most accurate recognition.";
+    const how = !fast ? "With these languages Xanthos uses the Whisper model below. It's slower, and it answers in the language you spoke."
+      : lighter ? "The lighter Whisper model: less memory, more mistakes."
+        : "English, German and 23 other European languages: the fastest and most accurate recognition. Xanthos tells which one you spoke by itself.";
     return card("Speech recognition", "How Xanthos turns what you say into text. Everything runs on this computer.",
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Xanthos"), el("small", {}, how)), picks),
-      onlyEnglish ? row("Quality", "Best accuracy uses about 700 MB more memory.",
+      fast ? row("Quality", "Best accuracy uses about 700 MB more memory.",
         select([["auto", "Best accuracy (recommended)"], ["whisper", "Lighter"]], lighter ? "whisper" : "auto",
           (value) => saveSettings({ speech_engine: value }).then((ok) => ok && render()), "Speech quality")) : null,
-      !onlyEnglish || lighter ? row("Whisper model", (MODELS.find(([v]) => v === settings.whisper_model) || ["", "", ""])[2],
+      !fast || lighter ? row("Whisper model", (MODELS.find(([v]) => v === settings.whisper_model) || ["", "", ""])[2],
         select(MODELS.map(([v, label]) => [v, label]).concat(MODELS.some(([v]) => v === settings.whisper_model) ? [] : [[settings.whisper_model, settings.whisper_model]]),
           settings.whisper_model, (value) => saveSettings({ whisper_model: value }), "Whisper model")) : null);
   }

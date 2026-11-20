@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLED_MODELS = [
     "openwakeword",
     "hey_xanthos.onnx",
-    "parakeet-tdt-0.6b-v2",  # speech recognition: no download on the first start
+    "parakeet-tdt-0.6b-v3",  # speech recognition: no download on the first start
     "piper/en_US-lessac-medium.onnx",  # the natural English voice (others download when needed)
     "piper/en_US-lessac-medium.onnx.json",
 ]
