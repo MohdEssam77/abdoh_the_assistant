@@ -30,7 +30,7 @@ def cmd_listen_once(cfg: Config, args: argparse.Namespace) -> int:
     transcriber = load_transcriber(cfg)
     transcriber.transcribe(b"\0\0" * 1600)  # load the model before listening
     with Microphone() as mic:
-        print('Listening... say "Hey Xanthos" and a request.')
+        print('Listening... say "Hey Krekos" and a request.')
         speaker = make_voice(cfg)
         text = listen_for_request(mic, engine, transcriber, speaker, cfg, vad=load_vad())
     print(text)
@@ -50,15 +50,15 @@ def cmd_test_command(cfg: Config, args: argparse.Namespace) -> int:
         cfg,
         registry,
         brain=make_brain(cfg),
-        on_thinking=lambda: print("Xanthos: (thinking...)"),
+        on_thinking=lambda: print("Krekos: (thinking...)"),
         computer=Computer(),
     )
     reply = router.handle(args.text)
     if isinstance(reply, str):
-        print(f"Xanthos: {reply or '(done)'}")
+        print(f"Krekos: {reply or '(done)'}")
     else:
         for sentence in reply:  # Claude's answer, as it arrives
-            print(f"Xanthos: {sentence}", flush=True)
+            print(f"Krekos: {sentence}", flush=True)
     return 0
 
 
@@ -80,11 +80,11 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
     from abdoh.instance import InstanceLock, ask_running_instance_to_show
     from abdoh.power import keep_full_speed
 
-    keep_full_speed()  # Windows slows down apps without a visible window; Xanthos lives there
+    keep_full_speed()  # Windows slows down apps without a visible window; Krekos lives there
     lock = InstanceLock()
     if not lock.acquire():
         shown = ask_running_instance_to_show()
-        print("Xanthos is already running." + (" Showing its window." if shown else ""))
+        print("Krekos is already running." + (" Showing its window." if shown else ""))
         return 0
     window = tray = None
     if not args.headless:
@@ -97,7 +97,7 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
             daemon = Daemon.create(cfg, bus)
             _start_hotkey(cfg, daemon)
             threading.Thread(target=daemon.serve_requests, daemon=True).start()
-            print('Xanthos is listening. Say "Hey Xanthos" and a request. Press Ctrl+C to quit.')
+            print('Krekos is listening. Say "Hey Krekos" and a request. Press Ctrl+C to quit.')
             try:
                 daemon.run()
             except KeyboardInterrupt:
@@ -120,7 +120,7 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
         if tray:
             tray.start()
             if sys.stderr is not None and not args.show:
-                print("Xanthos is running in the system tray. Click its icon to open the window.")
+                print("Krekos is running in the system tray. Click its icon to open the window.")
         try:
             window.mainloop()
         except KeyboardInterrupt:
@@ -138,7 +138,7 @@ def cmd_run(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def _start_again() -> None:
-    """Start a new Xanthos once this one has let go of its lock (the window's Restart button)."""
+    """Start a new Krekos once this one has let go of its lock (the window's Restart button)."""
     import subprocess
 
     from abdoh.autostart import launch_command
@@ -246,12 +246,12 @@ def cmd_uninstall(cfg: Config, args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="abdoh", description="Xanthos, your voice assistant.")
+    parser = argparse.ArgumentParser(prog="abdoh", description="Krekos, your voice assistant.")
     parser.add_argument("--version", action="version", version=f"abdoh {__version__}")
     parser.add_argument("-v", "--verbose", action="store_true", help="debug logging")
     sub = parser.add_subparsers(dest="command", metavar="<command>")
 
-    p = sub.add_parser("run", help="start Xanthos (in the system tray)")
+    p = sub.add_parser("run", help="start Krekos (in the system tray)")
     mode = p.add_mutually_exclusive_group()
     mode.add_argument("--show", action="store_true", help="open the window right away")
     mode.add_argument("--minimized", action="store_true", help="start with the window hidden")
@@ -275,8 +275,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("claude-check", help="check the Claude connection with a tiny request")
     p.set_defaults(func=cmd_claude_check)
 
-    p = sub.add_parser("install", help="add Xanthos to the Start Menu (Windows)")
-    p.add_argument("--login", action="store_true", help="also start Xanthos at login")
+    p = sub.add_parser("install", help="add Krekos to the Start Menu (Windows)")
+    p.add_argument("--login", action="store_true", help="also start Krekos at login")
     p.set_defaults(func=cmd_install)
 
     p = sub.add_parser("uninstall", help="remove the Start Menu shortcut and start at login")
@@ -289,13 +289,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command is None and getattr(sys, "frozen", False):
-        args = parser.parse_args(["run", "--show"])  # double-clicking Xanthos.exe
+        args = parser.parse_args(["run", "--show"])  # double-clicking Krekos.exe
     if args.command is None:
         parser.print_help()
         return 0
     from abdoh.rename import move_old_folders
 
-    moved = move_old_folders()  # Abdoh's folders, the first time Xanthos starts
+    moved = move_old_folders()  # Xanthos's and Abdoh's folders, the first time Krekos starts
     cfg = load_config()
     # pythonw (used for autostart) has no console: sys.stdout/stderr are None there, which
     # crashes libraries that print progress bars (e.g. the first Whisper model download).
