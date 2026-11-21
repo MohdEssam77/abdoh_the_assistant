@@ -116,7 +116,7 @@ class Router:
     def builtin_name(self, text):
         return None
 
-    def handle(self, text, aside=False):
+    def handle(self, text, aside=False, woken=False):
         return self.replies.pop(0) if self.replies else "Okay."
 
 

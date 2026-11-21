@@ -47,6 +47,14 @@ ASIDE = (
     "in the room. If it isn't meant for you, write only the line ACTION ignore: not for me, "
     "and nothing else.)\n"
 )
+# Said after the wake word, which a video, music or people talking nearby can set off by mistake.
+WOKEN = (
+    "(Said right after your wake word, which a video, music or people talking nearby sometimes "
+    "set off by mistake. If this clearly isn't said to you as the user's assistant (a line from "
+    "a video or a song, or the user talking to someone else), write only the line "
+    "ACTION ignore: not for me, and nothing else. If it could be a request or a question for "
+    "you, answer it.)\n"
+)
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
 Xanthos: {answer}
@@ -151,14 +159,16 @@ class Router:
         found = match(request, self._builtin_commands, self.cfg.match_threshold)
         return found[0].name if found else None
 
-    def handle(self, text: str, aside: bool = False) -> Reply:
+    def handle(self, text: str, aside: bool = False, woken: bool = False) -> Reply:
         """Route one request. Returns the reply ("" means nothing to say). `aside`: said right
-        after a reply without the wake word, so maybe to someone else (Claude decides)."""
+        after a reply without the wake word, so maybe to someone else; `woken`: said after the
+        wake word, which may have been a mistake. Claude decides in both cases."""
         prefix = COMMANDS_FILE_ERROR if self.registry.refresh() else ""
         request = strip_wake_words(text, self.wake_words)
         if not request:
             return prefix
-        reply = self._route(request, remove_wake_words(text, self.wake_words) or request, aside)
+        original = remove_wake_words(text, self.wake_words) or request
+        reply = self._route(request, original, aside, woken)
         if isinstance(reply, str):
             if reply:
                 self.last_reply = reply
@@ -169,7 +179,9 @@ class Router:
             return Question(reply) if asks else reply
         return _prepend(prefix, reply) if prefix else reply
 
-    def _route(self, request: str, original: str, aside: bool = False) -> Reply:
+    def _route(
+        self, request: str, original: str, aside: bool = False, woken: bool = False
+    ) -> Reply:
         # 0. "Remember that": save what Claude just did as a command
         remember = _REMEMBER.fullmatch(request)
         if remember:
@@ -222,7 +234,8 @@ class Router:
         # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
-            return self._ask(ASIDE + prompt if aside else prompt, original, aside=aside)
+            note = ASIDE if aside else WOKEN if woken else ""
+            return self._ask(note + prompt, original, aside=aside or woken)
 
         # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"

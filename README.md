@@ -129,7 +129,11 @@ back to its old, simple window.
 ### Talking with Xanthos
 
 - **Say the wake word and keep going**: "Hey Xanthos, what's the weather tomorrow?" A soft chime
-  tells you it woke up. If you only say "Hey Xanthos", it answers "Yes?" and waits.
+  tells you it woke up. You can pause after "Hey Xanthos": it waits five seconds for the rest.
+- **Woken by mistake, it stays quiet**: a video, music or people talking can set the wake word
+  off. If nothing follows, it goes back to waiting without a word, and if what it hears clearly
+  isn't meant for it (a line from a video, you talking to a friend), Claude notices and Xanthos
+  says nothing. Your own commands ("open my mail") always run.
 - **Things you ask it to do are just done**: "open Spotify", "volume 30", "play some jazz",
   "work mode". Xanthos does it and plays a short falling sound instead of talking (the window
   shows what it did), and it doesn't listen for more afterwards. It only asks when it can't tell
