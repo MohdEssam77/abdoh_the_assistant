@@ -1,4 +1,4 @@
-# Builds Xanthos-Setup.exe on Windows. Pushing a version tag (git tag v0.3.0; git push origin v0.3.0)
+# Builds Krekos-Setup.exe on Windows. Pushing a version tag (git tag v0.3.0; git push origin v0.3.0)
 # also publishes it as a GitHub Release, which the download page and the in-app update check use.
 name: Release
 
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Xanthos and the build tools
+      - name: Install Krekos and the build tools
         run: python -m pip install -e ".[build,dev]"
 
       - name: Run the tests
@@ -29,30 +29,36 @@ jobs:
       - name: Download the speech models
         run: python scripts/download_models.py
 
-      # Optional: a trained "Hey Xanthos" model to bundle. Set the repository variable
-      # WAKE_WORD_URL (Settings > Secrets and variables > Actions > Variables) to its download URL.
-      - name: Add the trained wake word model
-        if: ${{ vars.WAKE_WORD_URL != '' }}
-        run: Invoke-WebRequest -Uri "${{ vars.WAKE_WORD_URL }}" -OutFile models/hey_xanthos.onnx
-
       - name: Install Inno Setup
         run: choco install innosetup --no-progress -y
 
-      - name: Build Xanthos-Setup.exe
+      - name: Build Krekos-Setup.exe
         run: python scripts/build_installer.py
+
+      # Xanthos and Abdoh (the old names) look for their own installer's name when they check
+      # for updates: the same installer goes up under those names too.
+      - name: Copy the installer for the old names
+        run: |
+          Copy-Item dist/Krekos-Setup.exe dist/Xanthos-Setup.exe
+          Copy-Item dist/Krekos-Setup.exe dist/Abdoh-Setup.exe
 
       - uses: actions/upload-artifact@v7
         with:
-          path: dist/Xanthos-Setup.exe
+          path: dist/Krekos-Setup.exe
           archive: false # the installer itself, not a zip
 
       - name: Publish the release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v3
         with:
-          files: dist/Xanthos-Setup.exe
+          files: |
+            dist/Krekos-Setup.exe
+            dist/Xanthos-Setup.exe
+            dist/Abdoh-Setup.exe
           body: |
-            **Download `Xanthos-Setup.exe` below** and run it. It installs Xanthos for you only (no admin rights) and walks you through the setup.
+            **Download `Krekos-Setup.exe` below** and run it. It installs Krekos for you only (no admin rights) and walks you through the setup.
+
+            Krekos was called Xanthos (and Abdoh before that): `Xanthos-Setup.exe` and `Abdoh-Setup.exe` are the same installer, there so older versions find this update. Installing replaces the old version and keeps your settings.
 
             Windows may say "Windows protected your PC", because the installer isn't code-signed yet: click **More info**, then **Run anyway**.
 
