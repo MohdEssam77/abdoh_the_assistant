@@ -132,6 +132,12 @@ On first run Krekos creates `config.yaml` and `commands.yaml` from the example f
 - "Hey Krekos, what time is it"
 - "Hey Krekos, play Bohemian Rhapsody on YouTube" (starts the top video)
 - Press **Ctrl+Alt+Space** and say "what time is it" (no wake word needed)
+- "Hey Krekos, stop the music, play Arabic music, then open WhatsApp" (several things at once)
+
+**Several things at once.** Join them with "and", "then", "after that" or a pause, and Krekos
+does them one by one, in order, each the way it would alone: your own commands, the built-in
+skills, and Claude only for a step nothing else knows. It only splits where every part is a
+thing to do, so "play rock and roll" or "remind me to buy milk and eggs" stay one request.
 
 **The tray icon** shows Krekos's state by color: green = listening, blue = thinking or speaking,
 gray = paused, red = a problem. Click it to open the window; right-click for the menu: pause or
