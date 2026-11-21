@@ -1,4 +1,4 @@
-"""Things Krekos does instantly by itself, without Claude: timers and reminders, volume and
+"""Things Abdoh does instantly by itself, without Claude: timers and reminders, volume and
 brightness, media keys, notes, quick maths, typing what you dictate, screenshots, the window in
 front, locking the computer, and opening any installed app. Your own commands come first."""
 
@@ -100,15 +100,15 @@ _LAMP_FILLER = re.compile(
     r"\b(?:turn|switch|set|make|change|put|the|my|to|into|at|please|colou?r|brightness|a|it|both"
     r"|all|of)\b"
 )
-# Krekos's name however speech recognition wrote it ("krecos", "cricos", "creekos", "krikus").
-_NAME = r"(?:(?:hey|ya) )?[ckgp]r[aeiouy]{1,2}(?:ck|c|k)[aou]{1,2}(?:e?s|ze?)?"
+# Abdoh's name however speech recognition wrote it ("abdo", "abdu", "abdou", "abdul").
+_NAME = r"(?:(?:hey|ya) )?ab ?d(?:oh?|oo|ou|u|ul)"
 _DONE = re.compile(
     r"(?:no |okay |ok )?(?:thanks|thank you|thanks a lot|thank you very much|thats all|thats it"
     r"|never mind|nevermind|nothing|no|nope|stop|cancel|goodbye|bye|okay|ok|alright|all right"
     r"|great|perfect|cool|awesome|got it|good|nice|done|thats great|thats perfect|sounds good)"
     rf"(?: (?:thanks|thank you))?(?: {_NAME})?"
 )
-# What you might say while Krekos is talking: sounds, "I'm listening", and "be quiet".
+# What you might say while Abdoh is talking: sounds, "I'm listening", and "be quiet".
 _FILLER = re.compile(r"(?:(?:uh|um|umm|hmm|hm|mm|mmm|ah|er|erm|oh)\s*)+")
 _BACKCHANNEL = re.compile(
     r"(?:okay|ok|yeah|yes|yep|right|i see|got it|sure|uh huh|mm hmm|mhm|wow|nice|cool|really"
@@ -120,7 +120,7 @@ _HUSH = re.compile(
     rf"(?: (?:please|{_NAME}|a second|a moment))?"
 )
 # "Shut up", "I'm not talking to you": the conversation is over, now, without a word, and
-# Krekos goes back to waiting for its wake word. (Not "pause" or "stop listening": those do
+# Abdoh goes back to waiting for its wake word. (Not "pause" or "stop listening": those do
 # other things.)
 _DISMISS = re.compile(
     r"(?:(?:no|sorry|oh|okay|ok|hey|dude|bro|please|just) )*"
@@ -163,8 +163,8 @@ HELP = (
 
 
 def interruption_kind(text: str) -> str:
-    """What you said while Krekos was talking: "nothing" (no words, or "um"), "backchannel"
-    ("okay", "right": Krekos goes on), "stop" ("wait", "thanks", "stop": it goes quiet) or
+    """What you said while Abdoh was talking: "nothing" (no words, or "um"), "backchannel"
+    ("okay", "right": Abdoh goes on), "stop" ("wait", "thanks", "stop": it goes quiet) or
     "request" (anything else: it stops and does that instead)."""
     words = normalize(text)
     if not words or _FILLER.fullmatch(words):
@@ -246,7 +246,7 @@ class LocalSkills:
         from abdoh.system_skills import SystemSkills
 
         self.computer = computer
-        self._last_reply = last_reply  # what Krekos said last, for "repeat that"
+        self._last_reply = last_reply  # what Abdoh said last, for "repeat that"
         self.system = SystemSkills(computer, allow_power, last_reply)
 
     def handle(self, request: str, original: str = "") -> str | None:

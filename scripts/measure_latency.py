@@ -1,14 +1,14 @@
-"""Developer tool: how long Krekos takes to start answering, end to end, without a mic or speakers.
+"""Developer tool: how long Abdoh takes to start answering, end to end, without a mic or speakers.
 
 Speaks a request into a WAV with the system voice, plays it into the real pipeline at real-time
 speed (VAD, Whisper, your commands, Claude if it goes there), and reports the time from the end
-of the speech until Krekos starts its reply. The wake word engine is skipped (it fires within a
+of the speech until Abdoh starts its reply. The wake word engine is skipped (it fires within a
 frame of hearing the word), and speaking is replaced by a stopwatch.
 
 Requests really run (apps open, media keys are pressed), so measure questions and harmless
 commands like the time.
 
-Usage: python scripts/measure_latency.py ["Hey Krekos, what time is it?" ...]
+Usage: python scripts/measure_latency.py ["Hey Abdoh, what time is it?" ...]
 """
 
 import sys
@@ -102,7 +102,7 @@ def measure(daemon_parts, text: str) -> None:
     speech_end = (len(lead) + len(speech)) / 16000
     mic = PacedMic(audio)
     speaker = Stopwatch()
-    wake_block = int((len(lead) + len(speech) * 0.4) / BLOCK)  # roughly after "Hey Krekos"
+    wake_block = int((len(lead) + len(speech) * 0.4) / BLOCK)  # roughly after "Hey Abdoh"
     daemon = Daemon(cfg, router, speaker, lambda: mic, WakeAt(wake_block), transcriber, vad=vad)
     thread = threading.Thread(target=daemon.run, daemon=True)
     thread.start()
@@ -130,7 +130,7 @@ def main() -> int:
     transcriber.transcribe(b"\0\0" * 1600)
     router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
     router.computer = Computer()
-    requests = sys.argv[1:] or ["Hey Krekos, what time is it?"]
+    requests = sys.argv[1:] or ["Hey Abdoh, what time is it?"]
     for text in requests:
         measure((cfg, router, transcriber, load_vad()), text)
     return 0

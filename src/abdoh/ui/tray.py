@@ -1,4 +1,4 @@
-"""The system tray icon: Krekos's status at a glance and a small menu.
+"""The system tray icon: Abdoh's status at a glance and a small menu.
 
 Like the window, it only shows state and forwards requests on the bus; no logic here. pystray
 runs its own loop on a background thread (fine on Windows).
@@ -58,7 +58,7 @@ class Tray:
         self.icon = pystray.Icon(
             "abdoh",
             icon_image(status_color(self.status)),
-            "Krekos",
+            "Abdoh",
             menu(
                 item("Show window", lambda: bus.emit("show"), default=True),
                 item(lambda i: "Resume listening" if self.paused else "Pause listening",
@@ -69,7 +69,7 @@ class Tray:
                 item("Commands", self.open_commands),
                 item("Start at login", self.toggle_login, checked=lambda i: self.starts_at_login),
                 menu.SEPARATOR,
-                item("Quit Krekos", lambda: bus.request("quit")),
+                item("Quit Abdoh", lambda: bus.request("quit")),
             ),
         )  # fmt: skip
 
@@ -129,10 +129,10 @@ class Tray:
         try:
             message = self._autostart.install() if wanted else self._autostart.uninstall()
             self.starts_at_login = wanted
-            self.bus.emit("history", f"Krekos: {message}")
+            self.bus.emit("history", f"Abdoh: {message}")
         except Exception as e:
             log.exception("Couldn't change start at login")
-            self.bus.emit("history", f"Krekos: Couldn't change start at login: {e}")
+            self.bus.emit("history", f"Abdoh: Couldn't change start at login: {e}")
         self.icon.update_menu()
 
     def _check_login(self) -> None:
@@ -157,7 +157,7 @@ class Tray:
         self.icon.update_menu()
 
     def _title(self) -> None:
-        title = f"Krekos: {self.status}" + (f" ({self.mode} mode)" if self.mode else "")
+        title = f"Abdoh: {self.status}" + (f" ({self.mode} mode)" if self.mode else "")
         self.icon.title = title if len(title) <= TITLE_MAX else title[: TITLE_MAX - 1] + "…"
 
     def show_voice(self, on: bool) -> None:

@@ -1,9 +1,9 @@
-/* The first-start setup: welcome, microphone, voice, Claude, and how to talk to Krekos. Shown
+/* The first-start setup: welcome, microphone, voice, Claude, and how to talk to Abdoh. Shown
    until it's finished or skipped (setup_done); Settings → General can open it again. */
 "use strict";
 
 (() => {
-  const STEPS = ["Welcome", "Microphone", "Voice", "Claude", "Talk to Krekos"];
+  const STEPS = ["Welcome", "Microphone", "Voice", "Claude", "Talk to Abdoh"];
   let overlay = null;
   let step = 0;
   let data = {};
@@ -19,24 +19,24 @@
       el("span", { class: "cmd-icon", html: svg(icon) }), el("div", {}, el("b", {}, title), el("p", {}, text)));
     return el("div", { class: "setup-hero" },
       el("div", { class: "orb", html: ICON.logo }),
-      el("h1", {}, "Welcome to Krekos"),
+      el("h1", {}, "Welcome to Abdoh"),
       el("p", { class: "muted" }, "Your voice assistant for this computer. Let's get you set up; it takes about two minutes."),
       el("div", { class: "points" },
-        point("say", "Talk or type", "Ask for anything. Krekos answers out loud."),
+        point("say", "Talk or type", "Ask for anything. Abdoh answers out loud."),
         point("bolt", "Your own commands", "The things you do every day, done instantly."),
         point("sparkles", "Your own Claude", "Connect your Claude account for everything else.")));
   }
 
   function microphone() {
     return el("div", {},
-      el("h2", { class: "step-title" }, "Can Krekos hear you?"),
+      el("h2", { class: "step-title" }, "Can Abdoh hear you?"),
       el("p", { class: "muted step-lead" }, "Say something. The bar should move. If it doesn't, pick another microphone, or check that it isn't muted in Windows."),
       window.Settings.micCard(data.mics));
   }
 
   function voice() {
     return el("div", {},
-      el("h2", { class: "step-title" }, "How should Krekos sound?"),
+      el("h2", { class: "step-title" }, "How should Abdoh sound?"),
       el("p", { class: "muted step-lead" }, "Pick a voice and a speed, then press Test voice."),
       window.Settings.voiceCard(data.voices));
   }
@@ -44,7 +44,7 @@
   function claude() {
     return el("div", {},
       el("h2", { class: "step-title" }, "Connect your Claude"),
-      el("p", { class: "muted step-lead" }, "Optional. Your commands, timers, apps and music work without it. With it, Krekos can answer questions, search the web and do more."),
+      el("p", { class: "muted step-lead" }, "Optional. Your commands, timers, apps and music work without it. With it, Abdoh can answer questions, search the web and do more."),
       window.ClaudeCard());
   }
 
@@ -53,12 +53,12 @@
       el("span", { class: "cmd-icon", html: svg("check") }), el("div", {}, el("b", {}, title), el("p", {}, ...text)));
     return el("div", {},
       el("h2", { class: "step-title" }, "You're ready"),
-      el("p", { class: "muted step-lead" }, "Three ways to talk to Krekos:"),
+      el("p", { class: "muted step-lead" }, "Three ways to talk to Abdoh:"),
       el("div", { class: "points" },
         tip(`Say ${wakePhrases()}`, "then your request, like “what time is it” or “set a timer for 10 minutes”."),
         tip("Press the hotkey", ...kbds(App.settings.hotkey), " anywhere, then talk. Press it again to stop a reply."),
         tip("Or type", "in the box at the bottom of the window."),
-        tip("It stays in the tray", "Closing the window keeps Krekos running. Click the tray icon to come back.")));
+        tip("It stays in the tray", "Closing the window keeps Abdoh running. Click the tray icon to come back.")));
   }
 
   const BUILD = [welcome, microphone, voice, claude, talk];
@@ -69,7 +69,7 @@
     const body = el("div", { class: "setup-body" }, BUILD[step]());
     const dots = el("div", { class: "steps", "aria-label": `Step ${step + 1} of ${STEPS.length}` },
       STEPS.map((name, i) => el("span", { class: i === step ? "dot on" : i < step ? "dot done" : "dot", title: name })));
-    const panel = el("div", { class: "setup", role: "dialog", "aria-modal": "true", "aria-label": "Set up Krekos" },
+    const panel = el("div", { class: "setup", role: "dialog", "aria-modal": "true", "aria-label": "Set up Abdoh" },
       el("div", { class: "setup-head" }, dots, el("span", { class: "faint" }, STEPS[step]), el("div", { class: "spacer" }),
         el("button", { class: "btn ghost small", onclick: () => finish(true) }, "Skip setup")),
       body,
@@ -77,7 +77,7 @@
         step > 0 ? el("button", { class: "btn", onclick: () => { step -= 1; render(); } }, "Back") : null,
         el("div", { class: "spacer" }),
         el("button", { class: "btn primary", onclick: () => (last ? finish(false) : (step += 1, render())) },
-          last ? "Start using Krekos" : step === 0 ? "Get started" : "Next")));
+          last ? "Start using Abdoh" : step === 0 ? "Get started" : "Next")));
     const back = el("div", { class: "setup-back" }, panel);
     if (overlay) overlay.replaceWith(back);
     else document.body.append(back);
@@ -99,7 +99,7 @@
     await saveSettings({ setup_done: true }, true);
     if (!skipped) {
       showPage("home");
-      toast("All set. Say hello to Krekos!");
+      toast("All set. Say hello to Abdoh!");
     }
   }
 

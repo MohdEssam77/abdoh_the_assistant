@@ -43,7 +43,7 @@ def mixer():
         session("c", "chrome", 60, pid=12, playing=False),
         session("s", "Spotify", 50, pid=13),
         session("w", "WhatsApp.Root", 100, pid=14, playing=False),
-        session("me", "Krekos", 100, pid=os.getpid()),  # Krekos's own voice
+        session("me", "Abdoh", 100, pid=os.getpid()),  # Abdoh's own voice
         session("sys", "", 100, pid=0, name="@%SystemRoot%\\System32\\AudioSrv.Dll"),
     )
 
@@ -63,7 +63,7 @@ def test_apps_are_found_by_name_alias_or_close_spelling():
     assert ids(find_sessions("spotify app", all_)) == ["s"]
     assert ids(find_sessions("whatsapp", all_)) == ["w"]
     assert ids(find_sessions("spotfy", all_)) == ["s"]  # a speech recognition slip
-    assert find_sessions("abdoh", all_) == []  # never Krekos's own voice
+    assert find_sessions("abdoh", all_) == []  # never Abdoh's own voice
     assert find_sessions("the lights", all_) == []
     assert find_sessions("it", all_) == []
 
@@ -97,7 +97,7 @@ def test_muting_and_what_is_playing():
     computer = Computer(audio=fake)
     computer.mute_app("spotify", True)
     assert fake.sessions["s"].muted
-    assert computer.playing_apps() == ["Brave", "Spotify"]  # not Krekos, not system sounds
+    assert computer.playing_apps() == ["Brave", "Spotify"]  # not Abdoh, not system sounds
 
 
 def test_an_app_that_isnt_there_is_said():

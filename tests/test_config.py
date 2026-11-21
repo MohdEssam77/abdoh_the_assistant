@@ -6,7 +6,7 @@ from abdoh.config import Config, load_config, setup_logging
 def test_defaults_without_any_files(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     cfg = load_config(tmp_path)
-    assert cfg.wake_words == ["krekos", "hey krekos", "ya krekos"]
+    assert cfg.wake_words == ["abdoh", "hey abdoh", "ya abdoh"]
     assert cfg.match_threshold == 85
     assert cfg.allow_run is False
     assert cfg.claude.max_tokens == 4000
@@ -61,8 +61,8 @@ def test_resolve_relative_to_app_dir(tmp_path):
 
 
 def test_setup_logging_writes_file(tmp_path):
-    cfg = Config(app_dir=tmp_path, log_file="logs/krekos.log")
-    old = tmp_path / "logs" / "krekos.log.2"  # Abdoh 0.4's backups, of any age
+    cfg = Config(app_dir=tmp_path, log_file="logs/abdoh.log")
+    old = tmp_path / "logs" / "abdoh.log.2"  # Abdoh 0.4's backups, of any age
     old.parent.mkdir()
     old.write_text("You: something from last month")
     setup_logging(cfg, console=False)
@@ -70,7 +70,7 @@ def test_setup_logging_writes_file(tmp_path):
     logging.getLogger("abdoh.test").info("hello log")
     for h in logging.getLogger().handlers:
         h.flush()
-    assert "hello log" in (tmp_path / "logs" / "krekos.log").read_text(encoding="utf-8")
+    assert "hello log" in (tmp_path / "logs" / "abdoh.log").read_text(encoding="utf-8")
     (handler,) = logging.getLogger().handlers
     # What you said is in the log: only today's and yesterday's are kept.
     assert (handler.when, handler.backupCount) == ("MIDNIGHT", 1)

@@ -41,6 +41,6 @@ def no_bundled_models(tmp_path_factory, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_real_folder_moves(monkeypatch):
-    """Tests that start the app never move this computer's real Abdoh folders to Krekos's
+    """Tests that start the app never move this computer's real Abdoh folders to Abdoh's
     (tests/test_rename.py tests the real function on temporary folders)."""
     monkeypatch.setattr("abdoh.rename.move_old_folders", lambda *a, **k: [])

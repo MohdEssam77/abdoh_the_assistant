@@ -15,8 +15,8 @@ from dotenv import dotenv_values
 
 log = logging.getLogger(__name__)
 
-# Files that ship with Krekos (example files, bundled models): the project folder, or the
-# inside of the built Krekos.exe.
+# Files that ship with Abdoh (example files, bundled models): the project folder, or the
+# inside of the built Abdoh.exe.
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
 
 
@@ -24,8 +24,8 @@ def _default_app_dir() -> Path:
     """The folder holding config.yaml, commands.yaml, .env and models/."""
     if os.environ.get("ABDOH_HOME"):
         return Path(os.environ["ABDOH_HOME"])
-    if getattr(sys, "frozen", False):  # the built Krekos.exe keeps your files in your profile
-        return Path(os.environ.get("APPDATA", Path.home())) / "Krekos"
+    if getattr(sys, "frozen", False):  # the built Abdoh.exe keeps your files in your profile
+        return Path(os.environ.get("APPDATA", Path.home())) / "Abdoh"
     return Path(__file__).resolve().parents[2]  # the project folder
 
 
@@ -37,7 +37,8 @@ SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
 # 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
 # 8: Xanthos became Krekos (new wake words and wake word model again).
-CONFIG_VERSION = 8
+# 9: Krekos became Abdoh again (Abdoh's wake words and wake word model).
+CONFIG_VERSION = 9
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -56,21 +57,21 @@ CLAUDE_ACTIONS = (
     "dark_mode",
     "lamp",
 )
-# Settings older versions wrote that no longer do anything (vosk_model: the old wake word).
-REMOVED_KEYS = {"vosk_model"}
-WAKE_WORDS = ("krekos", "hey krekos", "ya krekos")
-# How Parakeet wrote "Krekos" on test clips ("ya krekos" sometimes comes out as one word).
-WAKE_WORD_ALIASES = (
-    "krecos", "crecos", "kricos", "cricos", "krikos", "creekos", "crecoes", "cricoes",
-    "krakos", "cracos", "krekus", "krikus", "yakrecos", "yakricos",
-)  # fmt: skip
-WAKE_WORD_MODEL = "models/hey_krekos.onnx"
-LOG_FILE = "~/.krekos/krekos.log"
-# The old names and the ways speech recognition wrote them: Abdoh ("abdo", "ab doe", "abdul",
-# "ya abdoo") and Xanthos ("zanthos", "xantos", "santos", "xanthus").
-_OLD_NAME = re.compile(r"\bab ?d(?:oh?|oo|oe|ul)\b|\b[xzs]anth?[ou]s\b")
-_OLD_MODELS = ("hey_abdoh.onnx", "hey_xanthos.onnx")
-_OLD_LOGS = ("~/.abdoh/abdoh.log", "~/.xanthos/xanthos.log")
+# Settings older versions wrote that no longer do anything (vosk_model: the old wake word;
+# mic_raw: 0.7.1-0.7.3's raw microphone).
+REMOVED_KEYS = {"vosk_model", "mic_raw"}
+WAKE_WORDS = ("abdoh", "hey abdoh", "ya abdoh")
+# How speech recognition writes "Abdoh" (left out of your requests).
+WAKE_WORD_ALIASES = ("abdo", "abdu", "abdou", "abdoo", "ab doe", "abdul")
+WAKE_WORD_MODEL = "models/hey_abdoh.onnx"
+LOG_FILE = "~/.abdoh/abdoh.log"
+# The names it had for a while and how speech recognition wrote them: Krekos ("krecos",
+# "cricos", "creekos", "yakrecos") and Xanthos ("zanthos", "xantos", "santos", "xanthus").
+_OLD_NAME = re.compile(
+    r"\b(?:ya ?)?[ckgp]r[aeiouy]{1,2}(?:ck|c|k)[aou]{1,2}(?:e?s|ze?)?\b|\b[xzs]anth?[ou]s\b"
+)
+_OLD_MODELS = ("hey_xanthos.onnx", "hey_krekos.onnx")
+_OLD_LOGS = ("~/.xanthos/xanthos.log", "~/.krekos/krekos.log")
 # By the config version that added them: switched on for people upgrading from before it.
 NEW_ACTIONS = {
     3: ("volume", "brightness", "remind", "note"),
@@ -107,13 +108,13 @@ class ClaudeConfig:
 class Config:
     config_version: int = CONFIG_VERSION  # for upgrading settings files from older versions
     wake_words: list[str] = field(default_factory=lambda: list(WAKE_WORDS))
-    # Other spellings speech recognition may write for "Krekos", left out of your requests.
+    # Other spellings speech recognition may write for "Abdoh", left out of your requests.
     wake_word_aliases: list[str] = field(default_factory=lambda: list(WAKE_WORD_ALIASES))
     wake_word_model: str = WAKE_WORD_MODEL  # openWakeWord; missing -> hotkey only
     wake_word_threshold: float = 0.4
     wake_word_voice_threshold: float = 0.5  # with your voice check: how sure it must be it's you
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
-    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Krekos
+    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Abdoh
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
     whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
@@ -123,9 +124,9 @@ class Config:
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
-    duck_others: bool = True  # other apps go quieter while Krekos listens and answers
+    duck_others: bool = True  # other apps go quieter while Abdoh listens and answers
     duck_percent: int = 30  # ... to this share of their volume
-    allow_power: bool = True  # Krekos may put the computer to sleep, shut it down, restart it
+    allow_power: bool = True  # Abdoh may put the computer to sleep, shut it down, restart it
     max_record_seconds: float = 10
     tts_engine: str = "piper"  # piper: natural voices; windows: the Windows voice
     piper_voice_en: str = "en_US-lessac-medium"  # Piper's voice for English ...
@@ -156,7 +157,7 @@ class Config:
 
     def resolve(self, path: str) -> Path:
         """Resolve a path from config relative to the app dir (and expand ~). If it isn't
-        there, a copy that ships with Krekos (e.g. models bundled in Krekos.exe) is used."""
+        there, a copy that ships with Abdoh (e.g. models bundled in Abdoh.exe) is used."""
         p = Path(path).expanduser()
         if p.is_absolute():
             return p
@@ -205,7 +206,7 @@ def save_api_key(env_path: Path, key: str) -> None:
 
 
 def upgrade(raw: dict) -> dict:
-    """Settings from an older Krekos, brought up to date (the file itself is rewritten the next
+    """Settings from an older Abdoh, brought up to date (the file itself is rewritten the next
     time settings are saved). Only values still at their old default are changed."""
     version = raw.get("config_version", 1)
     if version >= CONFIG_VERSION:
@@ -220,7 +221,7 @@ def upgrade(raw: dict) -> dict:
     raw["config_version"] = CONFIG_VERSION
     if version < 2:
         _upgrade_from_1(raw)
-    if version < 8:
+    if version < 9:
         _rename(raw)
     return raw
 
@@ -234,11 +235,15 @@ def _upgrade_from_1(raw: dict) -> None:
         raw["wake_word_threshold"] = 0.4
     if raw.get("whisper_model") == "base":
         raw["whisper_model"] = "small"
+    words = raw.get("wake_words")  # "ya abdoh" came with Arabic (0.4)
+    if isinstance(words, list) and "hey abdoh" in words and "ya abdoh" not in words:
+        raw["wake_words"] = [*words, "ya abdoh"]
 
 
 def _rename(raw: dict) -> None:
-    """Abdoh became Xanthos, then Krekos: the old names' wake words, spellings, model and log
-    go. Your own other wake words stay (and a list without the old name is left alone)."""
+    """Abdoh became Xanthos, then Krekos, and Abdoh again: those names' wake words, spellings,
+    model and log go (Abdoh's own stay as they are). Your own other wake words stay, and a list
+    without the old names is left alone."""
     for key, new in (("wake_words", WAKE_WORDS), ("wake_word_aliases", WAKE_WORD_ALIASES)):
         words = raw.get(key)
         if isinstance(words, list):

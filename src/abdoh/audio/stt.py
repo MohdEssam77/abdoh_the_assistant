@@ -10,7 +10,7 @@ Two engines behind one small interface (`transcribe(audio) -> text`):
 - **Whisper** (faster-whisper): any language. Used for languages Parakeet doesn't have
   (Arabic, Turkish, Hindi, ...), when its model isn't there, or when you choose it.
 
-The models ship with Krekos in models/ (scripts/download_models.py puts them there); a Whisper
+The models ship with Abdoh in models/ (scripts/download_models.py puts them there); a Whisper
 model that isn't there is downloaded the first time it's used.
 """
 
@@ -29,7 +29,7 @@ ENGLISH_ONLY = {"tiny", "base", "small", "medium"}
 ENGLISH_FALLBACK = "base"  # Whisper size for English when Parakeet can't be used
 PARAKEET = "nemo-parakeet-tdt-0.6b-v3"
 PARAKEET_DIR = "models/parakeet-tdt-0.6b-v3"
-PARAKEET_V2 = "nemo-parakeet-tdt-0.6b-v2"  # English only: what Krekos 0.5 and 0.6.0 shipped
+PARAKEET_V2 = "nemo-parakeet-tdt-0.6b-v2"  # English only: what Abdoh 0.5 and 0.6.0 shipped
 PARAKEET_V2_DIR = "models/parakeet-tdt-0.6b-v2"
 # The 25 languages of Parakeet v3 (NVIDIA's model card).
 PARAKEET_LANGUAGES = frozenset(
@@ -57,7 +57,7 @@ def model_name(size: str, languages: list[str]) -> str:
 
 
 def model_folder(name: str) -> str:
-    """Where a Whisper model that ships with Krekos lives, relative to the app folder."""
+    """Where a Whisper model that ships with Abdoh lives, relative to the app folder."""
     return f"models/faster-whisper-{name}"
 
 

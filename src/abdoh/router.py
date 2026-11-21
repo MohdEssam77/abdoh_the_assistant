@@ -32,7 +32,7 @@ from abdoh.system_skills import Done, Question
 log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
-SCREEN_OFF = "Looking at your screen is turned off in Krekos's permissions."
+SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 LOOKING = "Looking at your screen"
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
@@ -58,12 +58,12 @@ WOKEN = (
 )
 # One of several things asked at once that nothing but Claude knows (abdoh/steps.py).
 STEP = (
-    'The user asked for several things at once: "{request}". Krekos does them one by one and '
+    'The user asked for several things at once: "{request}". Abdoh does them one by one and '
     "takes care of the others. Do only this one now: {step}"
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
-Krekos: {answer}
+Abdoh: {answer}
 
 The user now says: {text}"""
 # Modes: "movie mode", "switch to work mode", "back to normal", "which mode am I in".
@@ -103,7 +103,7 @@ class ClaudeTurn:
     answer: str = ""
     actions: list[tuple[str, str]] = field(default_factory=list)
     finished_at: float = 0.0
-    ignored: bool = False  # it wasn't meant for Krekos (ACTION ignore)
+    ignored: bool = False  # it wasn't meant for Abdoh (ACTION ignore)
 
 
 class Router:
@@ -126,7 +126,7 @@ class Router:
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
         self.last_turn: ClaudeTurn | None = None
-        self.last_reply = ""  # what Krekos said last, for "repeat that"
+        self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
         self._act = act
         self._capture = capture
@@ -224,7 +224,7 @@ class Router:
         return f"{UNKNOWN} {NOT_CONNECTED}"
 
     def _route_local(self, request: str, original: str) -> str | None:
-        """What Krekos does without Claude: the reply, or None when none of it fits."""
+        """What Abdoh does without Claude: the reply, or None when none of it fits."""
         # 1. Built-in commands (show window, pause, ...)
         builtin = match(request, self._builtin_commands, self.cfg.match_threshold)
         if builtin:
@@ -312,9 +312,9 @@ class Router:
                     if claude is not None and claude is not turn:
                         if claude.ignored:
                             turn.ignored = True
-                            return  # not meant for Krekos: nor is the rest
+                            return  # not meant for Abdoh: nor is the rest
                         turn.actions += claude.actions
-                    aside = woken = False  # meant for Krekos: so is the rest
+                    aside = woken = False  # meant for Abdoh: so is the rest
                 elif reply and not isinstance(reply, Done):
                     said.append(reply)
                     yield reply
@@ -379,7 +379,7 @@ class Router:
                 looks.append(arg)
                 return
             if kind == IGNORE:
-                log.info("Not meant for Krekos: staying quiet")
+                log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
             try:
@@ -399,7 +399,7 @@ class Router:
             chunks = brain.stream(prompt, image)
             for sentence in speakable(chunks, act, allowed=allowed):
                 if turn.ignored:
-                    break  # not for Krekos: nothing is said
+                    break  # not for Abdoh: nothing is said
                 yield from _drain(problems)
                 spoken.append(sentence)
                 yield sentence

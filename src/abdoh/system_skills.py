@@ -15,7 +15,7 @@ from abdoh.system import POWER_NAMES
 
 CONFIRM_SECONDS = 60
 SHUTDOWN_DELAY = 20  # seconds: time to say "cancel the shutdown"
-NO_POWER = "Sleep, shutdown and restart are turned off in Krekos's permissions."
+NO_POWER = "Sleep, shutdown and restart are turned off in Abdoh's permissions."
 _YES = re.compile(
     r"(?:yes|yeah|yep|sure|ok|okay|do it|go ahead|confirm|please do)(?: please| do it)?"
 )
@@ -110,12 +110,12 @@ class Pending:
 
 
 class Question(str):
-    """A reply that asks something: Krekos listens for the answer without the wake word."""
+    """A reply that asks something: Abdoh listens for the answer without the wake word."""
 
 
 class Done(str):
     """A reply saying that something was done ("Opening Spotify.", or "" for nothing to say).
-    Krekos shows it in the window and plays a short sound instead of saying it (unless
+    Abdoh shows it in the window and plays a short sound instead of saying it (unless
     confirm_actions is "words"), and doesn't listen for more afterwards."""
 
 
@@ -138,7 +138,7 @@ class SystemSkills:
     # ----- asking first -----
 
     def answer(self, request: str) -> str | None:
-        """If Krekos just asked something ("Shut down the computer?"), the answer to it."""
+        """If Abdoh just asked something ("Shut down the computer?"), the answer to it."""
         pending, self._pending = self._pending, None
         if pending is None or self._clock() > pending.until:
             return None

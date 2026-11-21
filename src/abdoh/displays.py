@@ -1,7 +1,7 @@
 """Your monitors: which are on, turning them on and off, their numbers and names, brightness.
 
 Windows numbers monitors in ways that change (DISPLAY1, 5 and 6 on a laptop with two
-graphics chips), so Krekos keeps its own numbers in displays.json: a monitor gets the next
+graphics chips), so Abdoh keeps its own numbers in displays.json: a monitor gets the next
 free number the first time it's seen, and keeps it. A monitor is known by its device path,
 which stays the same across restarts (adapter ids don't).
 
@@ -33,7 +33,7 @@ _INTERNAL_WORDS = ("laptop", "built in", "builtin", "internal", "laptops")
 
 @dataclass(frozen=True)
 class Monitor:
-    """A connected monitor as Windows reports it (no Krekos number yet)."""
+    """A connected monitor as Windows reports it (no Abdoh number yet)."""
 
     id: str  # the device path: stable
     name: str  # "HP 32f" ("" for most laptop panels)
@@ -46,7 +46,7 @@ class Monitor:
 
 @dataclass(frozen=True)
 class Display(Monitor):
-    """A monitor with Krekos's number for it, and the nickname you gave it."""
+    """A monitor with Abdoh's number for it, and the nickname you gave it."""
 
     number: int = 0
     nickname: str = ""

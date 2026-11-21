@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 NO_MODE = "No mode is on."
 BACK_TO_NORMAL = "Back to normal."
-# Krekos's own switches: Windows keeps the rest by itself across a restart.
+# Abdoh's own switches: Windows keeps the rest by itself across a restart.
 ABDOH_SWITCHES = ("wake_word", "voice_replies", "follow_up")
 
 
@@ -134,7 +134,7 @@ class ModeEngine:
             return Done(BACK_TO_NORMAL)
 
     def start(self) -> None:
-        """When Krekos starts: if a mode is on, its own switches again (they live in memory)."""
+        """When Abdoh starts: if a mode is on, its own switches again (they live in memory)."""
         with self._lock:
             if self.current is None:
                 return
@@ -156,7 +156,7 @@ class ModeEngine:
 
     def tick(self, now) -> str | None:
         """Switch on a mode whose time it is (call at least once a minute). Each time fires
-        once; times that passed while Krekos was off don't catch up. Returns what was said."""
+        once; times that passed while Abdoh was off don't catch up. Returns what was said."""
         minute = now.strftime("%Y-%m-%d %H:%M")
         if minute == self._last_tick:
             return None

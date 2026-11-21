@@ -2,7 +2,7 @@
 
 daemon → UI events:   ("status", str), ("claude", str), ("wake", str), ("voice", bool),
                       ("history", str), ("activity", str), ("show", None), ("page", str),
-                      ("hearing", str): why Krekos can't hear you over itself ("" = it can),
+                      ("hearing", str): why Abdoh can't hear you over itself ("" = it can),
                       ("clear", None): a new day: empty the conversation,
                       ("mode", str): the mode that is on ("" = none),
                       ("quit", None)

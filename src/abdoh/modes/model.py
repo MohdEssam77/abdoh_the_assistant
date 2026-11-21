@@ -1,7 +1,7 @@
 """What a mode is, and reading modes.yaml.
 
 A mode has settings (things with a state, put back when the mode ends: which screens are on,
-volume, brightness, speakers, theme, power mode, and three of Krekos's own switches) and actions
+volume, brightness, speakers, theme, power mode, and three of Abdoh's own switches) and actions
 (things that just happen, like a command's: open an app, play music, say something).
 """
 

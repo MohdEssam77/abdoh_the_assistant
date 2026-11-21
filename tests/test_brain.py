@@ -16,7 +16,7 @@ from abdoh.config import ClaudeConfig, Config
 
 def test_system_prompt():
     text = system_prompt(Config(), web=True, now=datetime(2026, 11, 14, 21, 5))
-    assert "You are Krekos" in text
+    assert "You are Abdoh" in text
     assert "at most 4 short spoken sentences" in text
     assert "ACTION open_url:" in text and "ACTION open_app:" in text
     assert "search the web" in text
@@ -107,7 +107,7 @@ def test_api_streams_text_with_effort_and_fallbacks():
     assert call["model"] == "claude-opus-5-5"
     assert call["output_config"] == {"effort": "low"}
     assert call["betas"] == [FALLBACK_BETA] and call["fallbacks"] == "default"
-    assert "You are Krekos" in call["system"]
+    assert "You are Abdoh" in call["system"]
     assert call["messages"][0]["content"] == [{"type": "text", "text": "Capital of Japan?"}]
 
 

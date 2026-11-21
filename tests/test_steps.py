@@ -150,7 +150,7 @@ def test_a_step_only_claude_knows_goes_to_claude_in_its_turn(make):
     assert router.last_turn.actions == [("open_url", "https://youtube.com/results?q=cats")]
 
 
-def test_after_the_wake_word_claude_may_still_say_it_wasnt_meant_for_krekos(make):
+def test_after_the_wake_word_claude_may_still_say_it_wasnt_meant_for_abdoh(make):
     router, calls = make(FakeBrain(["ACTION ignore: not for me\n"]))
     reply = router.handle("find a video about cats and open whatsapp", woken=True)
     assert text_of(reply) == ""

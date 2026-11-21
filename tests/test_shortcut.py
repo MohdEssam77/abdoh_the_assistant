@@ -1,4 +1,4 @@
-"""Start Menu shortcut, icon, and running as the built Krekos.exe (no PowerShell or real paths)."""
+"""Start Menu shortcut, icon, and running as the built Abdoh.exe (no PowerShell or real paths)."""
 
 import sys
 from pathlib import Path
@@ -11,7 +11,7 @@ from abdoh.cli import build_parser, main
 
 
 def test_icon_has_several_sizes(tmp_path):
-    path = shortcut.make_icon(tmp_path / "krekos.ico")
+    path = shortcut.make_icon(tmp_path / "abdoh.ico")
     with Image.open(path) as ico:
         assert ico.format == "ICO"
         assert (16, 16) in ico.info["sizes"] and (256, 256) in ico.info["sizes"]
@@ -23,7 +23,7 @@ def test_shortcut_values_go_through_the_environment(tmp_path):
     def run(args, **kwargs):
         calls.append((args, kwargs))
 
-    lnk = tmp_path / "Start Menu" / "Krekos.lnk"
+    lnk = tmp_path / "Start Menu" / "Abdoh.lnk"
     command = [r"C:\Program Files\Py thon\pythonw.exe", "-m", "abdoh", "run", "--show"]
     shortcut.create_shortcut(lnk, command, Path(r"C:\it's\here"), tmp_path / "a.ico", run=run)
     ((args, kwargs),) = calls
@@ -51,7 +51,7 @@ class FakeAutostart:
 @pytest.mark.skipif(sys.platform != "win32", reason="the Start Menu is Windows-only")
 def test_install_and_uninstall(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
-    monkeypatch.setattr(shortcut, "ICON", tmp_path / "krekos.ico")
+    monkeypatch.setattr(shortcut, "ICON", tmp_path / "abdoh.ico")
     made = []
 
     def run(args, env, **kwargs):
@@ -60,7 +60,7 @@ def test_install_and_uninstall(tmp_path, monkeypatch):
 
     fake = FakeAutostart()
     done = shortcut.install(login=True, autostart=fake, run=run)
-    assert "Added Krekos to the Start Menu" in done[0] and done[1] == "Starts at login."
+    assert "Added Abdoh to the Start Menu" in done[0] and done[1] == "Starts at login."
     assert made[0]["ABDOH_ARGS"].endswith("run --show")
     assert shortcut.start_menu_shortcut().exists()
     done = shortcut.uninstall(autostart=fake)
@@ -70,8 +70,8 @@ def test_install_and_uninstall(tmp_path, monkeypatch):
 
 def test_launch_command_for_the_built_app(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setattr(sys, "executable", r"C:\Apps\Krekos\Krekos.exe")
-    assert autostart.launch_command() == [r"C:\Apps\Krekos\Krekos.exe", "run", "--minimized"]
+    monkeypatch.setattr(sys, "executable", r"C:\Apps\Abdoh\Abdoh.exe")
+    assert autostart.launch_command() == [r"C:\Apps\Abdoh\Abdoh.exe", "run", "--minimized"]
     assert autostart.launch_command(show=True)[-1] == "--show"
 
 
@@ -84,7 +84,7 @@ def test_built_app_keeps_your_files_in_appdata(monkeypatch, tmp_path):
     monkeypatch.delenv("ABDOH_HOME", raising=False)
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     monkeypatch.setenv("APPDATA", str(tmp_path))
-    assert config._default_app_dir() == tmp_path / "Krekos"
+    assert config._default_app_dir() == tmp_path / "Abdoh"
     monkeypatch.setenv("ABDOH_HOME", str(tmp_path / "custom"))
     assert config._default_app_dir() == tmp_path / "custom"
 
@@ -92,17 +92,17 @@ def test_built_app_keeps_your_files_in_appdata(monkeypatch, tmp_path):
 def test_files_fall_back_to_the_bundled_copy(tmp_path, monkeypatch):
     bundle = tmp_path / "bundle"
     (bundle / "models").mkdir(parents=True)
-    (bundle / "models" / "hey_krekos.onnx").write_bytes(b"x")
+    (bundle / "models" / "hey_abdoh.onnx").write_bytes(b"x")
     (bundle / "config.example.yaml").write_text("match_threshold: 70\n")
     (bundle / "commands.example.yaml").write_text("[]\n")
     monkeypatch.setattr(config, "BUNDLE_DIR", bundle)
-    app = tmp_path / "AppData" / "Krekos"  # doesn't exist yet
+    app = tmp_path / "AppData" / "Abdoh"  # doesn't exist yet
     cfg = config.load_config(app)
     assert (app / "config.yaml").exists() and cfg.match_threshold == 70
-    assert cfg.resolve("models/hey_krekos.onnx") == bundle / "models" / "hey_krekos.onnx"
+    assert cfg.resolve("models/hey_abdoh.onnx") == bundle / "models" / "hey_abdoh.onnx"
     (app / "models").mkdir()
-    (app / "models" / "hey_krekos.onnx").write_bytes(b"mine")
-    assert cfg.resolve("models/hey_krekos.onnx") == app / "models" / "hey_krekos.onnx"
+    (app / "models" / "hey_abdoh.onnx").write_bytes(b"mine")
+    assert cfg.resolve("models/hey_abdoh.onnx") == app / "models" / "hey_abdoh.onnx"
 
 
 def test_double_clicking_the_built_app_runs_it(monkeypatch):

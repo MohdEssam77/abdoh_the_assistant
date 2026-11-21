@@ -2,8 +2,8 @@
 
 One `claude -p` process is kept open per conversation (requests go in on its stdin, one JSON line
 each), so answers start sooner and Claude remembers what was said. It runs in an empty folder
-(~/.krekos/claude) with Krekos's own system
-prompt, only the tools Krekos allows, no plugins/MCP/CLAUDE.md (--safe-mode), your Claude Code
+(~/.abdoh/claude) with Abdoh's own system
+prompt, only the tools Abdoh allows, no plugins/MCP/CLAUDE.md (--safe-mode), your Claude Code
 settings ignored (--restricted), nothing saved to your Claude Code history, and anything that
 would need permission denied.
 
@@ -40,7 +40,7 @@ from abdoh.config import Config
 
 log = logging.getLogger(__name__)
 
-WORKDIR = Path.home() / ".krekos" / "claude"
+WORKDIR = Path.home() / ".abdoh" / "claude"
 SCREENSHOT = "screenshot.png"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)  # no console flash when run by pythonw
 # Tools for working with your files (claude.allow_files), on top of Read.

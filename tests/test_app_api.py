@@ -58,10 +58,10 @@ def test_snapshot_replaces_queued_events():
 def test_history_is_bounded():
     state = UiState()
     for i in range(UiState.HISTORY + 20):
-        state.feed("history", f"Krekos: {i}")
+        state.feed("history", f"Abdoh: {i}")
     history = state.snapshot()["history"]
     assert len(history) == UiState.HISTORY
-    assert history[-1] == f"Krekos: {UiState.HISTORY + 19}"
+    assert history[-1] == f"Abdoh: {UiState.HISTORY + 19}"
 
 
 # ----- AppApi -----
@@ -208,7 +208,7 @@ def test_restart_list_compares_with_what_abdoh_started_with(api):
     # A later, unrelated change still reports the pending restart...
     assert api.save_settings({"tts_rate": 190})["restart"] == ["hotkey"]
     assert api.boot()["restart"] == ["hotkey"]
-    # ...until the setting is back to what Krekos is running with.
+    # ...until the setting is back to what Abdoh is running with.
     assert api.save_settings({"hotkey": "ctrl+alt+space"})["restart"] == []
 
 
@@ -271,7 +271,7 @@ def test_a_quiet_microphone_is_shown_and_fixed(app_dir, bus):
         "volume": 90,
         "muted": False,
     }
-    assert asked[-1] == "USB Mic"  # the microphone Krekos listens with
+    assert asked[-1] == "USB Mic"  # the microphone Abdoh listens with
 
 
 def test_microphone_volume_when_windows_cant_tell(app_dir, bus):
@@ -328,7 +328,7 @@ def test_open_folders_and_sound_settings(app_dir, bus):
     assert api.open_folder("C:/Windows") is False
     api.open_sound_settings()
     assert opened[0] == app_dir
-    assert opened[1].name == ".krekos"
+    assert opened[1].name == ".abdoh"
     assert opened[2] == "ms-settings:sound"
 
 
@@ -390,7 +390,7 @@ def test_route_sends_events_to_tray_window_and_page(bus):
     win = window_without_gui(bus)
     win.route("status", "Thinking...")
     win.route("voice", False)
-    win.route("history", "Krekos: hi")
+    win.route("history", "Abdoh: hi")
     assert win.tray.status == "Thinking..."
     assert win.tray.voice is False
     assert [k for k, _ in win.state.drain()] == ["status", "voice", "history"]
@@ -478,7 +478,7 @@ def test_a_new_day_starts_with_an_empty_conversation():
     day = {"today": date(2026, 11, 17)}
     state = UiState(today=lambda: day["today"])
     state.feed("history", "You: what time is it")
-    state.feed("history", "Krekos: It's 11 PM.")
+    state.feed("history", "Abdoh: It's 11 PM.")
     state.drain()
     day["today"] = date(2026, 11, 18)  # midnight passed with the window open
     assert state.drain() == [("clear", None)]  # the page empties the chat
@@ -564,6 +564,6 @@ def test_identify_shows_numbers_on_the_screens(modes_api):
     assert [d["number"] for d in shown[0]] == [1, 2, 3]
 
 
-def test_the_voice_check_says_krekos_is_still_starting(api):
+def test_the_voice_check_says_abdoh_is_still_starting(api):
     api._daemon = None
     assert api.voice_check()["starting"] is True
