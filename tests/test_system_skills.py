@@ -465,7 +465,7 @@ def test_abdoh_listens_for_the_answer_to_its_question():
         def builtin_name(self, text):
             return None
 
-        def handle(self, text, aside=False):
+        def handle(self, text, aside=False, woken=False):
             return Question("Shut down the computer?") if "shut" in text else "Okay."
 
     daemon = Daemon(Config(follow_up_seconds=0), Router(), FakeSpeaker(),

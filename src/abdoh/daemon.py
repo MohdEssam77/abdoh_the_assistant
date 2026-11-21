@@ -403,12 +403,15 @@ class Daemon:
         if self.voice_enabled:
             self.earcons.start_ticking("thinking")
 
-    def handle_text(self, text: str, voice: bool = False, aside: bool = False) -> str:
+    def handle_text(
+        self, text: str, voice: bool = False, aside: bool = False, woken: bool = False
+    ) -> str:
         """Route one request and speak the reply. Never raises.
 
         `voice`: the request was spoken, so if Claude's reply ends with a question, Xanthos
         listens for the answer next (no wake word needed). `aside`: it was said right after a
-        reply, without the wake word, so it may be meant for someone else in the room.
+        reply, without the wake word, so it may be meant for someone else in the room. `woken`: it
+        came after the wake word, which a video or people talking can set off by mistake.
         """
         with self._handle_lock:
             self._interrupted.clear()
@@ -425,8 +428,8 @@ class Daemon:
             watcher = self._watch_reply() if voice else None
             try:
                 try:
-                    handle = self.router.handle
-                    reply = handle(text, aside=True) if aside else handle(text)
+                    maybe = {"aside": True} if aside else {"woken": True} if woken else {}
+                    reply = self.router.handle(text, **maybe)
                 except Exception:
                     log.exception("Error handling %r", text)
                     reply = SORRY
@@ -817,7 +820,7 @@ class Daemon:
                 mic,
                 self.engine,
                 self.transcriber,
-                self,  # speaks "Yes?" through say(), respecting the voice toggle
+                self,
                 self.cfg,
                 should_stop=lambda: (
                     self.stop_event.is_set()
@@ -856,7 +859,7 @@ class Daemon:
             else:
                 log.info("Paused; ignoring %r", text)
         elif text:
-            self._handle_spoken(text)
+            self._handle_spoken(text, woken=True)  # Claude decides whether it was for it
             log.debug("Latency: wake word to reply spoken %.2fs", time.perf_counter() - self._woke)
         self._status_idle()
         mic.clear()  # don't react to our own voice
@@ -999,11 +1002,11 @@ class Daemon:
             self.bus.emit("wake", self.engine.label)
         log.info("Voice check forgotten")
 
-    def _handle_spoken(self, text: str, aside: bool = False) -> None:
+    def _handle_spoken(self, text: str, aside: bool = False, woken: bool = False) -> None:
         """Answer a spoken request, then whatever you said over that answer, and so on."""
         while text and not self.stop_event.is_set():
-            self.handle_text(text, voice=True, aside=aside)
-            aside = False
+            self.handle_text(text, voice=True, aside=aside, woken=woken)
+            aside = woken = False
             text, self._next_request = self._next_request, None
             if text:
                 self.speaker.language = getattr(self.transcriber, "last_language", "")

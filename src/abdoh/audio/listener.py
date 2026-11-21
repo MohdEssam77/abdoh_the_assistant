@@ -12,7 +12,6 @@ from abdoh.speech.tts import Speaker
 
 log = logging.getLogger(__name__)
 
-FOLLOW_UP_WAIT_SECONDS = 5.0
 # How long to wait for speech right after the wake word ("Hey Xanthos … what time is it").
 START_WAIT_SECONDS = 0.8
 # Audio from before the wake word fed to the VAD, so it knows if you were mid-sentence.
@@ -22,8 +21,9 @@ PUSH_TO_TALK_WAIT_SECONDS = 4.0
 CHIME_SECONDS = 0.15
 # After Claude asks you something: how long to wait for you to start answering.
 ANSWER_WAIT_SECONDS = 5.0
-# After the wake word ("Hey Xanthos ... what time is it"): how long to wait for the request.
-WAKE_WAIT_SECONDS = 3.0
+# After the wake word ("Hey Xanthos ... what time is it"): how long to wait for the request. If
+# nothing comes, Xanthos goes back to waiting without a word: it may have woken by mistake.
+WAKE_WAIT_SECONDS = 5.0
 
 
 def listen_for_request(
@@ -46,7 +46,8 @@ def listen_for_request(
     """Wait for the wake word and return the request that was said, or None if stopped.
 
     The request is what you say after the wake word; `on_listen` (a chime) confirms the
-    wake-up. If you say nothing, Xanthos asks "Yes?" and records one more utterance.
+    wake-up. If you say nothing, it goes back to waiting, silently (the wake-up may have been a
+    mistake: a video, people talking).
     With a `vad` (SileroVad), the end of speech is found by voice activity, else by loudness.
     If `pressed()` turns true (the hotkey), one request is recorded with no wake word needed.
     With `answer` (Claude just asked you something), one reply is recorded right away, the same
@@ -85,18 +86,8 @@ def _after_wake_word(mic, engine, transcriber, speaker, cfg: Config, vad, on_lis
         cfg.max_record_seconds,
         wait_seconds=WAKE_WAIT_SECONDS,
     )
-    if not audio:  # only the wake word
-        speaker.say("Yes?")
-        mic.clear()
-        if vad is not None:
-            vad.reset()
-        audio = record_until_silence(
-            mic.read,
-            is_speech,
-            cfg.silence_seconds,
-            cfg.max_record_seconds,
-            wait_seconds=FOLLOW_UP_WAIT_SECONDS,
-        )
+    if not audio:  # only the wake word, or a wake-up by mistake: nothing to say
+        log.info("Nothing said after the wake word")
     text = _transcribe(transcriber, audio)
     mic.clear()
     engine.reset()

@@ -182,3 +182,71 @@ def test_the_moment_after_a_reply_is_marked_as_aside():
     assert daemon._soft_chime is True  # the follow-up window, not an answer to a question
     daemon._handle_spoken("talking to my brother", aside=True)
     assert daemon.router.requests == ["weather", "talking to my brother"]
+
+
+# ----- woken by mistake (a video, people talking): Claude decides, and stays quiet -----
+
+
+def test_after_the_wake_word_claude_may_ignore_what_it_heard(setup):  # noqa: F811
+    from abdoh.router import WOKEN
+
+    router, _, _ = setup
+    router.brain = FakeBrain(("ACTION ignore: not for me\n",))
+    assert " ".join(router.handle("and that's why the market fell in 1929", woken=True)) == ""
+    assert router.brain.asked[0][0].startswith(WOKEN)
+    assert router.last_turn.ignored is True
+
+
+def test_a_real_request_after_the_wake_word_is_answered(setup):  # noqa: F811
+    router, _, _ = setup
+    router.brain = FakeBrain(("It's sunny tomorrow.",))
+    assert (
+        " ".join(router.handle("whats the weather tomorrow", woken=True)) == "It's sunny tomorrow."
+    )
+
+
+def test_your_own_commands_run_even_after_a_doubtful_wake_word(setup):  # noqa: F811
+    router, run, _ = setup
+    router.handle("open my mail", woken=True)
+    assert run.ran == ["open_mail"]  # exact commands never need Claude's judgement
+
+
+class Recorder:
+    def __init__(self, replies):
+        self.calls = []
+        self.replies = list(replies)
+        self.brain = None
+        self.registry = None
+        self.last_turn = None
+
+    def add_builtin(self, *a):
+        pass
+
+    def builtin_name(self, text):
+        return None
+
+    def handle(self, text, aside=False, woken=False):
+        self.calls.append((text, aside, woken))
+        return self.replies.pop(0) if self.replies else ""
+
+
+def test_only_wake_word_requests_are_flagged():
+    from fakes import FakeMic, FakeTranscriber, FakeWakeWord, silent_block, tone_block
+
+    from abdoh.daemon import Daemon
+    from abdoh.speech.tts import FakeSpeaker
+
+    router = Recorder(["ok"])
+    mic = FakeMic([tone_block()] * 2 + [tone_block()] * 3 + [silent_block()] * 12)
+    daemon = Daemon(
+        Config(follow_up_seconds=0, wake_word_interrupts=False),
+        router,
+        FakeSpeaker(),
+        lambda: mic,
+        FakeWakeWord(fire_on=2),
+        FakeTranscriber(["play some jazz"]),
+    )
+    daemon._listen_once(mic)
+    assert router.calls == [("play some jazz", False, True)]  # after the wake word: flagged
+    daemon.handle_text("typed request")
+    assert router.calls[-1] == ("typed request", False, False)  # typed: you meant it

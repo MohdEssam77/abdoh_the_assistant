@@ -87,20 +87,20 @@ def test_after_the_wake_word_abdoh_waits_for_you_to_go_on():
     assert text == "open my mail" and speaker.said == []
 
 
-def test_nothing_after_the_wake_word_gets_a_yes():
+def test_a_long_pause_after_the_wake_word_is_still_waited_for():
     mic = FakeMic([silent_block()] * 2 + [silent_block()] * 35 + [tone_block()] * 4)
     speaker = FakeSpeaker()
     stt = FakeTranscriber(["what time is it"])
     text = listen_for_request(mic, FakeWakeWord(fire_on=2), stt, speaker, Config())
-    assert speaker.said == ["Yes?"] and text == "what time is it"
+    assert speaker.said == [] and text == "what time is it"  # no "Yes?"
 
 
-def test_the_wake_word_and_then_nothing_is_nothing():
-    mic = FakeMic([])
+def test_the_wake_word_and_then_nothing_ends_silently():
+    mic = FakeMic([])  # a wake-up by mistake: nobody says anything
     stt = FakeTranscriber(["should not be used"])
     speaker = FakeSpeaker()
     assert listen_for_request(mic, FakeWakeWord(fire_on=2), stt, speaker, Config()) == ""
-    assert stt.calls == [] and speaker.said == ["Yes?"]
+    assert stt.calls == [] and speaker.said == []
 
 
 class FakeVad:
@@ -134,12 +134,12 @@ def test_listen_uses_the_vad_when_given():
     assert len(stt.calls[0]) // 3200 == 4 + 6
 
 
-def test_vad_resets_before_the_follow_up():
+def test_vad_starts_fresh_after_the_wake_word():
     mic = FakeMic([silent_block()] * 2 + [silent_block()] * 35 + [tone_block()] * 4)
     stt = FakeTranscriber(["what time is it"])
     vad = FakeVad()
     listen_for_request(mic, FakeWakeWord(fire_on=2), stt, FakeSpeaker(), Config(), vad=vad)
-    assert vad.resets == 2
+    assert vad.resets == 1  # once, and no second recording after a "Yes?" any more
 
 
 def test_hotkey_records_without_a_wake_word(monkeypatch):

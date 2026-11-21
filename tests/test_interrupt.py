@@ -41,7 +41,7 @@ class Router:
     def builtin_name(self, text):
         return None
 
-    def handle(self, text, aside=False):
+    def handle(self, text, aside=False, woken=False):
         self.requests.append(text)
         reply = self.replies.pop(0) if self.replies else "Okay."
         return reply() if callable(reply) else reply
