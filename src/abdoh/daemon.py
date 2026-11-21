@@ -542,10 +542,19 @@ class Daemon:
     # ----- hearing you over Krekos's own voice, and over music -----
 
     def _clean_for_wake(self, block: bytes) -> bytes:
-        """The block the wake word hears: without what the speakers play while they play
-        (the very same block otherwise)."""
-        arrival = getattr(self.mic, "last_time", 0.0) or time.perf_counter()
-        return self.wake_echo.clean(block, arrival)
+        """What the wake word hears: while the speakers play, the raw microphone (which the
+        sound driver doesn't mute for the music) with what they play taken out; otherwise the
+        very same block. Without a raw microphone, the block itself, cleaned."""
+        mic = self.mic
+        take_raw = getattr(mic, "take_raw", None)
+        if take_raw is None or not getattr(mic, "raw_mode", False):
+            arrival = getattr(mic, "last_time", 0.0) or time.perf_counter()
+            return self.wake_echo.clean(block, arrival)
+        raw = take_raw()  # always taken, so the canceller follows one unbroken stream
+        cleaned = [self.wake_echo.clean(audio, arrived) for audio, arrived in raw]
+        if all(c is audio for c, (audio, _) in zip(cleaned, raw, strict=True)):
+            return block  # nothing playing that reaches the microphone: the usual one
+        return b"".join(cleaned)
 
     def _can_hear_over_itself(self) -> bool:
         watch = self.voice_watch
