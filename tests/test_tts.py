@@ -284,7 +284,7 @@ def test_sapi_voice_is_recreated_after_an_error():
 
 
 def test_sapi_rate_matches_words_per_minute():
-    assert sapi_rate(175) == 1  # Xanthos's default
+    assert sapi_rate(175) == 1  # Krekos's default
     assert sapi_rate(157) == 0  # the voice's normal speed
     assert sapi_rate(1000) == 10 and sapi_rate(20) == -10
     assert sapi_rate(0) == -10  # a bad setting doesn't break the voice

@@ -1,4 +1,4 @@
-"""Hearing you while Xanthos talks: the speaker tap, the echo canceller and the voice watch, with
+"""Hearing you while Krekos talks: the speaker tap, the echo canceller and the voice watch, with
 fakes (no speakers, microphone or livekit needed)."""
 
 import numpy as np
@@ -331,7 +331,7 @@ def test_the_stream_follows_a_clock_that_drifts():
     assert abs(tap.ends[-1] - expected) < 0.05
 
 
-# ----- a microphone that hardly hears Xanthos -----
+# ----- a microphone that hardly hears Krekos -----
 
 
 class Muffler:
@@ -347,7 +347,7 @@ def raw_watch(tap_level=3000, sensitivity="medium"):
 
 def test_where_abdoh_barely_reaches_the_mic_your_voice_counts_at_once():
     watch = raw_watch()
-    quiet = [tone(0.1, 2).tobytes()] * 12  # Xanthos plays loudly; the mic hears almost nothing
+    quiet = [tone(0.1, 2).tobytes()] * 12  # Krekos plays loudly; the mic hears almost nothing
     assert feed_blocks(watch, quiet) is None
     assert watch.echo_gain() < 0.01
     assert feed_blocks(watch, [tone(0.1, 3000).tobytes()]) == 0  # you: heard in one block
@@ -356,7 +356,7 @@ def test_where_abdoh_barely_reaches_the_mic_your_voice_counts_at_once():
 
 def test_where_abdoh_is_loud_at_the_mic_its_echo_never_counts():
     watch = raw_watch()
-    echo = [tone(0.1, 3000).tobytes()] * 30  # the mic hears Xanthos as loudly as it plays
+    echo = [tone(0.1, 3000).tobytes()] * 30  # the mic hears Krekos as loudly as it plays
     assert feed_blocks(watch, echo) is None
     assert 0.9 < watch.echo_gain() < 1.1
     assert feed_blocks(watch, [tone(0.1, 6000).tobytes()] * 5) is None  # not 12 dB above it

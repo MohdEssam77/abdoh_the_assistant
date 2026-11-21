@@ -1,4 +1,4 @@
-"""Everything Xanthos does to the computer itself: media keys, lock screen, timers, opening apps
+"""Everything Krekos does to the computer itself: media keys, lock screen, timers, opening apps
 and YouTube videos.
 
 Kept in one place so tests can replace it with a fake. Windows-first: media keys, lock screen and
@@ -373,7 +373,7 @@ class Computer:
 
     def find_app_audio(self, name: str) -> list:
         """The mixer's sessions for an app you named ("the browser", "Spotify"); [] if none.
-        Xanthos's own sound never counts."""
+        Krekos's own sound never counts."""
         return find_sessions(name, self._mixer().app_sessions())
 
     def _app_sessions(self, name: str) -> list:
@@ -409,7 +409,7 @@ class Computer:
         return app_label(found[0])
 
     def playing_apps(self) -> list[str]:
-        """The apps making sound right now (not Xanthos itself, not Windows' system sounds)."""
+        """The apps making sound right now (not Krekos itself, not Windows' system sounds)."""
         own = os.getpid()
         names = []
         for session in self._mixer().app_sessions():
@@ -740,7 +740,7 @@ def app_label(session) -> str:
 
 def find_sessions(name: str, sessions) -> list:
     """The sessions an app's spoken name means: by alias ("browser"), program or mixer name;
-    a close spelling if nothing matches exactly. Never Xanthos's own."""
+    a close spelling if nothing matches exactly. Never Krekos's own."""
     wanted = _FILLER_WORDS.sub("", " ".join(name.lower().split()))
     wanted = _FILLER_WORDS.sub("", wanted).strip()
     if not wanted:

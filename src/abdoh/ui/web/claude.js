@@ -1,5 +1,5 @@
 /* The Claude card (top of Settings, and in the first-start setup): connect your own Claude
-   account through Claude Code's own sign-in, or your own API key. Xanthos never sees passwords. */
+   account through Claude Code's own sign-in, or your own API key. Krekos never sees passwords. */
 "use strict";
 
 (() => {
@@ -30,7 +30,7 @@
     const buttons = el("div", { class: "btn-row" });
     let help;
     if (state.using === "code" && state.signed_in) {
-      help = "Xanthos uses Claude Code, signed in with your own account. Your plan's usage limits apply.";
+      help = "Krekos uses Claude Code, signed in with your own account. Your plan's usage limits apply.";
       buttons.append(
         el("button", { class: "btn small", onclick: (e) => runTest(e.currentTarget) }, "Test"),
         el("button", { class: "btn small", onclick: async (e) => {
@@ -42,7 +42,7 @@
         if (await act(e.currentTarget, "claude_sign_in")) wait("sign_in", body);
       } }, "Sign in with Claude"));
     } else {
-      help = "To use your Claude account, Xanthos needs Claude Code, Anthropic's free app. It installs for you only, no admin rights needed.";
+      help = "To use your Claude account, Krekos needs Claude Code, Anthropic's free app. It installs for you only, no admin rights needed.";
       buttons.append(el("button", { class: "btn primary small", onclick: async (e) => {
         if (await act(e.currentTarget, "install_claude")) wait("install", body);
       } }, "Install Claude Code"));
@@ -76,7 +76,7 @@
 
   function backendPart(state) {
     const choices = [["auto", "Automatic (account first, then key)"], ["code", "Only my Claude account"], ["api", "Only my API key"], ["off", "Off (no Claude)"]];
-    const select = el("select", { class: "input compact", "aria-label": "How Xanthos connects to Claude" },
+    const select = el("select", { class: "input compact", "aria-label": "How Krekos connects to Claude" },
       choices.map(([v, text]) => el("option", { value: v, selected: v === state.backend }, text)));
     select.addEventListener("change", async () => {
       if (await saveSettings({ claude: { backend: select.value } })) refresh(select.closest(".claude-body"));
@@ -143,15 +143,15 @@
       backendPart(state),
       speedPart(state),
       el("p", { class: "fine" },
-        "Works with Claude Pro, Max, Team and Enterprise. Claude's free plan doesn't include Claude Code: use an API key, or use Xanthos without Claude (your commands, timers, apps and music still work). ",
-        link("Compare plans", PLANS_URL), ". You sign in on Anthropic's own page; Xanthos never sees your password."));
+        "Works with Claude Pro, Max, Team and Enterprise. Claude's free plan doesn't include Claude Code: use an API key, or use Krekos without Claude (your commands, timers, apps and music still work). ",
+        link("Compare plans", PLANS_URL), ". You sign in on Anthropic's own page; Krekos never sees your password."));
   }
 
   function claudeCard() {
     const body = el("div", { class: "claude-body" }, el("p", { class: "muted" }, "Checking Claude…"));
     const card = el("div", { class: "card" },
       el("h2", {}, el("span", { html: svg("sparkles"), style: "display:contents" }), "Claude", el("span", { class: "spacer" }), el("span", { class: "claude-tag" })),
-      el("p", { class: "lead" }, "Xanthos asks Claude about everything your commands don't cover. Connect your own Claude, billed to your own plan."),
+      el("p", { class: "lead" }, "Krekos asks Claude about everything your commands don't cover. Connect your own Claude, billed to your own plan."),
       body);
     refresh(body);
     return card;

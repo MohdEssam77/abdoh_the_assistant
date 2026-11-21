@@ -1,4 +1,4 @@
-"""Build Xanthos as a Windows app: dist/Xanthos/Xanthos.exe (one folder, no console window).
+"""Build Krekos as a Windows app: dist/Krekos/Krekos.exe (one folder, no console window).
 
 Needs PyInstaller:  pip install -e .[build]
 Bundles the example files and the models in models/ (openWakeWord feature models, the trained
@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLED_MODELS = [
     "openwakeword",
-    "hey_xanthos.onnx",
+    "hey_krekos.onnx",
     "parakeet-tdt-0.6b-v3",  # speech recognition: no download on the first start
     "piper/en_US-lessac-medium.onnx",  # the natural English voice (others download when needed)
     "piper/en_US-lessac-medium.onnx.json",
@@ -40,7 +40,7 @@ def main() -> int:
     from abdoh.shortcut import make_icon
 
     build = ROOT / "build"
-    icon = make_icon(build / "xanthos.ico")
+    icon = make_icon(build / "krekos.ico")
     sep = ";" if sys.platform == "win32" else ":"
     data = [
         (ROOT / "config.example.yaml", "."),
@@ -53,13 +53,13 @@ def main() -> int:
             data.append(
                 (path, f"models/{name}" if path.is_dir() else str(Path("models", name).parent))
             )
-        elif name == "hey_xanthos.onnx" and (ROOT / "assets" / name).exists():
+        elif name == "hey_krekos.onnx" and (ROOT / "assets" / name).exists():
             data.append((ROOT / "assets" / name, "models"))  # the one kept in the repo
         else:
             print(f"Not bundled (not found): models/{name}")
     args = [
         str(ROOT / "scripts" / "abdoh_app.py"),
-        "--name=Xanthos",
+        "--name=Krekos",
         "--windowed",
         "--onedir",
         "--noconfirm",
@@ -73,7 +73,7 @@ def main() -> int:
     args += [f"--hidden-import={mod}" for mod in HIDDEN]
     args += [f"--add-data={src}{sep}{dest}" for src, dest in data]
     PyInstaller.__main__.run(args)
-    print(f"Built {ROOT / 'dist' / 'Xanthos' / 'Xanthos.exe'}")
+    print(f"Built {ROOT / 'dist' / 'Krekos' / 'Krekos.exe'}")
     return 0
 
 

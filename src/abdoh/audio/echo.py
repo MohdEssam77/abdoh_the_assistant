@@ -1,8 +1,8 @@
-"""Takes Xanthos's own voice (and whatever else the speakers play) back out of the microphone.
+"""Takes Krekos's own voice (and whatever else the speakers play) back out of the microphone.
 
 WebRTC's echo canceller (AEC3), through the `livekit` package. It works on 10 ms frames: for
 every frame, first what the speakers played, then what the microphone heard. Measured in a
-simulation: about 40 dB less of Xanthos's voice from the first second on, at under 1% of one CPU.
+simulation: about 40 dB less of Krekos's voice from the first second on, at under 1% of one CPU.
 """
 
 import logging

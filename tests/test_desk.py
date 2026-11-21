@@ -1,4 +1,4 @@
-"""Notes, reminders, sums, typing and the volume: the parts behind Xanthos's newer skills."""
+"""Notes, reminders, sums, typing and the volume: the parts behind Krekos's newer skills."""
 
 import json
 from datetime import datetime, timedelta
@@ -98,7 +98,7 @@ def test_reminders_survive_a_restart(reminders):
     reminders.add(NOW + timedelta(minutes=5), "stretch")
     FakeTimer.made.clear()
     said = []
-    later = NOW + timedelta(minutes=30)  # Xanthos was closed when "stretch" was due
+    later = NOW + timedelta(minutes=30)  # Krekos was closed when "stretch" was due
     again = Reminders(reminders.path, said.append, FakeTimer, now=lambda: later)
     assert [text for _, text in again.pending()] == ["stretch", "leave for the gym"]
     seconds = sorted(t.seconds for t in FakeTimer.made)
@@ -200,7 +200,7 @@ def test_typing_is_unicode_key_presses():
 
 def test_screenshots_are_saved_with_the_time(tmp_path):
     path = save_screenshot(tmp_path / "Screenshots", capture=lambda: b"PNG", now=NOW)
-    assert path.name == "Xanthos 2026-11-16 14.00.00.png" and path.read_bytes() == b"PNG"
+    assert path.name == "Krekos 2026-11-16 14.00.00.png" and path.read_bytes() == b"PNG"
 
     def broken():
         raise OSError("no screen")
@@ -352,13 +352,13 @@ def test_old_settings_get_claudes_new_actions(app_dir):
     assert cfg.claude.actions == [
         "open_url", "timer", "volume", "brightness", "remind", "note", "app_volume", *system
     ]  # fmt: skip
-    assert cfg.config_version == 7
+    assert cfg.config_version == 8
     from_0_4 = 'config_version: 3\nclaude:\n  actions: ["open_url", "volume"]\n'
     (app_dir / "config.yaml").write_text(from_0_4)
     assert load_config(app_dir).claude.actions == ["open_url", "volume", "app_volume", *system]
     from_0_5 = 'config_version: 6\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(from_0_5)
     assert load_config(app_dir).claude.actions == ["open_url", "lamp"]  # lamps came in 0.6
-    current = 'config_version: 7\nclaude:\n  actions: ["open_url"]\n'
+    current = 'config_version: 8\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(current)
     assert load_config(app_dir).claude.actions == ["open_url"]  # your choice from then on

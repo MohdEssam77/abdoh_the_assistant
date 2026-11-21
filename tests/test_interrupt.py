@@ -1,4 +1,4 @@
-"""Talking over Xanthos: it goes quiet, listens, and then goes on, stops, or does what you said.
+"""Talking over Krekos: it goes quiet, listens, and then goes on, stops, or does what you said.
 
 The voice watch is faked: it "hears you" when the test says so.
 """

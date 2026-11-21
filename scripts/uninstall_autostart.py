@@ -1,4 +1,4 @@
-"""Stop Xanthos from starting at login.
+"""Stop Krekos from starting at login.
 
 Usage: python scripts/uninstall_autostart.py
 """

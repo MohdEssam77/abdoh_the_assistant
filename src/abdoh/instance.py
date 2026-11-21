@@ -10,16 +10,16 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-STATE_DIR = Path.home() / ".xanthos"
+STATE_DIR = Path.home() / ".krekos"
 
 
 class InstanceLock:
-    """Holds an OS file lock on ~/.xanthos/xanthos.lock while Xanthos runs."""
+    """Holds an OS file lock on ~/.krekos/krekos.lock while Krekos runs."""
 
     def __init__(self, state_dir: Path = STATE_DIR):
         self.state_dir = Path(state_dir)
-        self.lock_path = self.state_dir / "xanthos.lock"
-        self.port_path = self.state_dir / "xanthos.port"
+        self.lock_path = self.state_dir / "krekos.lock"
+        self.port_path = self.state_dir / "krekos.port"
         self._file = None
         self._server: socket.socket | None = None
 
@@ -81,9 +81,9 @@ class InstanceLock:
 
 
 def ask_running_instance_to_show(state_dir: Path = STATE_DIR) -> bool:
-    """Tell the running Xanthos to show its window. True if it answered."""
+    """Tell the running Krekos to show its window. True if it answered."""
     try:
-        port = int((Path(state_dir) / "xanthos.port").read_text().strip())
+        port = int((Path(state_dir) / "krekos.port").read_text().strip())
         with socket.create_connection(("127.0.0.1", port), timeout=2) as s:
             s.sendall(b"show")
         return True

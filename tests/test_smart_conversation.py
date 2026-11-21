@@ -1,6 +1,6 @@
 """Thinks before it talks: things you ask it to do are done with a short sound, not words,
 and it only listens for more after a real conversation. Speech right after a reply that wasn't
-meant for Xanthos is left alone."""
+meant for Krekos is left alone."""
 
 from types import SimpleNamespace
 
@@ -49,7 +49,7 @@ def test_a_done_action_plays_a_sound_and_says_nothing():
     daemon.handle_text("open spotify", voice=True)
     assert daemon.speaker.said == []
     assert daemon.earcons.played == ["done"]
-    assert ("history", "Xanthos: Opening Spotify.") in seen  # the window still shows it
+    assert ("history", "Krekos: Opening Spotify.") in seen  # the window still shows it
     assert daemon._awaiting_answer is False  # and it doesn't listen for more
 
 
@@ -79,7 +79,7 @@ def test_claude_doing_something_without_a_word_is_done():
     daemon, seen = daemon_for([iter([])], turn=turn)
     daemon.handle_text("play some jazz", voice=True)
     assert daemon.speaker.said == [] and daemon.earcons.played == ["done"]
-    assert ("history", "Xanthos: Done: play youtube jazz.") in seen
+    assert ("history", "Krekos: Done: play youtube jazz.") in seen
     assert daemon._awaiting_answer is False
 
 
@@ -170,7 +170,7 @@ def test_ignoring_is_only_allowed_right_after_a_reply(setup):  # noqa: F811
     assert not router.brain.asked[0][0].startswith(ASIDE)
 
 
-def test_meant_for_xanthos_after_all_is_answered(setup):  # noqa: F811
+def test_meant_for_krekos_after_all_is_answered(setup):  # noqa: F811
     router, _, _ = setup
     router.brain = FakeBrain(("And tomorrow it rains.",))
     assert " ".join(router.handle("and tomorrow", aside=True)) == "And tomorrow it rains."
@@ -265,7 +265,24 @@ DISMISSALS = [
     "be quiet please",
     "go away",
     "leave me alone",
+    "shut up krekos",
+    "not you cricos",  # the name, however speech recognition wrote it
 ]
+
+
+@pytest.mark.parametrize("name", ["krekos", "crecos", "cricos", "creekos", "krikus", "crecoes"])
+def test_the_name_is_understood_however_it_was_written(name):
+    from abdoh.local_skills import _DONE, interruption_kind
+
+    assert _DONE.fullmatch(f"thanks {name}") and _DONE.fullmatch(f"ok hey {name}")
+    assert interruption_kind(f"wait {name}") == "stop"
+
+
+@pytest.mark.parametrize("word", ["crocs", "cracks", "cricket", "greek"])
+def test_words_that_only_look_like_the_name_are_not_it(word):
+    from abdoh.local_skills import _DONE
+
+    assert not _DONE.fullmatch(f"thanks {word}")
 
 
 @pytest.mark.parametrize("said", DISMISSALS)

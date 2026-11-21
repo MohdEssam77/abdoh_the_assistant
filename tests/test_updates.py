@@ -151,7 +151,7 @@ def test_finding_inno_setup(tmp_path):
 def test_installer_is_per_user_and_matches_start_at_sign_in():
     iss = (ROOT / "installer" / "abdoh.iss").read_text(encoding="utf-8")
     assert "PrivilegesRequired=lowest" in iss
-    assert "OutputBaseFilename=Xanthos-Setup" in iss and f"{ASSET}" == "Xanthos-Setup.exe"
+    assert "OutputBaseFilename=Krekos-Setup" in iss and f"{ASSET}" == "Krekos-Setup.exe"
     assert autostart.RUN_KEY in iss and f'ValueName: "{autostart.TASK_NAME}"' in iss
     assert '"run --minimized"' not in iss and "run --minimized" in iss
 
@@ -164,4 +164,10 @@ def test_release_workflow_builds_and_publishes():
     runs = " ".join(str(s.get("run", "")) for s in steps)
     assert "pytest" in runs and "build_installer.py" in runs and "download_models.py" in runs
     publish = next(s for s in steps if "action-gh-release" in str(s.get("uses", "")))
-    assert publish["with"]["files"] == f"dist/{ASSET}"
+    files = publish["with"]["files"].split()
+    assert files[0] == f"dist/{ASSET}"
+    # Older versions' update checks look for their own installer's name: the same file.
+    assert files[1:] == ["dist/Xanthos-Setup.exe", "dist/Abdoh-Setup.exe"]
+    assert f"Copy-Item dist/{ASSET} dist/Xanthos-Setup.exe" in runs
+    assert f"Copy-Item dist/{ASSET} dist/Abdoh-Setup.exe" in runs
+    assert "WAKE_WORD_URL" not in str(steps)  # the model is in the repo, not downloaded

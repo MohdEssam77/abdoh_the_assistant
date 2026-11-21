@@ -40,7 +40,7 @@ class FakeScorer:
 
 
 def model_file(tmp_path, size=100):
-    path = tmp_path / "hey_xanthos.onnx"
+    path = tmp_path / "hey_krekos.onnx"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"x" * size)
     return path
@@ -54,7 +54,7 @@ def test_it_learns_you_from_your_recordings(tmp_path):
     you = np.random.default_rng(2).normal(1.0, 0.7, (16, 96))
     other = np.random.default_rng(3).normal(-1.0, 0.7, (16, 96))
     assert result.check.prob(you) > 0.9 and result.check.prob(other) < 0.1
-    assert (result.check.model, result.check.model_size) == ("hey_xanthos.onnx", 100)
+    assert (result.check.model, result.check.model_size) == ("hey_krekos.onnx", 100)
 
 
 def test_fit_balances_few_positives_against_many_negatives():
@@ -125,17 +125,17 @@ def test_the_wake_word_counts_only_in_your_voice():
 
 
 def test_the_engine_uses_a_check_made_for_its_model(tmp_path):
-    cfg = Config(app_dir=tmp_path, wake_word_model="models/hey_xanthos.onnx")
+    cfg = Config(app_dir=tmp_path, wake_word_model="models/hey_krekos.onnx")
     model = model_file(tmp_path / "models")
     check = train(FakeScorer(), [recording(YOU)] * 3, recording(OTHER, 5), model, 0.4).check
     oww, _, _ = fake_oww()
-    oww.label = "openWakeWord (hey_xanthos)"
+    oww.label = "openWakeWord (hey_krekos)"
     assert use_voice_check(oww, cfg) is False and oww.voice_check is None
     check.save(tmp_path / FILE)
     assert use_voice_check(oww, cfg) is True
-    assert oww.label == "openWakeWord (hey_xanthos), your voice"
+    assert oww.label == "openWakeWord (hey_krekos), your voice"
     model.write_bytes(b"a new model")  # a new wake word model: the old check doesn't fit
-    assert use_voice_check(oww, cfg) is False and oww.label == "openWakeWord (hey_xanthos)"
+    assert use_voice_check(oww, cfg) is False and oww.label == "openWakeWord (hey_krekos)"
 
 
 # ----- recording and training from the window -----
@@ -155,7 +155,7 @@ class SpeechMic(FakeMic):
 
 
 def make_daemon(tmp_path):
-    cfg = Config(app_dir=tmp_path, wake_word_model="models/hey_xanthos.onnx")
+    cfg = Config(app_dir=tmp_path, wake_word_model="models/hey_krekos.onnx")
     model_file(tmp_path / "models")
     oww, _, _ = fake_oww()
     daemon = Daemon(cfg, Router(), FakeSpeaker(), FakeMic, oww, None, bus=Bus())

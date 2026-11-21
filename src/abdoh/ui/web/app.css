@@ -1,4 +1,4 @@
-/* Xanthos's app window. Plain CSS, light and dark (follows Windows unless chosen in Settings). */
+/* Krekos's app window. Plain CSS, light and dark (follows Windows unless chosen in Settings). */
 
 :root {
   --bg: #f4f5f7;
@@ -694,7 +694,7 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .screen-row small { color: var(--muted); }
 .countdown { font-size: 34px; font-weight: 700; text-align: center; margin: 6px 0; color: var(--accent-text); }
 
-/* Settings: teaching Xanthos your voice */
+/* Settings: teaching Krekos your voice */
 .voice-check { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .voice-teach { display: flex; flex-direction: column; gap: 8px; width: min(360px, 100%); }
 .voice-teach small { color: var(--muted); }

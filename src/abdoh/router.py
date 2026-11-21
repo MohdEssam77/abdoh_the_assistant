@@ -31,7 +31,7 @@ from abdoh.system_skills import Done, Question
 log = logging.getLogger(__name__)
 
 UNKNOWN = "Sorry, I don't know that one yet."
-SCREEN_OFF = "Looking at your screen is turned off in Xanthos's permissions."
+SCREEN_OFF = "Looking at your screen is turned off in Krekos's permissions."
 LOOKING = "Looking at your screen"
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
@@ -57,7 +57,7 @@ WOKEN = (
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
-Xanthos: {answer}
+Krekos: {answer}
 
 The user now says: {text}"""
 # Modes: "movie mode", "switch to work mode", "back to normal", "which mode am I in".
@@ -97,7 +97,7 @@ class ClaudeTurn:
     answer: str = ""
     actions: list[tuple[str, str]] = field(default_factory=list)
     finished_at: float = 0.0
-    ignored: bool = False  # it wasn't meant for Xanthos (ACTION ignore)
+    ignored: bool = False  # it wasn't meant for Krekos (ACTION ignore)
 
 
 class Router:
@@ -120,7 +120,7 @@ class Router:
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
         self.last_turn: ClaudeTurn | None = None
-        self.last_reply = ""  # what Xanthos said last, for "repeat that"
+        self.last_reply = ""  # what Krekos said last, for "repeat that"
         self._run = run
         self._act = act
         self._capture = capture
@@ -294,7 +294,7 @@ class Router:
                 looks.append(arg)
                 return
             if kind == IGNORE:
-                log.info("Not meant for Xanthos: staying quiet")
+                log.info("Not meant for Krekos: staying quiet")
                 turn.ignored = True
                 return
             try:
@@ -314,7 +314,7 @@ class Router:
             chunks = brain.stream(prompt, image)
             for sentence in speakable(chunks, act, allowed=allowed):
                 if turn.ignored:
-                    break  # not for Xanthos: nothing is said
+                    break  # not for Krekos: nothing is said
                 yield from _drain(problems)
                 spoken.append(sentence)
                 yield sentence

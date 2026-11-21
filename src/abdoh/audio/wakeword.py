@@ -19,7 +19,7 @@ class WakeWordEngine(ABC):
 
 
 class NoWakeWord(WakeWordEngine):
-    """Used when the wake word model can't start: only the hotkey wakes Xanthos."""
+    """Used when the wake word model can't start: only the hotkey wakes Krekos."""
 
     label = "No wake word (use the hotkey)"
 
@@ -28,7 +28,7 @@ class NoWakeWord(WakeWordEngine):
 
 
 def load_wake_engine(cfg, oww=None) -> WakeWordEngine:
-    """openWakeWord with your trained "Hey Xanthos" model."""
+    """openWakeWord with your trained "Hey Krekos" model."""
     model = cfg.resolve(cfg.wake_word_model)
     if not model.exists():
         raise FileNotFoundError(f"No wake word model at {model}")

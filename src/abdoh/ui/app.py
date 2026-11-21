@@ -1,4 +1,4 @@
-"""The app window: Xanthos's HTML page (src/abdoh/ui/web) in a native window.
+"""The app window: Krekos's HTML page (src/abdoh/ui/web) in a native window.
 
 pywebview shows the page with Windows' built-in WebView2 (Edge). Like the old tkinter window it
 only shows events and forwards requests; AppApi (abdoh.ui.api) is the page's only way in.
@@ -18,7 +18,7 @@ log = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 INDEX = WEB_DIR / "index.html"
-STORAGE = Path.home() / ".xanthos" / "webview"  # the page's own small storage (e.g. the theme)
+STORAGE = Path.home() / ".krekos" / "webview"  # the page's own small storage (e.g. the theme)
 
 
 def forget_old_page(storage: Path, version: str) -> None:
@@ -94,7 +94,7 @@ class WebWindow:
         self.restart_requested = False  # the page's Restart button
         self.api = AppApi(bus, self.state, cfg, window=self)
         self.window = webview.create_window(
-            "Xanthos",
+            "Krekos",
             url=str(INDEX),
             js_api=self.api,
             width=1100,
@@ -107,7 +107,7 @@ class WebWindow:
         self.window.events.closing += self._on_closing
 
     def _on_closing(self):
-        """Closing the window only hides it; Xanthos keeps running in the tray."""
+        """Closing the window only hides it; Krekos keeps running in the tray."""
         if self._quitting.is_set():
             return True
         self.hide()

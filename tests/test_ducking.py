@@ -1,4 +1,4 @@
-"""Other apps go quieter while Xanthos listens (a fake volume mixer)."""
+"""Other apps go quieter while Krekos listens (a fake volume mixer)."""
 
 from dataclasses import replace
 
@@ -46,7 +46,7 @@ def test_playing_apps_go_down_and_come_back():
 
 def test_abdoh_itself_and_quiet_apps_are_left_alone():
     ducker, mixer = make(
-        app("me", "Xanthos", pid=OWN),  # Xanthos's own voice
+        app("me", "Krekos", pid=OWN),  # Krekos's own voice
         app("idle", "discord", playing=False),
         app("muted", "spotify", muted=True),
         app("zero", "chrome", volume=0),
@@ -87,7 +87,7 @@ def test_a_quiet_app_never_goes_to_zero():
     assert mixer.volume("b") == 1
 
 
-# ----- when Xanthos does it -----
+# ----- when Krekos does it -----
 
 
 class FakeDucker:
@@ -144,7 +144,7 @@ def daemon_with(router, texts, cfg=None):
 
 
 def test_other_apps_are_quiet_from_the_wake_word_until_the_answer_is_said():
-    daemon, mic, order = daemon_with(Router("It's noon."), ["Xanthos what time is it"])
+    daemon, mic, order = daemon_with(Router("It's noon."), ["Krekos what time is it"])
     daemon._listen_once(mic)
     # Ducked on the wake word, when recording starts and when speaking (the real Ducker ignores
     # the repeats).
@@ -154,8 +154,8 @@ def test_other_apps_are_quiet_from_the_wake_word_until_the_answer_is_said():
 def test_they_stay_quiet_while_abdoh_listens_for_more():
     from abdoh.config import Config
 
-    daemon, mic, order = daemon_with(Router(["Which city?"]), ["Xanthos weather"], Config())
-    daemon._listen_once(mic)  # Claude asked a question: Xanthos listens for the answer next
+    daemon, mic, order = daemon_with(Router(["Which city?"]), ["Krekos weather"], Config())
+    daemon._listen_once(mic)  # Claude asked a question: Krekos listens for the answer next
     assert daemon._awaiting_answer and ("release",) not in order
     daemon._listen_once(mic)  # nothing was said: done
     assert order[-1] == ("release",)
@@ -165,7 +165,7 @@ def test_turned_off_nothing_changes():
     from abdoh.config import Config
 
     daemon, mic, order = daemon_with(
-        Router("It's noon."), ["Xanthos time"], Config(follow_up_seconds=0, duck_others=False)
+        Router("It's noon."), ["Krekos time"], Config(follow_up_seconds=0, duck_others=False)
     )
     daemon._listen_once(mic)
     assert ("duck", 30) not in order
@@ -175,7 +175,7 @@ def test_the_share_comes_from_the_settings():
     from abdoh.config import Config
 
     daemon, mic, order = daemon_with(
-        Router("Okay."), ["Xanthos hi"], Config(follow_up_seconds=0, duck_percent=10)
+        Router("Okay."), ["Krekos hi"], Config(follow_up_seconds=0, duck_percent=10)
     )
     daemon._listen_once(mic)
     assert order[0] == ("duck", 10)

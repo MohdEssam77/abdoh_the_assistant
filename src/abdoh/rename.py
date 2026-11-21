@@ -1,9 +1,11 @@
-"""Abdoh became Xanthos: on the first start under the new name, the old folders move over.
+"""Abdoh became Xanthos, then Krekos: on the first start under the new name, the old folders
+move over.
 
-`%APPDATA%\\Abdoh` (settings, commands, modes; only the built app keeps them there) becomes
-`%APPDATA%\\Xanthos`, and `~/.abdoh` (log, Claude's folder, window storage) becomes `~/.xanthos`.
-Nothing happens once the new folder exists. Runs before logging starts, so it returns what it
-did for the log.
+`%APPDATA%\\Xanthos` and `%APPDATA%\\Abdoh` (settings, commands, modes; only the built app keeps
+them there) become `%APPDATA%\\Krekos`, and `~/.xanthos` and `~/.abdoh` (log, Claude's folder,
+window storage) become `~/.krekos`. Xanthos's go first, as they are newer: Abdoh's only fill in
+what's missing. Nothing happens once the old folders are gone. Runs before logging starts, so
+it returns what it did for the log.
 """
 
 import os
@@ -51,11 +53,14 @@ def _merge(old: Path, new: Path) -> str:
 def move_old_folders(
     home: Path | None = None, appdata: Path | None = None, frozen: bool | None = None
 ) -> list[str]:
-    """Bring Abdoh's folders over to Xanthos's names. Returns log lines."""
+    """Bring Xanthos's and Abdoh's folders over to Krekos's names. Returns log lines."""
     home = Path(home or Path.home())
     frozen = getattr(sys, "frozen", False) if frozen is None else frozen
-    moves = [(home / ".abdoh", home / ".xanthos")]
+    moves = [(home / ".xanthos", home / ".krekos"), (home / ".abdoh", home / ".krekos")]
     if frozen and not os.environ.get("ABDOH_HOME"):
         appdata = Path(appdata or os.environ.get("APPDATA", home))
-        moves.append((appdata / "Abdoh", appdata / "Xanthos"))
+        moves += [
+            (appdata / "Xanthos", appdata / "Krekos"),
+            (appdata / "Abdoh", appdata / "Krekos"),
+        ]
     return [done for old, new in moves if (done := move_folder(old, new))]

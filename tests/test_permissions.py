@@ -1,4 +1,4 @@
-"""Permissions and settings from the app are enforced, and applied while Xanthos runs."""
+"""Permissions and settings from the app are enforced, and applied while Krekos runs."""
 
 import threading
 import time

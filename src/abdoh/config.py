@@ -15,8 +15,8 @@ from dotenv import dotenv_values
 
 log = logging.getLogger(__name__)
 
-# Files that ship with Xanthos (example files, bundled models): the project folder, or the
-# inside of the built Xanthos.exe.
+# Files that ship with Krekos (example files, bundled models): the project folder, or the
+# inside of the built Krekos.exe.
 BUNDLE_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
 
 
@@ -24,8 +24,8 @@ def _default_app_dir() -> Path:
     """The folder holding config.yaml, commands.yaml, .env and models/."""
     if os.environ.get("ABDOH_HOME"):
         return Path(os.environ["ABDOH_HOME"])
-    if getattr(sys, "frozen", False):  # the built Xanthos.exe keeps your files in your profile
-        return Path(os.environ.get("APPDATA", Path.home())) / "Xanthos"
+    if getattr(sys, "frozen", False):  # the built Krekos.exe keeps your files in your profile
+        return Path(os.environ.get("APPDATA", Path.home())) / "Krekos"
     return Path(__file__).resolve().parents[2]  # the project folder
 
 
@@ -36,7 +36,8 @@ CLAUDE_BACKENDS = ("auto", "code", "api", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
 # 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
-CONFIG_VERSION = 7
+# 8: Xanthos became Krekos (new wake words and wake word model again).
+CONFIG_VERSION = 8
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -57,12 +58,19 @@ CLAUDE_ACTIONS = (
 )
 # Settings older versions wrote that no longer do anything (vosk_model: the old wake word).
 REMOVED_KEYS = {"vosk_model"}
-WAKE_WORDS = ("xanthos", "hey xanthos", "ya xanthos")
-WAKE_WORD_ALIASES = ("zanthos", "xantos", "zantos", "santos", "xanthus", "santhos")
-WAKE_WORD_MODEL = "models/hey_xanthos.onnx"
-LOG_FILE = "~/.xanthos/xanthos.log"
-# The old name and the ways speech recognition wrote it ("abdo", "ab doe", "abdul", "ya abdoo").
-_OLD_NAME = re.compile(r"\bab ?d(?:oh?|oo|oe|ul)\b")
+WAKE_WORDS = ("krekos", "hey krekos", "ya krekos")
+# How Parakeet wrote "Krekos" on test clips ("ya krekos" sometimes comes out as one word).
+WAKE_WORD_ALIASES = (
+    "krecos", "crecos", "kricos", "cricos", "krikos", "creekos", "crecoes", "cricoes",
+    "krakos", "cracos", "krekus", "krikus", "yakrecos", "yakricos",
+)  # fmt: skip
+WAKE_WORD_MODEL = "models/hey_krekos.onnx"
+LOG_FILE = "~/.krekos/krekos.log"
+# The old names and the ways speech recognition wrote them: Abdoh ("abdo", "ab doe", "abdul",
+# "ya abdoo") and Xanthos ("zanthos", "xantos", "santos", "xanthus").
+_OLD_NAME = re.compile(r"\bab ?d(?:oh?|oo|oe|ul)\b|\b[xzs]anth?[ou]s\b")
+_OLD_MODELS = ("hey_abdoh.onnx", "hey_xanthos.onnx")
+_OLD_LOGS = ("~/.abdoh/abdoh.log", "~/.xanthos/xanthos.log")
 # By the config version that added them: switched on for people upgrading from before it.
 NEW_ACTIONS = {
     3: ("volume", "brightness", "remind", "note"),
@@ -99,13 +107,13 @@ class ClaudeConfig:
 class Config:
     config_version: int = CONFIG_VERSION  # for upgrading settings files from older versions
     wake_words: list[str] = field(default_factory=lambda: list(WAKE_WORDS))
-    # Other spellings speech recognition may write for "Xanthos", left out of your requests.
+    # Other spellings speech recognition may write for "Krekos", left out of your requests.
     wake_word_aliases: list[str] = field(default_factory=lambda: list(WAKE_WORD_ALIASES))
     wake_word_model: str = WAKE_WORD_MODEL  # openWakeWord; missing -> hotkey only
     wake_word_threshold: float = 0.4
     wake_word_voice_threshold: float = 0.5  # with your voice check: how sure it must be it's you
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
-    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Xanthos
+    languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Krekos
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
     whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
@@ -115,9 +123,9 @@ class Config:
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
-    duck_others: bool = True  # other apps go quieter while Xanthos listens and answers
+    duck_others: bool = True  # other apps go quieter while Krekos listens and answers
     duck_percent: int = 30  # ... to this share of their volume
-    allow_power: bool = True  # Xanthos may put the computer to sleep, shut it down, restart it
+    allow_power: bool = True  # Krekos may put the computer to sleep, shut it down, restart it
     max_record_seconds: float = 10
     tts_engine: str = "piper"  # piper: natural voices; windows: the Windows voice
     piper_voice_en: str = "en_US-lessac-medium"  # Piper's voice for English ...
@@ -148,7 +156,7 @@ class Config:
 
     def resolve(self, path: str) -> Path:
         """Resolve a path from config relative to the app dir (and expand ~). If it isn't
-        there, a copy that ships with Xanthos (e.g. models bundled in Xanthos.exe) is used."""
+        there, a copy that ships with Krekos (e.g. models bundled in Krekos.exe) is used."""
         p = Path(path).expanduser()
         if p.is_absolute():
             return p
@@ -197,7 +205,7 @@ def save_api_key(env_path: Path, key: str) -> None:
 
 
 def upgrade(raw: dict) -> dict:
-    """Settings from an older Xanthos, brought up to date (the file itself is rewritten the next
+    """Settings from an older Krekos, brought up to date (the file itself is rewritten the next
     time settings are saved). Only values still at their old default are changed."""
     version = raw.get("config_version", 1)
     if version >= CONFIG_VERSION:
@@ -212,8 +220,8 @@ def upgrade(raw: dict) -> dict:
     raw["config_version"] = CONFIG_VERSION
     if version < 2:
         _upgrade_from_1(raw)
-    if version < 6:
-        _rename_to_xanthos(raw)
+    if version < 8:
+        _rename(raw)
     return raw
 
 
@@ -228,17 +236,18 @@ def _upgrade_from_1(raw: dict) -> None:
         raw["whisper_model"] = "small"
 
 
-def _rename_to_xanthos(raw: dict) -> None:
-    """Abdoh became Xanthos: the old name's wake words, spellings, model and log go. Your own
-    other wake words stay."""
+def _rename(raw: dict) -> None:
+    """Abdoh became Xanthos, then Krekos: the old names' wake words, spellings, model and log
+    go. Your own other wake words stay (and a list without the old name is left alone)."""
     for key, new in (("wake_words", WAKE_WORDS), ("wake_word_aliases", WAKE_WORD_ALIASES)):
         words = raw.get(key)
         if isinstance(words, list):
             own = [w for w in words if not (isinstance(w, str) and _OLD_NAME.search(w.lower()))]
-            raw[key] = [*new, *(w for w in own if w not in new)]
-    if str(raw.get("wake_word_model", "")).endswith("hey_abdoh.onnx"):
+            if len(own) < len(words):
+                raw[key] = [*new, *(w for w in own if w not in new)]
+    if str(raw.get("wake_word_model", "")).endswith(_OLD_MODELS):
         raw["wake_word_model"] = WAKE_WORD_MODEL
-    if raw.get("log_file") == "~/.abdoh/abdoh.log":
+    if raw.get("log_file") in _OLD_LOGS:
         raw["log_file"] = LOG_FILE
 
 
@@ -287,7 +296,7 @@ def setup_logging(config: Config, console: bool = True, level: int = logging.INF
 
     log_path = config.resolve(config.log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    # The log has what you said in it: keep today's and yesterday's only. (Xanthos 0.4 kept
+    # The log has what you said in it: keep today's and yesterday's only. (Abdoh 0.4 kept
     # numbered backups of any age: remove them.)
     for number in (1, 2, 3):
         log_path.with_name(f"{log_path.name}.{number}").unlink(missing_ok=True)
