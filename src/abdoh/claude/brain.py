@@ -40,7 +40,10 @@ STAMPED = (
 ACTIONS = """You can do things on the computer. To do one, write an action line before your \
 spoken answer, one action per line, exactly in this form:
 {actions}
-Use only these actions, and only when the user asks you to do something. {limits}When the user \
+Use only these actions, and only when the user asks you to do something. When they ask for \
+several things, do every one, in the order they asked, each with its own action line, even one \
+that another seems to make unnecessary (stop the music they asked you to stop before playing \
+something else). {limits}When the user \
 only asks you to do something and it's clear what they want, write just the action lines and no \
 words at all: Krekos plays a short sound to show it's done. "Play some jazz" is clear: play the \
 top result. Ask one short question first only when you can't tell what they want and a wrong \
