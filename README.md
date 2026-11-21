@@ -134,6 +134,9 @@ back to its old, simple window.
   off. If nothing follows, it goes back to waiting without a word, and if what it hears clearly
   isn't meant for it (a line from a video, you talking to a friend), Claude notices and Xanthos
   says nothing. Your own commands ("open my mail") always run.
+- **"Shut up" or "I'm not talking to you" ends it**: also "not you", "be quiet", "go away", "I'm
+  talking to my friend". Xanthos stops talking and stops listening at once, without a word or a
+  sound, and waits for its wake word again. Works while it talks, too.
 - **Things you ask it to do are just done**: "open Spotify", "volume 30", "play some jazz",
   "work mode". Xanthos does it and plays a short falling sound instead of talking (the window
   shows what it did), and it doesn't listen for more afterwards. It only asks when it can't tell
