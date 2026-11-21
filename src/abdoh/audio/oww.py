@@ -67,9 +67,6 @@ class OpenWakeWord(WakeWordEngine):
         self.threshold = threshold
         self.voice_check = None  # audio/voicecheck.py: the wake word only counts in your voice
         self.voice_threshold = 0.5
-        # Takes what the speakers play (music, a video) out of a block; returns the very same
-        # block when it changed nothing (audio/bargein.py SpeakerEcho, set by the daemon).
-        self.clean = None
         self.last_score = 0.0
         self.reset()
 
@@ -87,9 +84,7 @@ class OpenWakeWord(WakeWordEngine):
         self._first_try = self._try_best = 0.0  # the best score of the last and the current one
 
     def detect(self, block: bytes) -> bool:
-        cleaned = block if self.clean is None else self.clean(block)
-        over = " over the speakers' sound" if cleaned is not block else ""
-        audio = np.concatenate([self._pending, np.frombuffer(cleaned, dtype=np.int16)])
+        audio = np.concatenate([self._pending, np.frombuffer(block, dtype=np.int16)])
         usable = len(audio) // FRAME * FRAME
         self._pending = audio[usable:]
         heard, best, voice, again = False, 0.0, None, None
@@ -102,7 +97,7 @@ class OpenWakeWord(WakeWordEngine):
             if not candidate and self._second_try(score):
                 candidate, again = True, (self._first_try, score)
             if candidate:
-                if self.voice_check is None or over:  # over music it learned you without
+                if self.voice_check is None:
                     heard = True
                 else:
                     voice = max(voice or 0.0, self.voice_check.prob(self.last_window))
@@ -110,17 +105,15 @@ class OpenWakeWord(WakeWordEngine):
         if heard:
             self._trying, self._tried_at, self._again = False, None, False
         if heard and again is not None:
-            log.info("Wake word on the second try (%.2f, then %.2f)%s", *again, over)
+            log.info("Wake word on the second try (%.2f, then %.2f)", *again)
         elif heard and voice is None:
-            log.info("Wake word score %.2f%s", best, over)
+            log.info("Wake word score %.2f", best)
         elif heard:
-            log.info("Wake word score %.2f (your voice %.2f)%s", best, voice, over)
+            log.info("Wake word score %.2f (your voice %.2f)", best, voice)
         elif voice is not None:
-            log.info(
-                "Wake word score %.2f, but it didn't sound like you (%.2f)%s", best, voice, over
-            )
+            log.info("Wake word score %.2f, but it didn't sound like you (%.2f)", best, voice)
         elif best >= self.threshold / 2:
-            log.info("Wake word near miss %.2f (needs %.2f)%s", best, self.threshold, over)
+            log.info("Wake word near miss %.2f (needs %.2f)", best, self.threshold)
         return heard
 
     def _second_try(self, score: float) -> bool:
