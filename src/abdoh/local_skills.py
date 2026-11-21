@@ -20,8 +20,8 @@ _MEDIA = {
     "volume_up": r"(?:turn )?(?:the )?volume up|turn it up|louder|(?:increase|raise) the volume",
     "volume_down": r"(?:turn )?(?:the )?volume down|turn it down|quieter"
     r"|(?:decrease|lower) the volume",
-    "play_pause": r"pause|play|resume|(?:pause|play|resume|stop) (?:the )?"
-    r"(?:music|song|video|track)",
+    "play_pause": r"pause|play|resume|play (?:the )?(?:music|song|video|track)"
+    r"|(?:pause|stop|resume)(?: the| this| that| my)?(?: [a-z]+)? (?:music|song|video|track)",
     "next": r"next(?: song| track| one)?|skip(?: this| it)?(?: song| track)?",
     "previous": r"previous(?: song| track)?|(?:go )?back a (?:song|track)|last (?:song|track)",
 }
