@@ -332,15 +332,33 @@ on and off, set brightness, colour or white temperature, and read the current st
 3. **Ask the owner** before tagging. Then merge, tag `v0.6.0`, push, watch the build, and check
    the release and the download link.
 
+### Story 56: Krekos (`story/56-krekos`)
+
+"Hey Xanthos" kept missing, so the owner trained `hey_krekos.onnx` ("hey krekos", "ya krekos",
+pronounced KREH-kos) and Xanthos became Krekos, the same way Abdoh became Xanthos in story 45.
+
+1. Everything you see or hear says Krekos; `Krekos.exe`, `Krekos-Setup.exe`;
+   `assets/hey_krekos.onnx` replaces `hey_xanthos.onnx`. On synthetic clips (3 Piper and 2
+   Windows voices) it scored 0.7 to 1.0 on "Hey Krekos" and at most 0.02 on "Hey Carlos".
+2. Config 8: Abdoh's and Xanthos's wake words, spellings, model and log become Krekos's; your
+   own words stay, and a list without the old name is left alone.
+3. Spellings: Parakeet wrote "Krekos" as crecos, cricos, creekos, krikus, yakrecos and more.
+   The common ones are `wake_word_aliases`, and "thanks/wait/shut up" accept any of them.
+4. `%APPDATA%\Xanthos`, `~/.xanthos` (and Abdoh's) move to Krekos's; Xanthos's win.
+5. The installer replaces Xanthos (same AppId) and removes its folder, shortcuts, sign-in
+   entries and task. Releases also carry the installer as `Xanthos-Setup.exe` and
+   `Abdoh-Setup.exe`, the names older versions' update checks look for. The workflow no longer
+   downloads a model from `WAKE_WORD_URL`: the model is in the repo.
+6. The voice check must be taught again (it's tied to the model).
+
 ---
 
 ## 7. Things only the owner can do
 
 - Put the trained `hey_xanthos.onnx` in `models/` and be there for the wake word tests
   (stories 45 and 46).
-- Check the GitHub repository variable `WAKE_WORD_URL` (Settings → Secrets and variables →
-  Actions → Variables). Clear it, or point it at the new model, or every release puts the old
-  wake word back.
+- (Done in story 56: the release no longer reads the `WAKE_WORD_URL` repository variable, so
+  it can stay as it is or be deleted.)
 - Turn on Gmail and Google Calendar at claude.ai → Settings → Connectors.
 - Buy the lamp, set it up in the WiZ app on the 2.4 GHz Wi-Fi, and check that it is the colour
   version and fits the lamp's socket.
