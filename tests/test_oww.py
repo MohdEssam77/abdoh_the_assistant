@@ -190,3 +190,75 @@ def test_the_second_try_still_needs_your_voice():
     oww = scripted(quiet(5) + [0.36] + quiet(20) + [0.37] + quiet(5))
     oww.voice_check = NotYou()
     assert run(oww, 32) == []
+
+
+class AlwaysYou:
+    def prob(self, window):
+        return 0.9
+
+
+def test_with_your_voice_a_weaker_second_try_is_enough():
+    scores = quiet(5) + [0.25] + quiet(20) + [0.28] + quiet(5)  # under 70% of 0.45, over 50%
+    oww = scripted(scores)
+    oww.voice_check = AlwaysYou()
+    assert run(oww, len(scores)) == [26]
+    assert run(scripted(scores), len(scores)) == []  # without it: still too low
+
+
+def test_every_moment_of_the_second_try_can_convince_the_voice_check():
+    class SureLater:
+        def __init__(self):
+            self.asked = 0
+
+        def prob(self, window):
+            self.asked += 1
+            return 0.9 if self.asked > 1 else 0.2  # not sure at the very start of the word
+
+    scores = quiet(5) + [0.36] + quiet(20) + [0.36, 0.37, 0.36] + quiet(5)
+    oww = scripted(scores)
+    oww.voice_check = SureLater()
+    assert run(oww, len(scores)) == [27]
+
+
+# ----- music or a video playing: the wake word hears the microphone without it -----
+
+
+LOUD = (np.ones(1600) * 30000).astype(np.int16).tobytes()
+
+
+def warm(oww):
+    for _ in range(10):
+        oww.detect(silent_block())
+
+
+def test_the_wake_word_hears_the_cleaned_microphone():
+    oww, _, _ = engine()
+    warm(oww)
+    seen = []
+
+    def take_out(block):  # what played was all there was: silence is left
+        seen.append(block)
+        return bytes(len(block))
+
+    oww.clean = take_out
+    assert not oww.detect(LOUD)
+    assert seen[-1] == LOUD
+
+
+def test_nothing_playing_leaves_the_block_alone(caplog):
+    oww, _, _ = engine()
+    warm(oww)
+    oww.clean = lambda block: block  # the very same block: nothing was taken out
+    with caplog.at_level("INFO"):
+        assert oww.detect(LOUD)
+    assert "speakers" not in caplog.text
+
+
+def test_the_log_says_when_the_speakers_sound_was_taken_out(caplog):
+    oww, _, _ = engine()
+    warm(oww)
+    # A cleaned copy (the voice was left in it): a new block, not the same one.
+    oww.clean = lambda block: np.frombuffer(block, np.int16).copy().tobytes()
+    with caplog.at_level("INFO"):
+        assert oww.detect(LOUD)
+    assert "over the speakers' sound" in caplog.text
