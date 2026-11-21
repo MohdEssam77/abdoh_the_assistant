@@ -1,12 +1,12 @@
-"""How well Xanthos hears you over its own voice, measured in your room. MAKES SOUND.
+"""How well Krekos hears you over its own voice, measured in your room. MAKES SOUND.
 
-Xanthos says two sentences with your Windows voice at the current volume, while it records the
+Krekos says two sentences with your Windows voice at the current volume, while it records the
 microphone and what the speakers play. Then it prints:
-  - how loud Xanthos's own voice is at the microphone,
+  - how loud Krekos's own voice is at the microphone,
   - the delay between the speakers and the microphone,
-  - how much quieter the echo canceller makes Xanthos's voice, second by second,
+  - how much quieter the echo canceller makes Krekos's voice, second by second,
   - how often each sensitivity would wrongly think you were talking (should be 0).
-With --talk, Xanthos talks longer and asks you to talk over it; it prints when it heard you and
+With --talk, Krekos talks longer and asks you to talk over it; it prints when it heard you and
 what you said.
 
 Nothing is saved or sent. Usage: python scripts/echo_check.py [--talk]
@@ -27,7 +27,7 @@ from abdoh.config import load_config
 from abdoh.speech.tts import make_speaker
 
 SENTENCES = (
-    "This is Xanthos, checking how well I can hear you while I talk. "
+    "This is Krekos, checking how well I can hear you while I talk. "
     "Please stay quiet for a few seconds while I measure the room.",
     "Every word I say comes out of the speakers and back into the microphone, and I try to "
     "take it back out again.",
@@ -119,7 +119,7 @@ def main() -> int:
     if not np.abs(ref_audio).max():
         print("Nothing was heard from the speakers. Is the volume up, and the voice working?")
         return 1
-    print(f"\nXanthos's voice at the microphone: {dbfs(mic_audio):.0f} dBFS "
+    print(f"\nKrekos's voice at the microphone: {dbfs(mic_audio):.0f} dBFS "
           f"(the speakers played {dbfs(ref_audio):.0f} dBFS)")  # fmt: skip
     print(f"Delay from the speakers to the microphone: {lag_ms(ref_audio, mic_audio):.0f} ms "
           "(the canceller copes with 0 to 800)")  # fmt: skip
@@ -131,7 +131,7 @@ def main() -> int:
     per_second = []
     for s in range(len(cleaned) // 16000):
         part = slice(s * 16000, (s + 1) * 16000)
-        if np.abs(ref_audio[part]).max() > 300:  # only while Xanthos was talking
+        if np.abs(ref_audio[part]).max() > 300:  # only while Krekos was talking
             per_second.append(round(dbfs(mic_audio[part]) - dbfs(cleaned[part]), 1))
     print(f"Echo removed, second by second (dB, 20 or more is good): {per_second}")
 
@@ -155,7 +155,7 @@ def main() -> int:
 def talk_over(cfg, speaker) -> int:
     from abdoh.audio.stt import load_transcriber
 
-    print("\nNow talk over Xanthos...")
+    print("\nNow talk over Krekos...")
     transcriber = load_transcriber(cfg)
     tap = SpeakerTap()
     tap.start()
@@ -186,7 +186,7 @@ def talk_over(cfg, speaker) -> int:
                 if fired:
                     heard.set()
                     speaker.stop()
-                    print(f"Heard you {time.perf_counter() - started:.1f} s after Xanthos started.")
+                    print(f"Heard you {time.perf_counter() - started:.1f} s after Krekos started.")
                     audio = watch.pre_roll()
             else:
                 audio += watch.clean(block, mic.last_time)

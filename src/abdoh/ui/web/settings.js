@@ -39,7 +39,7 @@
     if (!pending.length) return null;
     return el("div", { class: "banner", "data-kind": "warn" },
       el("span", { html: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>', style: "display:contents" }),
-      el("div", { class: "text" }, `Restart Xanthos to use your new ${pending.join(", ")}.`),
+      el("div", { class: "text" }, `Restart Krekos to use your new ${pending.join(", ")}.`),
       el("button", { class: "btn small", onclick: () => call("restart") }, "Restart now"));
   }
 
@@ -98,7 +98,7 @@
     if (current && !devices.some((d) => d.name === current)) options.push([current, `${current} (not found)`]);
     const windows = el("div", { class: "mic-windows" });
     const card = el("div", { class: "card" }, el("h2", {}, "Microphone"),
-      el("p", { class: "lead" }, "Xanthos listens with this microphone. Talk to see the level move."),
+      el("p", { class: "lead" }, "Krekos listens with this microphone. Talk to see the level move."),
       row("Microphone", null, select(options, current, async (value) => {
         if (await saveSettings({ mic_device: value })) showMicVolume(windows);
       }, "Microphone")),
@@ -111,13 +111,13 @@
     return card;
   }
 
-  /* The microphone's own volume in Windows: a quiet one makes Xanthos mishear you. */
+  /* The microphone's own volume in Windows: a quiet one makes Krekos mishear you. */
   async function showMicVolume(box, state) {
     state = state || await call("mic_volume");
     if (!state || !state.ok) return box.replaceChildren();
     const low = state.muted || state.volume < 60;
-    const text = state.muted ? "It's muted in Windows, so Xanthos can't hear you."
-      : low ? `Its volume in Windows is only ${state.volume}%. Xanthos hears you better when it's higher.`
+    const text = state.muted ? "It's muted in Windows, so Krekos can't hear you."
+      : low ? `Its volume in Windows is only ${state.volume}%. Krekos hears you better when it's higher.`
         : `Its volume in Windows is ${state.volume}%.`;
     box.replaceChildren(row("Windows volume", el("span", { class: low ? "warn-text" : "" }, text),
       low ? el("button", { class: "btn small primary", onclick: async (e) => {
@@ -137,7 +137,7 @@
     const now = Date.now();
     if (level == null) {
       bar.style.width = "0%";
-      status.textContent = "The microphone isn't open yet (Xanthos is starting, or it can't use it).";
+      status.textContent = "The microphone isn't open yet (Krekos is starting, or it can't use it).";
       return;
     }
     const db = 20 * Math.log10(Math.max(level, 1) / 32768);
@@ -185,10 +185,10 @@
     } }, "Save");
     return card("Wake word and hotkey", null,
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Wake words"),
-        el("small", {}, "The wake word model listens for “Hey Xanthos” and “Ya Xanthos”. The words here are removed from what you say or type, so they never become part of a request.")), words.box),
+        el("small", {}, "The wake word model listens for “Hey Krekos” and “Ya Krekos”. The words here are removed from what you say or type, so they never become part of a request.")), words.box),
       row("Sensitivity", "Left: wakes more easily. Right: fewer false wake-ups.",
         el("div", { class: "range-wrap" }, sensitivity, el("div", { class: "range-ends" }, el("span", {}, "More easily"), el("span", {}, "Fewer mistakes")))),
-      row("Only my voice", "Say “Hey Xanthos” ten times (some close, some from across the room) and talk for 20 seconds, and only your voice wakes it. Then you can move Sensitivity to the left without false wake-ups. The recordings stay on this computer.", voiceCheck()),
+      row("Only my voice", "Say “Hey Krekos” ten times (some close, some from across the room) and talk for 20 seconds, and only your voice wakes it. Then you can move Sensitivity to the left without false wake-ups. The recordings stay on this computer.", voiceCheck()),
       row("Hotkey", "Press it anywhere to talk without the wake word, or to stop a reply. Empty turns it off.",
         el("div", { class: "btn-row" }, hotkey, saveHotkey)),
       row("Listening with", null, el("span", { class: "tag", id: "wake-engine" }, $("#side-wake").textContent.replace(/^Wake word: /, ""))));
@@ -204,7 +204,7 @@
     const box = el("div", { class: "voice-check" });
     const show = async () => {
       const state = (await call("voice_check")) || {};
-      if (state.starting) {  // Xanthos is still loading its models
+      if (state.starting) {  // Krekos is still loading its models
         box.replaceChildren(el("span", { class: "tag" }, "Starting…"));
         if (box.isConnected || !box.parentNode) setTimeout(show, 1500);
         return;
@@ -217,7 +217,7 @@
           state.active ? "Teach it again" : "Teach it your voice"),
         state.active || state.recorded ? el("button", { class: "btn small", onclick: async () => {
           await call("forget_voice");
-          toast("Your voice recordings are deleted. Any voice wakes Xanthos again.");
+          toast("Your voice recordings are deleted. Any voice wakes Krekos again.");
           show();
         } }, "Forget my voice") : null),
         ...(note ? [el("small", { class: "warn-text" }, note)] : []));
@@ -244,7 +244,7 @@
     const record = async (from, to) => {
       let missed = false;
       for (let n = from; n <= to && !cancelled;) {
-        say(`Say “Hey Xanthos” (${n} of ${to})`, missed ? "I didn't hear that one. Once more, please."
+        say(`Say “Hey Krekos” (${n} of ${to})`, missed ? "I didn't hear that one. Once more, please."
           : n <= 5 ? "Close to the laptop, the way you normally talk. Wait for the number to change after each one."
             : "Now from where you usually are: across the room, or a few steps away. Wait for the number to change.");
         const result = await call("record_voice", "phrase", n);
@@ -268,7 +268,7 @@
         say("Learning your voice...", "This takes a few seconds.");
         result = await call("train_voice");
       }
-      if (result && result.ok) toast("Done. Now only your voice wakes Xanthos.");
+      if (result && result.ok) toast("Done. Now only your voice wakes Krekos.");
       else if (result) toast(result.error, true);
     } finally {
       clearInterval(timer);
@@ -325,24 +325,24 @@
     const settings = App.settings;
     const claude = settings.claude || {};
     const save = (changes, input, on) => saveSettings(changes).then((ok) => { if (!ok) input.checked = !on; });
-    return card("Conversation", "How talking with Xanthos flows.",
+    return card("Conversation", "How talking with Krekos flows.",
       row("When it does something for you", "“Open Spotify”, “volume 30”, “work mode”: it does it and plays a short sound, or says what it did. It speaks anyway if something goes wrong.",
         select([["sound", "A short sound"], ["words", "Say what it did"]], settings.confirm_actions || "sound",
           (value) => saveSettings({ confirm_actions: value }), "When it does something for you")),
-      row("Keep listening after a reply", "After Claude answers a question, Xanthos listens for a few more seconds, so you can go on without the wake word. Not after it did something for you. Say “thanks” or just stay quiet to end.",
+      row("Keep listening after a reply", "After Claude answers a question, Krekos listens for a few more seconds, so you can go on without the wake word. Not after it did something for you. Say “thanks” or just stay quiet to end.",
         toggle(settings.follow_up_seconds > 0, (on, input) => save({ follow_up_seconds: on ? 6 : 0 }, input, on), "Keep listening after a reply")),
       row("Answer Claude's questions right away", "When Claude asks you something, just answer.",
         toggle(claude.listen_after_question, (on, input) => save({ claude: { listen_after_question: on } }, input, on), "Answer questions right away")),
       row("Stop when I start talking", App.hearing
         ? `Not available on this computer: ${App.hearing}.`
-        : "Xanthos goes quiet as soon as it hears you, and listens. Say “okay” and it goes on; say “wait” and it stops. Works best with headphones or the volume not too loud.",
+        : "Krekos goes quiet as soon as it hears you, and listens. Say “okay” and it goes on; say “wait” and it stops. Works best with headphones or the volume not too loud.",
         App.hearing ? null : toggle(settings.voice_interrupts, (on, input) => save({ voice_interrupts: on }, input, on).then(() => render()), "Stop when I start talking")),
-      settings.voice_interrupts && !App.hearing ? row("How easily your voice stops Xanthos", "Higher reacts sooner; lower is for loud rooms, or when Xanthos stops by itself.",
+      settings.voice_interrupts && !App.hearing ? row("How easily your voice stops Krekos", "Higher reacts sooner; lower is for loud rooms, or when Krekos stops by itself.",
         select([["low", "Low"], ["medium", "Medium (recommended)"], ["high", "High"]], settings.voice_interrupt_sensitivity,
-          (value) => saveSettings({ voice_interrupt_sensitivity: value }), "How easily your voice stops Xanthos")) : null,
-      row("Lower other sounds while I talk to Xanthos", `Music and videos drop to ${settings.duck_percent}% of their volume while Xanthos listens and answers, then come back. Xanthos's own voice stays as it is.`,
-        toggle(settings.duck_others, (on, input) => save({ duck_others: on }, input, on), "Lower other sounds while I talk to Xanthos")),
-      row("Interrupt with the wake word", "Say “Hey Xanthos” while Xanthos is talking to stop it and say something new.",
+          (value) => saveSettings({ voice_interrupt_sensitivity: value }), "How easily your voice stops Krekos")) : null,
+      row("Lower other sounds while I talk to Krekos", `Music and videos drop to ${settings.duck_percent}% of their volume while Krekos listens and answers, then come back. Krekos's own voice stays as it is.`,
+        toggle(settings.duck_others, (on, input) => save({ duck_others: on }, input, on), "Lower other sounds while I talk to Krekos")),
+      row("Interrupt with the wake word", "Say “Hey Krekos” while Krekos is talking to stop it and say something new.",
         toggle(settings.wake_word_interrupts, (on, input) => save({ wake_word_interrupts: on }, input, on), "Interrupt with the wake word")));
   }
 
@@ -364,11 +364,11 @@
       return button;
     }));
     const lighter = settings.speech_engine === "whisper";
-    const how = !fast ? "With these languages Xanthos uses the Whisper model below. It's slower, and it answers in the language you spoke."
+    const how = !fast ? "With these languages Krekos uses the Whisper model below. It's slower, and it answers in the language you spoke."
       : lighter ? "The lighter Whisper model: less memory, more mistakes."
-        : "English and German work without choosing: Xanthos hears which one you spoke, with the fastest and most accurate model. Add any other language you speak here.";
-    return card("Speech recognition", "How Xanthos turns what you say into text. Everything runs on this computer.",
-      el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Xanthos"), el("small", {}, how)), picks),
+        : "English and German work without choosing: Krekos hears which one you spoke, with the fastest and most accurate model. Add any other language you speak here.";
+    return card("Speech recognition", "How Krekos turns what you say into text. Everything runs on this computer.",
+      el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Krekos"), el("small", {}, how)), picks),
       fast ? row("Quality", "Best accuracy uses about 700 MB more memory.",
         select([["auto", "Best accuracy (recommended)"], ["whisper", "Lighter"]], lighter ? "whisper" : "auto",
           (value) => saveSettings({ speech_engine: value }).then((ok) => ok && render()), "Speech quality")) : null,
@@ -383,7 +383,7 @@
     const settings = App.settings;
     const theme = store("abdoh.theme") || "system";
     return card("General", null,
-      row("Start Xanthos when I sign in", "Xanthos starts in the tray when you sign in to Windows.",
+      row("Start Krekos when I sign in", "Krekos starts in the tray when you sign in to Windows.",
         toggle(login && login.on, async (on, input) => {
           input.disabled = true;
           const result = await call("set_login_item", on);
@@ -391,9 +391,9 @@
           if (!result || !result.ok) {
             input.checked = !on;
             if (result) toast(result.error, true);
-          } else toast(on ? "Xanthos will start when you sign in." : "Xanthos won't start by itself.");
+          } else toast(on ? "Krekos will start when you sign in." : "Krekos won't start by itself.");
         }, "Start at sign-in")),
-      row("Check for updates", `Look for a new version of Xanthos once a day. You have ${App.version}.`,
+      row("Check for updates", `Look for a new version of Krekos once a day. You have ${App.version}.`,
         el("div", { class: "btn-row" },
           el("button", { class: "btn small", onclick: async (e) => {
             const button = e.currentTarget; // gone from the event once we've awaited
@@ -426,7 +426,7 @@
       restartBanner(),
       ...extra,
       voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speechCard(), lampsCard(), generalCard(login),
-      el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Xanthos ${App.version}`),
+      el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Krekos ${App.version}`),
     ].filter(Boolean));
     startMeter();
   }

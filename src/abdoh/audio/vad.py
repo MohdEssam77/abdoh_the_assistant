@@ -1,6 +1,6 @@
 """Voice activity detection with the Silero VAD model that ships with faster-whisper.
 
-It tells speech from background noise much better than loudness does, so Xanthos can stop
+It tells speech from background noise much better than loudness does, so Krekos can stop
 recording sooner after you finish talking. Runs on onnxruntime (already installed by
 faster-whisper); no extra download.
 """
@@ -79,7 +79,7 @@ class SileroVad:
 
 
 def load_vad() -> SileroVad | None:
-    """The bundled VAD, or None (Xanthos then falls back to loudness)."""
+    """The bundled VAD, or None (Krekos then falls back to loudness)."""
     try:
         return SileroVad()
     except Exception as e:

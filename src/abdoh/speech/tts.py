@@ -1,6 +1,6 @@
 """Text-to-speech behind a small Speaker interface.
 
-On Windows Xanthos drives the Windows voice (SAPI) directly: pyttsx3 2.99 cut off its own speech
+On Windows Krekos drives the Windows voice (SAPI) directly: pyttsx3 2.99 cut off its own speech
 there, so replies were silent. pyttsx3 is still used on macOS and Linux.
 """
 

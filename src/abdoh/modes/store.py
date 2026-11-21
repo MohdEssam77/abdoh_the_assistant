@@ -9,7 +9,7 @@ from abdoh.config import write_atomic
 from abdoh.modes.model import Mode, ModesFileError, as_form, parse_mode, parse_modes
 
 HEADER = """\
-# Your modes: make them in the Xanthos app (Modes), or here by hand.
+# Your modes: make them in the Krekos app (Modes), or here by hand.
 # Say "<name> mode" to switch one on, and "back to normal" to undo what it changed.
 #
 # - name: Movie
@@ -24,7 +24,7 @@ HEADER = """\
 #     dark_mode: true
 #     power_mode: balanced      # best_performance, balanced or efficiency
 #     night_light: true
-#     wake_word: false          # false: Xanthos doesn't listen for its name in this mode
+#     wake_word: false          # false: Krekos doesn't listen for its name in this mode
 #     voice_replies: true
 #     follow_up: false          # keep listening after a reply
 #   actions:                    # run in order when the mode starts (the same as commands)
@@ -59,7 +59,7 @@ TEMPLATES: list[dict] = [
     {
         "name": "Focus",
         "icon": "target",
-        "description": "A 25-minute timer, and Xanthos stops listening for more after replies.",
+        "description": "A 25-minute timer, and Krekos stops listening for more after replies.",
         "settings": {"follow_up": False},
         "actions": [
             {"type": "timer", "value": "25 minutes"},
@@ -69,7 +69,7 @@ TEMPLATES: list[dict] = [
     {
         "name": "Presentation",
         "icon": "presentation",
-        "description": "Light theme, full brightness, and Xanthos stays quiet.",
+        "description": "Light theme, full brightness, and Krekos stays quiet.",
         "settings": {"dark_mode": False, "brightness": 100, "voice_replies": False},
         "actions": [],
     },

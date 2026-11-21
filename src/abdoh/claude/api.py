@@ -45,7 +45,7 @@ class ApiBrain(Brain):
             source = {"type": "base64", "media_type": "image/png", "data": data}
             content.append({"type": "image", "source": source})
         state = self.state_now()  # the mode that's on, ... (abdoh.about.state_line)
-        text = f"[Xanthos now: {state}]\n{prompt}" if state else prompt
+        text = f"[Krekos now: {state}]\n{prompt}" if state else prompt
         content.append({"type": "text", "text": text})
         model = self.cfg.claude.model
         params: dict = {

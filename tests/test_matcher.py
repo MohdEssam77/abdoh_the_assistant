@@ -3,7 +3,7 @@ import pytest
 from abdoh.commands.matcher import match, normalize, strip_wake_words
 from abdoh.commands.registry import Command
 
-WAKE = ["xanthos", "hey xanthos"]
+WAKE = ["krekos", "hey krekos"]
 
 COMMANDS = [
     Command("good_morning", ["good morning"], [("say", "hi")]),
@@ -19,29 +19,29 @@ def matched(text):
 
 
 def test_normalize():
-    assert normalize("  Hey, Xanthos!  What's the TIME? ") == "hey xanthos whats the time"
+    assert normalize("  Hey, Krekos!  What's the TIME? ") == "hey krekos whats the time"
 
 
 def test_strip_wake_words_start_and_end():
-    assert strip_wake_words("Hey Xanthos, what time is it?", WAKE) == "what time is it"
-    assert strip_wake_words("Good morning Xanthos.", WAKE) == "good morning"
-    assert strip_wake_words("Hey Xanthos.", WAKE) == ""
+    assert strip_wake_words("Hey Krekos, what time is it?", WAKE) == "what time is it"
+    assert strip_wake_words("Good morning Krekos.", WAKE) == "good morning"
+    assert strip_wake_words("Hey Krekos.", WAKE) == ""
 
 
 def test_strip_wake_words_whole_words_only():
-    assert strip_wake_words("xanthoss house", WAKE) == "xanthoss house"
+    assert strip_wake_words("krekoss house", WAKE) == "krekoss house"
 
 
 @pytest.mark.parametrize(
     "text, expected",
     [
         ("good morning", "good_morning"),
-        ("Good morning, Xanthos!", "good_morning"),  # wake word at end
-        ("Hey Xanthos, good morning.", "good_morning"),  # wake word at start
+        ("Good morning, Krekos!", "good_morning"),  # wake word at end
+        ("Hey Krekos, good morning.", "good_morning"),  # wake word at start
         ("good mornin", "good_morning"),  # typo
-        ("goood morning xanthos", "good_morning"),  # typo + wake word
+        ("goood morning krekos", "good_morning"),  # typo + wake word
         ("open my email", "open_mail"),
-        ("Hey Xanthos, open VS Code", "open_vscode"),
+        ("Hey Krekos, open VS Code", "open_vscode"),
         ("what time is it", "what_time"),
         ("what time is it now", "what_time"),
         ("Time?", "what_time"),
@@ -57,7 +57,7 @@ def test_matches(text, expected):
         "what's the time difference between cairo and tokyo",
         "what's the capital of japan",
         "summarize my screen",
-        "Hey Xanthos.",
+        "Hey Krekos.",
         "",
     ],
 )
@@ -68,12 +68,12 @@ def test_no_match(text):
 def test_remove_wake_words_keeps_your_wording():
     from abdoh.commands.matcher import remove_wake_words
 
-    w = ["xanthos", "hey xanthos", "santos"]
-    assert remove_wake_words("Hey Xanthos, what's 15% of 80?", w) == "what's 15% of 80?"
-    assert remove_wake_words("Good morning Xanthos.", w) == "Good morning."
-    assert remove_wake_words("Who is Santoshi, Xanthos?", w) == "Who is Santoshi?"
-    assert remove_wake_words("Xanthos. Open Spotify.", w) == "Open Spotify."
-    assert remove_wake_words("Xanthos", w) == ""
+    w = ["krekos", "hey krekos", "santos"]
+    assert remove_wake_words("Hey Krekos, what's 15% of 80?", w) == "what's 15% of 80?"
+    assert remove_wake_words("Good morning Krekos.", w) == "Good morning."
+    assert remove_wake_words("Who is Santoshi, Krekos?", w) == "Who is Santoshi?"
+    assert remove_wake_words("Krekos. Open Spotify.", w) == "Open Spotify."
+    assert remove_wake_words("Krekos", w) == ""
 
 
 def test_slot_triggers_capture_words():

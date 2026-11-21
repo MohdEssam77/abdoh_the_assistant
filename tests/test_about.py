@@ -1,4 +1,4 @@
-"""Xanthos knows about itself: its parts and settings go to Claude, and how it is right now (the
+"""Krekos knows about itself: its parts and settings go to Claude, and how it is right now (the
 mode that's on) comes with every message."""
 
 from datetime import datetime
@@ -33,7 +33,7 @@ def setup_files(app_dir: Path) -> Config:
 def test_it_describes_its_parts_and_settings(tmp_path):
     text = about(setup_files(tmp_path), "code")
     assert f"Version {__version__}" in text
-    assert '"hey xanthos"' in text and "hey_xanthos" in text  # the wake word model
+    assert '"hey krekos"' in text and "hey_krekos" in text  # the wake word model
     assert "Any voice saying it wakes you" in text  # no voice check taught yet
     assert "Whisper" in text  # no Parakeet model in this test folder
     assert "en_US-ryan-medium for English" in text or "Windows voice" in text
@@ -81,7 +81,7 @@ def test_claude_code_gets_it_in_its_instructions_and_with_each_message(tmp_path)
     from test_claude_code import FakePopen, make_brain
 
     brain = make_brain(tmp_path, FakePopen())
-    assert "About you, Xanthos" in brain.instructions()
+    assert "About you, Krekos" in brain.instructions()
     brain.state = lambda: "mode on: Movie; voice replies on"
     sent = []
 
@@ -103,8 +103,8 @@ def test_the_api_gets_it_too(tmp_path):
     brain = ApiBrain(Config(app_dir=tmp_path, anthropic_api_key="sk-test"))
     brain.state = lambda: "mode on: Work; voice replies on"
     params = brain.request("which mode is on")
-    assert "About you, Xanthos" in params["system"]
-    assert params["messages"][0]["content"][-1]["text"].startswith("[Xanthos now: mode on: Work")
+    assert "About you, Krekos" in params["system"]
+    assert params["messages"][0]["content"][-1]["text"].startswith("[Krekos now: mode on: Work")
 
 
 def test_a_broken_state_is_left_out(tmp_path):

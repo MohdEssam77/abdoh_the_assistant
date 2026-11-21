@@ -1,4 +1,4 @@
-/* The bridge to Xanthos: pywebview's js_api inside the app, or (with ?demo in the address) a demo
+/* The bridge to Krekos: pywebview's js_api inside the app, or (with ?demo in the address) a demo
    with made-up data, so the page can be designed and screenshotted in a normal browser. */
 "use strict";
 
@@ -10,11 +10,11 @@ const Bridge = (() => {
     const push = (kind, value) => queue.push([kind, value]);
     let paused = false;
     const settings = {
-      wake_words: ["xanthos", "hey xanthos", "ya xanthos"], wake_word_aliases: ["zanthos", "santos"],
-      wake_word_model: "models/hey_xanthos.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
+      wake_words: ["krekos", "hey krekos", "ya krekos"], wake_word_aliases: ["krecos", "cricos"],
+      wake_word_model: "models/hey_krekos.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
       silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, confirm_actions: "sound", wake_word_interrupts: true, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
-      allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.xanthos/xanthos.log",
+      allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.krekos/krekos.log",
       has_api_key: false,
       claude: {
         backend: "auto", code_path: "", code_model: "", model: "claude-opus-5-5", max_tokens: 4000,
@@ -26,15 +26,15 @@ const Bridge = (() => {
     };
     const history = params.get("demo") === "empty" ? [] : [
       "You: What time is it?",
-      "Xanthos: It is 9:41 AM.",
+      "Krekos: It is 9:41 AM.",
       "You: Set a timer for 25 minutes and play some lofi",
-      "Xanthos: Timer set for 25 minutes. Playing lofi hip hop radio on YouTube.",
+      "Krekos: Timer set for 25 minutes. Playing lofi hip hop radio on YouTube.",
       "You: What's a good name for a grey cat?",
-      "Xanthos: How about Smokey, Ash, or Pebble? Pebble is short, sweet and easy to call out.",
+      "Krekos: How about Smokey, Ash, or Pebble? Pebble is short, sweet and easy to call out.",
     ];
     setTimeout(() => {
       push("claude", "Pro subscription (Claude Code)");
-      push("wake", "openWakeWord (hey_xanthos)");
+      push("wake", "openWakeWord (hey_krekos)");
       push("status", "Listening");
     }, 250);
     let commands = [
@@ -70,8 +70,8 @@ const Bridge = (() => {
       { name: "Night", icon: "moon", phrases: [], settings: { brightness: 30, volume: 30, dark_mode: true }, actions: [], exit_actions: [], schedule: [] },
     ];
     const modeTemplates = [
-      { name: "Focus", icon: "target", description: "A 25-minute timer, and Xanthos stops listening for more after replies.", settings: { follow_up: false }, actions: [{ type: "timer", value: "25 minutes" }] },
-      { name: "Presentation", icon: "presentation", description: "Light theme, full brightness, and Xanthos stays quiet.", settings: { dark_mode: false, brightness: 100, voice_replies: false }, actions: [] },
+      { name: "Focus", icon: "target", description: "A 25-minute timer, and Krekos stops listening for more after replies.", settings: { follow_up: false }, actions: [{ type: "timer", value: "25 minutes" }] },
+      { name: "Presentation", icon: "presentation", description: "Light theme, full brightness, and Krekos stays quiet.", settings: { dark_mode: false, brightness: 100, voice_replies: false }, actions: [] },
     ];
     const replies = {
       time: () => `It is ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`,
@@ -89,7 +89,7 @@ const Bridge = (() => {
         push("status", "Thinking...");
         const key = /time/i.test(text) ? "time" : /timer/i.test(text) ? "timer" : null;
         setTimeout(() => {
-          push("history", `Xanthos: ${key ? replies[key]() : "This is the demo, so I can't really do that."}`);
+          push("history", `Krekos: ${key ? replies[key]() : "This is the demo, so I can't really do that."}`);
           push("status", paused ? "Paused" : "Listening");
         }, 1100);
         return true;
@@ -123,8 +123,8 @@ const Bridge = (() => {
         return { ok: true, mode };
       },
       delete_mode: async (name) => { modes = modes.filter((m) => m.name !== name); return { ok: true }; },
-      activate_mode: async (name) => { currentMode = name; push("mode", name); push("history", `Xanthos: ${name} mode.`); },
-      end_mode: async () => { currentMode = ""; push("mode", ""); push("history", "Xanthos: Back to normal."); },
+      activate_mode: async (name) => { currentMode = name; push("mode", name); push("history", `Krekos: ${name} mode.`); },
+      end_mode: async () => { currentMode = ""; push("mode", ""); push("history", "Krekos: Back to normal."); },
       displays: async () => ({ displays }),
       rename_display: async (id, nickname) => { displays.find((d) => d.id === id).nickname = nickname; return { displays }; },
       reorder_displays: async (ids) => {
@@ -171,8 +171,8 @@ const Bridge = (() => {
       }),
       voice_check: async () => ({ possible: true, active: voiceActive, stale: false, recorded: voiceActive ? 10 : 0 }),
       record_voice: async (kind) => { await new Promise((r) => setTimeout(r, kind === "talk" ? 2500 : 900)); return { ok: true, heard: true }; },
-      train_voice: async () => { voiceActive = true; push("wake", "openWakeWord (hey_xanthos), your voice"); return { ok: true, passed: 10, total: 10, woke: 10, recorded: 10 }; },
-      forget_voice: async () => { voiceActive = false; push("wake", "openWakeWord (hey_xanthos)"); return { possible: true, active: false, stale: false, recorded: 0 }; },
+      train_voice: async () => { voiceActive = true; push("wake", "openWakeWord (hey_krekos), your voice"); return { ok: true, passed: 10, total: 10, woke: 10, recorded: 10 }; },
+      forget_voice: async () => { voiceActive = false; push("wake", "openWakeWord (hey_krekos)"); return { possible: true, active: false, stale: false, recorded: 0 }; },
       login_item: async () => ({ ok: true, on: true }),
       set_login_item: async (on) => ({ ok: true, on }),
       pick_folder: async () => "C:\\Users\\you\\Documents\\Projects",

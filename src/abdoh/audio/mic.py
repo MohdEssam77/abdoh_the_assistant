@@ -128,7 +128,7 @@ class Microphone:
         return b"".join(self._buffer)
 
     def clear(self) -> None:
-        """Drop queued and buffered audio (e.g. after Xanthos has spoken)."""
+        """Drop queued and buffered audio (e.g. after Krekos has spoken)."""
         self._buffer.clear()
         while True:
             try:

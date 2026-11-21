@@ -1,4 +1,4 @@
-"""What Xanthos knows about itself, so Claude can answer "which speech model do you use?",
+"""What Krekos knows about itself, so Claude can answer "which speech model do you use?",
 "is my voice check on?" or "what commands do I have?".
 
 `about(cfg, via)` is the part that only changes with the settings: it goes into Claude's
@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 ABOUT = """
 
-About you, Xanthos (for when the user asks how you work or how you're set up; don't bring it \
+About you, Krekos (for when the user asks how you work or how you're set up; don't bring it \
 up otherwise):
 - Version {version}, on the user's {platform} computer. The window has the pages Home (your \
 conversation), Modes, Commands, Permissions (what Claude may do, connected services, the user's \
@@ -34,7 +34,7 @@ are. Your actions can switch modes, screens, speakers, lamps and the like.
 
 
 def about(cfg: Config, via: str = "code") -> str:
-    """Xanthos's settings and parts, in words (see ABOUT). Never raises: a part that can't be
+    """Krekos's settings and parts, in words (see ABOUT). Never raises: a part that can't be
     read is left out."""
     return ABOUT.format(
         version=__version__,
@@ -55,7 +55,7 @@ def about(cfg: Config, via: str = "code") -> str:
 
 
 def state_line(mode: str | None = None, voice: bool = True, paused: bool = False) -> str:
-    """How Xanthos is right now, for the start of a message: "mode: Work; voice replies on"."""
+    """How Krekos is right now, for the start of a message: "mode: Work; voice replies on"."""
     parts = [f"mode on: {mode}" if mode else "no mode on"]
     parts.append("voice replies on" if voice else "voice replies off (the user reads)")
     if paused:
@@ -67,7 +67,7 @@ def _safe(make, default: str) -> str:
     try:
         return make()
     except Exception:
-        log.debug("Couldn't describe part of Xanthos", exc_info=True)
+        log.debug("Couldn't describe part of Krekos", exc_info=True)
         return default
 
 

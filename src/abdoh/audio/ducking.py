@@ -1,9 +1,9 @@
 """Other apps go quieter for the whole conversation: the browser, Spotify, a film.
 
-From the moment Xanthos starts listening (or speaking) until the conversation is over, each other
+From the moment Krekos starts listening (or speaking) until the conversation is over, each other
 app that plays sound drops to a share of its own volume in the Windows volume mixer. While they
 are down, the mixer is checked about once a second, so an app that starts playing later (the
-next song, a video you just started) goes down too. Xanthos's own voice and sounds (this process)
+next song, a video you just started) goes down too. Krekos's own voice and sounds (this process)
 stay as they are. Afterwards each app gets its volume back, unless you changed it meanwhile.
 """
 

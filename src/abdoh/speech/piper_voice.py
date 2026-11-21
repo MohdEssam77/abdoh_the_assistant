@@ -82,7 +82,7 @@ def download_voice(name: str, folder: Path, fetch=None) -> Path:
 
 
 def _fetch(url: str, target: Path) -> None:
-    request = urllib.request.Request(url, headers={"User-Agent": "Xanthos-voice-download"})
+    request = urllib.request.Request(url, headers={"User-Agent": "Krekos-voice-download"})
     with urllib.request.urlopen(request, timeout=60) as response, open(target, "wb") as f:
         while chunk := response.read(1 << 20):
             f.write(chunk)

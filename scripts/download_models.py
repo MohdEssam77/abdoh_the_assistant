@@ -1,11 +1,11 @@
-"""Download the offline models Xanthos needs into models/.
+"""Download the offline models Krekos needs into models/.
 
 - openWakeWord's two shared feature models (melspectrogram, speech embedding), used with your
-  own "Hey Xanthos" model (see README: train the wake word).
+  own "Hey Krekos" model (see README: train the wake word).
 - The Parakeet v3 speech recognition model (English, German and 23 other languages, about 640
   MB), so the built app never has to download anything on its first start.
 - Your trained wake word model, copied from assets/ if models/ doesn't have one yet.
-- Piper's English voice (about 60 MB), bundled so Xanthos speaks naturally from the first start.
+- Piper's English voice (about 60 MB), bundled so Krekos speaks naturally from the first start.
   Other languages' voices are downloaded by the app when first needed.
 
 Whisper models (used for other languages, or with --whisper as an English fallback) are
@@ -35,7 +35,7 @@ WHISPER_URL = (
 )
 WHISPER_FILES = ["config.json", "model.bin", "tokenizer.json", "vocabulary.txt"]
 
-# NVIDIA Parakeet TDT 0.6b v3 (CC-BY-4.0), exported to ONNX for onnx-asr. (Xanthos 0.6.0 and
+# NVIDIA Parakeet TDT 0.6b v3 (CC-BY-4.0), exported to ONNX for onnx-asr. (Krekos 0.6.0 and
 # earlier shipped v2, English only: the same size and speed, 0.5% against 1% English mistakes on
 # synthetic clips, but 92% against 5% on German; ABDOH_EPIC_6.md.)
 PARAKEET_DIR = MODELS_DIR / "parakeet-tdt-0.6b-v3"
@@ -50,7 +50,7 @@ PARAKEET_FILES = [
     "decoder_joint-model.int8.onnx",
     "encoder-model.int8.onnx",
 ]
-WAKE_WORD = "hey_xanthos.onnx"
+WAKE_WORD = "hey_krekos.onnx"
 PIPER_DIR = MODELS_DIR / "piper"
 # Piper's English voice (rhasspy/piper-voices, MIT; the voice's dataset is in its model card) at a
 # fixed revision.

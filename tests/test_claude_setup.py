@@ -200,7 +200,7 @@ def test_app_connects_claude(app_dir):
     assert api.claude_sign_out() == {"ok": True}
     assert api.set_api_key("sk-ant-x") == {"ok": True}
     api.refresh_claude()
-    assert requests(bus) == [("settings_changed", None)] * 3  # Xanthos reconnects each time
+    assert requests(bus) == [("settings_changed", None)] * 3  # Krekos reconnects each time
     assert [d[0] for d in fake.done] == ["install", "sign_in", "sign_out", "key"]
 
 

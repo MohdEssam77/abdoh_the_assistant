@@ -32,9 +32,9 @@ def test_save_changes_a_value_and_keeps_the_comments(app_dir):
     cfg = save_settings(app_dir, {"tts_rate": 200, "claude": {"allow_web": False}})
     assert cfg.tts_rate == 200
     assert cfg.claude.allow_web is False
-    assert cfg.wake_words == ["xanthos", "hey xanthos", "ya xanthos"]  # untouched
+    assert cfg.wake_words == ["krekos", "hey krekos", "ya krekos"]  # untouched
     text = (app_dir / "config.yaml").read_text(encoding="utf-8")
-    assert "# Xanthos configuration." in text
+    assert "# Krekos configuration." in text
     assert "tts_rate: 200" in text and "# speaking speed in words per minute" in text
     assert "# higher = fewer false wake-ups" in text
     assert "  allow_web: false" in text
@@ -123,13 +123,13 @@ def test_settings_from_abdoh_0_3_are_upgraded(app_dir):
     cfg = load_config(app_dir)
     assert cfg.languages == ["en", "ar"]  # "detect automatically" became your two languages
     assert (cfg.wake_word_threshold, cfg.whisper_model) == (0.4, "small")  # the new defaults
-    assert cfg.wake_words == ["xanthos", "hey xanthos", "ya xanthos"]
+    assert cfg.wake_words == ["krekos", "hey krekos", "ya krekos"]
     assert cfg.tts_rate == 190  # your own choices stay
     text_before = (app_dir / "config.yaml").read_text()
     assert text_before == old  # nothing is rewritten until you save a setting
     save_settings(app_dir, {"tts_rate": 200})
     text = (app_dir / "config.yaml").read_text()
-    assert "config_version: 7" in text and "\nlanguage:" not in text
+    assert "config_version: 8" in text and "\nlanguage:" not in text
     assert load_config(app_dir).languages == ["en", "ar"]
 
 
@@ -159,7 +159,7 @@ def test_yaml_values():
     assert yaml_value(["a", 'b"c']) == '["a", "b\\"c"]'
 
 
-def test_settings_from_abdoh_become_xanthos(app_dir):
+def test_settings_from_abdoh_become_krekos(app_dir):
     old = (
         'config_version: 5\nwake_words: ["abdoh", "hey abdoh", "ya abdoh", "computer"]\n'
         'wake_word_aliases: ["abdo", "ab doe", "abdul", "ya abdoo", "jarvis"]\n'
@@ -167,12 +167,36 @@ def test_settings_from_abdoh_become_xanthos(app_dir):
     )
     (app_dir / "config.yaml").write_text(old)
     cfg = load_config(app_dir)
-    assert cfg.wake_words == ["xanthos", "hey xanthos", "ya xanthos", "computer"]  # yours stay
-    assert cfg.wake_word_aliases[:2] == ["zanthos", "xantos"]
+    assert cfg.wake_words == ["krekos", "hey krekos", "ya krekos", "computer"]  # yours stay
+    assert cfg.wake_word_aliases[:2] == ["krecos", "crecos"]
     assert cfg.wake_word_aliases[-1] == "jarvis"
     assert not any("abd" in w for w in cfg.wake_word_aliases)
-    assert cfg.wake_word_model == "models/hey_xanthos.onnx"
-    assert cfg.log_file == "~/.xanthos/xanthos.log"
+    assert cfg.wake_word_model == "models/hey_krekos.onnx"
+    assert cfg.log_file == "~/.krekos/krekos.log"
+
+
+def test_settings_from_xanthos_become_krekos(app_dir):
+    old = (
+        'config_version: 7\nwake_words: ["xanthos", "hey xanthos", "ya xanthos", "computer"]\n'
+        'wake_word_aliases: ["zanthos", "xantos", "zantos", "santos", "xanthus", "santhos"]\n'
+        'wake_word_model: "models/hey_xanthos.onnx"\nlog_file: "~/.xanthos/xanthos.log"\n'
+        'claude:\n  actions: ["timer"]\n'
+    )
+    (app_dir / "config.yaml").write_text(old)
+    cfg = load_config(app_dir)
+    assert cfg.wake_words == ["krekos", "hey krekos", "ya krekos", "computer"]
+    assert "santos" not in cfg.wake_word_aliases and "krecos" in cfg.wake_word_aliases
+    assert cfg.wake_word_model == "models/hey_krekos.onnx"
+    assert cfg.log_file == "~/.krekos/krekos.log"
+    assert cfg.claude.actions == ["timer"]  # nothing new to allow since config 7
+
+
+def test_wake_words_without_the_old_name_are_left_alone(app_dir):
+    (app_dir / "config.yaml").write_text(
+        'config_version: 7\nwake_words: ["hey jarvis"]\nwake_word_aliases: []\n'
+    )
+    cfg = load_config(app_dir)
+    assert (cfg.wake_words, cfg.wake_word_aliases) == (["hey jarvis"], [])
 
 
 def test_your_own_wake_word_model_is_kept(app_dir):

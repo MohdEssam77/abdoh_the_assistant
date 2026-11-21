@@ -1,4 +1,4 @@
-"""Start Xanthos automatically at login (window hidden).
+"""Start Krekos automatically at login (window hidden).
 
 Usage: python scripts/install_autostart.py   (run with the Python where abdoh is installed)
 """

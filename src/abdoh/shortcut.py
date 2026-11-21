@@ -1,4 +1,4 @@
-"""A Start Menu shortcut for Xanthos, with its own icon (Windows)."""
+"""A Start Menu shortcut for Krekos, with its own icon (Windows)."""
 
 import os
 import subprocess
@@ -8,8 +8,8 @@ from pathlib import Path
 from abdoh.autostart import launch_command
 from abdoh.config import DEFAULT_APP_DIR
 
-STATE_DIR = Path.home() / ".xanthos"
-ICON = STATE_DIR / "xanthos.ico"
+STATE_DIR = Path.home() / ".krekos"
+ICON = STATE_DIR / "krekos.ico"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 # Values are passed in environment variables, so paths with spaces or quotes are safe.
@@ -17,7 +17,7 @@ _SCRIPT = (
     "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:ABDOH_LNK); "
     "$s.TargetPath = $env:ABDOH_TARGET; $s.Arguments = $env:ABDOH_ARGS; "
     "$s.WorkingDirectory = $env:ABDOH_DIR; $s.IconLocation = $env:ABDOH_ICON; "
-    "$s.Description = 'Xanthos, your voice assistant'; $s.Save()"
+    "$s.Description = 'Krekos, your voice assistant'; $s.Save()"
 )
 
 
@@ -25,7 +25,7 @@ def start_menu_shortcut() -> Path:
     programs = (
         Path(os.environ.get("APPDATA", Path.home())) / "Microsoft/Windows/Start Menu/Programs"
     )
-    return programs / "Xanthos.lnk"
+    return programs / "Krekos.lnk"
 
 
 def make_icon(path: Path = ICON) -> Path:
@@ -59,7 +59,7 @@ def create_shortcut(
 
 
 def install(login: bool = False, autostart=None, run=subprocess.run) -> list[str]:
-    """Add Xanthos to the Start Menu (and optionally start it at login). Returns what was done."""
+    """Add Krekos to the Start Menu (and optionally start it at login). Returns what was done."""
     if autostart is None:
         from abdoh import autostart
     if sys.platform != "win32":
@@ -67,7 +67,7 @@ def install(login: bool = False, autostart=None, run=subprocess.run) -> list[str
     else:
         command = launch_command(show=True)
         lnk = create_shortcut(start_menu_shortcut(), command, DEFAULT_APP_DIR, make_icon(), run)
-        done = [f"Added Xanthos to the Start Menu ({lnk})."]
+        done = [f"Added Krekos to the Start Menu ({lnk})."]
     if login:
         done.append(autostart.install())
     return done

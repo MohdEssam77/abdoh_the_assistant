@@ -12,7 +12,7 @@ from abdoh.speech.tts import Speaker
 
 log = logging.getLogger(__name__)
 
-# How long to wait for speech right after the wake word ("Hey Xanthos … what time is it").
+# How long to wait for speech right after the wake word ("Hey Krekos … what time is it").
 START_WAIT_SECONDS = 0.8
 # Audio from before the wake word fed to the VAD, so it knows if you were mid-sentence.
 VAD_WARMUP_SECONDS = 0.5
@@ -21,8 +21,8 @@ PUSH_TO_TALK_WAIT_SECONDS = 4.0
 CHIME_SECONDS = 0.15
 # After Claude asks you something: how long to wait for you to start answering.
 ANSWER_WAIT_SECONDS = 5.0
-# After the wake word ("Hey Xanthos ... what time is it"): how long to wait for the request. If
-# nothing comes, Xanthos goes back to waiting without a word: it may have woken by mistake.
+# After the wake word ("Hey Krekos ... what time is it"): how long to wait for the request. If
+# nothing comes, Krekos goes back to waiting without a word: it may have woken by mistake.
 WAKE_WAIT_SECONDS = 5.0
 
 
@@ -113,7 +113,7 @@ def _push_to_talk(
 ) -> str:
     on_listen()  # the "listening" chime
     time.sleep(CHIME_SECONDS)
-    mic.clear()  # start fresh, without the chime (or the end of Xanthos's own reply)
+    mic.clear()  # start fresh, without the chime (or the end of Krekos's own reply)
     is_speech = speech_detector(vad, b"")
     loudest = 0
 
