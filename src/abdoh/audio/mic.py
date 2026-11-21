@@ -43,6 +43,16 @@ def input_devices(sd=None) -> list[dict]:
 # MME (the list above) cuts names to 31 characters; WASAPI has them in full.
 MME_NAME_LENGTH = 31
 RAW = 1  # PortAudio's eStreamOptionRaw (sounddevice has no name for it)
+RAW_KEEP = 20  # raw blocks kept (2 s)
+RAW_FRESH_SECONDS = 0.5  # older raw blocks are stale
+
+
+def _close(stream) -> None:
+    try:
+        stream.stop()
+        stream.close()
+    except Exception:
+        log.debug("Error closing a microphone stream", exc_info=True)
 
 
 def find_raw_device(name: str, sd) -> int | None:
@@ -66,7 +76,9 @@ def find_raw_device(name: str, sd) -> int | None:
 def raw_settings(sd):
     """WASAPI in raw mode: without the sound driver's and Windows' effects. Their echo and noise
     suppression can mute the microphone while music plays (measured on a Realtek microphone
-    array: about -95 dBFS while the speakers played; raw: the room as it is)."""
+    array: about -95 dBFS while the speakers played; raw: the room as it is). Only the wake word
+    uses it, and only while something plays (daemon.py): everything else hears the microphone
+    the usual way, where the driver keeps the music and Krekos's own voice out."""
     settings = sd.WasapiSettings(auto_convert=True)  # auto_convert: 16 kHz from any mixer rate
     settings._streaminfo.streamOption = RAW
     return settings
@@ -107,8 +119,9 @@ class Microphone:
     ):
         self.block_seconds = block_seconds
         self.device = device
-        self.raw = raw  # try raw mode first (see raw_settings); where it fails, the usual way
-        self.raw_mode = False  # ... and whether it is on
+        self.raw = raw  # also open the microphone in raw mode, for the wake word (raw_settings)
+        self.raw_mode = False  # ... and whether that worked
+        self._raw: deque[tuple[bytes, float]] = deque(maxlen=RAW_KEEP)
         self._sd = sd
         self.level = 0
         self.last_time = 0.0
@@ -120,53 +133,46 @@ class Microphone:
         sd = self._sd
         if sd is None:
             import sounddevice as sd
-        ways = []
-        if self.raw and hasattr(sd, "WasapiSettings"):
-            device = find_raw_device(self.device, sd)
-            if device is not None:
-                ways.append((device, "raw"))
-        ways.append((None, ""))
-        error = None
-        for device, kind in ways:
-            stream = None
-            try:
-                extra = raw_settings(sd) if kind else None
-                if not kind:
-                    device = find_input_device(self.device, sd)
-                stream = sd.RawInputStream(
-                    samplerate=SAMPLE_RATE,
-                    blocksize=int(SAMPLE_RATE * self.block_seconds),
-                    dtype="int16",
-                    channels=1,
-                    callback=self._callback,
-                    device=device,
-                    extra_settings=extra,
-                )
-                stream.start()
-            except Exception as e:
-                error = e
-                if stream is not None:
-                    try:
-                        stream.close()
-                    except Exception:
-                        log.debug("Couldn't close the microphone stream", exc_info=True)
-                if kind:
-                    log.info("The microphone can't open in raw mode (%s): the usual way", e)
-                continue
-            self._stream, self.raw_mode = stream, bool(kind)
-            log.info("Microphone open%s", " in raw mode" if kind else "")
+        try:
+            self._stream = self._open(sd, find_input_device(self.device, sd), self._callback)
+        except Exception as e:
+            self._stream = None
+            raise MicrophoneError(f"Could not open microphone: {e}") from e
+        device = find_raw_device(self.device, sd) if self.raw else None
+        if device is None or not hasattr(sd, "WasapiSettings"):
             return
-        self._stream = None
-        raise MicrophoneError(f"Could not open microphone: {error}") from error
+        try:
+            self._raw_stream = self._open(sd, device, self._raw_callback, raw_settings(sd))
+        except Exception as e:
+            log.info("No raw microphone for the wake word over music (%s)", e)
+            return
+        self.raw_mode = True
+        log.info("Microphone open, and in raw mode for the wake word over music")
+
+    def _open(self, sd, device, callback, extra=None):
+        stream = sd.RawInputStream(
+            samplerate=SAMPLE_RATE,
+            blocksize=int(SAMPLE_RATE * self.block_seconds),
+            dtype="int16",
+            channels=1,
+            callback=callback,
+            device=device,
+            extra_settings=extra,
+        )
+        try:
+            stream.start()
+        except Exception:
+            _close(stream)
+            raise
+        return stream
 
     def stop(self) -> None:
-        if self._stream is not None:
-            try:
-                self._stream.stop()
-                self._stream.close()
-            except Exception:
-                log.debug("Error closing mic stream", exc_info=True)
-            self._stream = None
+        for name in ("_stream", "_raw_stream"):
+            stream = getattr(self, name, None)
+            if stream is not None:
+                _close(stream)
+                setattr(self, name, None)
+        self.raw_mode = False
 
     def __enter__(self) -> "Microphone":
         self.start()
@@ -183,6 +189,20 @@ class Microphone:
         self.level = int(np.abs(samples.astype(np.int32)).max()) if samples.size else 0
         self._queue.put((block, time.perf_counter()))
 
+    def _raw_callback(self, indata, frames, timing, status) -> None:
+        self._raw.append((bytes(indata), time.perf_counter()))
+
+    def take_raw(self) -> list[tuple[bytes, float]]:
+        """The raw microphone's blocks since the last call, with when each arrived: only the
+        fresh ones (older ones piled up while nobody asked)."""
+        fresh = time.perf_counter() - RAW_FRESH_SECONDS
+        taken = []
+        while self._raw:
+            block, arrived = self._raw.popleft()
+            if arrived >= fresh:
+                taken.append((block, arrived))
+        return taken
+
     def read(self, timeout: float = 2.0) -> bytes:
         try:
             block, self.last_time = self._queue.get(timeout=timeout)
@@ -198,6 +218,7 @@ class Microphone:
     def clear(self) -> None:
         """Drop queued and buffered audio (e.g. after Krekos has spoken)."""
         self._buffer.clear()
+        self._raw.clear()
         while True:
             try:
                 self._queue.get_nowait()

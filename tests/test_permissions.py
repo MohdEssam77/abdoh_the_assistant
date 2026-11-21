@@ -54,7 +54,7 @@ def test_a_microphone_is_found_by_name():
     assert find_input_device("", sd) is None
 
 
-# ----- raw mode: without the sound driver's effects (they can mute the mic during music) -----
+# ----- raw mode, for the wake word over music (the sound driver mutes the usual mic then) -----
 
 ARRAY = "Microphone Array (Realtek(R) Audio)"
 
@@ -111,22 +111,38 @@ def test_the_raw_twin_of_a_microphone_is_found():
     assert find_raw_device(ARRAY[:31], RawSounddevice(wasapi=False)) is None
 
 
-def test_the_microphone_opens_in_raw_mode():
+def test_the_microphone_opens_the_usual_way_and_in_raw_mode_beside_it():
     from abdoh.audio.mic import Microphone
 
     sd = RawSounddevice()
     mic = Microphone(device=ARRAY[:31], sd=sd)
     mic.start()
-    assert sd.opened == [(2, True)] and mic.raw_mode
+    assert sd.opened == [(1, False), (2, True)] and mic.raw_mode
 
 
-def test_where_raw_mode_fails_the_usual_way_is_used():
+def test_where_raw_mode_fails_the_usual_microphone_is_all():
     from abdoh.audio.mic import Microphone
 
     sd = RawSounddevice(raw_fails=True)
     mic = Microphone(device=ARRAY[:31], sd=sd)
     mic.start()
-    assert sd.opened == [(2, True), (1, False)] and not mic.raw_mode
+    assert sd.opened == [(1, False), (2, True)] and not mic.raw_mode
+
+
+def test_the_raw_blocks_are_taken_fresh():
+    import time
+
+    from abdoh.audio.mic import Microphone
+
+    mic = Microphone(sd=RawSounddevice())
+    mic._raw_callback(b"old", 1600, None, None)
+    mic._raw[0] = (b"old", time.perf_counter() - 5)  # piled up while nobody asked
+    mic._raw_callback(b"new", 1600, None, None)
+    assert [block for block, _ in mic.take_raw()] == [b"new"]
+    assert mic.take_raw() == []
+    mic._raw_callback(b"more", 1600, None, None)
+    mic.clear()
+    assert mic.take_raw() == []
 
 
 def test_raw_mode_can_be_turned_off():

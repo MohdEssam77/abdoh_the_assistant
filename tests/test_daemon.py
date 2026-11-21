@@ -636,3 +636,64 @@ def test_the_wake_word_hears_the_microphone_without_the_music():
     daemon.mic = type("Mic", (), {"last_time": 42.0})()
     assert engine.clean(b"block") == b"cleaned"
     assert echo.calls == [(b"block", 42.0)]  # placed by when the block came from the mic
+
+
+class RawMic:
+    """The usual microphone plus raw blocks (for the wake word while music plays)."""
+
+    raw_mode = True
+    last_time = 42.0
+
+    def __init__(self, raw):
+        self.raw = list(raw)
+
+    def take_raw(self):
+        taken, self.raw = self.raw, []
+        return taken
+
+
+class Echo:
+    """Takes "music" out of each block; while nothing plays, hands back the same block."""
+
+    def __init__(self, playing):
+        self.playing = playing
+        self.calls = []
+
+    def clean(self, block, arrival):
+        self.calls.append((block, arrival))
+        return block.replace(b"music+", b"") if self.playing else block
+
+
+def wake_daemon(echo, mic):
+    class Engine:
+        clean = None
+
+    daemon = Daemon(
+        Config(), StubRouter([]), FakeSpeaker(), speech_mic, Engine(), None, wake_echo=echo
+    )
+    daemon.mic = mic
+    return daemon
+
+
+def test_while_music_plays_the_wake_word_hears_the_raw_microphone_without_it():
+    echo = Echo(playing=True)
+    daemon = wake_daemon(echo, RawMic([(b"music+you1", 1.0), (b"music+you2", 1.1)]))
+    assert daemon.engine.clean(b"muted by the driver") == b"you1you2"
+    assert echo.calls == [(b"music+you1", 1.0), (b"music+you2", 1.1)]  # each when it came
+
+
+def test_while_nothing_plays_the_wake_word_hears_the_usual_microphone():
+    echo = Echo(playing=False)
+    daemon = wake_daemon(echo, RawMic([(b"room", 1.0)]))
+    block = b"usual"
+    assert daemon.engine.clean(block) is block
+    assert echo.calls == [(b"room", 1.0)]  # the canceller still follows the raw stream
+
+
+def test_without_a_raw_microphone_the_usual_one_is_cleaned():
+    echo = Echo(playing=True)
+    mic = RawMic([])
+    mic.raw_mode = False
+    daemon = wake_daemon(echo, mic)
+    assert daemon.engine.clean(b"music+you") == b"you"
+    assert echo.calls == [(b"music+you", 42.0)]

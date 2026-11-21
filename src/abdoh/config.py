@@ -133,8 +133,8 @@ class Config:
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice
     mic_device: str = ""  # a microphone's name; "" = the system's default microphone
-    # Raw mode: without the sound driver's effects, whose echo suppression mutes the microphone
-    # while music plays (audio/mic.py). Where the driver can't, the usual way.
+    # The wake word hears the microphone in raw mode while music plays (the sound driver's echo
+    # suppression mutes the usual one then; audio/mic.py). Everything else: the usual way.
     mic_raw: bool = True
     allow_run: bool = False
     check_updates: bool = True  # look for a new version once a day

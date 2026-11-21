@@ -70,10 +70,11 @@ within four seconds count as a wake-up ("Wake word on the second try" in the log
 voice taught, weaker tries count too).
 
 **Over music or a video.** Many laptops' sound drivers mute the microphone while the speakers
-play (their echo suppression), so Krekos opens the microphone in raw mode, without the
-driver's effects (`mic_raw`; where the driver can't, it opens the usual way). While something
-plays, the wake word hears the microphone with what the speakers play taken out ("over the
-speakers' sound" in the log). Headphones need none of this.
+play (their echo suppression). So while something plays, the wake word alone hears the
+microphone in raw mode, without the driver's effects, and with what the speakers play taken
+out ("over the speakers' sound" in the log; then your voice check is skipped). Everything else
+(what you ask, talking over Krekos, the level in Settings) hears the microphone the usual way.
+`mic_raw: false` turns this off. Headphones need none of it.
 
 **Only your voice.** In **Settings → Wake word → Only my voice**, press **Teach it your voice**,
 say "Hey Krekos" ten times (the first five close, the rest from where you usually are), then

@@ -102,7 +102,7 @@ class OpenWakeWord(WakeWordEngine):
             if not candidate and self._second_try(score):
                 candidate, again = True, (self._first_try, score)
             if candidate:
-                if self.voice_check is None:
+                if self.voice_check is None or over:  # over music it learned you without
                     heard = True
                 else:
                     voice = max(voice or 0.0, self.voice_check.prob(self.last_window))

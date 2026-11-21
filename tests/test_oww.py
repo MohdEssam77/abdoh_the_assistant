@@ -262,3 +262,18 @@ def test_the_log_says_when_the_speakers_sound_was_taken_out(caplog):
     with caplog.at_level("INFO"):
         assert oww.detect(LOUD)
     assert "over the speakers' sound" in caplog.text
+
+
+def test_over_the_speakers_sound_the_voice_check_is_skipped():
+    class NotYou:
+        def prob(self, window):
+            return 0.1  # it learned your voice without music
+
+    oww, _, _ = engine()
+    warm(oww)
+    oww.voice_check = NotYou()
+    assert not oww.detect(LOUD)  # the usual microphone: it must sound like you
+    oww.reset()
+    warm(oww)
+    oww.clean = lambda block: np.frombuffer(block, np.int16).copy().tobytes()  # cleaned
+    assert oww.detect(LOUD)
