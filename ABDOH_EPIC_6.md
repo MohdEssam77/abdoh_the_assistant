@@ -368,6 +368,25 @@ microphone array): while the speakers played, the processed microphone fell to a
    moment of the second try may convince the voice check.
 4. The voice check should be taught again: it learned the processed microphone.
 
+### Story 58: Several things at once (`story/58-several-jobs`)
+
+"Stop the current music and play Arabic music, then open WhatsApp" went to Claude as one
+request, which only played (it skipped the stop, and didn't know the owner's Arabic music
+command).
+
+1. `abdoh/steps.py` splits a request at "and", "then", "after that" and commas, only where
+   every part starts with a verb of doing (or is a question, with at least one doing), or is a
+   bare name after "open"/"close" ("open WhatsApp and Spotify"). After a verb that takes free
+   text ("remind me to call mom and send the email") the rest belongs to it. A request that is
+   exactly one of your commands' phrases never splits.
+2. The router does the steps in order, each the way it would be done alone (your commands,
+   modes, the built-in skills). The first step only Claude knows goes to Claude with the whole
+   request for context; the steps after it follow once its answer is read. Claude saying "not
+   for me" stops the rest; a question (shut down?) waits for your answer.
+3. Steps that say nothing end with the done sound; what steps say is said.
+4. "Stop the current music" (and "stop the Arabic music") is the media key, without Claude.
+5. Claude is told to do every one of several things, in order, even one that seems implied.
+
 ---
 
 ## 7. Things only the owner can do
