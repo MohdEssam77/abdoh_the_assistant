@@ -26,6 +26,7 @@ from abdoh.commands.matcher import (
 from abdoh.commands.registry import Command, CommandRegistry
 from abdoh.config import Config
 from abdoh.local_skills import LocalSkills
+from abdoh.steps import split_steps
 from abdoh.system_skills import Done, Question
 
 log = logging.getLogger(__name__)
@@ -54,6 +55,11 @@ WOKEN = (
     "a video or a song, or the user talking to someone else), write only the line "
     "ACTION ignore: not for me, and nothing else. If it could be a request or a question for "
     "you, answer it.)\n"
+)
+# One of several things asked at once that nothing but Claude knows (abdoh/steps.py).
+STEP = (
+    'The user asked for several things at once: "{request}". Krekos does them one by one and '
+    "takes care of the others. Do only this one now: {step}"
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
@@ -168,7 +174,12 @@ class Router:
         if not request:
             return prefix
         original = remove_wake_words(text, self.wake_words) or request
-        reply = self._route(request, original, aside, woken)
+        exact = match_command(request, self.registry.commands, 100)  # one of yours, as it is
+        steps = [] if exact else split_steps(original)
+        if steps:
+            reply = self._steps(steps, original, aside, woken)
+        else:
+            reply = self._route(request, original, aside, woken)
         if isinstance(reply, str):
             if reply:
                 self.last_reply = reply
@@ -187,6 +198,33 @@ class Router:
         if remember:
             return self._remember(remember.group("phrase"))
 
+        reply = self._route_local(request, original)
+        if reply is not None:
+            return reply
+
+        # 4. Screen skills
+        words = set(request.split())
+        translate = skills.is_translate_request(words)
+        if (translate or skills.is_summarize_request(words)) and not self.cfg.claude.allow_screen:
+            return SCREEN_OFF
+        if translate:
+            target = skills.parse_target_language(request) or self.cfg.claude.translate_target
+            prompt = skills.TRANSLATE_PROMPT.format(target=target)
+            return self._ask(prompt, original, screen=True)
+        if skills.is_summarize_request(words):
+            return self._ask(skills.SUMMARIZE_PROMPT, original, screen=True)
+
+        # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
+        if self.brain is not None:
+            prompt = self._with_context(original) + self._clipboard(request)
+            note = ASIDE if aside else WOKEN if woken else ""
+            return self._ask(note + prompt, original, aside=aside or woken)
+
+        # 6. Nothing matched
+        return f"{UNKNOWN} {NOT_CONNECTED}"
+
+    def _route_local(self, request: str, original: str) -> str | None:
+        """What Krekos does without Claude: the reply, or None when none of it fits."""
         # 1. Built-in commands (show window, pause, ...)
         builtin = match(request, self._builtin_commands, self.cfg.match_threshold)
         if builtin:
@@ -219,26 +257,73 @@ class Router:
                 log.info("Local skill handled %r", request)
                 return reply
 
-        # 4. Screen skills
-        words = set(request.split())
-        translate = skills.is_translate_request(words)
-        if (translate or skills.is_summarize_request(words)) and not self.cfg.claude.allow_screen:
-            return SCREEN_OFF
-        if translate:
-            target = skills.parse_target_language(request) or self.cfg.claude.translate_target
-            prompt = skills.TRANSLATE_PROMPT.format(target=target)
-            return self._ask(prompt, original, screen=True)
-        if skills.is_summarize_request(words):
-            return self._ask(skills.SUMMARIZE_PROMPT, original, screen=True)
+        return None
 
-        # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
-        if self.brain is not None:
-            prompt = self._with_context(original) + self._clipboard(request)
-            note = ASIDE if aside else WOKEN if woken else ""
-            return self._ask(note + prompt, original, aside=aside or woken)
+    # ----- several things at once -----
 
-        # 6. Nothing matched
-        return f"{UNKNOWN} {NOT_CONNECTED}"
+    def _steps(self, steps: list[str], original: str, aside: bool, woken: bool) -> Reply:
+        """Several things in one request, done one by one, in order. Each goes the way it
+        would alone (your commands, the built-in skills); what nothing else knows goes to
+        Claude, with the whole request for context."""
+        log.info("Several things, one by one: %s", " | ".join(steps))
+        parts = []
+        for step in steps:
+            request = strip_wake_words(step, self.wake_words)
+            if request:
+                parts.append((request, remove_wake_words(step, self.wake_words) or request))
+        replies: list[str] = []
+        for i, (request, part) in enumerate(parts):
+            reply = self._route_local(request, part)
+            if reply is None:
+                return self._steps_with_claude(replies, parts[i:], original, aside, woken)
+            replies.append(reply)
+            if isinstance(reply, Question):
+                break  # it needs your answer before anything else
+        return _together(replies)
+
+    def _steps_with_claude(
+        self,
+        replies: list[str],
+        rest: list[tuple[str, str]],
+        original: str,
+        aside: bool,
+        woken: bool,
+    ) -> Iterator[str]:
+        """The steps from the first one only Claude knows: each in turn, after the one before
+        has finished (and was said)."""
+        turn = ClaudeTurn(original)  # the whole request, for the done sound and follow-ups
+        said: list[str] = []
+        try:
+            for reply in replies:
+                if reply and not isinstance(reply, Done):
+                    said.append(reply)
+                    yield reply
+            for i, (request, part) in enumerate(rest):
+                reply = None if i == 0 else self._route_local(request, part)
+                if reply is None:
+                    note = ASIDE if aside else WOKEN if woken else ""
+                    prompt = note + STEP.format(request=original, step=part)
+                    answer = self._ask(prompt, part, aside=aside or woken)
+                    for sentence in [answer] if isinstance(answer, str) else answer:
+                        if sentence:
+                            said.append(sentence)
+                            yield sentence
+                    claude = self.last_turn
+                    if claude is not None and claude is not turn:
+                        if claude.ignored:
+                            turn.ignored = True
+                            return  # not meant for Krekos: nor is the rest
+                        turn.actions += claude.actions
+                    aside = woken = False  # meant for Krekos: so is the rest
+                elif reply and not isinstance(reply, Done):
+                    said.append(reply)
+                    yield reply
+                    if isinstance(reply, Question):
+                        return
+        finally:
+            turn.answer = " ".join(said)
+            turn.finished_at = time.monotonic()
+            self.last_turn = turn
 
     def _mode(self, request: str) -> str | None:
         modes = self.modes
@@ -385,6 +470,16 @@ class Router:
         self.registry.refresh(force=True)
         self.last_turn = None  # remembered; don't save it twice
         return f"Saved. Next time just say: {trigger}."
+
+
+def _together(replies: list[str]) -> str:
+    """The replies of several local steps as one: what they said, or (when none said
+    anything) done, with the done sound."""
+    said = [r for r in replies if r and not isinstance(r, Done)]
+    if said:
+        text = " ".join(said)
+        return Question(text) if replies and isinstance(replies[-1], Question) else text
+    return Done(" ".join(r for r in replies if r))
 
 
 def _drain(items: list[str]) -> Iterator[str]:

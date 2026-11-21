@@ -236,7 +236,7 @@ def test_actions_claude_may_not_do_are_ignored(tmp_path):
     acted, captured = [], []
     brain = Brain("ACTION open_app: Spotify\nACTION open_url: https://x.com\nDone.")
     router = router_for(tmp_path, cfg_with(actions=["open_url"]), brain, acted, captured)
-    assert list(router.handle("open spotify and x")) == ["Done."]
+    assert list(router.handle("open spotify plus x")) == ["Done."]
     assert acted == [("open_url", "https://x.com")]
 
 
