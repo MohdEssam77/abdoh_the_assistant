@@ -40,6 +40,38 @@ def input_devices(sd=None) -> list[dict]:
     ]
 
 
+# MME (the list above) cuts names to 31 characters; WASAPI has them in full.
+MME_NAME_LENGTH = 31
+RAW = 1  # PortAudio's eStreamOptionRaw (sounddevice has no name for it)
+
+
+def find_raw_device(name: str, sd) -> int | None:
+    """The WASAPI twin of a microphone from input_devices ("" = the default), or None."""
+    apis = sd.query_hostapis()
+    wasapi = next((i for i, a in enumerate(apis) if a["name"] == "Windows WASAPI"), None)
+    if wasapi is None:
+        return None
+    if not name:
+        default = apis[wasapi].get("default_input_device", -1)
+        return default if default >= 0 else None
+    for i, d in enumerate(sd.query_devices()):
+        if d["hostapi"] != wasapi or d["max_input_channels"] <= 0:
+            continue
+        cut = len(name) == MME_NAME_LENGTH and d["name"].startswith(name)
+        if d["name"] == name or cut:
+            return i
+    return None
+
+
+def raw_settings(sd):
+    """WASAPI in raw mode: without the sound driver's and Windows' effects. Their echo and noise
+    suppression can mute the microphone while music plays (measured on a Realtek microphone
+    array: about -95 dBFS while the speakers played; raw: the room as it is)."""
+    settings = sd.WasapiSettings(auto_convert=True)  # auto_convert: 16 kHz from any mixer rate
+    settings._streaminfo.streamOption = RAW
+    return settings
+
+
 def find_input_device(name: str, sd=None) -> int | None:
     """The device index for a microphone's name (from input_devices), or None (= the default)."""
     if not name:
@@ -65,9 +97,19 @@ class Microphone:
     block last returned by read() arrived from the microphone (`time.perf_counter()`).
     """
 
-    def __init__(self, block_seconds: float = 0.1, buffer_seconds: float = 3.0, device: str = ""):
+    def __init__(
+        self,
+        block_seconds: float = 0.1,
+        buffer_seconds: float = 3.0,
+        device: str = "",
+        raw: bool = True,
+        sd=None,
+    ):
         self.block_seconds = block_seconds
         self.device = device
+        self.raw = raw  # try raw mode first (see raw_settings); where it fails, the usual way
+        self.raw_mode = False  # ... and whether it is on
+        self._sd = sd
         self.level = 0
         self.last_time = 0.0
         self._queue: queue.Queue[tuple[bytes, float]] = queue.Queue()
@@ -75,21 +117,47 @@ class Microphone:
         self._stream = None
 
     def start(self) -> None:
-        import sounddevice as sd
-
-        try:
-            self._stream = sd.RawInputStream(
-                samplerate=SAMPLE_RATE,
-                blocksize=int(SAMPLE_RATE * self.block_seconds),
-                dtype="int16",
-                channels=1,
-                callback=self._callback,
-                device=find_input_device(self.device, sd),
-            )
-            self._stream.start()
-        except Exception as e:
-            self._stream = None
-            raise MicrophoneError(f"Could not open microphone: {e}") from e
+        sd = self._sd
+        if sd is None:
+            import sounddevice as sd
+        ways = []
+        if self.raw and hasattr(sd, "WasapiSettings"):
+            device = find_raw_device(self.device, sd)
+            if device is not None:
+                ways.append((device, "raw"))
+        ways.append((None, ""))
+        error = None
+        for device, kind in ways:
+            stream = None
+            try:
+                extra = raw_settings(sd) if kind else None
+                if not kind:
+                    device = find_input_device(self.device, sd)
+                stream = sd.RawInputStream(
+                    samplerate=SAMPLE_RATE,
+                    blocksize=int(SAMPLE_RATE * self.block_seconds),
+                    dtype="int16",
+                    channels=1,
+                    callback=self._callback,
+                    device=device,
+                    extra_settings=extra,
+                )
+                stream.start()
+            except Exception as e:
+                error = e
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except Exception:
+                        log.debug("Couldn't close the microphone stream", exc_info=True)
+                if kind:
+                    log.info("The microphone can't open in raw mode (%s): the usual way", e)
+                continue
+            self._stream, self.raw_mode = stream, bool(kind)
+            log.info("Microphone open%s", " in raw mode" if kind else "")
+            return
+        self._stream = None
+        raise MicrophoneError(f"Could not open microphone: {error}") from error
 
     def stop(self) -> None:
         if self._stream is not None:

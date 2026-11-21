@@ -54,6 +54,89 @@ def test_a_microphone_is_found_by_name():
     assert find_input_device("", sd) is None
 
 
+# ----- raw mode: without the sound driver's effects (they can mute the mic during music) -----
+
+ARRAY = "Microphone Array (Realtek(R) Audio)"
+
+
+class RawSounddevice:
+    """MME (host API 0) cuts names to 31 characters; WASAPI (1) has them in full."""
+
+    class default:  # noqa: N801
+        device = (1, 3)
+
+    def __init__(self, raw_fails=False, wasapi=True):
+        self.opened = []
+        self.raw_fails = raw_fails
+        self.wasapi = wasapi
+
+    def query_hostapis(self):
+        apis = [{"name": "MME", "default_input_device": 1}]
+        if self.wasapi:
+            apis.append({"name": "Windows WASAPI", "default_input_device": 2})
+        return apis
+
+    def query_devices(self):
+        return [
+            {"name": "Microsoft Sound Mapper - Input", "max_input_channels": 2, "hostapi": 0},
+            {"name": ARRAY[:31], "max_input_channels": 2, "hostapi": 0},
+            {"name": ARRAY, "max_input_channels": 2, "hostapi": 1},
+            {"name": "Speakers", "max_input_channels": 0, "hostapi": 0},
+            {"name": "Microphone (USB)", "max_input_channels": 1, "hostapi": 0},
+            {"name": "Microphone (USB)", "max_input_channels": 1, "hostapi": 1},
+        ]
+
+    class WasapiSettings:
+        def __init__(self, auto_convert=False):
+            self.auto_convert = auto_convert
+            self._streaminfo = type("Info", (), {"streamOption": 0})()
+
+    def RawInputStream(self, **kwargs):  # noqa: N802 - mirrors sounddevice
+        extra = kwargs.get("extra_settings")
+        raw = extra is not None and extra._streaminfo.streamOption == 1
+        self.opened.append((kwargs["device"], raw))
+        if raw and self.raw_fails:
+            raise OSError("raw mode isn't supported")
+        return type("Stream", (), {"start": lambda s: None, "close": lambda s: None})()
+
+
+def test_the_raw_twin_of_a_microphone_is_found():
+    from abdoh.audio.mic import find_raw_device
+
+    sd = RawSounddevice()
+    assert find_raw_device(ARRAY[:31], sd) == 2  # the name MME cut short
+    assert find_raw_device("Microphone (USB)", sd) == 5
+    assert find_raw_device("Microphone", sd) is None  # not cut short: only the whole name
+    assert find_raw_device("", sd) == 2  # WASAPI's default microphone
+    assert find_raw_device(ARRAY[:31], RawSounddevice(wasapi=False)) is None
+
+
+def test_the_microphone_opens_in_raw_mode():
+    from abdoh.audio.mic import Microphone
+
+    sd = RawSounddevice()
+    mic = Microphone(device=ARRAY[:31], sd=sd)
+    mic.start()
+    assert sd.opened == [(2, True)] and mic.raw_mode
+
+
+def test_where_raw_mode_fails_the_usual_way_is_used():
+    from abdoh.audio.mic import Microphone
+
+    sd = RawSounddevice(raw_fails=True)
+    mic = Microphone(device=ARRAY[:31], sd=sd)
+    mic.start()
+    assert sd.opened == [(2, True), (1, False)] and not mic.raw_mode
+
+
+def test_raw_mode_can_be_turned_off():
+    from abdoh.audio.mic import Microphone
+
+    sd = RawSounddevice()
+    Microphone(device=ARRAY[:31], raw=False, sd=sd).start()
+    assert sd.opened == [(1, False)]
+
+
 # ----- the system prompt -----
 
 

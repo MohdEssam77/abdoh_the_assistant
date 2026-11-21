@@ -133,6 +133,9 @@ class Config:
     tts_rate: int = 175
     tts_voice: str = ""  # a voice's name; "" = the system's default voice
     mic_device: str = ""  # a microphone's name; "" = the system's default microphone
+    # Raw mode: without the sound driver's effects, whose echo suppression mutes the microphone
+    # while music plays (audio/mic.py). Where the driver can't, the usual way.
+    mic_raw: bool = True
     allow_run: bool = False
     check_updates: bool = True  # look for a new version once a day
     setup_done: bool = False  # the first-start setup was finished (or skipped)

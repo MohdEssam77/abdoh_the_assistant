@@ -206,7 +206,7 @@ class Daemon:
         only read when Krekos starts; the app says those need a restart."""
         from abdoh.claude.brain import make_brain
 
-        old_mic = self.cfg.mic_device
+        old_mic = (self.cfg.mic_device, self.cfg.mic_raw)
         for f in fields(Config):
             if f.name not in ("app_dir", "claude"):
                 setattr(self.cfg, f.name, getattr(new, f.name))
@@ -226,7 +226,7 @@ class Daemon:
             self.engine.voice_threshold = self.cfg.wake_word_voice_threshold
         if self.voice_watch is not None:
             self.voice_watch.sensitivity = self.cfg.voice_interrupt_sensitivity
-        if self.cfg.mic_device != old_mic:
+        if (self.cfg.mic_device, self.cfg.mic_raw) != old_mic:
             self.reopen_mic()
         log.info("Settings changed")
 
@@ -1066,7 +1066,8 @@ class Daemon:
             cfg,
             router,
             speaker,
-            lambda: Microphone(device=cfg.mic_device),  # the mic chosen now, when (re)opened
+            # the mic chosen now, when (re)opened
+            lambda: Microphone(device=cfg.mic_device, raw=cfg.mic_raw),
             engine,
             transcriber,
             bus,
