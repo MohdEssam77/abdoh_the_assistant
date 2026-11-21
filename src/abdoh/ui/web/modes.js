@@ -1,4 +1,4 @@
-/* The Modes page: your modes as cards, an editor (screens, sound, theme, power, Krekos's own
+/* The Modes page: your modes as cards, an editor (screens, sound, theme, power, Abdoh's own
    switches, actions), templates, "Try it" with a way back, and how your screens are numbered. */
 "use strict";
 
@@ -173,7 +173,7 @@
     paint();
     const note = el("small", { class: "muted" }, displays.length
       ? "Click the screens to keep on. At least one stays on."
-      : "Krekos couldn't see your screens.");
+      : "Abdoh couldn't see your screens.");
     return {
       node: el("div", { style: "display:flex;flex-direction:column;gap:8px;width:100%" },
         el("div", { class: "set-control" }, change, el("span", {}, "Change which screens are on"),
@@ -254,9 +254,9 @@
           setRow("Voice replies", voice),
           setRow("Follow-up", follow)),
         el("small", {}, "All of these go back to how they were when you say “back to normal”.")),
-      el("div", { class: "field" }, el("label", {}, "Then Krekos will"), actions.box),
+      el("div", { class: "field" }, el("label", {}, "Then Abdoh will"), actions.box),
       el("div", { class: "field" }, el("label", {}, "Switch it on by itself"), when.node,
-        el("small", {}, "Krekos switches this mode on at that time (while it's running).")),
+        el("small", {}, "Abdoh switches this mode on at that time (while it's running).")),
       el("div", { class: "field" }, el("label", {}, "When the mode ends"), exits.box),
       error);
 

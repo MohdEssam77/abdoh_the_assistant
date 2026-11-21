@@ -1,15 +1,15 @@
-# Krekos configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
+# Abdoh configuration. Copied to config.yaml on first run; edit config.yaml, not this file.
 
-config_version: 5                # written by Krekos, for upgrading this file; don't change it
-wake_words: ["krekos", "hey krekos", "ya krekos"]
+config_version: 5                # written by Abdoh, for upgrading this file; don't change it
+wake_words: ["abdoh", "hey abdoh", "ya abdoh"]
 # Your openWakeWord model (see README: train the wake word). Without it, only the hotkey works.
-wake_word_model: "models/hey_krekos.onnx"
+wake_word_model: "models/hey_abdoh.onnx"
 wake_word_threshold: 0.4         # higher = fewer false wake-ups, lower = wakes more easily
 wake_word_voice_threshold: 0.5   # with your voice check (Settings): how sure it must be that it's you
 hotkey: "ctrl+alt+space"         # press to talk without the wake word, or to stop a reply; "" = off
-# Other spellings speech recognition may write for "Krekos"; they're left out of your requests.
+# Other spellings speech recognition may write for "Abdoh"; they're left out of your requests.
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
-languages: ["en"]                # what you speak to Krekos, e.g. ["en"] or ["en", "ar"]
+languages: ["en"]                # what you speak to Abdoh, e.g. ["en"] or ["en", "ar"]
 speech_engine: "auto"            # auto | parakeet (English only, most accurate) | whisper
 whisper_model: "small"           # Whisper size for languages other than English: base | small | medium
 match_threshold: 85
@@ -17,12 +17,12 @@ silence_seconds: 0.6              # pause that ends a request (speech is detecte
 max_record_seconds: 10
 confirm_actions: "sound"         # after "open Spotify": sound = a short sound, words = say what it did
 follow_up_seconds: 6             # after Claude answers, keep listening this long (no wake word); 0 = off
-wake_word_interrupts: true       # say the wake word while Krekos is talking to stop it
-voice_interrupts: true           # or just start talking: Krekos goes quiet and listens
-voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Krekos
-duck_others: true                # other apps (music, videos) go quieter while Krekos listens
+wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
+voice_interrupts: true           # or just start talking: Abdoh goes quiet and listens
+voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Abdoh
+duck_others: true                # other apps (music, videos) go quieter while Abdoh listens
 duck_percent: 30                 # ... to this share of their own volume
-allow_power: true                # Krekos may put the computer to sleep, shut it down or restart it
+allow_power: true                # Abdoh may put the computer to sleep, shut it down or restart it
 tts_engine: "piper"              # piper: natural voices (downloaded per language); windows: the Windows voice
 piper_voice_en: "en_US-lessac-medium"   # Piper voice for English (Settings lists the choices)
 piper_voice_de: "de_DE-thorsten-medium" # Piper voice for German
@@ -30,7 +30,7 @@ tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # Windows voice (also stands in for Piper while a voice downloads); "" = default
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default
 allow_run: false                 # let your commands run programs (the "run" action)
-check_updates: true              # look for a new version of Krekos once a day
+check_updates: true              # look for a new version of Abdoh once a day
 setup_done: false                # the first-start setup was finished or skipped
 claude:
   backend: "auto"                # auto: Claude Code if installed (your subscription), else API key
@@ -54,4 +54,4 @@ claude:
   listen_after_question: true    # when Claude asks you something, just answer (no wake word)
   translate_target: "English"
   voice_reply_max_sentences: 4
-log_file: "~/.krekos/krekos.log"
+log_file: "~/.abdoh/abdoh.log"

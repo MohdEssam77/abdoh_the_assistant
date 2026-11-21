@@ -1,4 +1,4 @@
-"""Is there a newer Krekos? Asks GitHub for the latest release, at most once a day.
+"""Is there a newer Abdoh? Asks GitHub for the latest release, at most once a day.
 
 Nothing about you is sent: it's one anonymous request to GitHub's public releases API.
 """
@@ -16,8 +16,8 @@ log = logging.getLogger(__name__)
 
 REPO = "MohdEssam77/abdoh_the_assistant"
 LATEST = "https://api.github.com/repos/{repo}/releases/latest"
-ASSET = "Krekos-Setup.exe"  # the installer's name in every release (stable download links)
-STATE = Path.home() / ".krekos" / "update.json"
+ASSET = "Abdoh-Setup.exe"  # the installer's name in every release (stable download links)
+STATE = Path.home() / ".abdoh" / "update.json"
 DAY = 24 * 60 * 60
 
 
@@ -36,7 +36,7 @@ def is_newer(latest: str, current: str) -> bool:
 def fetch_json(url: str, timeout: float = 10) -> dict:
     request = urllib.request.Request(
         url,
-        headers={"Accept": "application/vnd.github+json", "User-Agent": "Krekos-update-check"},
+        headers={"Accept": "application/vnd.github+json", "User-Agent": "Abdoh-update-check"},
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         return json.load(response)

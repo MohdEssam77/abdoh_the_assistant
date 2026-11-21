@@ -1,9 +1,9 @@
 """Your voice check: the wake word only counts when it sounds like you.
 
-openWakeWord's model says "that was 'Hey Krekos'"; this small second model says "and it was
+openWakeWord's model says "that was 'Hey Abdoh'"; this small second model says "and it was
 the owner". It looks at the same 16 x 96 embedding window the wake word model scored, summed
 up as its mean and spread over time (192 numbers), and is a logistic regression trained in
-numpy on the owner's own recordings: about ten "Hey Krekos" (yes) and 20 seconds of normal
+numpy on the owner's own recordings: about ten "Hey Abdoh" (yes) and 20 seconds of normal
 talk (no). It trains in a second, and works with this app's own openWakeWord code
 (audio/oww.py), which a verifier made with the openwakeword package would not.
 

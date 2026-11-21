@@ -79,19 +79,19 @@ def setup(tmp_path):
 
 def test_command_by_voice_phrase(setup):
     router, run, _ = setup
-    assert router.handle("Good morning, Krekos.") == "Good morning!"
+    assert router.handle("Good morning, Abdoh.") == "Good morning!"
     assert run.ran == ["good_morning"]
 
 
 def test_silent_command(setup):
     router, run, _ = setup
-    assert router.handle("Hey Krekos, open my mail") == ""
+    assert router.handle("Hey Abdoh, open my mail") == ""
     assert run.ran == ["open_mail"]
 
 
 def test_unknown_phrase_without_claude(setup):
     router, run, _ = setup
-    reply = router.handle("Krekos, juggle three oranges")
+    reply = router.handle("Abdoh, juggle three oranges")
     assert reply == f"{UNKNOWN} {NOT_CONNECTED}"
     assert run.ran == []
 
@@ -99,7 +99,7 @@ def test_unknown_phrase_without_claude(setup):
 def test_question_goes_to_claude_in_your_own_words(setup):
     router, run, _ = setup
     router.brain = FakeBrain()
-    reply = router.handle("Hey Krekos, what's the capital of Japan?")
+    reply = router.handle("Hey Abdoh, what's the capital of Japan?")
     assert not isinstance(reply, str)  # streamed
     assert text_of(reply) == "Tokyo is the capital of Japan."
     assert router.brain.asked == [("what's the capital of Japan?", None)]
@@ -114,7 +114,7 @@ def test_claude_reply_is_streamed_sentence_by_sentence(setup):
 def test_claude_actions_run_and_are_remembered(setup):
     router, _, _ = setup
     router.brain = FakeBrain(["ACTION open_url: https://www.python.org\n", "Opening it now."])
-    assert text_of(router.handle("Krekos, open the Python website")) == "Opening it now."
+    assert text_of(router.handle("Abdoh, open the Python website")) == "Opening it now."
     assert router._act.done == [("open_url", "https://www.python.org")]
     turn = router.last_turn
     assert turn.request == "open the Python website"
@@ -167,7 +167,7 @@ def screen_router(tmp_path):
 
 def test_translate_screen_default_target(screen_router):
     router, notes = screen_router
-    assert text_of(router.handle("Krekos, translate what's on my screen")) == "Here is the text."
+    assert text_of(router.handle("Abdoh, translate what's on my screen")) == "Here is the text."
     prompt, image = router.brain.asked[0]
     assert "into English" in prompt and image == b"PNG"
     assert notes == ["thinking"]
@@ -175,13 +175,13 @@ def test_translate_screen_default_target(screen_router):
 
 def test_translate_screen_to_language(screen_router):
     router, _ = screen_router
-    text_of(router.handle("Hey Krekos, translate my screen to Arabic"))
+    text_of(router.handle("Hey Abdoh, translate my screen to Arabic"))
     assert "into Arabic" in router.brain.asked[0][0]
 
 
 def test_summarize_screen(screen_router):
     router, _ = screen_router
-    text_of(router.handle("Krekos, summarize my screen"))
+    text_of(router.handle("Abdoh, summarize my screen"))
     assert "Summarize" in router.brain.asked[0][0]
     assert router.brain.asked[0][1] == b"PNG"
 
@@ -222,7 +222,7 @@ def test_stopping_early_closes_claude(setup):
 
 def test_only_wake_word(setup):
     router, _, _ = setup
-    assert router.handle("Hey Krekos.") == ""
+    assert router.handle("Hey Abdoh.") == ""
 
 
 def test_action_error_is_spoken(tmp_path, setup):
@@ -258,7 +258,7 @@ def test_command_with_slots(tmp_path):
     )
     run = FakeRun()
     router = Router(Config(app_dir=tmp_path), CommandRegistry(path), run=run)
-    assert router.handle("Krekos, search YouTube for lo-fi beats") == ""
+    assert router.handle("Abdoh, search YouTube for lo-fi beats") == ""
     assert run.ran == ["yt"] and run.slots == {"query": "lo fi beats"}
 
 
@@ -280,7 +280,7 @@ def test_local_skills_before_claude(setup):
     router, _, _ = setup
     router.brain = FakeBrain()
     router.computer = FakeLocalComputer()
-    assert router.handle("Krekos, next song") == ""
+    assert router.handle("Abdoh, next song") == ""
     assert router.computer.pressed == ["next"]
     assert router.brain.asked == []
 
@@ -314,8 +314,8 @@ def learning(tmp_path):
 
 def test_remember_that_saves_what_claude_did(learning):
     router, run, path = learning
-    text_of(router.handle("Krekos, open the Python website"))
-    reply = router.handle("Krekos, remember that")
+    text_of(router.handle("Abdoh, open the Python website"))
+    reply = router.handle("Abdoh, remember that")
     assert reply == "Saved. Next time just say: open the python website."
     assert "learned_open_the_python_website" in path.read_text(encoding="utf-8")
     # Now it's an instant command: no Claude
@@ -376,7 +376,7 @@ def test_follow_up_gets_the_previous_exchange(learning):
     text_of(router.handle("and what about tomorrow?"))
     prompt = router.brain.asked[1][0]
     assert "User: what's the weather in Cairo?" in prompt
-    assert "Krekos: It's sunny in Cairo." in prompt
+    assert "Abdoh: It's sunny in Cairo." in prompt
     assert prompt.endswith("The user now says: and what about tomorrow?")
 
 

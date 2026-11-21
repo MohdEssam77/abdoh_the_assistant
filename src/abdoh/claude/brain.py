@@ -14,10 +14,10 @@ log = logging.getLogger(__name__)
 
 NOT_CONNECTED = (
     "Claude isn't connected. Install Claude Code and sign in with your Claude account, "
-    "or add an Anthropic API key in Krekos's window."
+    "or add an Anthropic API key in Abdoh's window."
 )
 
-SYSTEM_PROMPT = """You are Krekos, a voice assistant on the user's {platform} computer. \
+SYSTEM_PROMPT = """You are Abdoh, a voice assistant on the user's {platform} computer. \
 Everything you write is read aloud by a text-to-speech voice, so answer in at most {sentences} \
 short spoken sentences: no markdown, lists, headings, code, emojis, and never read out links. \
 Talk like a friendly, capable assistant: natural, warm and to the point. Answer in the language \
@@ -32,7 +32,7 @@ question otherwise.
 CLOCK = "Today is {date}, and the time is {time}."
 # For a conversation that stays open: the time comes with every message instead.
 STAMPED = (
-    "Each message starts with the current date and time in square brackets, and how Krekos is "
+    "Each message starts with the current date and time in square brackets, and how Abdoh is "
     "right now (the mode that's on, voice replies). Use it when it matters, and never read it "
     "out unless the user asks."
 )
@@ -45,20 +45,20 @@ several things, do every one, in the order they asked, each with its own action 
 that another seems to make unnecessary (stop the music they asked you to stop before playing \
 something else). {limits}When the user \
 only asks you to do something and it's clear what they want, write just the action lines and no \
-words at all: Krekos plays a short sound to show it's done. "Play some jazz" is clear: play the \
+words at all: Abdoh plays a short sound to show it's done. "Play some jazz" is clear: play the \
 top result. Ask one short question first only when you can't tell what they want and a wrong \
 guess would matter (two very different things fit, or it can't be undone). When they ask you \
 something, or to do something and tell them something, answer normally."""
-NO_ACTIONS = """You can't do things on the computer here: the user turned that off in Krekos's \
+NO_ACTIONS = """You can't do things on the computer here: the user turned that off in Abdoh's \
 permissions. {limits}If they ask you to do something, say so in one sentence."""
 NO_COMMANDS = "You cannot run commands, type or click. "
-# Claude decides when it needs to see the screen; Krekos then sends a picture of it.
+# Claude decides when it needs to see the screen; Abdoh then sends a picture of it.
 LOOK = """You can see the user's screen when you need to. Whenever what they say points at \
 something on their screen ("what's this error?", "which one should I pick?", "read this to me", \
 "what am I looking at?", "is this a good deal?"), or you can't answer well without seeing what \
 they're looking at, don't guess and don't ask them to describe it: write the line \
 ACTION look: <what you want to see>
-and nothing else. Krekos then sends you a picture of the screen they are using, and you answer. \
+and nothing else. Abdoh then sends you a picture of the screen they are using, and you answer. \
 Don't ask to look when the request has nothing to do with their screen.
 """
 FILES = """When the user asks, you can also work with their files and run {shell} commands \
@@ -119,7 +119,7 @@ def _your_things(cfg: Config) -> str:
 
 
 def _screen_names(path: Path) -> str:
-    """'1 Laptop screen, 2 HP 32f (TV), 3 C34H89x' from Krekos's screen numbers."""
+    """'1 Laptop screen, 2 HP 32f (TV), 3 C34H89x' from Abdoh's screen numbers."""
     import json
 
     try:
@@ -135,7 +135,7 @@ def _screen_names(path: Path) -> str:
 
 
 def stamp(prompt: str, now: datetime | None = None, state: str = "") -> str:
-    """A message with the current date and time in front, and how Krekos is right now (see
+    """A message with the current date and time in front, and how Abdoh is right now (see
     STAMPED and abdoh.about.state_line)."""
     now = now or datetime.now()
     extra = f"; {state}" if state else ""
@@ -153,7 +153,7 @@ def system_prompt(
     connectors: list[str] | None = None,
     about: str = "",
 ) -> str:
-    """Krekos's instructions for Claude, following your permissions (claude.actions and
+    """Abdoh's instructions for Claude, following your permissions (claude.actions and
     claude.instructions). With `home`, Claude may work with your files: anywhere in your home
     folder, or with `only`, just in those folders."""
     now = now or datetime.now()
@@ -198,11 +198,11 @@ class BrainError(RuntimeError):
 
 class Brain(ABC):
     name = "Claude"
-    # Keeps the conversation itself, so Krekos needn't repeat the last exchange.
+    # Keeps the conversation itself, so Abdoh needn't repeat the last exchange.
     remembers = False
     # Called with a few words when Claude starts something slow ("Searching the web").
     on_activity = None
-    # How Krekos is right now ("mode on: Work; voice replies on"), sent with every message.
+    # How Abdoh is right now ("mode on: Work; voice replies on"), sent with every message.
     state = None
 
     def state_now(self) -> str:

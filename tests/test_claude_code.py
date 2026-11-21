@@ -416,7 +416,7 @@ def test_stream_sends_the_request_on_stdin(tmp_path, monkeypatch):
     assert "ANTHROPIC_API_KEY" not in kwargs["env"]
     assert kwargs["cwd"] == tmp_path / "work"
     prompt_file = Path(args[args.index("--system-prompt-file") + 1])
-    assert "You are Krekos" in prompt_file.read_text(encoding="utf-8")
+    assert "You are Abdoh" in prompt_file.read_text(encoding="utf-8")
     brain.close()
 
 

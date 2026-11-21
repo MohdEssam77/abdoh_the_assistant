@@ -6,7 +6,7 @@ Claude writes actions on their own lines before its spoken answer, e.g.
     Opening the Python website.
 
 Action lines run as soon as they are complete; everything else is cleaned of markdown and
-yielded sentence by sentence, so Krekos can start talking before the reply is finished.
+yielded sentence by sentence, so Abdoh can start talking before the reply is finished.
 """
 
 import logging
@@ -23,14 +23,14 @@ ACTION_HELP: dict[str, str] = {
     "that search, e.g. lofi hip hop radio)",
     "open_app": "ACTION open_app: <app name>   (an installed program, e.g. Spotify)",
     "media": "ACTION media: <play_pause, next, previous, volume_up, volume_down or mute>",
-    "timer": "ACTION timer: <duration>   (e.g. 10 minutes; Krekos announces when it's done)",
+    "timer": "ACTION timer: <duration>   (e.g. 10 minutes; Abdoh announces when it's done)",
     "volume": "ACTION volume: <0 to 100>   (sets the speakers to exactly that volume)",
     "brightness": "ACTION brightness: <0 to 100>   (the laptop screen's brightness)",
     "app_volume": "ACTION app_volume: <app> | <0 to 100>   (one app's volume in the Windows "
     "volume mixer, e.g. browser | 30 or Spotify | 0; browser means every web browser. Use it "
     "when they want one app quieter or louder rather than everything)",
     "remind": "ACTION remind: <when> | <what>   (when: 20 minutes, 17:30, or tomorrow at 9; "
-    "what: the reminder in a few words, e.g. call your mother. Krekos says it aloud then)",
+    "what: the reminder in a few words, e.g. call your mother. Abdoh says it aloud then)",
     "note": "ACTION note: <text>   (adds a line to the user's notes)",
     "mode": "ACTION mode: <one of the user's modes, or normal>   (switches that mode on; normal "
     "puts back everything a mode changed)",

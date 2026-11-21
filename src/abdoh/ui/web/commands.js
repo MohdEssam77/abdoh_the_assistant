@@ -93,8 +93,8 @@
     const body = el("div", {},
       el("div", { class: "field" }, el("label", {}, "Name"), name),
       el("div", { class: "field" }, el("label", {}, "When I say"), triggers.box,
-        el("small", {}, "Add a few ways you'd say it. Use {name} for a blank, e.g. “search youtube for {query}”. Don't include “Hey Krekos”.")),
-      el("div", { class: "field" }, el("label", {}, "Krekos will"), actions.box,
+        el("small", {}, "Add a few ways you'd say it. Use {name} for a blank, e.g. “search youtube for {query}”. Don't include “Hey Abdoh”.")),
+      el("div", { class: "field" }, el("label", {}, "Abdoh will"), actions.box,
         el("small", {}, "In texts and links you can use {time}, {date} and your {blanks}.")),
       error);
     const foot = [];

@@ -1,4 +1,4 @@
-"""Talking with Krekos: it says what it's doing, and the wake word interrupts a reply."""
+"""Talking with Abdoh: it says what it's doing, and the wake word interrupts a reply."""
 
 import time
 
@@ -87,7 +87,7 @@ def test_a_slow_answer_gets_a_one_moment(monkeypatch):
     daemon.handle_text("something hard")
     assert daemon.speaker.said[0] in FILLERS and daemon.speaker.said[1:] == ["Here you go."]
     history = events(bus, "history")
-    assert history == ["You: something hard", "Krekos: Here you go."]  # the aside isn't shown
+    assert history == ["You: something hard", "Abdoh: Here you go."]  # the aside isn't shown
 
 
 def test_a_quick_answer_gets_no_filler(monkeypatch):
@@ -120,7 +120,7 @@ def long_reply(daemon):
 
 
 def test_the_wake_word_stops_a_reply_and_abdoh_listens():
-    engine = FakeWakeWord(fire_on=30)  # "Hey Krekos", a moment into the reply
+    engine = FakeWakeWord(fire_on=30)  # "Hey Abdoh", a moment into the reply
     daemon, _ = make_daemon(None, engine)
     daemon.router.reply = long_reply(daemon)
     daemon.mic = FakeMic([])

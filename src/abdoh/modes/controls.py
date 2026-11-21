@@ -14,7 +14,7 @@ FOLLOW_UP_ON = 6.0  # seconds, when a mode turns "keep listening" on
 
 
 class ModeControls:
-    """`computer`: abdoh.computer.Computer; `daemon`: the Daemon (Krekos's own switches)."""
+    """`computer`: abdoh.computer.Computer; `daemon`: the Daemon (Abdoh's own switches)."""
 
     def __init__(self, computer, daemon):
         self.computer = computer

@@ -42,7 +42,7 @@ def test_parakeet_model_comes_from_a_fixed_revision(models, tmp_path):
 
     folder = tmp_path / "parakeet-tdt-0.6b-v3"
     models.download_parakeet(folder, fetch)
-    assert is_complete(folder, PARAKEET_FILES)  # exactly the files Krekos checks for
+    assert is_complete(folder, PARAKEET_FILES)  # exactly the files Abdoh checks for
     assert sorted(models.PARAKEET_FILES) == sorted(PARAKEET_FILES)
     assert all("/resolve/8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce/" in url for url in fetched)
     assert all("/parakeet-tdt-0.6b-v3-onnx/" in url for url in fetched)
@@ -51,16 +51,16 @@ def test_parakeet_model_comes_from_a_fixed_revision(models, tmp_path):
 def test_the_repos_wake_word_is_copied_unless_you_have_your_own(models, tmp_path):
     assets, target = tmp_path / "assets", tmp_path / "models"
     assets.mkdir()
-    (assets / "hey_krekos.onnx").write_bytes(b"trained")
+    (assets / "hey_abdoh.onnx").write_bytes(b"trained")
     models.copy_wake_word(target, assets)
-    assert (target / "hey_krekos.onnx").read_bytes() == b"trained"
-    (target / "hey_krekos.onnx").write_bytes(b"mine")
+    assert (target / "hey_abdoh.onnx").read_bytes() == b"trained"
+    (target / "hey_abdoh.onnx").write_bytes(b"mine")
     models.copy_wake_word(target, assets)
-    assert (target / "hey_krekos.onnx").read_bytes() == b"mine"
+    assert (target / "hey_abdoh.onnx").read_bytes() == b"mine"
 
 
 def test_the_wake_word_model_is_in_the_repo():
-    assert (ROOT / "assets" / "hey_krekos.onnx").stat().st_size > 100_000
+    assert (ROOT / "assets" / "hey_abdoh.onnx").stat().st_size > 100_000
 
 
 def test_an_empty_download_never_becomes_the_model(models, tmp_path):

@@ -1,4 +1,4 @@
-"""Start Krekos at login: Task Scheduler (Windows), LaunchAgent (macOS), systemd unit (Linux)."""
+"""Start Abdoh at login: Task Scheduler (Windows), LaunchAgent (macOS), systemd unit (Linux)."""
 
 import subprocess
 import sys
@@ -6,7 +6,7 @@ from pathlib import Path
 
 from abdoh.config import DEFAULT_APP_DIR
 
-TASK_NAME = "Krekos"
+TASK_NAME = "Abdoh"
 PLIST_LABEL = "com.abdoh.agent"
 RUN_ARGS = ["-m", "abdoh", "run", "--minimized"]
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -23,7 +23,7 @@ def python_for_background() -> str:
 
 
 def launch_command(show: bool = False) -> list[str]:
-    """How to start Krekos: the built Krekos.exe, or pythonw -m abdoh. Hidden unless show."""
+    """How to start Abdoh: the built Abdoh.exe, or pythonw -m abdoh. Hidden unless show."""
     args = ["run", "--show"] if show else ["run", "--minimized"]
     if getattr(sys, "frozen", False):
         return [sys.executable, *args]
@@ -40,7 +40,7 @@ def plist_path() -> Path:
 
 def plist_text(python: str, app_dir: Path = DEFAULT_APP_DIR) -> str:
     args = "\n".join(f"    <string>{a}</string>" for a in [python, *RUN_ARGS])
-    log = Path.home() / ".krekos" / "launchd.log"
+    log = Path.home() / ".abdoh" / "launchd.log"
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -76,7 +76,7 @@ def unit_path() -> Path:
 def unit_text(python: str, app_dir: Path = DEFAULT_APP_DIR) -> str:
     command = " ".join([python, *RUN_ARGS])
     return f"""[Unit]
-Description=Krekos voice assistant
+Description=Abdoh voice assistant
 After=graphical-session.target
 
 [Service]
@@ -97,7 +97,7 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess:
 
 
 def is_installed() -> bool:
-    """Whether Krekos is set to start at login."""
+    """Whether Abdoh is set to start at login."""
     if sys.platform == "win32":
         if _run(["schtasks", "/Query", "/TN", TASK_NAME]).returncode == 0:
             return True
@@ -129,13 +129,13 @@ def install() -> str:
             winreg.SetValueEx(key, TASK_NAME, 0, winreg.REG_SZ, windows_command())
         return (
             "Task Scheduler needs admin rights here "
-            f"({result.stderr.strip() or result.stdout.strip()}), so Krekos was added to your "
+            f"({result.stderr.strip() or result.stdout.strip()}), so Abdoh was added to your "
             "user's startup programs instead (HKCU Run key)."
         )
     if sys.platform == "darwin":
         path = plist_path()
         path.parent.mkdir(parents=True, exist_ok=True)
-        (Path.home() / ".krekos").mkdir(exist_ok=True)
+        (Path.home() / ".abdoh").mkdir(exist_ok=True)
         path.write_text(plist_text(python), encoding="utf-8")
         _run(["launchctl", "unload", str(path)])
         result = _run(["launchctl", "load", "-w", str(path)])

@@ -1,10 +1,10 @@
-"""Build Krekos's Windows installer: dist/Krekos-Setup.exe.
+"""Build Abdoh's Windows installer: dist/Abdoh-Setup.exe.
 
 Builds the app with PyInstaller (scripts/build_app.py), then packs it with Inno Setup 6
 (installer/abdoh.iss). Needs Inno Setup 6 (https://jrsoftware.org/isdl.php); ISCC.exe is found
 in its usual folders, on PATH, or in the ISCC environment variable.
 
-Usage: python scripts/build_installer.py [--skip-app]   (--skip-app reuses dist/Krekos)
+Usage: python scripts/build_installer.py [--skip-app]   (--skip-app reuses dist/Abdoh)
 """
 
 import os
@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ISS = ROOT / "installer" / "abdoh.iss"
-SETUP = ROOT / "dist" / "Krekos-Setup.exe"
+SETUP = ROOT / "dist" / "Abdoh-Setup.exe"
 
 
 def iscc_candidates() -> list[Path]:
@@ -48,7 +48,7 @@ def check_tag(version: str, ref: str) -> None:
     """A release tag (v1.2.3) must match the app's version, or the update check gets confused."""
     if ref.startswith("v") and ref != f"v{version}":
         raise SystemExit(
-            f"Tag {ref} doesn't match Krekos's version {version} (src/abdoh/__init__.py)."
+            f"Tag {ref} doesn't match Abdoh's version {version} (src/abdoh/__init__.py)."
         )
 
 
@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         print("(or set the ISCC environment variable to ISCC.exe), then run this again.")
         return 1
     subprocess.run([str(iscc), f"/DAppVersion={version}", str(ISS)], check=True)
-    print(f"Built {SETUP} (Krekos {version})")
+    print(f"Built {SETUP} (Abdoh {version})")
     return 0
 
 

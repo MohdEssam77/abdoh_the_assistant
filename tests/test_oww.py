@@ -93,9 +93,9 @@ def test_threshold():
 
 def test_missing_files_are_reported(tmp_path):
     try:
-        OpenWakeWord(tmp_path / "hey_krekos.onnx", tmp_path)
+        OpenWakeWord(tmp_path / "hey_abdoh.onnx", tmp_path)
     except FileNotFoundError as e:
-        assert "hey_krekos.onnx" in str(e) and "melspectrogram" in str(e)
+        assert "hey_abdoh.onnx" in str(e) and "melspectrogram" in str(e)
     else:
         raise AssertionError("expected FileNotFoundError")
 
@@ -115,13 +115,13 @@ class Recorded:
 
 def test_uses_openwakeword_with_your_model(tmp_path):
     (tmp_path / "models").mkdir()
-    (tmp_path / "models" / "hey_krekos.onnx").write_bytes(b"onnx")
+    (tmp_path / "models" / "hey_abdoh.onnx").write_bytes(b"onnx")
     oww = Recorded()
     cfg = Config(app_dir=tmp_path, wake_word_threshold=0.6)
     engine = load_wake_engine(cfg, oww=oww)
     assert engine is oww
-    assert oww.calls == [(tmp_path / "models" / "hey_krekos.onnx", 0.6)]
-    assert engine.label == "openWakeWord (hey_krekos)"
+    assert oww.calls == [(tmp_path / "models" / "hey_abdoh.onnx", 0.6)]
+    assert engine.label == "openWakeWord (hey_abdoh)"
 
 
 def test_no_model_is_an_error_the_daemon_turns_into_hotkey_only(tmp_path):
@@ -157,7 +157,7 @@ def quiet(n):
 
 
 def test_two_near_misses_a_moment_apart_wake_it():
-    # "Hey Krekos" (0.36) ... 2 seconds ... "Hey Krekos" again (0.38): it was you.
+    # "Hey Abdoh" (0.36) ... 2 seconds ... "Hey Abdoh" again (0.38): it was you.
     scores = quiet(5) + [0.30, 0.36, 0.33] + quiet(25) + [0.31, 0.38] + quiet(5)
     assert run(scripted(scores), len(scores)) == [34]  # 0.31 is under the 0.315 floor: 0.38 counts
 
@@ -168,7 +168,7 @@ def test_one_near_miss_is_not_enough():
 
 
 def test_a_dip_inside_one_call_is_not_a_second_try():
-    scores = quiet(5) + [0.34, 0.05, 0.36] + quiet(20)  # 80 ms apart: the same "Hey Krekos"
+    scores = quiet(5) + [0.34, 0.05, 0.36] + quiet(20)  # 80 ms apart: the same "Hey Abdoh"
     assert run(scripted(scores), len(scores)) == []
 
 

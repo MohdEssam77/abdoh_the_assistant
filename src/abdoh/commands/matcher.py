@@ -29,14 +29,14 @@ def strip_wake_words(text: str, wake_words: list[str]) -> str:
 def remove_wake_words(text: str, wake_words: list[str]) -> str:
     """Remove wake phrases but keep the original case and punctuation (for Claude).
 
-    "Hey Krekos, what's 15% of 80?" -> "what's 15% of 80?"
+    "Hey Abdoh, what's 15% of 80?" -> "what's 15% of 80?"
     """
     phrases = sorted({normalize(w) for w in wake_words if w.strip()}, key=len, reverse=True)
     for phrase in phrases:
         words = r"[\s,.!?-]+".join(re.escape(w) for w in phrase.split())
         text = re.sub(rf"\b{words}\b,?", " ", text, flags=re.I)
     text = re.sub(r"\s+([,.!?])", r"\1", _SPACES.sub(" ", text))
-    text = re.sub(r",([.!?])", r"\1", text)  # "pain, Krekos?" -> "pain?"
+    text = re.sub(r",([.!?])", r"\1", text)  # "pain, Abdoh?" -> "pain?"
     return text.strip().lstrip(",.!?- ").strip()
 
 

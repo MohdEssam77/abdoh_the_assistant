@@ -1,6 +1,6 @@
-"""Check that Krekos can turn your monitors on and off. CHANGES YOUR SCREENS for a few seconds.
+"""Check that Abdoh can turn your monitors on and off. CHANGES YOUR SCREENS for a few seconds.
 
-Lists the monitors with Krekos's numbers, then keeps only one of them on for 8 seconds, and
+Lists the monitors with Abdoh's numbers, then keeps only one of them on for 8 seconds, and
 puts the screens back exactly as they were, whatever happens. If anything goes wrong, Win+P
 also brings screens back.
 

@@ -1,17 +1,22 @@
-"""Abdoh became Xanthos, then Krekos: on the first start under the new name, the old folders
-move over.
+"""Abdoh became Xanthos, then Krekos, and Abdoh again: on the first start as Abdoh, the folders
+of the name it had last move back.
 
-`%APPDATA%\\Xanthos` and `%APPDATA%\\Abdoh` (settings, commands, modes; only the built app keeps
-them there) become `%APPDATA%\\Krekos`, and `~/.xanthos` and `~/.abdoh` (log, Claude's folder,
-window storage) become `~/.krekos`. Xanthos's go first, as they are newer: Abdoh's only fill in
-what's missing. Nothing happens once the old folders are gone. Runs before logging starts, so
-it returns what it did for the log.
+`%APPDATA%\\Krekos` (settings, commands, modes; only the built app keeps them there) becomes
+`%APPDATA%\\Abdoh`, and `~/.krekos` (log, Claude's folder, window storage) becomes `~/.abdoh`;
+Xanthos's fill in only what those lack. An Abdoh folder still there from before the renames is
+older than all of that, so it is set aside first (`Abdoh-before-Krekos`), never mixed in.
+`MARK` in the folder says it came back, so leftovers of the newer names that couldn't move
+(something held them open) only fill in from then on. Runs before logging starts, so it
+returns what it did for the log.
 """
 
 import os
 import shutil
 import sys
 from pathlib import Path
+
+MARK = "came-back-from-krekos"
+ASIDE = "-before-krekos"
 
 
 def move_folder(old: Path, new: Path) -> str:
@@ -50,17 +55,48 @@ def _merge(old: Path, new: Path) -> str:
     return f"Moved {moved} items from {old} to {new}" if moved else ""
 
 
+def _set_aside(folder: Path) -> str:
+    """Rename an Abdoh folder from before the renames out of the way. "" if it can't be."""
+    aside = folder.with_name(folder.name + ASIDE)
+    n = 2
+    while aside.exists():
+        aside = folder.with_name(f"{folder.name}{ASIDE}-{n}")
+        n += 1
+    try:
+        os.replace(folder, aside)
+    except OSError:
+        return ""
+    return f"Kept the older {folder} as {aside}"
+
+
+def bring_back(sources: list[Path], target: Path) -> list[str]:
+    """Move the newest of `sources` to `target` and let the others fill in. An older `target`
+    (without MARK) is set aside first."""
+    present = [s for s in sources if s.is_dir()]
+    if not present:
+        return []
+    done = []
+    if target.exists() and not (target / MARK).exists():
+        aside = _set_aside(target)
+        if aside:
+            done.append(aside)
+    done += [d for s in present if (d := move_folder(s, target))]
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+        (target / MARK).touch()
+    except OSError:
+        pass
+    return done
+
+
 def move_old_folders(
     home: Path | None = None, appdata: Path | None = None, frozen: bool | None = None
 ) -> list[str]:
-    """Bring Xanthos's and Abdoh's folders over to Krekos's names. Returns log lines."""
+    """Bring Krekos's (and Xanthos's) folders back to Abdoh's names. Returns log lines."""
     home = Path(home or Path.home())
     frozen = getattr(sys, "frozen", False) if frozen is None else frozen
-    moves = [(home / ".xanthos", home / ".krekos"), (home / ".abdoh", home / ".krekos")]
+    done = bring_back([home / ".krekos", home / ".xanthos"], home / ".abdoh")
     if frozen and not os.environ.get("ABDOH_HOME"):
         appdata = Path(appdata or os.environ.get("APPDATA", home))
-        moves += [
-            (appdata / "Xanthos", appdata / "Krekos"),
-            (appdata / "Abdoh", appdata / "Krekos"),
-        ]
-    return [done for old, new in moves if (done := move_folder(old, new))]
+        done += bring_back([appdata / "Krekos", appdata / "Xanthos"], appdata / "Abdoh")
+    return done
