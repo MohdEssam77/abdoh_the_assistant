@@ -59,14 +59,21 @@ like Arabic) download themselves the first time they're used.
 ### The wake word
 
 Krekos comes with a trained wake word model (`assets/hey_krekos.onnx`, an openWakeWord model) for
-**"Hey Krekos"** and **"Ya Krekos"** (it listens for the sound, not the
+**"Hey Krekos"** and **"Ya Krekos"**, said **KREE-kos** (it listens for the sound, not the
 spelling). Say the wake word and keep talking; what you say after it is the request. In the
 window, the sidebar shows `Wake word: openWakeWord (hey_krekos)`.
 
 If it misses you, move **Settings → Sensitivity** to the left (`wake_word_threshold`, e.g.
 0.3); if it wakes up by itself, move it right (e.g. 0.6). The log shows every wake-up's score
 and every near miss, to help you choose. If it misses you, just say it again: two near misses
-within four seconds count as a wake-up ("Wake word on the second try" in the log).
+within four seconds count as a wake-up ("Wake word on the second try" in the log; with your
+voice taught, weaker tries count too).
+
+**Over music or a video.** Many laptops' sound drivers mute the microphone while the speakers
+play (their echo suppression), so Krekos opens the microphone in raw mode, without the
+driver's effects (`mic_raw`; where the driver can't, it opens the usual way). While something
+plays, the wake word hears the microphone with what the speakers play taken out ("over the
+speakers' sound" in the log). Headphones need none of this.
 
 **Only your voice.** In **Settings → Wake word → Only my voice**, press **Teach it your voice**,
 say "Hey Krekos" ten times (the first five close, the rest from where you usually are), then
