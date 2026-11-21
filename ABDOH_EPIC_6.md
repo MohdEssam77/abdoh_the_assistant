@@ -368,6 +368,22 @@ microphone array): while the speakers played, the processed microphone fell to a
    moment of the second try may convince the voice check.
 4. The voice check should be taught again: it learned the processed microphone.
 
+### Story 59: Raw only for the wake word (`story/59-raw-only-for-the-wake-word`)
+
+With the whole microphone raw (0.7.1), the song's lyrics and Krekos's own voice reached it
+loudly (Krekos at -16 dB instead of -86 dB), so the voice watch took lyrics for the owner
+talking over replies, and Krekos kept stopping to answer the song. The usual microphone came
+back; the raw one stays only where it helped.
+
+1. The microphone opens the usual way, and in raw mode beside it (`mic_raw`). Raw blocks are
+   kept for 2 s and only fresh ones (0.5 s) are taken; `clear()` drops them too.
+2. The wake word takes every raw block through its echo canceller (one unbroken stream). While
+   what the speakers play reaches the microphone, it hears those cleaned raw blocks; otherwise
+   the usual block. Measured: in quiet the usual microphone (the level stays at 1), during
+   music the cleaned raw one (the usual microphone sat at level 1, muted by the driver).
+3. Over the speakers' sound the voice check is skipped: it learned the owner in quiet, and what
+   the computer plays was already taken out.
+
 ### Story 58: Several things at once (`story/58-several-jobs`)
 
 "Stop the current music and play Arabic music, then open WhatsApp" went to Claude as one
