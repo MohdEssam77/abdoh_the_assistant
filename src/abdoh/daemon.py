@@ -69,6 +69,7 @@ class Daemon:
         vad=None,
         voice_watch=None,
         ducker=None,
+        wake_echo=None,
     ):
         self.cfg = cfg
         self.router = router
@@ -82,6 +83,10 @@ class Daemon:
         self.earcons = earcons or Earcons.silent()
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
+        # Music or a video playing: the wake word hears the microphone without it.
+        self.wake_echo = wake_echo  # audio/bargein.py SpeakerEcho, its own canceller
+        if wake_echo is not None and hasattr(engine, "clean"):
+            engine.clean = self._clean_for_wake
         self.ducker = ducker  # other apps go quieter while Krekos listens (audio/ducking.py)
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self._watching = False  # the voice watch is following a reply
@@ -201,7 +206,7 @@ class Daemon:
         only read when Krekos starts; the app says those need a restart."""
         from abdoh.claude.brain import make_brain
 
-        old_mic = self.cfg.mic_device
+        old_mic = (self.cfg.mic_device, self.cfg.mic_raw)
         for f in fields(Config):
             if f.name not in ("app_dir", "claude"):
                 setattr(self.cfg, f.name, getattr(new, f.name))
@@ -221,7 +226,7 @@ class Daemon:
             self.engine.voice_threshold = self.cfg.wake_word_voice_threshold
         if self.voice_watch is not None:
             self.voice_watch.sensitivity = self.cfg.voice_interrupt_sensitivity
-        if self.cfg.mic_device != old_mic:
+        if (self.cfg.mic_device, self.cfg.mic_raw) != old_mic:
             self.reopen_mic()
         log.info("Settings changed")
 
@@ -534,7 +539,13 @@ class Daemon:
 
         return end
 
-    # ----- hearing you over Krekos's own voice -----
+    # ----- hearing you over Krekos's own voice, and over music -----
+
+    def _clean_for_wake(self, block: bytes) -> bytes:
+        """The block the wake word hears: without what the speakers play while they play
+        (the very same block otherwise)."""
+        arrival = getattr(self.mic, "last_time", 0.0) or time.perf_counter()
+        return self.wake_echo.clean(block, arrival)
 
     def _can_hear_over_itself(self) -> bool:
         watch = self.voice_watch
@@ -1050,19 +1061,22 @@ class Daemon:
             log.exception("Could not load the speech recognition model")
             listen_error = SPEECH_MODEL_FAILED
         router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
+        watch = None if listen_error else make_voice_watch(cfg)
         daemon = cls(
             cfg,
             router,
             speaker,
-            lambda: Microphone(device=cfg.mic_device),  # the mic chosen now, when (re)opened
+            # the mic chosen now, when (re)opened
+            lambda: Microphone(device=cfg.mic_device, raw=cfg.mic_raw),
             engine,
             transcriber,
             bus,
             listen_error=listen_error,
             earcons=Earcons(),
             vad=load_vad(),
-            voice_watch=None if listen_error else make_voice_watch(cfg),
+            voice_watch=watch,
             ducker=Ducker(),
+            wake_echo=make_wake_echo(watch),
         )
         router.computer = Computer(
             timers=Timers(announce=daemon.announce),
@@ -1100,6 +1114,21 @@ def make_voice_watch(cfg: Config):
     return VoiceWatch(
         tap, canceller, load_vad(), cfg.voice_interrupt_sensitivity, raw_vad=load_vad()
     )
+
+
+def make_wake_echo(watch):
+    """The wake word's own echo canceller (each needs one unbroken stream), listening to the
+    same speakers as the voice watch. None without the parts."""
+    if watch is None or watch.canceller is None or not getattr(watch.tap, "available", False):
+        return None
+    from abdoh.audio.bargein import SpeakerEcho
+    from abdoh.audio.echo import EchoCanceller
+
+    try:
+        return SpeakerEcho(watch.tap, EchoCanceller())
+    except Exception:
+        log.exception("Couldn't start the wake word's echo canceller")
+        return None
 
 
 def make_modes(cfg: Config, router: Router, daemon: Daemon):

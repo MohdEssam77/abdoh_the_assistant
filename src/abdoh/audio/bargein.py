@@ -48,23 +48,21 @@ def _rms(frame: bytes) -> float:
     return float(np.sqrt(np.mean(samples**2))) if samples.size else 0.0
 
 
-class VoiceWatch:
-    """Tells when you start talking over Krekos. `tap`: SpeakerTap, `canceller`: EchoCanceller,
-    `vad` and `raw_vad`: SileroVads of its own, for the cleaned and the raw microphone (their
-    state is separate from the recorder's). Without `raw_vad` only the cleaned audio counts."""
+class SpeakerEcho:
+    """The microphone without what the speakers played at the same time. `tap`: SpeakerTap,
+    `canceller`: EchoCanceller (one per stream: it learns from one unbroken stream).
 
-    def __init__(self, tap, canceller, vad, sensitivity: str = "medium", raw_vad=None):
+    It learns how much of the speakers' sound reaches the microphone. While nothing plays, or
+    where hardly any of it reaches the microphone, `clean()` gives back the block itself: the
+    canceller only changes what it must. The voice watch below and the wake word (music or a
+    video playing while you call Krekos) each have one."""
+
+    def __init__(self, tap, canceller):
         self.tap = tap
         self.canceller = canceller
-        self.vad = vad
-        self.raw_vad = raw_vad
-        self.sensitivity = sensitivity
-        self._floor = MIN_LEVEL
-        self._recent = bytearray()  # cleaned
-        self._recent_raw = bytearray()
         self._echo_ratios: deque[float] = deque(maxlen=ECHO_BLOCKS)  # learned across replies
         self._played: deque[float] = deque(maxlen=ECHO_SPAN)  # the speakers' recent levels
-        self.idle()
+        self.forget_timing()
 
     @property
     def available(self) -> bool:
@@ -72,51 +70,29 @@ class VoiceWatch:
             self.tap is not None
             and getattr(self.tap, "available", False)
             and self.canceller is not None
-            and self.vad is not None
         )
 
-    @property
-    def sensitivity(self) -> str:
-        return self._sensitivity
-
-    @sensitivity.setter
-    def sensitivity(self, value: str) -> None:
-        self._sensitivity = value if value in SENSITIVITY else "medium"
-
-    def idle(self) -> None:
-        """No reply is running: forget the speech history (what was learned about the room and
-        the background level is kept)."""
+    def forget_timing(self) -> None:
+        """Start the speakers' stream afresh with the next block (what was learned about the
+        room is kept)."""
         self._time = None
         self._drift = 0.0
-        self._recent.clear()
-        self._recent_raw.clear()
         self._played.clear()
-        self.rearm()
 
-    def rearm(self) -> None:
-        """Listen for the next time you talk (after `feed()` fired)."""
-        self._fired = False
-        self._hot: deque[bool] = deque(maxlen=6)
-        self._pending = b""
-        self._pending_raw = b""
-        for vad in (self.vad, self.raw_vad):
-            if vad is not None:
-                vad.reset()
-
-    # ----- how much of Krekos reaches the microphone -----
+    # ----- how much of the speakers' sound reaches the microphone -----
 
     def echo_gain(self) -> float:
-        """The microphone's level over the speakers' level while Krekos talks (1.0: unknown)."""
+        """The microphone's level over the speakers' level while they play (1.0: unknown)."""
         if len(self._echo_ratios) < ECHO_LEARNED:
             return 1.0
         return float(np.median(self._echo_ratios))
 
     def _echo_level(self) -> float:
-        """The loudest Krekos's voice could be at the microphone right now."""
+        """The loudest the speakers' sound could be at the microphone right now."""
         return self.echo_gain() * max(self._played, default=0.0)
 
     def _quiet_echo(self) -> bool:
-        """Krekos's voice can't be heard at the microphone now: the raw audio is as good."""
+        """The speakers can't be heard at the microphone now: the raw audio is as good."""
         return self._echo_level() * RAW_MARGIN < MIN_LEVEL
 
     def _learn(self, raw: bytes, speakers: bytes) -> None:
@@ -127,25 +103,22 @@ class VoiceWatch:
 
     # ----- cleaning -----
 
-    def clean(self, block: bytes, arrival: float) -> bytes:
-        """The block without the speakers' sound (`arrival`: when it came from the mic). Where
-        Krekos's voice doesn't reach the microphone anyway, the block as it was."""
+    def cancel(self, block: bytes, arrival: float) -> bytes:
+        """The block with the speakers' sound taken out, always (`arrival`: when it came from
+        the microphone)."""
         usable = len(block) - len(block) % FRAME_BYTES
         if not usable:
             return block
         speakers = self.tap.window(self._reference_time(usable, arrival), usable // 2)
         cleaned = self.canceller.clean(block[:usable], speakers) + block[usable:]
         self._learn(block, speakers)
-        self._keep(self._recent, cleaned)
-        self._keep(self._recent_raw, block)
-        return block if self._quiet_echo() else cleaned
+        return cleaned
 
-    @staticmethod
-    def _keep(buffer: bytearray, audio: bytes) -> None:
-        buffer += audio
-        excess = len(buffer) - int(KEEP_SECONDS * BYTES_PER_SECOND)
-        if excess > 0:
-            del buffer[:excess]
+    def clean(self, block: bytes, arrival: float) -> bytes:
+        """The block without the speakers' sound; the very same block while they can't be
+        heard at the microphone (nothing plays, or it hardly reaches it)."""
+        cleaned = self.cancel(block, arrival)
+        return block if self._quiet_echo() else cleaned
 
     def _reference_time(self, size: int, arrival: float) -> float:
         """Where the speakers' audio for this block ends. The echo canceller needs one unbroken
@@ -163,6 +136,68 @@ class VoiceWatch:
             self._time += self._drift
             self._drift = 0.0
         return self._time
+
+
+class VoiceWatch(SpeakerEcho):
+    """Tells when you start talking over Krekos. `tap`: SpeakerTap, `canceller`: EchoCanceller,
+    `vad` and `raw_vad`: SileroVads of its own, for the cleaned and the raw microphone (their
+    state is separate from the recorder's). Without `raw_vad` only the cleaned audio counts."""
+
+    def __init__(self, tap, canceller, vad, sensitivity: str = "medium", raw_vad=None):
+        self.vad = vad
+        self.raw_vad = raw_vad
+        self.sensitivity = sensitivity
+        self._floor = MIN_LEVEL
+        self._recent = bytearray()  # cleaned
+        self._recent_raw = bytearray()
+        super().__init__(tap, canceller)
+        self.idle()
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.vad is not None
+
+    @property
+    def sensitivity(self) -> str:
+        return self._sensitivity
+
+    @sensitivity.setter
+    def sensitivity(self, value: str) -> None:
+        self._sensitivity = value if value in SENSITIVITY else "medium"
+
+    def idle(self) -> None:
+        """No reply is running: forget the speech history (what was learned about the room and
+        the background level is kept)."""
+        self.forget_timing()
+        self._recent.clear()
+        self._recent_raw.clear()
+        self.rearm()
+
+    def rearm(self) -> None:
+        """Listen for the next time you talk (after `feed()` fired)."""
+        self._fired = False
+        self._hot: deque[bool] = deque(maxlen=6)
+        self._pending = b""
+        self._pending_raw = b""
+        for vad in (self.vad, self.raw_vad):
+            if vad is not None:
+                vad.reset()
+
+    # ----- cleaning -----
+
+    def clean(self, block: bytes, arrival: float) -> bytes:
+        """As SpeakerEcho's, keeping the last second (cleaned and raw) for `pre_roll()`."""
+        cleaned = self.cancel(block, arrival)
+        self._keep(self._recent, cleaned)
+        self._keep(self._recent_raw, block)
+        return block if self._quiet_echo() else cleaned
+
+    @staticmethod
+    def _keep(buffer: bytearray, audio: bytes) -> None:
+        buffer += audio
+        excess = len(buffer) - int(KEEP_SECONDS * BYTES_PER_SECOND)
+        if excess > 0:
+            del buffer[:excess]
 
     # ----- listening -----
 

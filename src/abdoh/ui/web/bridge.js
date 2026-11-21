@@ -13,7 +13,7 @@ const Bridge = (() => {
       wake_words: ["krekos", "hey krekos", "ya krekos"], wake_word_aliases: ["krecos", "cricos"],
       wake_word_model: "models/hey_krekos.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
-      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, confirm_actions: "sound", wake_word_interrupts: true, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
+      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, confirm_actions: "sound", wake_word_interrupts: true, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "", mic_raw: true,
       allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.krekos/krekos.log",
       has_api_key: false,
       claude: {
@@ -80,7 +80,7 @@ const Bridge = (() => {
     return {
       demo: true,
       boot: async () => ({
-        version: "0.7.0", platform: "win32", demo: true, settings,
+        version: "0.7.1", platform: "win32", demo: true, settings,
         state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, voice: true, history },
       }),
       events: async () => queue.splice(0),

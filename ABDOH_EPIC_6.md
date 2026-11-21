@@ -335,7 +335,7 @@ on and off, set brightness, colour or white temperature, and read the current st
 ### Story 56: Krekos (`story/56-krekos`)
 
 "Hey Xanthos" kept missing, so the owner trained `hey_krekos.onnx` ("hey krekos", "ya krekos",
-pronounced KREH-kos) and Xanthos became Krekos, the same way Abdoh became Xanthos in story 45.
+pronounced KREE-kos: the training voice read it that way) and Xanthos became Krekos, the same way Abdoh became Xanthos in story 45.
 
 1. Everything you see or hear says Krekos; `Krekos.exe`, `Krekos-Setup.exe`;
    `assets/hey_krekos.onnx` replaces `hey_xanthos.onnx`. On synthetic clips (3 Piper and 2
@@ -350,6 +350,23 @@ pronounced KREH-kos) and Xanthos became Krekos, the same way Abdoh became Xantho
    `Abdoh-Setup.exe`, the names older versions' update checks look for. The workflow no longer
    downloads a model from `WAKE_WORD_URL`: the model is in the repo.
 6. The voice check must be taught again (it's tied to the model).
+
+### Story 57: The wake word over music (`story/57-wake-word-over-music`)
+
+Calls over music missed (scores 0.15 to 0.29). Measured on the owner's laptop (Realtek
+microphone array): while the speakers played, the processed microphone fell to about
+-95 dBFS. The sound driver's echo suppression mutes it; in WASAPI raw mode it stays live.
+
+1. The microphone opens in WASAPI raw mode (`mic_raw: true`), found by its name (MME cuts
+   names to 31 characters); where raw mode can't open, the usual way.
+2. The wake word gets its own echo canceller (`SpeakerEcho`, split out of the voice watch,
+   each with its own WebRTC AEC3 stream). While the speakers play loudly enough to reach the
+   microphone, the wake word hears it cleaned; otherwise the block as it was. Simulated (music
+   as loud as the voice): 0.00-0.98 raw, 0.97-1.00 cleaned. On the laptop's own speakers at
+   full volume (distorted) it takes about 8 dB of the music out.
+3. With the voice check on, two near misses at half the threshold (was 70%) wake it, and every
+   moment of the second try may convince the voice check.
+4. The voice check should be taught again: it learned the processed microphone.
 
 ---
 

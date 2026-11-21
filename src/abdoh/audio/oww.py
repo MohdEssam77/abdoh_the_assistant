@@ -32,7 +32,9 @@ EMBED_KEEP = 120  # ~10 s of embeddings
 WARMUP_FRAMES = 5  # like openWakeWord, ignore the first predictions after a reset
 # The second try: when it misses you, you say it again. Two near misses (each at least this share
 # of the threshold) that start between MIN_GAP and REPEAT seconds apart count as a wake-up.
+# With your voice check, which still has to agree, a weaker pair is enough.
 SECOND_TRY = 0.7
+SECOND_TRY_YOUR_VOICE = 0.5
 REPEAT_SECONDS = 4.0
 MIN_GAP_SECONDS = 0.8
 STEP_SECONDS = FRAME / 16000
@@ -65,6 +67,9 @@ class OpenWakeWord(WakeWordEngine):
         self.threshold = threshold
         self.voice_check = None  # audio/voicecheck.py: the wake word only counts in your voice
         self.voice_threshold = 0.5
+        # Takes what the speakers play (music, a video) out of a block; returns the very same
+        # block when it changed nothing (audio/bargein.py SpeakerEcho, set by the daemon).
+        self.clean = None
         self.last_score = 0.0
         self.reset()
 
@@ -77,11 +82,14 @@ class OpenWakeWord(WakeWordEngine):
         self.last_window = self._embeddings[-self._wake_frames :]
         self._steps = 0
         self._trying = False  # a near miss is going on right now
+        self._again = False  # ... and it is the second try
         self._tried_at: int | None = None  # the step the last near miss ended at
         self._first_try = self._try_best = 0.0  # the best score of the last and the current one
 
     def detect(self, block: bytes) -> bool:
-        audio = np.concatenate([self._pending, np.frombuffer(block, dtype=np.int16)])
+        cleaned = block if self.clean is None else self.clean(block)
+        over = " over the speakers' sound" if cleaned is not block else ""
+        audio = np.concatenate([self._pending, np.frombuffer(cleaned, dtype=np.int16)])
         usable = len(audio) // FRAME * FRAME
         self._pending = audio[usable:]
         heard, best, voice, again = False, 0.0, None, None
@@ -100,34 +108,37 @@ class OpenWakeWord(WakeWordEngine):
                     voice = max(voice or 0.0, self.voice_check.prob(self.last_window))
                     heard = voice >= self.voice_threshold
         if heard:
-            self._trying, self._tried_at = False, None
+            self._trying, self._tried_at, self._again = False, None, False
         if heard and again is not None:
-            log.info("Wake word on the second try (%.2f, then %.2f)", *again)
+            log.info("Wake word on the second try (%.2f, then %.2f)%s", *again, over)
         elif heard and voice is None:
-            log.info("Wake word score %.2f", best)
+            log.info("Wake word score %.2f%s", best, over)
         elif heard:
-            log.info("Wake word score %.2f (your voice %.2f)", best, voice)
+            log.info("Wake word score %.2f (your voice %.2f)%s", best, voice, over)
         elif voice is not None:
-            log.info("Wake word score %.2f, but it didn't sound like you (%.2f)", best, voice)
+            log.info(
+                "Wake word score %.2f, but it didn't sound like you (%.2f)%s", best, voice, over
+            )
         elif best >= self.threshold / 2:
-            log.info("Wake word near miss %.2f (needs %.2f)", best, self.threshold)
+            log.info("Wake word near miss %.2f (needs %.2f)%s", best, self.threshold, over)
         return heard
 
     def _second_try(self, score: float) -> bool:
-        """Follow near misses; True when this one is the second within REPEAT_SECONDS."""
-        if score < self.threshold * SECOND_TRY:
+        """Follow near misses; True while this one is the second within REPEAT_SECONDS (each of
+        its frames counts: your voice check may only be sure once more of it was heard)."""
+        share = SECOND_TRY if self.voice_check is None else SECOND_TRY_YOUR_VOICE
+        if score < self.threshold * share:
             if self._trying:  # that near miss is over
                 self._trying, self._tried_at = False, self._steps
-                self._first_try = self._try_best
+                self._first_try, self._again = self._try_best, False
             return False
         if self._trying:  # still the same one
             self._try_best = max(self._try_best, score)
-            return False
+            return self._again
         self._trying, self._try_best = True, score  # a new near miss starts
-        if self._tried_at is None:
-            return False
-        gap = (self._steps - self._tried_at) * STEP_SECONDS
-        return MIN_GAP_SECONDS <= gap <= REPEAT_SECONDS
+        gap = None if self._tried_at is None else (self._steps - self._tried_at) * STEP_SECONDS
+        self._again = gap is not None and MIN_GAP_SECONDS <= gap <= REPEAT_SECONDS
+        return self._again
 
     def step(self, frame: np.ndarray) -> float:
         """Process 80 ms (1280 samples) and return the wake word score."""

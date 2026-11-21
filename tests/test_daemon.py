@@ -612,3 +612,27 @@ def test_only_a_silent_mic_after_the_hotkey_is_reported():
     daemon._via_hotkey = True
     daemon._heard_nothing(5)
     assert daemon.speaker.said == [MIC_TOO_QUIET]
+
+
+def test_the_wake_word_hears_the_microphone_without_the_music():
+    class Engine:
+        clean = None
+
+        def detect(self, block):
+            return False
+
+    class Echo:
+        def __init__(self):
+            self.calls = []
+
+        def clean(self, block, arrival):
+            self.calls.append((block, arrival))
+            return b"cleaned"
+
+    engine, echo = Engine(), Echo()
+    daemon = Daemon(
+        Config(), StubRouter([]), FakeSpeaker(), speech_mic, engine, None, wake_echo=echo
+    )
+    daemon.mic = type("Mic", (), {"last_time": 42.0})()
+    assert engine.clean(b"block") == b"cleaned"
+    assert echo.calls == [(b"block", 42.0)]  # placed by when the block came from the mic
