@@ -368,6 +368,24 @@ microphone array): while the speakers played, the processed microphone fell to a
    moment of the second try may convince the voice check.
 4. The voice check should be taught again: it learned the processed microphone.
 
+### Story 61: Abdoh again (`story/61-abdoh-again`)
+
+The owner found Abdoh's wake word worked best for them, so Krekos is Abdoh again, with
+`assets/hey_abdoh.onnx` (the model Abdoh shipped before story 45), "hey abdoh", "ya abdoh".
+
+1. Everything you see or hear says Abdoh; `Abdoh.exe`, `Abdoh-Setup.exe`, `%APPDATA%\Abdoh`,
+   `~/.abdoh`. Config 9: Krekos's and Xanthos's wake words, spellings, model and log become
+   Abdoh's; settings from before the renames stay as they are.
+2. The folders come back (`rename.py`): Krekos's move to Abdoh's names and Xanthos's fill in.
+   An Abdoh folder left from before the renames (on the owner's laptop `~/.abdoh` held an old
+   Claude folder) is set aside as `...-before-krekos`, never mixed in, so the current Claude
+   sign-in and settings win. A mark in the folder keeps that from happening twice.
+3. The installer replaces Krekos (same AppId) and removes Krekos's and Xanthos's folders,
+   shortcuts, sign-in entries and tasks. Releases carry the installer as `Krekos-Setup.exe`
+   and `Xanthos-Setup.exe` too, for those versions' update checks.
+4. "Thanks Abdoh", "shut up Abdoh" accept abdo, abdu, abdou, abdoo and abdul.
+5. The voice check must be taught again (it's tied to the model).
+
 ### Story 60: The microphone as in 0.7.0 (`story/60-mic-as-in-0.7.0`)
 
 Over music, neither raw way worked well enough on the owner's laptop (the echo canceller takes
