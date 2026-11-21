@@ -375,3 +375,46 @@ def test_what_it_learned_about_the_room_outlasts_a_reply():
     feed_blocks(watch, [tone(0.1, 2).tobytes()] * 12)
     watch.idle()
     assert watch.echo_gain() < 0.01
+
+
+# ----- the wake word's own: music or a video playing while you call Krekos -----
+
+
+def test_while_nothing_plays_the_wake_word_gets_the_block_itself():
+    from abdoh.audio.bargein import SpeakerEcho
+
+    echo = SpeakerEcho(StillTap(0), PassThrough())
+    block = tone(0.1, 3000).tobytes()
+    assert echo.clean(block, 10.0) is block
+
+
+def test_music_the_mic_hears_is_taken_out():
+    from abdoh.audio.bargein import SpeakerEcho
+
+    echo = SpeakerEcho(StillTap(3000), PassThrough())  # music at 3000; you at 2000 over it
+    got = [echo.clean(tone(0.1, 5000).tobytes(), 10.0 + i * 0.1) for i in range(20)]
+    assert all(np.frombuffer(b, np.int16).tolist() == [2000] * 1600 for b in got)
+
+
+def test_music_in_headphones_leaves_the_mic_alone():
+    from abdoh.audio.bargein import SpeakerEcho
+
+    echo = SpeakerEcho(StillTap(3000), Muffler())  # plays loudly; the mic hears none of it
+    for i in range(12):
+        echo.clean(tone(0.1, 2).tobytes(), 10.0 + i * 0.1)
+    you = tone(0.1, 3000).tobytes()
+    assert echo.clean(you, 11.3) is you  # not muffled
+
+
+def test_the_wake_word_gets_an_echo_canceller_of_its_own(monkeypatch):
+    from abdoh.audio import echo
+    from abdoh.audio.bargein import SpeakerEcho
+    from abdoh.daemon import make_wake_echo
+
+    monkeypatch.setattr(echo, "EchoCanceller", PassThrough)
+    watch = VoiceWatch(StillTap(), PassThrough(), FakeVad())
+    wake = make_wake_echo(watch)
+    assert isinstance(wake, SpeakerEcho) and not isinstance(wake, VoiceWatch)
+    assert wake.tap is watch.tap and wake.canceller is not watch.canceller
+    assert make_wake_echo(None) is None
+    assert make_wake_echo(VoiceWatch(StillTap(), None, FakeVad())) is None
