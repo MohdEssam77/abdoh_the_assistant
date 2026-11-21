@@ -368,6 +368,14 @@ microphone array): while the speakers played, the processed microphone fell to a
    moment of the second try may convince the voice check.
 4. The voice check should be taught again: it learned the processed microphone.
 
+### Story 60: The microphone as in 0.7.0 (`story/60-mic-as-in-0.7.0`)
+
+Over music, neither raw way worked well enough on the owner's laptop (the echo canceller takes
+only about 8 dB of distorted laptop speakers out, so songs still woke Krekos and calls still
+missed), so everything about the microphone from stories 57 and 59 is undone: no raw stream, no
+echo canceller for the wake word, no `mic_raw`, and the voice check applies as before. The
+second-try change (story 57, step 3) and stories 58's several things at once stay.
+
 ### Story 59: Raw only for the wake word (`story/59-raw-only-for-the-wake-word`)
 
 With the whole microphone raw (0.7.1), the song's lyrics and Krekos's own voice reached it

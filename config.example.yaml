@@ -29,7 +29,6 @@ piper_voice_de: "de_DE-thorsten-medium" # Piper voice for German
 tts_rate: 175                    # speaking speed in words per minute
 tts_voice: ""                    # Windows voice (also stands in for Piper while a voice downloads); "" = default
 mic_device: ""                   # a microphone's name (pick one in the app); "" = Windows' default
-mic_raw: true                    # the wake word also hears the raw mic while music plays (the driver mutes the usual one)
 allow_run: false                 # let your commands run programs (the "run" action)
 check_updates: true              # look for a new version of Krekos once a day
 setup_done: false                # the first-start setup was finished or skipped

@@ -79,7 +79,6 @@ LABELS = {
     "tts_rate": "Voice speed",
     "tts_voice": "Voice",
     "mic_device": "Microphone",
-    "mic_raw": "Wake word over music",
     "whisper_model": "Speech recognition model",
     "languages": "Languages",
     "speech_engine": "Speech recognition",
