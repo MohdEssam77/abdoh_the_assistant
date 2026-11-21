@@ -250,3 +250,48 @@ def test_only_wake_word_requests_are_flagged():
     assert router.calls == [("play some jazz", False, True)]  # after the wake word: flagged
     daemon.handle_text("typed request")
     assert router.calls[-1] == ("typed request", False, False)  # typed: you meant it
+
+
+# ----- "shut up", "I'm not talking to you": over, silently -----
+
+DISMISSALS = [
+    "shut up",
+    "im not talking to you",
+    "i wasnt talking to you",
+    "not you",
+    "sorry not you",
+    "im talking to my friend",
+    "that wasnt for you",
+    "be quiet please",
+    "go away",
+    "leave me alone",
+]
+
+
+@pytest.mark.parametrize("said", DISMISSALS)
+def test_being_told_to_be_quiet_ends_it_silently(skills, said):
+    reply = skills.handle(said, said)
+    assert reply == "" and not isinstance(reply, (Done, Question))  # no words, no sound
+
+
+@pytest.mark.parametrize("said", DISMISSALS)
+def test_being_told_to_be_quiet_while_talking_stops_it(said):
+    from abdoh.local_skills import interruption_kind
+
+    assert interruption_kind(said) == "stop"
+
+
+@pytest.mark.parametrize("said", ["im talking to you", "pause", "go to sleep", "talk to you later"])
+def test_look_alikes_keep_their_meaning(skills, said):
+    from abdoh.local_skills import _DISMISS
+
+    assert not _DISMISS.fullmatch(said)
+
+
+def test_after_shut_up_it_doesnt_listen_for_more():
+    daemon, _ = daemon_for([iter(["OOP is about objects."]), ""])
+    daemon.handle_text("what is oop", voice=True)
+    assert daemon._awaiting_answer is True  # a conversation: it listens for more
+    daemon._awaiting_answer = False  # (the main loop takes it)
+    daemon.handle_text("shut up", voice=True, aside=True)
+    assert daemon._awaiting_answer is False and daemon.speaker.said == ["OOP is about objects."]

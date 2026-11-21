@@ -117,6 +117,19 @@ _HUSH = re.compile(
     r"|thats enough|be quiet|quiet|shut up|stop talking|stop it|pause|shh+|hush)"
     r"(?: (?:please|xanthos|zanthos|a second|a moment))?"
 )
+# "Shut up", "I'm not talking to you": the conversation is over, now, without a word, and
+# Xanthos goes back to waiting for its wake word. (Not "pause" or "stop listening": those do
+# other things.)
+_DISMISS = re.compile(
+    r"(?:(?:no|sorry|oh|okay|ok|hey|dude|bro|please|just) )*"
+    r"(?:shut up|shut it|be quiet|keep quiet|quiet|silence|stop talking|hush|shh+"
+    r"|(?:(?:im|i am|i was) not|i wasnt|im not|not) talking to you"
+    r"|(?:im|i am|i was) talking to (?:someone else|somebody else|my \w+|him|her|them)"
+    r"|(?:that|this|it) (?:wasnt|isnt|was not|is not) (?:for|to|meant for) you"
+    r"|not (?:you|for you|to you|now)|(?:nobody|no one) (?:asked|was talking to) you"
+    r"|i didnt ask you|go away|leave me alone|forget it|ignore (?:that|me|it|this))"
+    r"(?: (?:please|now|ok|okay|thanks|bro|dude|man))*"
+)
 _LOCK = re.compile(r"lock (?:my |the )?(?:computer|pc|laptop|screen|workstation)")
 # One app's volume in the mixer: "lower the browser", "set spotify to 20 percent".
 _APP = r"(?:the |my )?(?P<app>[a-z][a-z0-9 ]{1,30}?)(?: volume| sound| audio)?"
@@ -156,7 +169,7 @@ def interruption_kind(text: str) -> str:
         return "nothing"
     if _BACKCHANNEL.fullmatch(words):
         return "backchannel"
-    if _DONE.fullmatch(words) or _HUSH.fullmatch(words):
+    if _DONE.fullmatch(words) or _HUSH.fullmatch(words) or _DISMISS.fullmatch(words):
         return "stop"
     return "request"
 
@@ -246,7 +259,8 @@ class LocalSkills:
             reply = self._handle(request, original)
         except ActionError as e:
             return str(e)
-        if reply == "" and not isinstance(reply, Done) and not _DONE.fullmatch(request):
+        quiet = _DONE.fullmatch(request) or _DISMISS.fullmatch(request)
+        if reply == "" and not isinstance(reply, Done) and not quiet:
             return Done("")  # did something quietly (a media key, a window): the done sound
         return reply
 
@@ -256,6 +270,9 @@ class LocalSkills:
         if answer is not None:
             return answer
         if _DONE.fullmatch(request):
+            return ""
+        if _DISMISS.fullmatch(request):
+            log.info("Told to be quiet: back to waiting for the wake word")
             return ""
         if _REPEAT.fullmatch(request):
             return self._last_reply() or "I haven't said anything yet."
