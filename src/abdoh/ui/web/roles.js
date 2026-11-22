@@ -73,10 +73,10 @@
         el("div", { class: "board-head" }, el("b", {}, "Board"), el("div", { class: "spacer" }),
           items.length ? el("button", { class: "btn small", onclick: () => call("clear_board") }, "Clear") : null),
         el("div", { class: "board", id: "board" }, items.length
-          ? items.map((text) => Board.render(text))
+          ? items.map((card) => Board.render(card.text))
           : el("p", { class: "board-empty" }, "Code, equations and steps the role shows appear here."))) : null);
     const board = $("#board");
-    if (board && board.lastElementChild) board.lastElementChild.scrollIntoView({ block: "nearest" });
+    if (board) board.scrollTop = board.scrollHeight; // the newest (maybe still growing) at the bottom
   }
 
   function render() {

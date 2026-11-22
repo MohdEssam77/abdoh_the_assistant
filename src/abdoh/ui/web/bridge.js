@@ -61,9 +61,9 @@ const Bridge = (() => {
       { name: "Math teacher", phrases: ["math lesson"], instructions: "You are my patient math teacher. Explain step by step and check that I follow before going on. Put the worked steps on the board.", speed: "normal", answers: "long", board: true, saved: true },
     ];
     const demoBoard = [
-      "### Solving 2x + 3 = 11\n\n1. Take 3 from both sides: 2x = 8\n2. Divide both sides by 2: x = 4\n\n**Check:** 2 × 4 + 3 = 11 ✓",
-      "A loop that adds up the numbers:\n\n```python\ntotal = 0\nfor n in range(1, 5):\n    total += n\nprint(total)  # 10\n```",
-      "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |",
+      { id: 1, text: "### Solving 2x + 3 = 11\n\n1. Take 3 from both sides: 2x = 8\n2. Divide both sides by 2: x = 4\n\n**Check:** 2 × 4 + 3 = 11 ✓" },
+      { id: 2, text: "A loop that adds up the numbers:\n\n```python\ntotal = 0\nfor n in range(1, 5):\n    total += n\nprint(total)  # 10\n```" },
+      { id: 3, text: "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |" },
     ];
     const roleSuggestions = [
       { name: "German teacher", description: "Teaches you German slowly, in German, and corrects you kindly.", phrases: ["german lesson"], instructions: "You are my German teacher.", speed: "slow", answers: "long", board: true },
