@@ -40,7 +40,7 @@ abdoh = "abdoh.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"abdoh.ui" = ["web/*"]
+"abdoh.ui" = ["web/*", "web/vendor/katex/*", "web/vendor/katex/fonts/*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "abdoh.__version__" }
