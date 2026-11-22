@@ -4,6 +4,7 @@ pywebview shows the page with Windows' built-in WebView2 (Edge). Like the old tk
 only shows events and forwards requests; AppApi (abdoh.ui.api) is the page's only way in.
 """
 
+import hashlib
 import logging
 import shutil
 import sys
@@ -19,6 +20,16 @@ log = logging.getLogger(__name__)
 WEB_DIR = Path(__file__).resolve().parent / "web"
 INDEX = WEB_DIR / "index.html"
 STORAGE = Path.home() / ".abdoh" / "webview"  # the page's own small storage (e.g. the theme)
+
+
+def page_stamp(version: str, web_dir: Path = WEB_DIR) -> str:
+    """The version plus a fingerprint of the page's files: it changes with any change to the
+    page, also when running from source between releases (the version stays the same then)."""
+    digest = hashlib.sha1()
+    for path in sorted(p for p in web_dir.rglob("*") if p.is_file()):
+        digest.update(path.relative_to(web_dir).as_posix().encode("utf-8"))
+        digest.update(path.read_bytes())
+    return f"{version}+{digest.hexdigest()[:12]}"
 
 
 def forget_old_page(storage: Path, version: str) -> None:
@@ -202,7 +213,7 @@ class WebWindow:
     def mainloop(self) -> None:
         from abdoh import __version__
 
-        forget_old_page(STORAGE, __version__)
+        forget_old_page(STORAGE, page_stamp(__version__))
         gui = "edgechromium" if sys.platform == "win32" else None
         self._webview.start(self._pump, gui=gui, private_mode=False, storage_path=str(STORAGE))
         self._quitting.set()
