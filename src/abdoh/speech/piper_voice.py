@@ -19,6 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
+from abdoh.audio.devices import stream_closed, stream_opened
 from abdoh.speech.tts import Speaker, text_language
 
 log = logging.getLogger(__name__)
@@ -110,9 +111,33 @@ class SoundOutput:
     def open(self, rate: int):
         import sounddevice as sd
 
-        stream = sd.OutputStream(samplerate=rate, channels=1, dtype="int16", latency="low")
-        stream.start()
-        return stream
+        stream_opened()  # no device reload while it plays (audio/devices.py)
+        try:
+            stream = sd.OutputStream(samplerate=rate, channels=1, dtype="int16", latency="low")
+            stream.start()
+        except Exception:
+            stream_closed()
+            raise
+        return _Counted(stream)
+
+
+class _Counted:
+    """An output stream that tells audio/devices.py when it's closed."""
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._closed = False
+
+    def __getattr__(self, name):
+        return getattr(self._stream, name)
+
+    def close(self) -> None:
+        try:
+            self._stream.close()
+        finally:
+            if not self._closed:
+                self._closed = True
+                stream_closed()
 
 
 class PiperSpeaker(Speaker):

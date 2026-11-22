@@ -7,10 +7,13 @@ from collections import deque
 
 import numpy as np
 
+from abdoh.audio.devices import stream_closed, stream_opened
+
 log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 BYTES_PER_SECOND = SAMPLE_RATE * 2  # int16 mono
+NAME_LIMIT = 31  # the classic audio API cuts device names here
 
 
 class MicrophoneError(RuntimeError):
@@ -40,8 +43,15 @@ def input_devices(sd=None) -> list[dict]:
     ]
 
 
+def same_name(listed: str, wanted: str) -> bool:
+    """Is the microphone sounddevice lists as `listed` the one called `wanted`? Either may be
+    cut short: the classic audio API (what sounddevice lists) keeps 31 characters of a name,
+    Windows' own list (Settings) the whole name."""
+    return bool(wanted) and listed[:NAME_LIMIT].strip() == wanted[:NAME_LIMIT].strip()
+
+
 def find_input_device(name: str, sd=None) -> int | None:
-    """The device index for a microphone's name (from input_devices), or None (= the default)."""
+    """The device index for a microphone's name (full or cut short), or None (= the default)."""
     if not name:
         return None
     if sd is None:
@@ -50,10 +60,17 @@ def find_input_device(name: str, sd=None) -> int | None:
     default = sd.default.device[0]
     hostapi = devices[default]["hostapi"] if default is not None and default >= 0 else 0
     for i, d in enumerate(devices):
-        if d["name"] == name and d["max_input_channels"] > 0 and d["hostapi"] == hostapi:
+        if same_name(d["name"], name) and d["max_input_channels"] > 0 and d["hostapi"] == hostapi:
             return i
-    log.warning("Microphone %r not found; using the default microphone.", name)
+    log.warning("Microphone %r isn't connected; using the default microphone.", name)
     return None
+
+
+def _device_name(sd, index: int | None) -> str:
+    try:
+        return sd.query_devices(sd.default.device[0] if index is None else index)["name"]
+    except Exception:
+        return ""
 
 
 class Microphone:
@@ -73,22 +90,27 @@ class Microphone:
         self._queue: queue.Queue[tuple[bytes, float]] = queue.Queue()
         self._buffer: deque[bytes] = deque(maxlen=max(1, int(buffer_seconds / block_seconds)))
         self._stream = None
+        self.name = ""  # the microphone it opened (for the log)
 
     def start(self) -> None:
         import sounddevice as sd
 
+        stream_opened()  # no device reload while it's open
         try:
+            index = find_input_device(self.device, sd)
             self._stream = sd.RawInputStream(
                 samplerate=SAMPLE_RATE,
                 blocksize=int(SAMPLE_RATE * self.block_seconds),
                 dtype="int16",
                 channels=1,
                 callback=self._callback,
-                device=find_input_device(self.device, sd),
+                device=index,
             )
             self._stream.start()
+            self.name = _device_name(sd, index)
         except Exception as e:
             self._stream = None
+            stream_closed()
             raise MicrophoneError(f"Could not open microphone: {e}") from e
 
     def stop(self) -> None:
@@ -99,6 +121,7 @@ class Microphone:
             except Exception:
                 log.debug("Error closing mic stream", exc_info=True)
             self._stream = None
+            stream_closed()
 
     def __enter__(self) -> "Microphone":
         self.start()
