@@ -84,11 +84,39 @@ def speakable(
     allowed: Iterable[str] = tuple(ACTION_HELP),
     on_board: Callable[[str], None] | None = None,
 ) -> Iterator[str]:
-    """Yield sentences to speak from streamed text; call on_action(kind, arg) for action lines
-    and on_board(text) for what's between [board] and [/board] (shown, never spoken)."""
+    """Yield sentences to speak from streamed text; call on_action(kind, arg) for action lines.
+
+    What's between [board] and [/board] is shown, never spoken: on_board(text) gets this reply's
+    board so far each time a line is added, so it fills in live. The text is read only as fast
+    as the sentences before it are spoken, so a part written just before Claude talks about it
+    shows up just as Abdoh starts saying it. All the parts of one reply make one board."""
     allowed = set(allowed)
-    board: list[str] | None = None  # the lines so far, while on the board
+    board: list[str] | None = None  # the open part's lines, while on the board
+    parts: list[str] = []  # this reply's finished parts
+    shown = ""  # what on_board was last given
     buffer = ""
+
+    def show() -> None:
+        nonlocal shown
+        current = "\n".join(board or []).strip("\n")
+        text = "\n\n".join(p for p in (*parts, current) if p.strip())
+        if text == shown:
+            return
+        if on_board is None:
+            if not shown:
+                log.info("Claude wrote for the board, but there's no board here: not spoken")
+        else:
+            on_board(text)
+        shown = text
+
+    def close() -> None:
+        nonlocal board
+        part = "\n".join(board or []).strip("\n")
+        board = None
+        if part.strip():
+            parts.append(part)
+            log.info("On the board: %d lines", part.count("\n") + 1)
+        show()
 
     def out(line: str) -> Iterator[str]:
         nonlocal board
@@ -102,10 +130,10 @@ def speakable(
         end = line.lower().find(BOARD_END)
         if end < 0:
             board.append(line)
+            show()
             return
         board.append(line[:end])
-        _show(board, on_board)
-        board = None
+        close()
         yield from out(line[end + len(BOARD_END) :])  # words after it are spoken
 
     for chunk in chunks:
@@ -122,18 +150,7 @@ def speakable(
     if buffer.strip():
         yield from out(buffer)
     if board is not None:
-        _show(board, on_board)  # never closed: still shown, never spoken
-
-
-def _show(lines: list[str], on_board) -> None:
-    text = "\n".join(lines).strip("\n")
-    if not text.strip():
-        return
-    if on_board is None:
-        log.info("Claude wrote for the board, but there's no board here: not spoken")
-        return
-    log.info("On the board: %d lines", text.count("\n") + 1)
-    on_board(text)
+        close()  # never closed: still shown, never spoken
 
 
 def _line(line: str, on_action, allowed: set[str]) -> Iterator[str]:

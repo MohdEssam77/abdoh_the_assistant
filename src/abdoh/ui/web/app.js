@@ -477,9 +477,13 @@ function setMode(name) {
   $("#mode-chip-name").textContent = App.mode ? `${App.mode} mode` : "";
 }
 
-/* The board (Act as): a role's code, equations and steps; null clears it. */
-function addToBoard(text) {
-  App.board = text == null ? [] : [...(App.board || []), String(text)].slice(-30);
+/* The board (Act as): a role's code, equations and steps as cards {id, text}, one per answer;
+   the newest grows while Claude writes it (same id: replaced). null clears it. */
+function addToBoard(card) {
+  const board = App.board || [];
+  if (card == null) App.board = [];
+  else if (board.length && board[board.length - 1].id === card.id) App.board = [...board.slice(0, -1), card];
+  else App.board = [...board, card].slice(-30);
   if (window.Roles) window.Roles.board();
 }
 

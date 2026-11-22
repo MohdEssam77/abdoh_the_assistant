@@ -16,8 +16,11 @@ BOARD = (
     " You can show things on Abdoh's board (the user sees it in Abdoh's window): code, "
     "equations, worked steps, tables, word lists, anything better seen than heard. Put it "
     "between a line [board] and a line [/board]; inside, use Markdown (headings, lists, tables, "
-    "code blocks) and write math with plain symbols (x², √, ½, ×, ÷, ≤). The board is shown, "
-    "never read aloud: speak the explanation and refer to the board, never read it out."
+    "code blocks) and write math with plain symbols (x², √, ½, ×, ÷, ≤). Build the board as you "
+    "talk: put each part (a step, a few lines of code) on the board right before you talk about "
+    "it, then the next part; the parts of one answer fill one board, live, while the user "
+    "listens. The board is shown, never read aloud: speak the explanation and refer to the "
+    "board, never read it out."
 )
 
 

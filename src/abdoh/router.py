@@ -4,6 +4,7 @@ A reply is a string, or (for Claude) an iterator of sentences that arrive while 
 answering; the daemon speaks each one as soon as it comes.
 """
 
+import itertools
 import logging
 import re
 import time
@@ -162,7 +163,9 @@ class Router:
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
-        self.on_board: Callable[[str], None] | None = None  # shows what a role puts on the board
+        # Shows what a role puts on the board: (card, text so far), one card per reply.
+        self.on_board: Callable[[int, str], None] | None = None
+        self._cards = itertools.count(1)
         self.last_turn: ClaudeTurn | None = None
         self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
@@ -446,6 +449,13 @@ class Router:
         self.on_thinking()
         return self._stream(self.brain, prompt, request, screen, aside, answer=bool(question))
 
+    def _board(self) -> Callable[[str], None] | None:
+        """A new card on the board for one reply: it grows while Claude writes it."""
+        if self.on_board is None:
+            return None
+        card, show = next(self._cards), self.on_board
+        return lambda text: show(card, text)
+
     def _stream(
         self,
         brain,
@@ -502,7 +512,7 @@ class Router:
         try:
             image = self._capture() if screen else None
             chunks = brain.stream(prompt, image)
-            for sentence in speakable(chunks, act, allowed=allowed, on_board=self.on_board):
+            for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
                 if turn.ignored:
                     break  # not for Abdoh: nothing is said
                 yield from _drain(problems)
@@ -518,7 +528,7 @@ class Router:
                 follow_up = skills.look_follow_up(request, window.title, window.program)
                 chunks = brain.stream(follow_up, image)
                 allowed = self.cfg.claude.actions
-                for sentence in speakable(chunks, act, allowed=allowed, on_board=self.on_board):
+                for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
                     yield from _drain(problems)
                     spoken.append(sentence)
                     yield sentence

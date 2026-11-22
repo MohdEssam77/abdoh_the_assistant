@@ -538,7 +538,9 @@ teacher, Math teacher, Programming teacher). Each role has:
 - **Answers**: short as usual, longer (up to 5 sentences) or long (up to 10), for explanations.
 - **Board**: the role can show what's better seen than heard (code, worked math steps, tables,
   word lists) on the **board** at the top of the Act as page, and Abdoh's window comes up when
-  something new is on it. It's never read aloud: Abdoh explains and refers to it. Code has a
+  something new is on it. It fills in live while Abdoh talks: each step appears as Abdoh starts
+  explaining it, and one answer is one card. It's never read aloud: Abdoh explains and refers to
+  it. Code has a
   **Copy** button; **Clear** empties the board, and a new role starts with a clean one. Math is
   written with plain symbols (x², √, ½).
 
