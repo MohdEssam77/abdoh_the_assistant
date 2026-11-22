@@ -1,5 +1,10 @@
-"""Keeps listening: an answer that came out as no words is listened for again, and while a role
-is on Abdoh hears you without the wake word (you just talk) until you tell it not to."""
+"""Keeps listening: an answer that came out as no words is listened for again, and in a lesson
+(a role is on, the window is open, the board shows something, you're talking with Abdoh) it hears
+you without the wake word (you just talk) until you tell it not to."""
+
+import sys
+import time
+import types
 
 from fakes import FakeMic, FakeTranscriber, FakeWakeWord, silent_block, tone_block
 from test_router import FakeAct, FakeBrain
@@ -130,26 +135,77 @@ def make_daemon(tmp_path):
     return daemon, bus
 
 
-def test_abdoh_hears_you_start_talking_while_a_role_is_on(tmp_path):
-    daemon, _ = make_daemon(tmp_path)
-    assert [daemon._hear(TONE) for _ in range(3)] == [False] * 3  # no role: the wake word
-    daemon.acting.start("Math teacher")
+def in_lesson(daemon) -> None:
+    """The math lesson: the role is on, the window open, steps on the board, you just talked."""
+    if daemon.acting.current is None:
+        daemon.acting.start("Math teacher")
+    daemon.handle_request("window_open", True)
+    daemon._board_shown = True
+    daemon._last_exchange = time.monotonic()
     daemon._hear_from = 0  # Abdoh hasn't just spoken
+
+
+def test_abdoh_hears_you_start_talking_in_a_lesson(tmp_path):
+    daemon, _ = make_daemon(tmp_path)
+    in_lesson(daemon)
     assert [daemon._hear(TONE) for _ in range(3)] == [False, False, True]  # 0.3 s in a row
+
+
+def test_a_role_alone_is_not_a_lesson(tmp_path):
+    daemon, _ = make_daemon(tmp_path)
+    daemon.acting.start("Math teacher")  # nothing explained, nothing on the board
+    daemon.handle_request("window_open", True)
+    daemon._last_exchange = time.monotonic()
+    daemon._hear_from = 0
+    assert not any(daemon._hear(TONE) for _ in range(5))  # the wake word, as usual
+
+
+def test_only_while_the_lesson_goes_on(tmp_path):
+    daemon, bus = make_daemon(tmp_path)
+
+    def hears() -> bool:
+        daemon._hear_from = 0
+        return any(daemon._hear(TONE) for _ in range(5))
+
+    in_lesson(daemon)
+    assert hears()
+    daemon.handle_request("window_open", False)  # hidden in the tray, or minimized
+    assert not hears()
+    in_lesson(daemon)
+    daemon.handle_request("board_cleared")  # nothing on the board
+    assert not hears()
+    in_lesson(daemon)
+    daemon._last_exchange = time.monotonic() - daemon.LESSON_QUIET_SECONDS - 1  # 2 quiet minutes
+    assert not hears()
+    in_lesson(daemon)
+    daemon.acting.start("a pirate")  # a new role: a clean board
+    assert not hears()
+    events = [value for kind, value in bus.pending_events() if kind == "listening"]
+    assert {"on": True, "now": True} in events and events[-1] == {"on": True, "now": False}
+
+
+def test_the_board_and_talking_make_a_lesson(tmp_path):
+    daemon, _ = make_daemon(tmp_path)
+    daemon._pause = lambda seconds: None
+    daemon.acting.start("Math teacher")
+    daemon.handle_request("window_open", True)
+    daemon.router.on_board(1, "x = 4")  # it explained something on the board
+    assert daemon._board_shown and not daemon.keeps_listening()  # but you haven't talked yet
+    daemon.router.handle = lambda text, **kw: ""
+    daemon.handle_text("go on")
+    assert daemon.keeps_listening()
 
 
 def test_a_click_or_a_cough_is_not_talking(tmp_path):
     daemon, _ = make_daemon(tmp_path)
-    daemon.acting.start("Math teacher")
-    daemon._hear_from = 0
+    in_lesson(daemon)
     heard = [daemon._hear(block) for block in (TONE, TONE, QUIET, TONE, QUIET, TONE, TONE, TONE)]
     assert heard == [False] * 7 + [True]
 
 
 def test_never_while_abdoh_talks_nor_just_after(tmp_path):
     daemon, _ = make_daemon(tmp_path)
-    daemon.acting.start("Math teacher")
-    daemon._hear_from = 0
+    in_lesson(daemon)
     with daemon._handle_lock:  # answering (a typed request, a reminder)
         assert not any(daemon._hear(TONE) for _ in range(5))
     assert not any(daemon._hear(TONE) for _ in range(5))  # its own voice dies away first
@@ -161,18 +217,17 @@ def test_never_while_abdoh_talks_nor_just_after(tmp_path):
 
 def test_not_after_you_said_to_stop_listening(tmp_path):
     daemon, bus = make_daemon(tmp_path)
-    daemon.acting.start("Math teacher")
+    in_lesson(daemon)
     daemon.acting.set_listening(False)
-    daemon._hear_from = 0
     assert not any(daemon._hear(TONE) for _ in range(5))
-    assert ("listening", True) in bus.pending_events()  # the role started: listening
+    assert bus.pending_events()[-1] == ("listening", {"on": False, "now": False})
     daemon.acting.set_listening(True)
-    assert bus.pending_events()[-1] == ("listening", True)
+    assert bus.pending_events()[-1] == ("listening", {"on": True, "now": True})
 
 
 def test_no_answer_window_or_chime_while_it_keeps_listening(tmp_path):
     daemon, _ = make_daemon(tmp_path)
-    daemon.acting.start("Math teacher")
+    in_lesson(daemon)
     daemon._listen_for_more("Which half do we keep?")
     assert daemon._awaiting_answer is False  # it hears you anyway
     daemon.acting.set_listening(False)
@@ -182,8 +237,7 @@ def test_no_answer_window_or_chime_while_it_keeps_listening(tmp_path):
 
 def test_what_you_say_goes_to_claude_as_maybe_for_someone_else(tmp_path):
     daemon, _ = make_daemon(tmp_path)
-    daemon.acting.start("Math teacher")
-    daemon._hear_from = 0
+    in_lesson(daemon)
     daemon.transcriber = FakeTranscriber(["Twelve is smaller."])
     handled = []
     daemon.handle_text = lambda text, voice=False, aside=False, woken=False: handled.append(
@@ -232,8 +286,8 @@ def test_claude_stops_the_listening_and_the_role_stays(tmp_path):
 
 def test_the_window_shows_it_and_its_button_switches_it(tmp_path):
     state = UiState()
-    state.feed("listening", True)
-    assert state.snapshot()["listening"] is True
+    state.feed("listening", {"on": True, "now": False})
+    assert state.snapshot()["listening"] == {"on": True, "now": False}
     bus = Bus()
     AppApi(bus, state, Config(app_dir=tmp_path)).keep_listening(False)
     requests = iter(lambda: bus.next_request(0), None)
@@ -252,3 +306,56 @@ def test_the_hearing_detector_has_its_own_state():
     vad = SileroVad(session=model)
     other = vad.fresh()
     assert other is not vad and other._session is model and other._h is not vad._h
+
+
+def test_clearing_the_board_tells_abdoh(tmp_path):
+    bus = Bus()
+    AppApi(bus, UiState(), Config(app_dir=tmp_path)).clear_board()
+    assert bus.next_request(0) == ("board_cleared", None)
+
+
+class FakeEvent:
+    def __init__(self):
+        self.handlers = []
+
+    def __iadd__(self, handler):
+        self.handlers.append(handler)
+        return self
+
+    def fire(self):
+        for handler in self.handlers:
+            handler()
+
+
+class FakePywebviewWindow:
+    def __init__(self):
+        names = ("closing", "minimized", "restored", "maximized")
+        self.events = types.SimpleNamespace(**{name: FakeEvent() for name in names})
+
+    def show(self):
+        pass
+
+    def hide(self):
+        pass
+
+    def restore(self):
+        pass
+
+
+def test_the_window_tells_abdoh_when_it_is_open(tmp_path, monkeypatch):
+    fake = types.ModuleType("webview")
+    fake.create_window = lambda *args, **kwargs: FakePywebviewWindow()
+    monkeypatch.setitem(sys.modules, "webview", fake)
+    from abdoh.ui.app import WebWindow
+
+    bus = Bus()
+    window = WebWindow(bus, Config(app_dir=tmp_path), start_hidden=True)
+    window.show()
+    window.window.events.minimized.fire()
+    window.window.events.restored.fire()
+    window.window.events.maximized.fire()  # already open: nothing new
+    window.hide()  # closed to the tray
+    requests = iter(lambda: bus.next_request(0), None)
+    assert [value for kind, value in requests if kind == "window_open"] == [
+        False, True, False, True, False,
+    ]  # fmt: skip

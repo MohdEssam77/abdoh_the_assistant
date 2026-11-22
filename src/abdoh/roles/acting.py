@@ -13,8 +13,9 @@ log = logging.getLogger(__name__)
 _ARTICLE = re.compile(r"^(?:my|a|an|the)\s+", re.IGNORECASE)
 # For Claude, while a role is on: Abdoh keeps listening (ACTION listen, see claude/reply.py).
 LISTENING = (
-    " Abdoh keeps listening while this role is on: the user needn't say the wake word, and what "
-    "they say may be meant for someone else in the room. When they want Abdoh to stop listening "
+    " While you explain on the board and the user talks with you, Abdoh keeps listening: the "
+    "user needn't say the wake word, and what they say may be meant for someone else in the "
+    "room. When they want Abdoh to stop listening "
     '(in any words: "you can stop listening", "I\'ll call you when I need you"), add the line '
     "ACTION listen: off (the role stays on)."
 )
@@ -49,7 +50,8 @@ BOARD = (
 class Acting:
     """`roles()` lists your roles (the store's load); `on_change(role or None)` is told when a
     role starts or ends (the voice's speed, the window). While a role is on, Abdoh keeps
-    listening without the wake word until you say not to; `on_listening(on)` is told."""
+    listening without the wake word in a lesson (see Daemon.keeps_listening) unless you said not
+    to; `on_listening(on)` is told when you switch that."""
 
     def __init__(
         self,

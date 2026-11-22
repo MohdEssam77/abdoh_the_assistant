@@ -65,6 +65,9 @@ class Daemon:
     # (a cough or a click is shorter), and not until Abdoh's own voice has died away.
     HEAR_ONSET_SECONDS = 0.3
     HEAR_AFTER_SPEAKING_SECONDS = 0.8
+    # A lesson goes on while you talk with Abdoh: after this long without a word, it's over and
+    # the wake word is needed again (the role stays on).
+    LESSON_QUIET_SECONDS = 120.0
 
     def __init__(
         self,
@@ -111,6 +114,12 @@ class Daemon:
         self._hearing = False  # ... and it's hearing now
         self._heard_for = 0.0  # seconds of speech in a row so far
         self._hear_from = 0.0  # not before this (time.monotonic): Abdoh's voice dies away
+        # A lesson (see keeps_listening): the window is open, the board shows something, and
+        # when you last talked with Abdoh.
+        self._window_open = False
+        self._board_shown = False
+        self._last_exchange = float("-inf")
+        self._listening_now = False  # ... so Abdoh keeps listening right now (as last told)
         self.stop_event = threading.Event()
         self.mic = None  # the open microphone
         self._reopen_mic = threading.Event()  # a new microphone was chosen
@@ -494,6 +503,7 @@ class Daemon:
             self._watching = False
             self._spoke = self._answered = False
             self._request = text
+            self._last_exchange = time.monotonic()  # you're talking with Abdoh
             log.info("You: %s", text)
             self.bus.emit("history", f"You: {text}")
             self.bus.emit("status", "Thinking...")
@@ -805,6 +815,10 @@ class Daemon:
             self._switch_mode(str(value or ""))
         elif kind == "role":  # the window: a role's name, or "" to stop acting
             self._switch_role(str(value or ""))
+        elif kind == "window_open":  # the window was shown, or hidden (or minimized)
+            self._window_open = bool(value)
+        elif kind == "board_cleared":  # the Act as page's Clear button
+            self._board_shown = False
         elif kind == "keep_listening":  # the Act as page: listen without the wake word or not
             if self.acting is not None:
                 self.acting.set_listening(bool(value))
@@ -970,7 +984,8 @@ class Daemon:
                 log.exception("Couldn't change the voice speed")
         self.bus.emit("board", None)  # a new role (or none): a clean board
         self.bus.emit("role", role.name if role is not None else "")
-        self.bus.emit("listening", self.keeps_listening())
+        self._board_shown = False
+        self._show_listening()
 
     # The page writes the board out at about this many characters a second (board.js); Abdoh
     # waits as long (at most BOARD_WAIT_MAX per line) before speaking on, like a teacher who
@@ -989,6 +1004,7 @@ class Daemon:
             self.bus.emit("show")
             self.bus.emit("page", "roles")
         self._board_text = text
+        self._board_shown = True
         self._pause(min(len(new) / self.BOARD_CHARS_PER_SECOND, self.BOARD_WAIT_MAX))
 
     def _pause(self, seconds: float) -> None:
@@ -1029,11 +1045,34 @@ class Daemon:
         self.bus.emit("status", "Error: microphone not available, retrying")
         self.stop_event.wait(self.mic_retry_seconds)
 
-    # ----- keeps listening (a role is on): you just talk, no wake word -----
+    # ----- keeps listening in a lesson: you just talk, no wake word -----
 
     def keeps_listening(self) -> bool:
+        """In a lesson, Abdoh hears you without the wake word: a role is on (and you didn't say
+        to stop listening), Abdoh's window is open, the board shows something, and you talked
+        with Abdoh in the last LESSON_QUIET_SECONDS. Otherwise, as usual: the wake word."""
         acting = self.acting
-        return bool(acting is not None and acting.keeps_listening)
+        return bool(
+            acting is not None
+            and acting.keeps_listening
+            and self._window_open
+            and self._board_shown
+            and time.monotonic() - self._last_exchange < self.LESSON_QUIET_SECONDS
+        )
+
+    def _show_listening(self) -> None:
+        """Tell the window: listening without the wake word in lessons (on), and right now."""
+        acting = self.acting
+        now = self.keeps_listening()
+        if now != self._listening_now:
+            log.info(
+                "In a lesson: listening without the wake word"
+                if now
+                else "No lesson going on: the wake word again"
+            )
+        self._listening_now = now
+        on = bool(acting is not None and acting.keeps_listening)
+        self.bus.emit("listening", {"on": on, "now": now})
 
     def _hearing_vad(self):
         if self._hear_vad is None and self.vad is not None:
@@ -1045,7 +1084,9 @@ class Daemon:
         """Every microphone block while waiting for the wake word: True when you started talking
         while Abdoh keeps listening. Never while Abdoh talks, nor just after (its own voice)."""
         now = time.monotonic()
-        if self.paused or self._handle_lock.locked() or not self.keeps_listening():
+        if self.keeps_listening() != self._listening_now:
+            self._show_listening()  # a lesson began or ended (the window, the board, quiet)
+        if self.paused or self._handle_lock.locked() or not self._listening_now:
             self._hearing, self._heard_for = False, 0.0
             self._hear_from = now + self.HEAR_AFTER_SPEAKING_SECONDS
             return False
@@ -1073,6 +1114,7 @@ class Daemon:
         """You started talking while Abdoh keeps listening: hear you out (no chime: you're
         already talking)."""
         self._via_speech = True
+        self._last_exchange = time.monotonic()
         self._warm_speech()
         self._duck()
         self._recording = True
@@ -1080,7 +1122,7 @@ class Daemon:
         self.bus.emit("status", "Listening to you...")
 
     def _listening_changed(self, on: bool) -> None:
-        self.bus.emit("listening", on)
+        self._show_listening()
 
     def _on_wake(self) -> None:
         self._warm_speech()  # back in memory by the time you've finished talking
