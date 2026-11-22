@@ -11,6 +11,14 @@ from abdoh.roles.model import RESERVED, Role, RolesFileError
 log = logging.getLogger(__name__)
 
 _ARTICLE = re.compile(r"^(?:my|a|an|the)\s+", re.IGNORECASE)
+# For Claude, while a role that may use the board is on (claude/reply.py reads the markers).
+BOARD = (
+    " You can show things on Abdoh's board (the user sees it in Abdoh's window): code, "
+    "equations, worked steps, tables, word lists, anything better seen than heard. Put it "
+    "between a line [board] and a line [/board]; inside, use Markdown (headings, lists, tables, "
+    "code blocks) and write math with plain symbols (x², √, ½, ×, ÷, ≤). The board is shown, "
+    "never read aloud: speak the explanation and refer to the board, never read it out."
+)
 
 
 class Acting:
@@ -77,4 +85,6 @@ class Acting:
         sentences = role.sentences(usual_sentences)
         if sentences != usual_sentences:
             text += f" (answers may be up to {sentences} sentences)"
+        if role.board:
+            text += BOARD
         return text

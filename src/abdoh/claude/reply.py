@@ -57,6 +57,8 @@ ANSWER = "answer"
 ROLE = "role"
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
+# What a role shows instead of saying (code, equations, steps): between these, never spoken.
+BOARD_START, BOARD_END = "[board]", "[/board]"
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 _URL = re.compile(r"https?://\S+")
 
@@ -80,21 +82,58 @@ def speakable(
     chunks: Iterable[str],
     on_action: Callable[[str, str], None],
     allowed: Iterable[str] = tuple(ACTION_HELP),
+    on_board: Callable[[str], None] | None = None,
 ) -> Iterator[str]:
-    """Yield sentences to speak from streamed text; call on_action(kind, arg) for action lines."""
+    """Yield sentences to speak from streamed text; call on_action(kind, arg) for action lines
+    and on_board(text) for what's between [board] and [/board] (shown, never spoken)."""
     allowed = set(allowed)
+    board: list[str] | None = None  # the lines so far, while on the board
     buffer = ""
+
+    def out(line: str) -> Iterator[str]:
+        nonlocal board
+        if board is None:
+            at = line.lower().find(BOARD_START)
+            if at < 0:
+                yield from _line(line, on_action, allowed)
+                return
+            yield from _line(line[:at], on_action, allowed)  # words before it are spoken
+            board, line = [], line[at + len(BOARD_START) :]
+        end = line.lower().find(BOARD_END)
+        if end < 0:
+            board.append(line)
+            return
+        board.append(line[:end])
+        _show(board, on_board)
+        board = None
+        yield from out(line[end + len(BOARD_END) :])  # words after it are spoken
+
     for chunk in chunks:
         buffer += chunk
         while "\n" in buffer:
             line, buffer = buffer.split("\n", 1)
-            yield from _line(line, on_action, allowed)
-        if buffer and not _maybe_action(buffer):
+            yield from out(line)
+        # Speak finished sentences of an unfinished line, unless it may still become an action
+        # line or a board marker ("[" is rare in speech: wait for the whole line).
+        if buffer and board is None and "[" not in buffer and not _maybe_action(buffer):
             *done, buffer = _SENTENCE_END.split(buffer)
             for sentence in done:
                 yield from _speech(sentence)
     if buffer.strip():
-        yield from _line(buffer, on_action, allowed)
+        yield from out(buffer)
+    if board is not None:
+        _show(board, on_board)  # never closed: still shown, never spoken
+
+
+def _show(lines: list[str], on_board) -> None:
+    text = "\n".join(lines).strip("\n")
+    if not text.strip():
+        return
+    if on_board is None:
+        log.info("Claude wrote for the board, but there's no board here: not spoken")
+        return
+    log.info("On the board: %d lines", text.count("\n") + 1)
+    on_board(text)
 
 
 def _line(line: str, on_action, allowed: set[str]) -> Iterator[str]:
