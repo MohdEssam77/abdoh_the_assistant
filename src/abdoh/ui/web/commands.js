@@ -154,6 +154,7 @@
 
   registerPage("commands", {
     boot() { bind(); },
+    event(kind) { if (kind === "commands" && $("#page-commands").classList.contains("active")) load(); },
     async show() {
       await load();
       const open = App.demo && new URLSearchParams(location.search).get("open");  // for screenshots

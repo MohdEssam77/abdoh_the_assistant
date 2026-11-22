@@ -66,8 +66,9 @@ def test_prompt_offers_only_the_allowed_actions():
 def test_prompt_without_any_actions():
     text = system_prompt(cfg_with(actions=[], allow_screen=False))
     lines = [line for line in text.splitlines() if line.startswith("ACTION")]
-    # roles and memory aren't things done on the computer
+    # roles, memory and Abdoh's own commands, modes and roles aren't things done on the computer
     kept = ("ACTION role:", "ACTION remember:", "ACTION lesson:", "ACTION forget:")
+    kept += ("ACTION save_item:", "ACTION delete_item:", "ACTION undo_change:")
     assert all(line.startswith(kept) for line in lines)
     assert NO_ACTIONS.split(":")[0] in text  # roles aren't things done on the computer
 
@@ -279,7 +280,8 @@ def test_claude_is_told_your_modes_and_screens(tmp_path):
     assert "The user's modes: Movie." in text
     assert "Their screens: 1 Laptop screen, 2 HP 32f (TV)." in text
     assert "ACTION displays:" in text and "ACTION mode:" in text
-    off = system_prompt(Config(app_dir=tmp_path, claude=ClaudeConfig(actions=["open_url"])))
+    claude = ClaudeConfig(actions=["open_url"], allow_self_edit=False)  # (self-editing lists them)
+    off = system_prompt(Config(app_dir=tmp_path, claude=claude))
     assert "Movie" not in off and "HP 32f" not in off
 
 

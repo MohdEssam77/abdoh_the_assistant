@@ -375,6 +375,10 @@
       if (open === "templates") openTemplates();
       if (open === "keep" && state.modes.length) keepOrGoBack(state.modes[0]);
     },
-    event(kind) { if (kind === "mode" && $("#page-modes").classList.contains("active")) render(); },
+    event(kind) {
+      if (!$("#page-modes").classList.contains("active")) return;
+      if (kind === "mode") render();
+      else if (kind === "modes") load();  // Abdoh changed one when you asked
+    },
   });
 })();

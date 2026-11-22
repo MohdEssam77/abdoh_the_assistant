@@ -131,6 +131,16 @@ class RoleStore:
         self._write(items)
         return parse_role(item)
 
+    def save_item(self, item) -> Role:
+        """Add a role given as a roles.yaml item, or replace the one with its name (Abdoh
+        changing its own roles). The same checks as the app's."""
+        role = parse_role(item)
+        return self.save(as_form(role), role.name)
+
+    def items(self) -> list[dict]:
+        """The roles as roles.yaml items."""
+        return self._items()
+
     def delete(self, name: str) -> None:
         self._write([it for it in self._items() if it["name"].lower() != name.lower()])
 

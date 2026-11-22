@@ -561,6 +561,23 @@ page shows the role that's on, with a way to stop it. Commands can use `role: Ge
 (or `role: off`), and a mode can start a role (its `role` setting), which ends with the mode.
 A role ends when Abdoh quits. Roles live in `roles.yaml` in Abdoh's data folder.
 
+### Abdoh changes its own commands, modes and roles
+
+Ask, and Claude makes, changes or deletes your commands, modes and roles: "make a command called
+good evening that locks the screen", "add Discord to work mode", "make a study mode with screens
+2 and 3", "delete the movie mode", "make the German teacher speak faster". When something's
+missing (what should start it, which screens or apps), Claude asks one short question; it
+fills in names, icons and obvious details itself. Then Abdoh says what it changed ("Saved the
+command Good evening.") and the page shows it at once.
+
+- Every change goes through the same checks as the Commands, Modes and Act as pages, so it
+  can't break a file. An app that isn't installed is named back ("I can't find an app called
+  Spotfy"), and `run:` steps need **Your commands may run programs** (`allow_run`).
+- **"Undo that"** puts the file back exactly as it was (the last 10 changes since Abdoh
+  started).
+- Permissions → **Change its own commands, modes and roles** (`claude.allow_self_edit`) turns it
+  off.
+
 ### Memory
 
 Abdoh remembers things about you across conversations. Tell it ("my sister is called Lina",
@@ -741,6 +758,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
 | `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it |
+| `claude.allow_self_edit` | `true` | Let Claude make, change and delete your commands, modes and roles when you ask ("undo that" puts it back) |
 | `claude.actions` | all fourteen | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note`, `mode`, `displays`, `audio_output`, `dark_mode` |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
