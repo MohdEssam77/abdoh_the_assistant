@@ -40,7 +40,7 @@ def test_the_board_is_shown_and_not_said():
         "So x is four.",
     ])  # fmt: skip
     assert spoken == ["Let's solve it together.", "So x is four."]
-    assert shown == ["2x + 3 = 11\n2x = 8\nx = 4"]
+    assert shown == ["2x + 3 = 11", "2x + 3 = 11\n2x = 8", "2x + 3 = 11\n2x = 8\nx = 4"]  # live
 
 
 def test_markers_split_across_streamed_chunks():
@@ -52,12 +52,35 @@ def test_markers_split_across_streamed_chunks():
 def test_a_board_that_never_closes_is_still_shown_not_said():
     spoken, shown = run(["Look at this.\n[board]\n```python\nx = 1\n```"])
     assert spoken == ["Look at this."]
-    assert shown == ["```python\nx = 1\n```"]
+    assert shown[-1] == "```python\nx = 1\n```"
 
 
-def test_several_boards_in_one_reply():
+def test_the_parts_of_one_reply_make_one_board():
     spoken, shown = run(["[board]\na\n[/board]\nThen.\n[BOARD]\nb\n[/BOARD]\n"])
-    assert spoken == ["Then."] and shown == ["a", "b"]
+    assert spoken == ["Then."] and shown == ["a", "a\n\nb"]
+
+
+def test_the_board_fills_in_while_abdoh_talks():
+    """Each part shows up right after the sentence before it is spoken, not when Claude's
+    whole answer is done (the reply is read only as fast as it is spoken)."""
+    happened = []
+    chunks = [
+        "Here's the formula.\n[board]\n",
+        "x = (−b ± √(b² − 4ac)) / 2a\n",
+        "[/board]\nFirst, find a, b and c.\n[board]\na = 1, b = −1, c = −13\n[/board]\n",
+        "Then put them in.",
+    ]
+    board = lambda text: happened.append(("board", text))  # noqa: E731
+    for sentence in speakable(iter(chunks), lambda kind, arg: None, on_board=board):
+        happened.append(("say", sentence))
+    formula = "x = (−b ± √(b² − 4ac)) / 2a"
+    assert happened == [
+        ("say", "Here's the formula."),
+        ("board", formula),
+        ("say", "First, find a, b and c."),
+        ("board", formula + "\n\na = 1, b = −1, c = −13"),
+        ("say", "Then put them in."),
+    ]
 
 
 def test_without_a_board_its_text_is_still_never_said():
@@ -78,7 +101,9 @@ TEACHER = {"name": "Math teacher", "instructions": "Explain step by step.", "boa
 def test_claude_hears_about_the_board_only_for_a_role_that_uses_it():
     acting = Acting(lambda: parse_roles([TEACHER, {"name": "Chef", "instructions": "Cook."}]))
     acting.start("Math teacher")
-    assert "[board]" in acting.state_text(4) and "never read aloud" in acting.state_text(4)
+    text = acting.state_text(4)
+    assert "[board]" in text and "never read aloud" in text
+    assert "right before you talk about it" in text  # so it fills in while Abdoh talks
     acting.start("Chef")
     assert "[board]" not in acting.state_text(4)
     acting.start("a pirate")  # made up on the spot: may use the board
@@ -90,10 +115,24 @@ def test_the_router_hands_the_board_to_abdoh(tmp_path):
     path.write_text("[]", encoding="utf-8")
     router = Router(Config(app_dir=tmp_path), CommandRegistry(path), act=FakeAct())
     shown = []
-    router.on_board = shown.append
+    router.on_board = lambda card, text: shown.append((card, text))
     router.brain = FakeBrain(("First, the steps.\n[board]\nx = 4\n[/board]\nThat's it.",))
     assert " ".join(router.handle("solve 2x + 3 = 11")) == "First, the steps. That's it."
-    assert shown == ["x = 4"]
+    assert [text for _, text in shown] == ["x = 4"]
+
+
+def test_each_answer_gets_its_own_card(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text("[]", encoding="utf-8")
+    router = Router(Config(app_dir=tmp_path), CommandRegistry(path), act=FakeAct())
+    shown = []
+    router.on_board = lambda card, text: shown.append((card, text))
+    router.brain = FakeBrain(("Ok.\n[board]\na\n[/board]\nAnd.\n[board]\nb\n[/board]\n",))
+    list(router.handle("first question"))
+    list(router.handle("second question"))
+    (one, a), (same, ab), (two, a2), (also_two, ab2) = shown
+    assert one == same and two == also_two and one != two
+    assert (a, ab) == (a2, ab2) == ("a", "a\n\nb")
 
 
 def make_daemon(tmp_path):
@@ -107,10 +146,16 @@ def make_daemon(tmp_path):
     return daemon, bus
 
 
-def test_the_window_comes_up_on_the_act_as_page(tmp_path):
+def test_the_window_comes_up_on_the_act_as_page_once_per_card(tmp_path):
     daemon, bus = make_daemon(tmp_path)
-    daemon.router.on_board("x = 4")
-    assert bus.pending_events() == [("board", "x = 4"), ("show", None), ("page", "roles")]
+    daemon.router.on_board(1, "x = 4")
+    daemon.router.on_board(1, "x = 4\ny = 2")  # the same card grew: no new show
+    daemon.router.on_board(2, "z")
+    assert bus.pending_events() == [
+        ("board", {"id": 1, "text": "x = 4"}), ("show", None), ("page", "roles"),
+        ("board", {"id": 1, "text": "x = 4\ny = 2"}),
+        ("board", {"id": 2, "text": "z"}), ("show", None), ("page", "roles"),
+    ]  # fmt: skip
 
 
 def test_a_new_role_or_none_clears_the_board(tmp_path):
@@ -124,9 +169,11 @@ def test_a_new_role_or_none_clears_the_board(tmp_path):
 def test_the_page_keeps_the_board_until_cleared(tmp_path):
     state = UiState()
     for i in range(35):
-        state.feed("board", f"item {i}")
+        state.feed("board", {"id": i, "text": f"item {i}"})
+    state.feed("board", {"id": 34, "text": "item 34, grown"})  # the newest card grew
     board = state.snapshot()["board"]
-    assert len(board) == 30 and board[-1] == "item 34"  # the newest 30
+    assert len(board) == 30 and board[0]["id"] == 5  # the newest 30
+    assert board[-1] == {"id": 34, "text": "item 34, grown"} and board[-2]["id"] == 33
     api = AppApi(Bus(), state, Config(app_dir=tmp_path))
     api.clear_board()
     assert state.snapshot()["board"] == []

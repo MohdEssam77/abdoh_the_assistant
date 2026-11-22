@@ -93,6 +93,7 @@ class Daemon:
         self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
+        self._board_card = 0  # the board card the window last came up for
         self._watching = False  # the voice watch is following a reply
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
@@ -954,11 +955,14 @@ class Daemon:
         self.bus.emit("board", None)  # a new role (or none): a clean board
         self.bus.emit("role", role.name if role is not None else "")
 
-    def _on_board(self, text: str) -> None:
-        """A role put something on the board: the window comes up on the Act as page."""
-        self.bus.emit("board", text)
-        self.bus.emit("show")
-        self.bus.emit("page", "roles")
+    def _on_board(self, card: int, text: str) -> None:
+        """A role's board card grew (it fills in while Claude writes it). For a new card the
+        window comes up on the Act as page."""
+        self.bus.emit("board", {"id": card, "text": text})
+        if card != self._board_card:
+            self._board_card = card
+            self.bus.emit("show")
+            self.bus.emit("page", "roles")
 
     def _switch_role(self, name: str) -> None:
         """The window's Start and Stop buttons."""

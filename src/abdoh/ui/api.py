@@ -50,7 +50,7 @@ class UiState:
         self._hearing = ""
         self._mode = ""
         self._role = ""
-        self._board: deque[str] = deque(maxlen=self.BOARD)  # what the role showed, oldest first
+        self._board: deque[dict] = deque(maxlen=self.BOARD)  # cards {id, text}, oldest first
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
 
@@ -78,11 +78,13 @@ class UiState:
                 self._mode = value or ""
             elif kind == "role":
                 self._role = value or ""
-            elif kind == "board":  # something to show, or None: clear it
+            elif kind == "board":  # a card (new, or grown), or None: clear it
                 if value is None:
                     self._board.clear()
+                elif self._board and self._board[-1]["id"] == value["id"]:
+                    self._board[-1] = dict(value)
                 else:
-                    self._board.append(str(value))
+                    self._board.append(dict(value))
             elif kind == "voice":
                 self._voice = bool(value)
             elif kind == "history":
@@ -111,7 +113,7 @@ class UiState:
                 "hearing": self._hearing,
                 "mode": self._mode,
                 "role": self._role,
-                "board": list(self._board),
+                "board": [dict(card) for card in self._board],
                 "voice": self._voice,
                 "history": list(self._history),
             }
