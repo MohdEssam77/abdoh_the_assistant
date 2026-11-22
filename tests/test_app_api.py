@@ -227,6 +227,31 @@ def test_microphones_voices_and_level(app_dir, bus):
     assert api.mic_level() == 4321
 
 
+def test_a_microphone_saved_cut_short_is_shown_by_its_full_name(app_dir, bus):
+    cfg = load_config(app_dir)
+    cfg.mic_device = "Microphone Array (Realtek(R) Au"  # what 0.8 saved
+    mics = [
+        {"name": "Headset (WH-1000XM4)", "default": True},
+        {"name": "Microphone Array (Realtek(R) Audio)", "default": False},
+    ]
+    api = AppApi(bus, UiState(), cfg, list_mics=lambda: mics)
+    api._config = lambda: cfg
+    shown = api.microphones()
+    assert shown["current"] == "Microphone Array (Realtek(R) Audio)"
+    assert "using" not in shown
+
+
+def test_a_chosen_microphone_that_isnt_connected_says_what_abdoh_uses(app_dir, bus):
+    cfg = load_config(app_dir)
+    cfg.mic_device = "Microphone (Lenovo FHD Webcam Audio)"
+    mics = [{"name": "Headset (WH-1000XM4)", "default": True}]
+    api = AppApi(bus, UiState(), cfg, list_mics=lambda: mics)
+    api._config = lambda: cfg
+    shown = api.microphones()
+    assert shown["current"] == "Microphone (Lenovo FHD Webcam Audio)"  # the setting stays
+    assert shown["using"] == "Headset (WH-1000XM4)"
+
+
 def test_microphones_when_listing_fails(app_dir, bus):
     def broken():
         raise OSError("PortAudio not found")
