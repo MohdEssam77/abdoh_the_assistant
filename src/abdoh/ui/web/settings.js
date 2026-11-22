@@ -95,13 +95,15 @@
     const fallback = devices.find((d) => d.default);
     const options = [["", `Windows default${fallback ? ` (${fallback.name})` : ""}`], ...devices.map((d) => [d.name, d.name])];
     const current = (mics && mics.current) || "";
-    if (current && !devices.some((d) => d.name === current)) options.push([current, `${current} (not found)`]);
+    if (current && !devices.some((d) => d.name === current)) options.push([current, `${current} (not connected)`]);
+    const using = mics && mics.using;
     const windows = el("div", { class: "mic-windows" });
-    const card = el("div", { class: "card" }, el("h2", {}, "Microphone"),
+    const card = el("div", { class: "card", id: "mic-card" }, el("h2", {}, "Microphone"),
       el("p", { class: "lead" }, "Abdoh listens with this microphone. Talk to see the level move."),
-      row("Microphone", null, select(options, current, async (value) => {
-        if (await saveSettings({ mic_device: value })) showMicVolume(windows);
-      }, "Microphone")),
+      row("Microphone", using ? el("span", { class: "warn-text" }, `It isn't connected, so Abdoh listens with ${using} until it's back.`) : null,
+        select(options, current, async (value) => {
+          if (await saveSettings({ mic_device: value })) showMicVolume(windows);
+        }, "Microphone")),
       el("div", { class: "row stack" },
         el("div", { class: "meter", "aria-label": "Microphone level" }, el("i", { id: "mic-level" })),
         el("div", { class: "mic-status" }, el("span", { id: "mic-status" }, "Checking…"), el("div", { class: "spacer" }),
@@ -434,9 +436,14 @@
   registerPage("settings", {
     show: render,
     hide: stopMeter,
-    event(kind, value) {
+    async event(kind, value) {
       const tag = $("#wake-engine");
       if (kind === "wake" && tag) tag.textContent = value;
+      if (kind === "devices" && $("#mic-card")) {  // a microphone was plugged in or out
+        const mics = await call("microphones");
+        const old = $("#mic-card");
+        if (old) old.replaceWith(micCard(mics));
+      }
     },
     settingsChanged() {
       if (App.current !== "settings") return;

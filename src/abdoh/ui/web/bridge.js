@@ -143,8 +143,8 @@ const Bridge = (() => {
       },
       microphones: async () => ({
         devices: [
-          { name: "Microphone (Lenovo FHD Webcam A", default: true },
-          { name: "Microphone Array (Realtek(R) Au", default: false },
+          { name: "Microphone (Lenovo FHD Webcam Audio)", default: true },
+          { name: "Microphone Array (Realtek(R) Audio)", default: false },
         ],
         current: settings.mic_device,
       }),

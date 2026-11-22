@@ -288,23 +288,57 @@ def _devices():
     return comtypes.CoCreateInstance(com["clsid"], com["enumerator"], comtypes.CLSCTX_ALL)
 
 
+def _default_id(devices, flow: int) -> str:
+    """The default device's id, or "" if there is none (nothing plugged in)."""
+    try:
+        return device_id(devices.GetDefaultAudioEndpoint(flow, 0))
+    except Exception:
+        return ""
+
+
+def _endpoints(flow: int) -> list[Output]:
+    """The connected devices of this kind, as Windows has them now. Raises on COM errors."""
+    devices = _devices()
+    current = _default_id(devices, flow)
+    found = devices.EnumAudioEndpoints(flow, ACTIVE)
+    listed = []
+    for i in range(found.GetCount()):
+        device = found.Item(i)
+        ident = device_id(device)
+        listed.append(Output(ident, _friendly_name(device), ident == current))
+    return listed
+
+
 def outputs() -> list[Output]:
     """The speakers you can switch to (Windows only; [] if they can't be read)."""
     if sys.platform != "win32":
         return []
     try:
-        devices = _devices()
-        current = device_id(devices.GetDefaultAudioEndpoint(RENDER, 0))
-        found = devices.EnumAudioEndpoints(RENDER, ACTIVE)
-        listed = []
-        for i in range(found.GetCount()):
-            device = found.Item(i)
-            ident = device_id(device)
-            listed.append(Output(ident, _friendly_name(device), ident == current))
-        return listed
+        return _endpoints(RENDER)
     except Exception as e:
         log.warning("Couldn't list the speakers: %s", e)
         return []
+
+
+def microphones() -> list[Output]:
+    """The connected microphones with their full names, as Windows has them right now
+    (Windows only; [] if they can't be read). sounddevice's list is the one from when Abdoh
+    started."""
+    if sys.platform != "win32":
+        return []
+    try:
+        return _endpoints(CAPTURE)
+    except Exception as e:
+        log.warning("Couldn't list the microphones: %s", e)
+        return []
+
+
+def default_ids() -> tuple[str, str]:
+    """The ids of Windows' default microphone and speakers right now ("" for none)."""
+    if sys.platform != "win32":
+        return "", ""
+    devices = _devices()
+    return _default_id(devices, CAPTURE), _default_id(devices, RENDER)
 
 
 def set_default_output(output_id: str) -> None:

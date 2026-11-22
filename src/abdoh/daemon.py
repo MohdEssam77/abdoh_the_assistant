@@ -24,6 +24,8 @@ from abdoh.system_skills import Done, Question
 log = logging.getLogger(__name__)
 
 MIC_RETRY_SECONDS = 5.0
+# A device change waits this long for Abdoh's voice to finish before devices are read again.
+RELOAD_WAIT_SECONDS = 30.0
 SORRY = "Sorry, something went wrong."
 # After the hotkey, nothing louder than this came from the mic (of 32768): it's muted or
 # turned right down. Speech is usually in the thousands.
@@ -94,6 +96,11 @@ class Daemon:
         self.stop_event = threading.Event()
         self.mic = None  # the open microphone
         self._reopen_mic = threading.Event()  # a new microphone was chosen
+        self.device_watch = None  # notices new microphones and speakers (audio/devices.py)
+        # Reads Windows' devices again; False while a stream is open (reload_portaudio, set in
+        # create(): tests never touch the real audio system).
+        self.reload_devices: Callable[[], bool] = lambda: True
+        self._devices_stale = False  # read the devices again before the mic opens next
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self._listen_now = threading.Event()  # the hotkey was pressed
         self._capture: dict | None = None  # a recording for your voice check (record_voice)
@@ -195,6 +202,31 @@ class Daemon:
     def reopen_mic(self) -> None:
         """Switch to the microphone now in the settings (after the current request)."""
         self._reopen_mic.set()
+
+    def devices_changed(self, old, new) -> None:
+        """Windows' microphones or default devices changed (audio/devices.py): Settings lists
+        them again, and after the current request the devices are read again and the mic is
+        reopened, so Abdoh hears through the new default (or your mic, back again) and speaks
+        through the new speakers."""
+        self.bus.emit("devices", None)
+        self._devices_stale = True
+        self.reopen_mic()
+
+    def _read_devices_again(self) -> None:
+        """Read Windows' devices again, once nothing plays (a reload would cut a reply off)."""
+        end = time.monotonic() + RELOAD_WAIT_SECONDS
+        while not self.stop_event.is_set():
+            try:
+                if self.reload_devices():
+                    self._devices_stale = False
+                    return
+            except Exception:
+                log.exception("Couldn't read the audio devices again")
+                return
+            if time.monotonic() > end:
+                log.info("Something is still playing; reading the audio devices later")
+                return
+            self.stop_event.wait(0.2)
 
     def apply_settings(self, new: Config) -> None:
         """Use changed settings right away. Some (like the hotkey or the speech model) are
@@ -730,12 +762,16 @@ class Daemon:
                 daemon=True,
             ).start()
         self._status_idle()
+        if self.device_watch is not None:
+            self.device_watch.start(self.stop_event)
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
             self.stop_event.wait()
             return
         while not self.stop_event.is_set():
             self._reopen_mic.clear()
+            if self._devices_stale:
+                self._read_devices_again()
             try:
                 mic = self.mic_factory()
                 mic.start()
@@ -743,7 +779,8 @@ class Daemon:
                 self._mic_problem(e)
                 continue
             self.mic = mic
-            log.info("Listening for the wake word.")
+            name = getattr(mic, "name", "")
+            log.info("Listening for the wake word%s.", f" ({name})" if name else "")
             self._status_idle()
             try:
                 while not self.stop_event.is_set() and not self._reopen_mic.is_set():
@@ -789,6 +826,7 @@ class Daemon:
 
     def _mic_problem(self, error: Exception) -> None:
         self._awaiting_answer = False  # too late to answer once the mic is back
+        self._devices_stale = True  # unplugged, or the computer slept: devices may be new
         log.warning("%s. Retrying in %.0f s.", error, self.mic_retry_seconds)
         self.bus.emit("status", "Error: microphone not available, retrying")
         self.stop_event.wait(self.mic_retry_seconds)
@@ -1020,6 +1058,7 @@ class Daemon:
         If the wake word can't start, the hotkey still works. If speech recognition can't be
         set up, the daemon still handles typed requests and reports the problem as its status.
         """
+        from abdoh.audio.devices import DeviceWatch, reload_portaudio
         from abdoh.audio.ducking import Ducker
         from abdoh.audio.mic import Microphone
         from abdoh.audio.stt import load_transcriber
@@ -1073,6 +1112,8 @@ class Daemon:
             displays=Displays(cfg.app_dir / "displays.json"),
         )
         router.computer.lamps = Lamps(cfg.app_dir / "lamps.json")
+        daemon.device_watch = DeviceWatch(daemon.devices_changed)
+        daemon.reload_devices = reload_portaudio
         router.computer.apps.load_in_background()
         daemon.use_modes(make_modes(cfg, router, daemon))
         return daemon

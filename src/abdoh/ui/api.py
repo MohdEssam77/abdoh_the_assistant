@@ -105,6 +105,18 @@ class UiState:
             }
 
 
+def _connected_mics() -> list[dict]:
+    """The microphones as Windows has them now (full names); elsewhere sounddevice's list."""
+    from abdoh import winaudio
+
+    found = winaudio.microphones()
+    if found:
+        return [{"name": m.name, "default": m.default} for m in found]
+    from abdoh.audio.mic import input_devices
+
+    return input_devices()
+
+
 def _open_path(target) -> None:
     """Open a folder, a file or a Windows settings page (e.g. "ms-settings:sound")."""
     if sys.platform == "win32":
@@ -357,17 +369,27 @@ class AppApi:
         return {"ok": True, "settings": settings_view(cfg), "restart": self._restart_needed(cfg)}
 
     def microphones(self) -> dict:
-        """The microphones to choose from, and the chosen one ("" = the default)."""
+        """The microphones connected right now, and the chosen one ("" = the default). When the
+        chosen one isn't connected, `using` names the one Abdoh listens with instead."""
+        from abdoh.audio.mic import same_name
+
         try:
             if self._list_mics is None:
-                from abdoh.audio.mic import input_devices
-
-                self._list_mics = input_devices
+                self._list_mics = _connected_mics
             devices = self._list_mics()
         except Exception:
             log.warning("Couldn't list the microphones", exc_info=True)
             devices = []
-        return {"devices": devices, "current": self._config().mic_device}
+        current = self._config().mic_device
+        result = {"devices": devices, "current": current}
+        if current:
+            match = next((d for d in devices if same_name(d["name"], current)), None)
+            if match is not None:
+                result["current"] = match["name"]  # a name saved cut short: the full one
+            elif devices:
+                default = next((d for d in devices if d["default"]), None)
+                result["using"] = default["name"] if default else ""
+        return result
 
     def mic_level(self):
         """How loud the microphone is right now (0 to 32768), or None if it isn't open."""
