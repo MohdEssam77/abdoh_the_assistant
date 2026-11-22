@@ -41,6 +41,10 @@ ACTION_HELP: dict[str, str] = {
     "dark_mode": "ACTION dark_mode: <on | off>   (Windows' dark theme)",
     "lamp": "ACTION lamp: <a lamp's name, or all> | <on, off, 40%, red, warm white, blue 30%>   "
     "(the user's smart lamps)",
+    "window": "ACTION window: <app> to <screen> [maximized, left, right or keep]   (moves an "
+    "open app's window to one of the user's screens, by number or name, e.g. WhatsApp to 1 "
+    "maximized or Chrome to the laptop left; this to <screen> moves the window in front), or "
+    "ACTION window: <minimize, maximize, restore, desktop or switch>   (the window in front)",
 }
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).

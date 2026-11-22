@@ -312,5 +312,28 @@ def test_claude_switches_modes_screens_speakers_and_the_theme():
 def test_claude_still_cant_type_press_keys_close_apps_or_shut_down():
     from abdoh.config import CLAUDE_ACTIONS
 
-    for kind in ("type", "keys", "close_app", "power", "run", "wait", "window", "focus_app"):
+    for kind in ("type", "keys", "close_app", "power", "run", "wait", "focus_app"):
         assert kind not in CLAUDE_ACTIONS
+
+
+def test_claude_moves_windows_but_never_closes_one():
+    import pytest
+
+    from abdoh.commands.actions import ActionError, claude_action
+
+    class Computer:
+        def __init__(self):
+            self.calls = []
+
+        def move_window(self, app, screen, how):
+            self.calls.append(("move", app, screen, how))
+
+        def window(self, action):
+            self.calls.append(("window", action))
+
+    computer = Computer()
+    claude_action("window", "WhatsApp to 1 maximized", computer)
+    claude_action("window", "minimize", computer)
+    with pytest.raises(ActionError):
+        claude_action("window", "close", computer)
+    assert computer.calls == [("move", "whatsapp", "1", "maximized"), ("window", "minimize")]

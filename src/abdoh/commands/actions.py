@@ -346,5 +346,13 @@ def claude_action(kind: str, arg: str, computer) -> None:
         computer.set_dark_mode(on)
     elif kind == "lamp":
         lamps(computer).command(arg)
+    elif kind == "window":
+        place = parse_window(arg)
+        if place == "close":
+            raise ActionError("I can't close windows.")  # unsaved work: only your own commands
+        if isinstance(place, str):
+            computer.window(place)
+        else:
+            computer.move_window(*place)
     else:
         raise ActionError(f"I can't do {kind}.")

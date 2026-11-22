@@ -129,7 +129,7 @@ def test_settings_from_abdoh_0_3_are_upgraded(app_dir):
     assert text_before == old  # nothing is rewritten until you save a setting
     save_settings(app_dir, {"tts_rate": 200})
     text = (app_dir / "config.yaml").read_text()
-    assert "config_version: 9" in text and "\nlanguage:" not in text
+    assert "config_version: 10" in text and "\nlanguage:" not in text
     assert load_config(app_dir).languages == ["en", "ar"]
 
 
@@ -202,7 +202,7 @@ def test_settings_from_xanthos_become_abdoh(app_dir):
     assert "santos" not in cfg.wake_word_aliases and "abdu" in cfg.wake_word_aliases
     assert cfg.wake_word_model == "models/hey_abdoh.onnx"
     assert cfg.log_file == "~/.abdoh/abdoh.log"
-    assert cfg.claude.actions == ["timer"]  # nothing new to allow since config 7
+    assert cfg.claude.actions == ["timer", "window"]  # only windows are new since config 7
 
 
 def test_wake_words_without_the_old_name_are_left_alone(app_dir):

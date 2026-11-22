@@ -18,6 +18,7 @@ max_record_seconds: 10
 confirm_actions: "sound"         # after "open Spotify": sound = a short sound, words = say what it did
 follow_up_seconds: 6             # after Claude answers, keep listening this long (no wake word); 0 = off
 wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
+keep_unclear_clips: false        # keep what it heard but couldn't make out (one day, to check why)
 voice_interrupts: true           # or just start talking: Abdoh goes quiet and listens
 voice_interrupt_sensitivity: medium  # low | medium | high: how easily your voice stops Abdoh
 duck_others: true                # other apps (music, videos) go quieter while Abdoh listens
@@ -46,7 +47,7 @@ claude:
   folders: []                    # where Claude may work with files; [] = your home folder
   allow_screen: true             # let Claude look at your screen when you ask about it
   # What Claude may do on the computer (turn them on and off on the Permissions page):
-  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp"]
+  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp", "window"]
   instructions: ""               # your own instructions for Claude, sent with every request
   connectors: ["Gmail", "Google Calendar"]   # your claude.ai connectors Claude may use (Claude Code only)
   timeout_seconds: 120
