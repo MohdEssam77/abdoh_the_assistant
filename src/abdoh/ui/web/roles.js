@@ -220,7 +220,7 @@
     },
     event(kind) {
       if (!$("#page-roles").classList.contains("active")) return;
-      if (kind === "role") load();
+      if (kind === "role" || kind === "roles") load();
       else if (kind === "listening") renderNow();
     },
   });

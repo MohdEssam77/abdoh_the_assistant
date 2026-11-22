@@ -134,6 +134,9 @@
           "Create, read, change and sort files. Claude asks before deleting or overwriting anything, and deletes to the Recycle Bin.",
           claudeSwitch("allow_files")),
         folderBlock(),
+        row("Change its own commands, modes and roles",
+          "When you ask (“make a command called good evening that locks the screen”, “add Spotify to work mode”). Claude asks for what's missing, Abdoh says what it changed, and “undo that” puts it back.",
+          claudeSwitch("allow_self_edit")),
       ]),
       card("Your computer", null, [
         row("Your commands may run programs", "Needed for the “Run a program” action on the Commands page.",
