@@ -545,10 +545,10 @@ teacher, Math teacher, Programming teacher). Each role has:
   (LaTeX, drawn by KaTeX, which comes with Abdoh). Code has a **Copy** button; **Clear** empties
   the board, and a new role starts with a clean one.
 - **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
-  something and you're talking with it (the last word less than 2 minutes ago), you don't need
-  "Hey Abdoh": just talk, also to answer its questions, and take your time to think (what you say ends after a 1.2 s pause instead of
-  0.6 s, and may be up to 30 s long). It never listens to itself while it talks; talking over it
-  works as always. Say in any words when it should stop listening ("I'll call you when I need
+  something and you're talking with it (less than 2 minutes since either of you last spoke),
+  you don't need "Hey Abdoh": just talk, also to answer its questions, and take your time to
+  think (what you say ends after a 1.2 s pause instead of 0.6 s, and may be up to 30 s long).
+  It never listens to itself while it talks; talking over it works as always. Say in any words when it should stop listening ("I'll call you when I need
   you"): the role stays on and Abdoh goes back to the wake word. The Act as page shows when it's
   listening, with a **Stop listening** / **Keep listening** button. With the window hidden or
   minimized, an empty board or 2 quiet minutes, it's the wake word as usual.
