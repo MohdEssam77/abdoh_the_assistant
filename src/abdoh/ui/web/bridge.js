@@ -61,10 +61,8 @@ const Bridge = (() => {
       { name: "Math teacher", phrases: ["math lesson"], instructions: "You are my patient math teacher. Explain step by step and check that I follow before going on. Put the worked steps on the board.", speed: "normal", answers: "long", board: true, saved: true },
     ];
     const demoBoard = [
-      { id: 1, text: "### Solving 2x + 3 = 11\n\n1. Take 3 from both sides: 2x = 8\n2. Divide both sides by 2: x = 4\n\n**Check:** 2 × 4 + 3 = 11 ✓" },
-      { id: 2, text: "A loop that adds up the numbers:\n\n```python\ntotal = 0\nfor n in range(1, 5):\n    total += n\nprint(total)  # 10\n```" },
-      { id: 3, text: "The quadratic formula:\n$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$\nHere $a = 1$, $b = -1$ and $c = -13$, so $b^2 - 4ac = 53$ and $x = \\frac{1 \\pm \\sqrt{53}}{2}$." },
-      { id: 4, text: "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |" },
+      { id: 1, text: "### Solving $x^2 - x - 13 = 0$\n$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$\nHere $a = 1$, $b = -1$ and $c = -13$, so $x = \\frac{1 \\pm \\sqrt{53}}{2}$." },
+      { id: 2, text: "Binary search keeps halving the list:\n\n```python\ndef binary_search(items, target):\n    low, high = 0, len(items) - 1\n    while low <= high:\n        mid = (low + high) // 2\n```" },
     ];
     let memory = [
       { text: "Their name is Mo; they study at Saarland University.", kind: "fact", added: "2026-11-20" },
@@ -105,7 +103,7 @@ const Bridge = (() => {
     return {
       demo: true,
       boot: async () => ({
-        version: "0.8.0", platform: "win32", demo: true, settings,
+        version: "0.9.0", platform: "win32", demo: true, settings,
         state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, listening: { on: !!currentRole, now: !!currentRole }, voice: true, history, board: currentRole ? demoBoard : [] },
       }),
       events: async () => queue.splice(0),
