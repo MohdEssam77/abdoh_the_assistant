@@ -160,6 +160,20 @@ def test_a_role_alone_is_not_a_lesson(tmp_path):
     assert not any(daemon._hear(TONE) for _ in range(5))  # the wake word, as usual
 
 
+def test_the_quiet_minutes_count_from_the_end_of_its_answer(tmp_path):
+    daemon, _ = make_daemon(tmp_path)
+    in_lesson(daemon)
+
+    def long_explanation(text, **kwargs):
+        daemon._last_exchange -= daemon.LESSON_QUIET_SECONDS - 1  # you asked almost 2 min ago
+        return ""
+
+    daemon.router.handle = long_explanation
+    daemon.handle_text("explain binary search")
+    assert time.monotonic() - daemon._last_exchange < 1  # the full 2 minutes to think
+    assert daemon.keeps_listening()
+
+
 def test_only_while_the_lesson_goes_on(tmp_path):
     daemon, bus = make_daemon(tmp_path)
 

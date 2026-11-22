@@ -1106,9 +1106,12 @@ class Daemon:
         return True
 
     def _quiet_for_hearing(self) -> None:
-        """Abdoh just answered: while it keeps listening, its own voice dies away first."""
+        """Abdoh just answered: while it keeps listening, its own voice dies away first. The
+        lesson's quiet minutes count from here, not from your question (a long explanation
+        would use them up)."""
         self._hearing = False
         self._hear_from = time.monotonic() + self.HEAR_AFTER_SPEAKING_SECONDS
+        self._last_exchange = time.monotonic()
 
     def _on_speech(self) -> None:
         """You started talking while Abdoh keeps listening: hear you out (no chime: you're
