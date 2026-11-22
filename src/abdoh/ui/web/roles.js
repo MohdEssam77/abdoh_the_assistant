@@ -70,8 +70,13 @@
       current ? el("div", { class: "role-now-head" },
         el("span", { class: "cmd-icon", html: svg("role") }),
         el("div", { class: "role-now-name" }, el("b", {}, `Acting as ${current.name}`),
-          el("small", {}, "Stop it in any words, like “you can stop acting”.")),
+          el("small", {}, "Stop it in any words, like “you can stop acting”."),
+          el("small", {}, App.listening
+            ? "Listening: just talk, no “Hey Abdoh” needed. Say when it should stop listening."
+            : "Listening only after “Hey Abdoh”.")),
         el("div", { class: "spacer" }),
+        el("button", { class: "btn small", onclick: () => call("keep_listening", !App.listening) },
+          App.listening ? "Stop listening" : "Keep listening"),
         current.saved === false
           ? el("button", { class: "btn small", onclick: () => openEditor({ ...current, phrases: [], board: true }, true) }, "Save this role")
           : null,
@@ -207,6 +212,10 @@
       if (open === "role-editor" && state.roles.length) openEditor(state.roles[0]);
       if (open === "suggestions") openSuggestions();
     },
-    event(kind) { if (kind === "role" && $("#page-roles").classList.contains("active")) load(); },
+    event(kind) {
+      if (!$("#page-roles").classList.contains("active")) return;
+      if (kind === "role") load();
+      else if (kind === "listening") renderNow();
+    },
   });
 })();

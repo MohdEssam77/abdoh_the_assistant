@@ -60,16 +60,21 @@ def wait_for_trigger(
     should_stop: Callable[[], bool] = lambda: False,
     pressed: Callable[[], bool] = lambda: False,
     observe: Callable[[bytes], bool] | None = None,
+    hear: Callable[[bytes], bool] | None = None,
 ) -> str | None:
     """Read blocks until the wake word is heard ("wake") or the hotkey was pressed ("hotkey").
     Every block also goes to `observe` (if given); "voice" when it returns True (you started
-    talking over a reply). None if should_stop() turned true."""
+    talking over a reply). And to `hear` (if given); "speech" when it returns True (you started
+    talking while Abdoh keeps listening, no wake word needed). None if should_stop() turned
+    true."""
     while not should_stop():
         if pressed():
             return "hotkey"
         block = read()
         if observe is not None and observe(block):
             return "voice"
+        if hear is not None and hear(block):
+            return "speech"
         if engine.detect(block):
             return "wake"
     return None

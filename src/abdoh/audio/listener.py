@@ -30,6 +30,15 @@ WAKE_WAIT_SECONDS = 5.0
 UNCLEAR_MIN_SECONDS = 0.5
 # A transcription slower than this is logged: the speech model was probably out of memory.
 SLOW_TRANSCRIPTION_SECONDS = 0.6
+# An answer that came out as no words (an "um", a breath, a click, Abdoh's own echo): listen
+# again, up to this many more times, instead of giving up on the answer.
+NO_WORDS_RETRIES = 2
+# While Abdoh keeps listening (a role is on, no wake word needed): audio from just before your
+# speech was noticed (so your first word is kept), a longer pause to think before what you said
+# counts as finished, and room for a longer answer.
+SPEECH_PRE_ROLL_SECONDS = 1.0
+THINKING_PAUSE_SECONDS = 1.2
+LONG_ANSWER_SECONDS = 30.0
 
 
 def listen_for_request(
@@ -49,6 +58,8 @@ def listen_for_request(
     observe: Callable[[bytes], bool] | None = None,
     on_voice: Callable[[object], str] = lambda mic: "",
     on_unclear: Callable[[bytes], None] = lambda audio: None,
+    hear: Callable[[bytes], bool] | None = None,
+    on_speech: Callable[[], None] = lambda: None,
 ) -> str | None:
     """Wait for the wake word and return the request that was said, or None if stopped.
 
@@ -65,12 +76,17 @@ def listen_for_request(
     reply), what `on_voice(mic)` returns is the request.
     When you talked after the wake word but no words came out, `on_unclear(audio)` gets the
     recording (and "" is returned).
+    While Abdoh keeps listening, every block goes to `hear`; when it returns True (you started
+    talking), `on_speech()` is called and what you say is the request, no wake word needed.
     """
     if answer:
         return _push_to_talk(mic, engine, transcriber, cfg, vad, on_listen, answer_wait, on_nothing)
-    trigger = wait_for_trigger(mic.read, engine, should_stop, pressed, observe)
+    trigger = wait_for_trigger(mic.read, engine, should_stop, pressed, observe, hear)
     if trigger is None:
         return None
+    if trigger == "speech":
+        on_speech()
+        return _after_speech(mic, engine, transcriber, cfg, vad)
     if trigger == "voice":
         text = on_voice(mic)
         mic.clear()
@@ -115,6 +131,28 @@ def _after_wake_word(
     return text
 
 
+def _after_speech(mic, engine, transcriber, cfg: Config, vad) -> str:
+    """You started talking while Abdoh keeps listening: what you said, from a moment before it
+    was noticed. You may pause to think for longer than usual."""
+    keep = round(SPEECH_PRE_ROLL_SECONDS * BYTES_PER_SECOND) // 2 * 2
+    before = mic.recent()[-keep:]
+    # The VAD warms up on what you've said so far; the loudness fallback would take your speech
+    # for the room's noise, so it starts from its usual level instead.
+    audio = before + record_until_silence(
+        mic.read,
+        speech_detector(vad, before if vad is not None else b""),
+        max(cfg.silence_seconds, THINKING_PAUSE_SECONDS),
+        max(cfg.max_record_seconds, LONG_ANSWER_SECONDS),
+        wait_seconds=THINKING_PAUSE_SECONDS,
+    )
+    text = _transcribe(transcriber, audio)
+    mic.clear()
+    engine.reset()
+    if not text:
+        log.info("Heard a sound but no words; still listening")
+    return text
+
+
 def _transcribe(transcriber, audio: bytes) -> str:
     """Transcribe a recording (if there is one), logging how long each part took."""
     if not audio:
@@ -147,16 +185,23 @@ def _push_to_talk(
         loudest = max(loudest, peak(block))
         return block
 
-    audio = record_until_silence(
-        read,
-        is_speech,
-        cfg.silence_seconds,
-        cfg.max_record_seconds,
-        wait_seconds=wait_seconds,
-    )
-    if not audio:
-        on_nothing(loudest)
-    text = _transcribe(transcriber, audio)
+    text = ""
+    for attempt in range(NO_WORDS_RETRIES + 1):
+        audio = record_until_silence(
+            read,
+            is_speech,
+            cfg.silence_seconds,
+            cfg.max_record_seconds,
+            wait_seconds=wait_seconds,
+        )
+        if not audio:
+            on_nothing(loudest)
+            break
+        text = _transcribe(transcriber, audio)
+        if text or attempt == NO_WORDS_RETRIES:
+            break
+        log.info("Heard a sound but no words; listening again")
+        is_speech = speech_detector(vad, b"")
     mic.clear()
     engine.reset()
     return text

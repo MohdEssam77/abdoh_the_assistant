@@ -96,7 +96,7 @@ const Bridge = (() => {
       demo: true,
       boot: async () => ({
         version: "0.8.0", platform: "win32", demo: true, settings,
-        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, voice: true, history, board: currentRole ? demoBoard : [] },
+        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, listening: !!currentRole, voice: true, history, board: currentRole ? demoBoard : [] },
       }),
       events: async () => queue.splice(0),
       send: async (text) => {
@@ -140,8 +140,9 @@ const Bridge = (() => {
         return { ok: true, role };
       },
       delete_role: async (name) => { roles = roles.filter((r) => r.name !== name); return { ok: true }; },
-      start_role: async (name) => { currentRole = name; push("role", name); push("history", `Abdoh: Acting as ${name}.`); },
-      stop_role: async () => { currentRole = ""; push("board", null); push("role", ""); push("history", "Abdoh: Stopped acting."); },
+      start_role: async (name) => { currentRole = name; push("role", name); push("listening", true); push("history", `Abdoh: Acting as ${name}.`); },
+      stop_role: async () => { currentRole = ""; push("board", null); push("role", ""); push("listening", false); push("history", "Abdoh: Stopped acting."); },
+      keep_listening: async (on) => push("listening", !!on),
       clear_board: async () => push("board", null),
       save_mode: async (mode, oldName) => {
         if (!mode.name.trim()) return { ok: false, error: "Give the mode a name." };
