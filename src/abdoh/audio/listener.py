@@ -30,6 +30,9 @@ WAKE_WAIT_SECONDS = 5.0
 UNCLEAR_MIN_SECONDS = 0.5
 # A transcription slower than this is logged: the speech model was probably out of memory.
 SLOW_TRANSCRIPTION_SECONDS = 0.6
+# An answer that came out as no words (an "um", a breath, a click, Abdoh's own echo): listen
+# again, up to this many more times, instead of giving up on the answer.
+NO_WORDS_RETRIES = 2
 
 
 def listen_for_request(
@@ -147,16 +150,23 @@ def _push_to_talk(
         loudest = max(loudest, peak(block))
         return block
 
-    audio = record_until_silence(
-        read,
-        is_speech,
-        cfg.silence_seconds,
-        cfg.max_record_seconds,
-        wait_seconds=wait_seconds,
-    )
-    if not audio:
-        on_nothing(loudest)
-    text = _transcribe(transcriber, audio)
+    text = ""
+    for attempt in range(NO_WORDS_RETRIES + 1):
+        audio = record_until_silence(
+            read,
+            is_speech,
+            cfg.silence_seconds,
+            cfg.max_record_seconds,
+            wait_seconds=wait_seconds,
+        )
+        if not audio:
+            on_nothing(loudest)
+            break
+        text = _transcribe(transcriber, audio)
+        if text or attempt == NO_WORDS_RETRIES:
+            break
+        log.info("Heard a sound but no words; listening again")
+        is_speech = speech_detector(vad, b"")
     mic.clear()
     engine.reset()
     return text
