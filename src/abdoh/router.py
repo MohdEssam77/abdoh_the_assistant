@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
-from abdoh.claude.reply import IGNORE, LOOK, speakable
+from abdoh.claude.reply import ANSWER, IGNORE, LOOK, speakable
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
 from abdoh.commands.actions import ActionError, claude_action, run_actions
 from abdoh.commands.learn import append_command
@@ -64,6 +64,12 @@ WOKEN = (
 # How the wake word's score reads to Claude: at least CLEAR_WAKE is "clearly", at least
 # FAIR_WAKE "fairly clearly", below that "faintly".
 CLEAR_WAKE, FAIR_WAKE = 0.8, 0.5
+# A mode just asked something ("Run it on what's connected?") and the answer wasn't a plain yes
+# or no: Claude decides whether this answers it.
+ANSWER_NOTE = (
+    '(Abdoh just asked the user: "{question}" If what they say now answers that, write only '
+    "the line ACTION answer: yes or ACTION answer: no. Otherwise handle it as a new request.)\n"
+)
 # Abdoh heard you talk after its wake word but no words came out (daemon: heard_unclear).
 UNCLEAR = "(Just before this, Abdoh heard the user speak but couldn't make out any words.)\n"
 UNCLEAR_SECONDS = 60.0
@@ -266,6 +272,12 @@ class Router:
 
     def _route_local(self, request: str, original: str) -> str | None:
         """What Abdoh does without Claude: the reply, or None when none of it fits."""
+        # 0. "Yes" or "no" to a mode's question ("Run it on what's connected?")
+        if self.modes is not None:
+            answered = self.modes.answer(request)
+            if answered is not None:
+                return answered
+
         # 1. Built-in commands (show window, pause, ...)
         builtin = match(request, self._builtin_commands, self.cfg.match_threshold)
         if builtin:
@@ -287,7 +299,10 @@ class Router:
                 spoken = self._run(
                     found.command, self.cfg.allow_run, computer=self.computer, slots=found.slots
                 )
-                return " ".join(spoken) or Done("")  # your own "say" actions are spoken
+                text = " ".join(spoken)
+                if any(isinstance(line, Question) for line in spoken):
+                    return Question(text)  # a mode asks first: listen for the answer
+                return text or Done("")  # your own "say" actions are spoken
             except ActionError as e:
                 return str(e)
 
@@ -402,11 +417,20 @@ class Router:
     def _ask(self, prompt: str, request: str, screen: bool = False, aside: bool = False) -> Reply:
         if self.brain is None:
             return NOT_CONNECTED
+        question = self.modes.open_question() if self.modes is not None else None
+        if question:
+            prompt = ANSWER_NOTE.format(question=question) + prompt
         self.on_thinking()
-        return self._stream(self.brain, prompt, request, screen, aside)
+        return self._stream(self.brain, prompt, request, screen, aside, answer=bool(question))
 
     def _stream(
-        self, brain, prompt: str, request: str, screen: bool, aside: bool = False
+        self,
+        brain,
+        prompt: str,
+        request: str,
+        screen: bool,
+        aside: bool = False,
+        answer: bool = False,
     ) -> Iterator[str]:
         """Claude's answer as sentences; runs the actions it asks for along the way."""
         turn = ClaudeTurn(request)
@@ -423,6 +447,14 @@ class Router:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
+            if kind == ANSWER:
+                name = self.modes.asked_mode() if self.modes is not None else ""
+                said = self.modes.answer_from_claude(arg) if name else ""
+                if name and self.modes.current == name:
+                    turn.actions.append(("mode", name))  # it ran: the done sound if no words
+                if said and not isinstance(said, Done):
+                    problems.append(said)  # the mode's own words, or "Okay, I won't."
+                return
             try:
                 self._act(kind, arg, self.computer)
                 turn.actions.append((kind, arg))  # only what worked can be remembered
@@ -434,6 +466,8 @@ class Router:
             allowed.append(LOOK)  # at most once: the follow-up can't ask again
         if aside:
             allowed.append(IGNORE)
+        if answer:
+            allowed.append(ANSWER)
         chunks = None
         try:
             image = self._capture() if screen else None
