@@ -81,6 +81,7 @@ const PATHS = {
   focus_app: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 12h8M13 9l3 3-3 3"/>',
   window: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M12 9v11"/>',
   mode: '<path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/>',
+  role: '<circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/><path d="M17.5 3.5l1.2 1.2M20 7h-1.5"/>',
 };
 
 function svg(name) {
@@ -233,6 +234,7 @@ const ACTIONS = {
   focus_app: { label: "Switch to a program", placeholder: "Chrome" },
   window: { label: "Move a window", placeholder: "Chrome to 2 maximized" },
   mode: { label: "Switch mode", placeholder: "Movie   (or: normal)" },
+  role: { label: "Act as", placeholder: "German teacher   (or: off)" },
   type: { label: "Type some text", placeholder: "Best regards, Sam" },
   run: { label: "Run a program", placeholder: "notepad.exe" },
 };
@@ -475,6 +477,15 @@ function setMode(name) {
   $("#mode-chip-name").textContent = App.mode ? `${App.mode} mode` : "";
 }
 
+function setRole(name) {
+  App.role = name || "";
+  const chip = $("#role-chip");
+  if (!chip) return;
+  chip.hidden = !App.role;
+  $("#role-chip-name").textContent = App.role;
+  $("#role-chip-name").title = App.role ? `Acting as ${App.role} (Act as)` : "";
+}
+
 /* ---------- events from Abdoh ---------- */
 
 function setActivity(text) {
@@ -490,6 +501,7 @@ const HANDLERS = {
   wake: setWake,
   hearing: setHearing,
   mode: setMode,
+  role: setRole,
   voice: setVoice,
   page: showPage,
 };
@@ -595,6 +607,7 @@ async function start() {
   if (state.wake) setWake(state.wake);
   setHearing(state.hearing);
   setMode(state.mode);
+  setRole(state.role);
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");
   renderHowToTalk();

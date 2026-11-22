@@ -3,7 +3,7 @@
 "use strict";
 
 (() => {
-  const state = { modes: [], templates: [], displays: [], outputs: [], icons: [], error: null };
+  const state = { modes: [], templates: [], displays: [], outputs: [], icons: [], roles: [], error: null };
   const KEEP_SECONDS = 15;
   const POWER = [["best_performance", "Best performance"], ["balanced", "Balanced"], ["efficiency", "Best power efficiency"]];
 
@@ -12,7 +12,8 @@
     if (!result) return;
     Object.assign(state, {
       modes: result.modes || [], templates: result.templates || [], displays: result.displays || [],
-      outputs: result.outputs || [], icons: result.icons || [], error: result.ok ? null : result.error,
+      outputs: result.outputs || [], icons: result.icons || [], roles: result.roles || [],
+      error: result.ok ? null : result.error,
     });
     if (result.current !== undefined) setMode(result.current);
     render();
@@ -39,6 +40,7 @@
     if (s.wake_word === false) chips.push("Wake word off");
     if (s.voice_replies === false) chips.push("Quiet replies");
     if (s.follow_up !== undefined) chips.push(s.follow_up ? "Keeps listening" : "No follow-up");
+    if (s.role) chips.push(`Acts as ${s.role}`);
     if ((mode.schedule || []).length) chips.push(`At ${mode.schedule[0]}`);
     const n = (mode.actions || []).length;
     if (n) chips.push(`${n} action${n > 1 ? "s" : ""}`);
@@ -230,6 +232,8 @@
     const wake = onOff(s.wake_word, "Listens for its name", "Doesn't listen");
     const voice = onOff(s.voice_replies, "Speaks replies", "Quiet (shows them)");
     const follow = onOff(s.follow_up, "Keeps listening after a reply", "Doesn't");
+    const roleNames = state.roles.includes(s.role) || !s.role ? state.roles : [...state.roles, s.role];
+    const role = choice([[UNSET, "No role"], ...roleNames.map((r) => [r, r])], s.role || UNSET, "Act as");
     const when = schedulePicker(start.schedule);
     const actions = actionRows(start.actions || [], true);
     const exits = actionRows(start.exit_actions || [], true);
@@ -252,7 +256,8 @@
           setRow("Night light", night),
           setRow("Wake word", wake),
           setRow("Voice replies", voice),
-          setRow("Follow-up", follow)),
+          setRow("Follow-up", follow),
+          setRow("Act as", role)),
         el("small", {}, "All of these go back to how they were when you say “back to normal”.")),
       el("div", { class: "field" }, el("label", {}, "Then Abdoh will"), actions.box),
       el("div", { class: "field" }, el("label", {}, "Switch it on by itself"), when.node,
@@ -266,7 +271,7 @@
       const settings = {
         displays: screens.value(), volume: volume.value(), brightness: brightness.value(),
         audio_output: pick(output), dark_mode: bool(theme), power_mode: pick(power), night_light: bool(night),
-        wake_word: bool(wake), voice_replies: bool(voice), follow_up: bool(follow),
+        wake_word: bool(wake), voice_replies: bool(voice), follow_up: bool(follow), role: pick(role),
       };
       Object.keys(settings).forEach((k) => settings[k] === undefined && delete settings[k]);
       return { name: name.value, icon, phrases: phrases.values(), settings,

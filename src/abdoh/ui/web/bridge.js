@@ -55,6 +55,15 @@ const Bridge = (() => {
     ];
     const MODE_ICONS = ["sparkles", "film", "briefcase", "moon", "target", "presentation", "music", "game", "coffee", "book", "sun", "home"];
     let currentMode = params.get("mode") || "";
+    let currentRole = params.get("role") || "";
+    let roles = [
+      { name: "German teacher", phrases: ["german lesson"], instructions: "You are my German teacher, and I'm a beginner. Speak German slowly and simply, explain new words in English, correct my mistakes kindly, and ask me to repeat new phrases.", speed: "slow", answers: "long", board: true, saved: true },
+      { name: "Math teacher", phrases: ["math lesson"], instructions: "You are my patient math teacher. Explain step by step and check that I follow before going on. Put the worked steps on the board.", speed: "normal", answers: "long", board: true, saved: true },
+    ];
+    const roleSuggestions = [
+      { name: "German teacher", description: "Teaches you German slowly, in German, and corrects you kindly.", phrases: ["german lesson"], instructions: "You are my German teacher.", speed: "slow", answers: "long", board: true },
+      { name: "Programming teacher", description: "Explains ideas simply, and shows the code on the board.", phrases: ["coding lesson"], instructions: "You are my programming teacher.", speed: "normal", answers: "long", board: true },
+    ];
     let voiceActive = false;
     let demoLamps = [{ name: "Desk lamp", mac: "a8bb5006f1e2", ip: "192.168.1.41" }];
     let displays = [
@@ -81,7 +90,7 @@ const Bridge = (() => {
       demo: true,
       boot: async () => ({
         version: "0.8.0", platform: "win32", demo: true, settings,
-        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, voice: true, history },
+        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, voice: true, history },
       }),
       events: async () => queue.splice(0),
       send: async (text) => {
@@ -116,7 +125,17 @@ const Bridge = (() => {
         return { ok: true };
       },
       open_commands_file: async () => {},
-      modes: async () => ({ ok: true, modes, templates: modeTemplates, current: currentMode, displays, outputs: ["Speakers", "C34H89x"], icons: MODE_ICONS }),
+      modes: async () => ({ ok: true, modes, templates: modeTemplates, current: currentMode, displays, outputs: ["Speakers", "C34H89x"], icons: MODE_ICONS, roles: roles.map((r) => r.name) }),
+      roles: async () => ({ ok: true, roles, suggestions: roleSuggestions, current: roles.find((r) => r.name === currentRole) || null }),
+      save_role: async (role, oldName) => {
+        if (!role.name.trim()) return { ok: false, error: "Give the role a name." };
+        if (!role.instructions.trim()) return { ok: false, error: "Say how Abdoh should act (instructions)." };
+        roles = roles.filter((r) => r.name !== oldName && r.name !== role.name).concat([{ ...role, saved: true }]);
+        return { ok: true, role };
+      },
+      delete_role: async (name) => { roles = roles.filter((r) => r.name !== name); return { ok: true }; },
+      start_role: async (name) => { currentRole = name; push("role", name); push("history", `Abdoh: Acting as ${name}.`); },
+      stop_role: async () => { currentRole = ""; push("role", ""); push("history", "Abdoh: Stopped acting."); },
       save_mode: async (mode, oldName) => {
         if (!mode.name.trim()) return { ok: false, error: "Give the mode a name." };
         modes = modes.filter((m) => m.name !== oldName && m.name !== mode.name).concat([mode]);
