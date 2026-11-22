@@ -306,8 +306,12 @@ def learning(tmp_path):
     path.write_text(COMMANDS, encoding="utf-8")
     run = FakeRun()
     brain = FakeBrain(["ACTION open_url: https://www.python.org\n", "Opening it."])
-    router = Router(
-        Config(app_dir=tmp_path), CommandRegistry(path), brain=brain, run=run, act=FakeAct()
+    router = Router(  # memory off: "remember that" is only for commands here (see test_memory)
+        Config(app_dir=tmp_path, memory=False),
+        CommandRegistry(path),
+        brain=brain,
+        run=run,
+        act=FakeAct(),
     )
     return router, run, path
 

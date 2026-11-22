@@ -561,6 +561,25 @@ page shows the role that's on, with a way to stop it. Commands can use `role: Ge
 (or `role: off`), and a mode can start a role (its `role` setting), which ends with the mode.
 A role ends when Abdoh quits. Roles live in `roles.yaml` in Abdoh's data folder.
 
+### Memory
+
+Abdoh remembers things about you across conversations. Tell it ("my sister is called Lina",
+"remember that I start work at 9") and Claude keeps a short fact; when something it did on the
+computer failed and another way worked, it keeps a **lesson** ("WhatsApp: maximize its main
+window"). Ask "what do you know about me?", or say "forget that". It never keeps passwords,
+keys, card numbers or health details unless you explicitly ask.
+
+- The **Memory** page lists everything, with how full it is (at most 60 entries and 4000
+  characters; when it's nearly full, Claude merges or forgets something first). Add, edit and
+  delete entries there.
+- **Remember things about me** (`memory`) on that page: off, nothing new is kept and nothing is
+  sent to Claude; what's there stays until you delete it.
+- It lives in `memory.yaml` in Abdoh's data folder, on this computer, and goes to Claude with
+  your requests like everything else. A new memory reaches Claude's next conversation (the one
+  that's open already knows, it just saved it).
+- Saying just "remember that" after Claude **did** something still saves it as a command;
+  after you told it something, it's remembered instead.
+
 ## 6. Install it like an app
 
 ```
@@ -700,6 +719,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
 | `allow_power` | `true` | Abdoh may put the computer to sleep, shut it down or restart it when you ask |
+| `memory` | `true` | Abdoh remembers things about you (the Memory page, `memory.yaml`); `false` keeps and sends nothing |
 | `duck_others` | `true` | Other apps go quieter while Abdoh listens and answers |
 | `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |

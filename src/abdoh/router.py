@@ -13,7 +13,17 @@ from dataclasses import dataclass, field
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
-from abdoh.claude.reply import ANSWER, IGNORE, LISTEN, LOOK, ROLE, speakable
+from abdoh.claude.reply import (
+    ANSWER,
+    FORGET,
+    IGNORE,
+    LESSON,
+    LISTEN,
+    LOOK,
+    MEMORY_ACTIONS,
+    ROLE,
+    speakable,
+)
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
 from abdoh.commands.actions import ActionError, claude_action, run_actions
 from abdoh.commands.learn import append_command
@@ -163,6 +173,7 @@ class Router:
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
+        self.on_memory: Callable[[], None] = lambda: None  # the memory changed (the page)
         # Shows what a role puts on the board: (card, text so far), one card per reply.
         self.on_board: Callable[[int, str], None] | None = None
         self._cards = itertools.count(1)
@@ -248,9 +259,10 @@ class Router:
     def _route(
         self, request: str, original: str, aside: bool = False, woken: Wake = False
     ) -> Reply:
-        # 0. "Remember that": save what Claude just did as a command
+        # 0. "Remember that": save what Claude just did as a command. If it did nothing a
+        # command could do, it's something to remember about you (memory): Claude decides.
         remember = _REMEMBER.fullmatch(request)
-        if remember:
+        if remember and (self._command_actions() or not self.cfg.memory):
             return self._remember(remember.group("phrase"))
 
         reply = self._route_local(request, original)
@@ -485,6 +497,13 @@ class Router:
                     self.acting.switch(arg)
                     turn.actions.append((ROLE, arg))  # the done sound if no words
                 return
+            if kind in MEMORY_ACTIONS:
+                problem = self._memory_action(kind, arg)
+                if problem:
+                    problems.append(problem)
+                else:
+                    turn.actions.append((kind, arg))  # the done sound if no words
+                return
             if kind == LISTEN:
                 from abdoh.roles.acting import wants_on
 
@@ -512,6 +531,8 @@ class Router:
             allowed.append(IGNORE)
         if answer:
             allowed.append(ANSWER)
+        if self.cfg.memory:
+            allowed.extend(MEMORY_ACTIONS)
         if self.acting is not None:
             allowed.append(ROLE)
             if self.acting.current is not None and self.cfg.lesson_listen_seconds > 0:
@@ -572,9 +593,35 @@ class Router:
             return FOLLOW_UP.format(request=turn.request, answer=turn.answer, text=text)
         return text
 
+    def _command_actions(self) -> list[tuple[str, str]]:
+        """What Claude did last time that a command can do (not remembering, or listening)."""
+        from abdoh.commands.registry import ACTION_TYPES
+
+        turn = self.last_turn
+        return [(k, a) for k, a in turn.actions if k in ACTION_TYPES] if turn is not None else []
+
+    def _memory_action(self, kind: str, arg: str) -> str:
+        """ACTION remember, lesson or forget. Returns "" when done, or what to say."""
+        from abdoh.memory import Memory, MemoryChangeError
+
+        memory = Memory(self.cfg.app_dir / "memory.yaml")
+        try:
+            if kind == FORGET:
+                entry = memory.forget(arg)
+                log.info("Forgot: %s", entry.text)
+            else:
+                entry = memory.add(arg, "lesson" if kind == LESSON else "fact")
+                log.info("%s: %s", "Learned" if kind == LESSON else "Remembered", entry.text)
+        except MemoryChangeError as e:
+            log.info("Couldn't %s %r: %s", kind, arg, e)
+            return str(e)
+        self.on_memory()
+        return ""
+
     def _remember(self, phrase: str | None) -> str:
         turn = self.last_turn
-        if turn is None or not turn.actions:
+        actions = self._command_actions()
+        if turn is None or not actions:
             return NOTHING_TO_REMEMBER
         if self.registry.error:
             return f"{COMMANDS_FILE_ERROR} Fix it first, then try again."
@@ -586,11 +633,11 @@ class Router:
             return f"You already have a command for {trigger}."
         taken = {c.name for c in self.registry.commands}
         try:
-            name = append_command(self.registry.path, trigger, turn.actions, turn.request, taken)
+            name = append_command(self.registry.path, trigger, actions, turn.request, taken)
         except (ValueError, OSError) as e:
             log.error("Couldn't save the command: %s", e)
             return "Sorry, I couldn't save that to your commands file."
-        log.info("Saved command %r for %r: %s", name, trigger, turn.actions)
+        log.info("Saved command %r for %r: %s", name, trigger, actions)
         self.registry.refresh(force=True)
         self.last_turn = None  # remembered; don't save it twice
         return f"Saved. Next time just say: {trigger}."

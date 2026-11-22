@@ -66,7 +66,9 @@ def test_prompt_offers_only_the_allowed_actions():
 def test_prompt_without_any_actions():
     text = system_prompt(cfg_with(actions=[], allow_screen=False))
     lines = [line for line in text.splitlines() if line.startswith("ACTION")]
-    assert lines == ["ACTION role: off"] or all(line.startswith("ACTION role:") for line in lines)
+    # roles and memory aren't things done on the computer
+    kept = ("ACTION role:", "ACTION remember:", "ACTION lesson:", "ACTION forget:")
+    assert all(line.startswith(kept) for line in lines)
     assert NO_ACTIONS.split(":")[0] in text  # roles aren't things done on the computer
 
 

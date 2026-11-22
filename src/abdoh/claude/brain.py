@@ -25,8 +25,8 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{roles}{files}{web}{tools}If you need more information, ask one short question. Don't end \
-with a question otherwise.
+{look}{roles}{memory}{files}{web}{tools}If you need more information, ask one short \
+question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
@@ -64,6 +64,25 @@ the line
 ACTION role: off
 and answer as yourself.{names}
 """
+# Memory (abdoh/memory.py): what Claude knows about the user, and lessons, across conversations.
+MEMORY = """You remember things across conversations. When the user tells you something lasting \
+about themselves (the people in their life, what they like, their routines, where things are) or \
+asks you to remember something, write the line
+ACTION remember: <one short fact about the user, like: Their sister is called Lina.>
+Not passing remarks, nothing you already know, and never passwords, keys, card numbers or health \
+details unless the user explicitly asks you to remember that. When something you did on the \
+computer failed and then another way worked, write the line
+ACTION lesson: <what works, like: WhatsApp: maximize its main window; the first window found is \
+a hidden helper.>
+When the user asks you to forget something, write the line
+ACTION forget: <the entry, as written below>
+Use what you know naturally, without saying where you got it. When asked what you know about \
+them, tell them.{full}
+{entries}
+"""
+MEMORY_FULL = """ Your memory is nearly full: before remembering something new, forget something \
+or merge two entries (forget both, then remember the merged one)."""
+
 # Claude decides when it needs to see the screen; Abdoh then sends a picture of it.
 LOOK = """You can see the user's screen when you need to. Whenever what they say points at \
 something on their screen ("what's this error?", "which one should I pick?", "read this to me", \
@@ -145,6 +164,17 @@ def _role_names(cfg: Config) -> str:
     return f" The user's roles: {', '.join(names)}." if names else ""
 
 
+def _memory(cfg: Config) -> str:
+    """The memory section (MEMORY), or "" with memory off."""
+    if not cfg.memory:
+        return ""
+    from abdoh.memory import Memory, for_claude, nearly_full
+
+    entries = Memory(cfg.app_dir / "memory.yaml").entries()
+    known = for_claude(entries) or "You don't know anything about the user yet."
+    return MEMORY.format(full=MEMORY_FULL if nearly_full(entries) else "", entries=known)
+
+
 def _screen_names(path: Path) -> str:
     """'1 Laptop screen, 2 HP 32f (TV), 3 C34H89x' from Abdoh's screen numbers."""
     import json
@@ -210,6 +240,7 @@ def system_prompt(
         actions=actions,
         look=LOOK if cfg.claude.allow_screen else "",
         roles=ROLES.format(names=_role_names(cfg)),
+        memory=_memory(cfg),
         files=files,
         web=WEB_LINE if web else "",
         tools=(CONNECTORS.format(names=", ".join(connectors)) if connectors else "")

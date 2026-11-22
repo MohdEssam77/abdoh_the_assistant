@@ -13,7 +13,7 @@ const Bridge = (() => {
       wake_words: ["abdoh", "hey abdoh", "ya abdoh"], wake_word_aliases: ["abdo", "abdul"],
       wake_word_model: "models/hey_abdoh.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
-      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
+      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, memory: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.abdoh/abdoh.log",
       has_api_key: false,
       claude: {
@@ -66,6 +66,16 @@ const Bridge = (() => {
       { id: 3, text: "The quadratic formula:\n$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$\nHere $a = 1$, $b = -1$ and $c = -13$, so $b^2 - 4ac = 53$ and $x = \\frac{1 \\pm \\sqrt{53}}{2}$." },
       { id: 4, text: "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |" },
     ];
+    let memory = [
+      { text: "Their name is Mo; they study at Saarland University.", kind: "fact", added: "2026-11-20" },
+      { text: "Their sister is called Lina.", kind: "fact", added: "2026-11-21" },
+      { text: "They like to study with lo-fi music on Spotify.", kind: "fact", added: "2026-11-22" },
+      { text: "WhatsApp: maximize its main window; the first window found is a hidden helper.", kind: "lesson", added: "2026-11-22" },
+    ];
+    const memoryChanged = (result) => {
+      if (result.ok) push("memory", null);
+      return result;
+    };
     const roleSuggestions = [
       { name: "German teacher", description: "Teaches you German slowly, in German, and corrects you kindly.", phrases: ["german lesson"], instructions: "You are my German teacher.", speed: "slow", answers: "long", board: true },
       { name: "Programming teacher", description: "Explains ideas simply, and shows the code on the board.", phrases: ["coding lesson"], instructions: "You are my programming teacher.", speed: "normal", answers: "long", board: true },
@@ -142,6 +152,21 @@ const Bridge = (() => {
       delete_role: async (name) => { roles = roles.filter((r) => r.name !== name); return { ok: true }; },
       start_role: async (name) => { currentRole = name; push("role", name); push("listening", { on: true, now: true }); push("history", `Abdoh: Acting as ${name}.`); },
       stop_role: async () => { currentRole = ""; push("board", null); push("role", ""); push("listening", { on: false, now: false }); push("history", "Abdoh: Stopped acting."); },
+      memory: async () => ({ ok: true, entries: memory, max_entries: 60, max_chars: 4000, chars: memory.reduce((n, e) => n + e.text.length, 0) }),
+      add_memory: async (text, kind) => {
+        if (!text.trim()) return { ok: false, error: "There's nothing to remember." };
+        const entry = { text: text.trim(), kind, added: "2026-11-23" };
+        memory = [...memory, entry];
+        return memoryChanged({ ok: true, entry });
+      },
+      change_memory: async (old, text, kind) => {
+        memory = memory.map((e) => (e.text === old ? { ...e, text: text.trim(), kind } : e));
+        return memoryChanged({ ok: true });
+      },
+      forget_memory: async (text) => {
+        memory = memory.filter((e) => e.text !== text);
+        return memoryChanged({ ok: true });
+      },
       keep_listening: async (on) => push("listening", { on: !!on, now: !!on }),
       clear_board: async () => push("board", null),
       save_mode: async (mode, oldName) => {

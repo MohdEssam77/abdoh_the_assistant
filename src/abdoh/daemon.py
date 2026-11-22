@@ -147,6 +147,7 @@ class Daemon:
         router.on_thinking = self._thinking
         router.on_activity = self._activity
         router.on_board = self._on_board
+        router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
