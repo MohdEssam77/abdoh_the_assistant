@@ -78,7 +78,7 @@ wants:
 | Settings' microphone list | From Windows (`winaudio`), full names | Always current |
 | Reopening after a change | Reload PortAudio, then open the microphone again | The only way `sounddevice` sees new devices |
 | Roles, memory | `<app_dir>/roles.yaml`, `<app_dir>/memory.yaml` | Like `modes.yaml`: readable, editable, kept on uninstall |
-| The board | A small, safe Markdown renderer in the page's own JS (headings, lists, bold, code blocks, tables; all HTML escaped), math in plain Unicode (x², √, ½) | No new library. KaTeX only if story 66 step 1 shows Unicode math isn't good enough (one-line reason in the commit). **Built (story 66) with Unicode math; the owner's readability check (step 1) is still to do** |
+| The board | A small, safe Markdown renderer in the page's own JS (headings, lists, bold, code blocks, tables; all HTML escaped), math in LaTeX drawn by KaTeX | **KaTeX 0.19.1** (MIT), vendored in `ui/web/vendor/katex` (script, CSS, woff2 fonts; works offline), `trust` off. Added after story 66 at the owner's request: Unicode math isn't enough for uni maths |
 
 No new Python dependencies.
 
@@ -196,17 +196,21 @@ A **role** (`roles.yaml`):
 ### 4.5 The board
 
 - The top of the Act as page, used only while a role with `board: true` is on.
-- The state line tells Claude: "You can show things on Abdoh's board: code, equations, worked
-  steps, tables, word lists, anything better seen than heard. Put it between a line `[board]`
-  and a line `[/board]`. Build the board as you talk: put each part right before you talk
-  about it. The board is shown, never read aloud; speak the explanation and refer to the board."
+- The state line tells Claude: "You have a board, like a teacher's whiteboard: code, equations,
+  worked steps, tables, word lists, anything better seen than heard. Write on it a little at a
+  time: one line between a line `[board]` and a line `[/board]`, then say what it means, then
+  the next line. Never a whole program at once. Markdown, and LaTeX for math (`$...$`,
+  `$$...$$`). The board is shown, never read aloud; speak the explanation and refer to it."
 - `reply.py`: lines between the markers go to `on_board(text)`, never to the voice. A reply with
   board content brings Abdoh's window up on the Act as page (where it last was; Claude can move
   it with `window`).
-- Live (owner's request after story 66): the board grows line by line. The reply is read only as
-  fast as it is spoken, so a part written just before Claude talks about it appears as Abdoh
-  starts saying it. All the parts of one answer are one card (`{id, text}`, the newest replaced
-  as it grows); the window comes up once per card.
+- Written like on a whiteboard (owner's request after story 66): the reply is read only as fast
+  as it is spoken, so a line written just before Claude talks about it reaches the page just
+  before Abdoh says it. The page writes it out word by word (`Board.Typist`, 40 characters a
+  second; never half a formula, table row or `**bold**`), and Abdoh waits as long (at most 3 s
+  a line) before speaking on: write a line, explain it, write the next. All the pieces of one
+  answer are one card (`{id, text}`, the newest replaced as it grows; pieces join with a line
+  break, so a code block can go on across pieces); the window comes up once per card.
 - The board keeps the role's items, newest at the bottom, with a Copy button on code. **Clear**
   empties it, and it is cleared when the role ends.
 - Rendered with the page's own small Markdown renderer (section 3); everything is escaped.
@@ -365,7 +369,8 @@ things?" is answered right.
 ### Story 66: The board (`story/66-board`)
 
 1. **Check first** with the owner: three math replies and two code replies on the board, math
-   in Unicode. Readable? If not, KaTeX (decide, and write it into section 3).
+   in Unicode. Readable? If not, KaTeX (decide, and write it into section 3). **Decided after
+   the first lessons: KaTeX** (uni maths needs more than Unicode).
 2. `reply.py`: `[board]` ... `[/board]` to `on_board`, never spoken, also when the markers
    arrive split across streamed chunks.
 3. The board on the Act as page: the Markdown renderer, Copy buttons, Clear, cleared when the

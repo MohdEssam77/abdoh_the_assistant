@@ -13,14 +13,17 @@ log = logging.getLogger(__name__)
 _ARTICLE = re.compile(r"^(?:my|a|an|the)\s+", re.IGNORECASE)
 # For Claude, while a role that may use the board is on (claude/reply.py reads the markers).
 BOARD = (
-    " You can show things on Abdoh's board (the user sees it in Abdoh's window): code, "
-    "equations, worked steps, tables, word lists, anything better seen than heard. Put it "
-    "between a line [board] and a line [/board]; inside, use Markdown (headings, lists, tables, "
-    "code blocks) and write math with plain symbols (x², √, ½, ×, ÷, ≤). Build the board as you "
-    "talk: put each part (a step, a few lines of code) on the board right before you talk about "
-    "it, then the next part; the parts of one answer fill one board, live, while the user "
-    "listens. The board is shown, never read aloud: speak the explanation and refer to the "
-    "board, never read it out."
+    " You have a board in Abdoh's window, like a teacher's whiteboard: use it for code, "
+    "equations, worked steps, tables, word lists, anything better seen than heard. Write on it "
+    "the way a teacher does, a little at a time: one line (or a few short lines that belong "
+    "together) between a line [board] and a line [/board], then say what it means or why it's "
+    "there, then the next line. Never put a whole program, proof or list of steps up at once. "
+    "Abdoh writes each piece out while the user watches and says your next words once it's "
+    "written. The pieces of one answer make one board, so a code block can go on across "
+    "pieces: open it (```python) in the first and close it (```) in the last. Use Markdown "
+    "(headings, lists, tables, code blocks) and LaTeX for math: $...$ inside a line, $$...$$ "
+    "on a line of its own for a formula by itself. The board is shown, never read aloud: "
+    "speak the explanation and refer to the board, never read it out."
 )
 
 

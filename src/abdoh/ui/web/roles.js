@@ -5,6 +5,13 @@
 (() => {
   const state = { roles: [], suggestions: [], current: null, error: null };
   const SPEEDS = [["slow", "Slower"], ["normal", "Normal"], ["fast", "Faster"]];
+  // Writes the newest board card out like a teacher at a whiteboard (board.js).
+  const typist = new Board.Typist((text) => {
+    const board = $("#board");
+    if (!board || !board.lastElementChild || !$("#page-roles").classList.contains("active")) return;
+    board.lastElementChild.replaceWith(Board.render(text));
+    board.scrollTop = board.scrollHeight;
+  });
   const ANSWERS = [["short", "Short, as usual"], ["normal", "Longer (up to 5 sentences)"], ["long", "Long (up to 10 sentences)"]];
 
   async function load() {
@@ -73,7 +80,7 @@
         el("div", { class: "board-head" }, el("b", {}, "Board"), el("div", { class: "spacer" }),
           items.length ? el("button", { class: "btn small", onclick: () => call("clear_board") }, "Clear") : null),
         el("div", { class: "board", id: "board" }, items.length
-          ? items.map((card) => Board.render(card.text))
+          ? items.map((card) => Board.render(typist.shown(card)))
           : el("p", { class: "board-empty" }, "Code, equations and steps the role shows appear here."))) : null);
     const board = $("#board");
     if (board) board.scrollTop = board.scrollHeight; // the newest (maybe still growing) at the bottom
@@ -184,7 +191,13 @@
     $("#role-chip-end").addEventListener("click", stop);
   }
 
-  window.Roles = { load, board: () => { if ($("#page-roles").classList.contains("active")) renderNow(); } };
+  /* The board changed: card is the newest (live: written out), or null when it's cleared. */
+  function board(card) {
+    typist.set(card);
+    if ($("#page-roles").classList.contains("active")) renderNow();
+  }
+
+  window.Roles = { load, board };
 
   registerPage("roles", {
     boot() { bind(); },
