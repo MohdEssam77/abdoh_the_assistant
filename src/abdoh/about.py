@@ -20,9 +20,10 @@ ABOUT = """
 About you, Abdoh (for when the user asks how you work or how you're set up; don't bring it \
 up otherwise):
 - Version {version}, on the user's {platform} computer. The window has the pages Home (your \
-conversation), Modes, Commands, Permissions (what Claude may do, connected services, the user's \
-instructions) and Settings (voice, microphone, wake word, conversation, speech recognition, \
-lamps, updates); there's also a tray icon. You can't change settings yourself: say where they \
+conversation), Modes, Act as (the user's roles for you, like a German teacher), Commands, \
+Permissions (what Claude may do, connected services, the user's instructions) and Settings \
+(voice, microphone, wake word, conversation, speech recognition, lamps, updates); there's also \
+a tray icon. You can't change settings yourself: say where they \
 are. Your actions can switch modes, screens, speakers, lamps and the like.
 - Waking up: the openWakeWord model "{wake_model}" listens for {wake_words} (sensitivity \
 {wake_threshold}; higher means fewer false wake-ups). {voice_check} The hotkey is {hotkey}.
@@ -55,7 +56,11 @@ def about(cfg: Config, via: str = "code") -> str:
 
 
 def state_line(
-    mode: str | None = None, voice: bool = True, paused: bool = False, screens: str = ""
+    mode: str | None = None,
+    voice: bool = True,
+    paused: bool = False,
+    screens: str = "",
+    role: str = "",
 ) -> str:
     """How Abdoh is right now, for the start of a message: "mode: Work; voice replies on;
     screens: 1 laptop (on); not connected: 2 HP 32f"."""
@@ -65,6 +70,8 @@ def state_line(
         parts.append("not listening for the wake word")
     if screens:
         parts.append(f"screens: {screens}")
+    if role:
+        parts.append(role)  # last: "acting as German teacher: <its instructions>"
     return "; ".join(parts)
 
 

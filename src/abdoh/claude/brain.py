@@ -25,16 +25,16 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{files}{web}{tools}If you need more information, ask one short question. Don't end with a \
-question otherwise.
+{look}{roles}{files}{web}{tools}If you need more information, ask one short question. Don't end \
+with a question otherwise.
 {clock}{about}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
 # For a conversation that stays open: the time comes with every message instead.
 STAMPED = (
     "Each message starts with the current date and time in square brackets, and how Abdoh is "
-    "right now (the mode that's on, voice replies). Use it when it matters, and never read it "
-    "out unless the user asks."
+    "right now (the mode that's on, voice replies, the screens, the role you play). Use it when "
+    "it matters, and never read it out unless the user asks."
 )
 
 ACTIONS = """You can do things on the computer. To do one, write an action line before your \
@@ -52,6 +52,18 @@ something, or to do something and tell them something, answer normally."""
 NO_ACTIONS = """You can't do things on the computer here: the user turned that off in Abdoh's \
 permissions. {limits}If they ask you to do something, say so in one sentence."""
 NO_COMMANDS = "You cannot run commands, type or click. "
+# Roles ("act as my German teacher"): Claude starts and ends them, and plays them.
+ROLES = """You can play a role when the user asks you to act as someone (a teacher, a coach, a \
+character): write the line
+ACTION role: <one of the user's roles, or a short description such as a friendly chef>
+and then answer in that role. While a role is on, each message's first line says "acting as" \
+with the role's instructions: follow them in everything you say until it ends, and they replace \
+the usual answer length when they give one. When the user says in any words that you can stop \
+(stop acting, no need to act anymore, you can stop being my teacher, be yourself again), write \
+the line
+ACTION role: off
+and answer as yourself.{names}
+"""
 # Claude decides when it needs to see the screen; Abdoh then sends a picture of it.
 LOOK = """You can see the user's screen when you need to. Whenever what they say points at \
 something on their screen ("what's this error?", "which one should I pick?", "read this to me", \
@@ -121,6 +133,18 @@ def _your_things(cfg: Config) -> str:
     return "".join(f"\n{line}" for line in lines)
 
 
+def _role_names(cfg: Config) -> str:
+    """For the prompt: " The user's roles: German teacher, Math teacher." ("" if none)."""
+    from abdoh.roles.model import RolesFileError
+    from abdoh.roles.store import RoleStore
+
+    try:
+        names = [r.name for r in RoleStore(cfg.app_dir / "roles.yaml").load()]
+    except RolesFileError:
+        names = []
+    return f" The user's roles: {', '.join(names)}." if names else ""
+
+
 def _screen_names(path: Path) -> str:
     """'1 Laptop screen, 2 HP 32f (TV), 3 C34H89x' from Abdoh's screen numbers."""
     import json
@@ -185,6 +209,7 @@ def system_prompt(
         sentences=cfg.claude.voice_reply_max_sentences,
         actions=actions,
         look=LOOK if cfg.claude.allow_screen else "",
+        roles=ROLES.format(names=_role_names(cfg)),
         files=files,
         web=WEB_LINE if web else "",
         tools=(CONNECTORS.format(names=", ".join(connectors)) if connectors else "")

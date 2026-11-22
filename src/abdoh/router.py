@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
-from abdoh.claude.reply import ANSWER, IGNORE, LOOK, speakable
+from abdoh.claude.reply import ANSWER, IGNORE, LOOK, ROLE, speakable
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
 from abdoh.commands.actions import ActionError, claude_action, run_actions
 from abdoh.commands.learn import append_command
@@ -105,6 +105,10 @@ _MODE_WHICH = re.compile(
 )
 _MODE_LIST = re.compile(r"(?:what|which) modes (?:do i have|are there)|list (?:my |the )?modes")
 MODE_MATCH = 90  # mode names are short: only a close match counts ("dark" isn't "park")
+# Starting one of your roles without Claude: "act as my German teacher" (and the role's phrases).
+# Anything else about roles (a made-up one, stopping in any words) is Claude's to understand.
+_ROLE_ON = ("act as {name}", "act as my {name}", "act as a {name}", "act as an {name}",
+            "be my {name}", "{name} role")  # fmt: skip
 _REMEMBER = re.compile(
     r"(?:please )?(?:remember|save) (?:that|this|it)(?: (?:as|for) (?P<phrase>.+?))?(?: please)?"
 )
@@ -165,6 +169,7 @@ class Router:
         self._capture = capture
         self._window = window
         self.modes = None  # abdoh.modes.engine.ModeEngine, or None
+        self.acting = None  # abdoh.roles.acting.Acting, or None
         self._builtins: dict[str, Callable[[], str]] = {}
         self._builtin_commands: list[Command] = []
         self._unclear_at: float | None = None  # when Abdoh last heard you but got no words
@@ -291,6 +296,12 @@ class Router:
             if reply is not None:
                 return reply
 
+        # 1c. One of your roles, by name ("act as my German teacher")
+        if self.acting is not None:
+            reply = self._role(request)
+            if reply is not None:
+                return reply
+
         # 2. Commands from commands.yaml
         found = match_command(request, self.registry.commands, self.cfg.match_threshold)
         if found:
@@ -414,6 +425,17 @@ class Router:
         except ActionError as e:
             return str(e)
 
+    def _role(self, request: str) -> str | None:
+        choices = [
+            Command(r.name, [p.format(name=r.name.lower()) for p in _ROLE_ON] + list(r.phrases), [])
+            for r in self.acting.roles()
+        ]
+        found = match(request, choices, max(MODE_MATCH, self.cfg.match_threshold))
+        if not found:
+            return None
+        log.info("Role %r (score %.0f)", found[0].name, found[1])
+        return Done(self.acting.switch(found[0].name))
+
     def _ask(self, prompt: str, request: str, screen: bool = False, aside: bool = False) -> Reply:
         if self.brain is None:
             return NOT_CONNECTED
@@ -447,6 +469,11 @@ class Router:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
+            if kind == ROLE:
+                if self.acting is not None:
+                    self.acting.switch(arg)
+                    turn.actions.append((ROLE, arg))  # the done sound if no words
+                return
             if kind == ANSWER:
                 name = self.modes.asked_mode() if self.modes is not None else ""
                 said = self.modes.answer_from_claude(arg) if name else ""
@@ -468,6 +495,8 @@ class Router:
             allowed.append(IGNORE)
         if answer:
             allowed.append(ANSWER)
+        if self.acting is not None:
+            allowed.append(ROLE)
         chunks = None
         try:
             image = self._capture() if screen else None

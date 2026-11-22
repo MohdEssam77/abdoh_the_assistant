@@ -134,6 +134,11 @@ def run_action(
         if modes is None:
             raise ActionError("Modes aren't available here.")
         return modes.switch(arg)
+    elif kind == "role":
+        acting = getattr(computer, "acting", None)
+        if acting is None:
+            raise ActionError("Roles aren't available here.")
+        acting.switch(arg)  # the done sound says it
     elif kind == "type":
         computer.type_text(arg)
     elif kind == "open_url":
@@ -162,7 +167,7 @@ SYSTEM_ACTIONS = (
 )  # fmt: skip
 LOCAL_ONLY = (
     "media", "timer", "play_youtube", "volume", "brightness", "app_volume", "type", "mode",
-    *SYSTEM_ACTIONS,
+    "role", *SYSTEM_ACTIONS,
 )  # fmt: skip
 ON_WORDS = {"on": True, "true": True, "yes": True, "dark": True, "off": False, "false": False,
             "no": False, "light": False}  # fmt: skip

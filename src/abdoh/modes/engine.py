@@ -28,7 +28,7 @@ log = logging.getLogger(__name__)
 NO_MODE = "No mode is on."
 BACK_TO_NORMAL = "Back to normal."
 # Abdoh's own switches: Windows keeps the rest by itself across a restart.
-ABDOH_SWITCHES = ("wake_word", "voice_replies", "follow_up")
+ABDOH_SWITCHES = ("wake_word", "voice_replies", "follow_up", "role")
 WONT = "Okay, I won't."
 
 

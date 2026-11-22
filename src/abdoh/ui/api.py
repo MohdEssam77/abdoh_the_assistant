@@ -48,6 +48,7 @@ class UiState:
         self._wake = ""
         self._hearing = ""
         self._mode = ""
+        self._role = ""
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
 
@@ -73,6 +74,8 @@ class UiState:
                 self._hearing = value
             elif kind == "mode":
                 self._mode = value or ""
+            elif kind == "role":
+                self._role = value or ""
             elif kind == "voice":
                 self._voice = bool(value)
             elif kind == "history":
@@ -100,6 +103,7 @@ class UiState:
                 "wake": self._wake,
                 "hearing": self._hearing,
                 "mode": self._mode,
+                "role": self._role,
                 "voice": self._voice,
                 "history": list(self._history),
             }
@@ -250,6 +254,67 @@ class AppApi:
 
     # ----- your modes and your screens -----
 
+    # ----- roles ("act as my German teacher") -----
+
+    def _roles_store(self):
+        from abdoh.roles.store import RoleStore
+
+        return RoleStore(self._cfg.app_dir / "roles.yaml")
+
+    def _role_names(self) -> list[str]:
+        from abdoh.roles.model import RolesFileError
+
+        try:
+            return [r.name for r in self._roles_store().load()]
+        except RolesFileError:
+            return []
+
+    def roles(self) -> dict:
+        """Your roles, the suggestions, and the role that's on (also one made up on the spot)."""
+        from abdoh.roles.model import RolesFileError, as_form
+        from abdoh.roles.store import SUGGESTIONS
+
+        result = {"ok": True, "roles": [], "suggestions": SUGGESTIONS, "current": None}
+        try:
+            result["roles"] = self._roles_store().forms()
+        except RolesFileError as e:
+            result.update(ok=False, error=str(e))
+        acting = getattr(self._daemon, "acting", None)
+        if acting is not None and acting.current is not None:
+            result["current"] = as_form(acting.current)
+        return result
+
+    def save_role(self, role, old_name=None) -> dict:
+        from abdoh.roles.model import RolesFileError, as_form
+
+        try:
+            saved = self._roles_store().save(role, old_name or None)
+        except RolesFileError as e:
+            return {"ok": False, "error": str(e)}
+        acting = getattr(self._daemon, "acting", None)
+        current = acting.current if acting is not None else None
+        if current is not None and current.name.lower() in (
+            saved.name.lower(),
+            str(old_name or "").lower(),
+        ):
+            acting.start(saved.name)  # the role that's on, as you just saved it (its speed too)
+        return {"ok": True, "role": as_form(saved)}
+
+    def delete_role(self, name) -> dict:
+        from abdoh.roles.model import RolesFileError
+
+        try:
+            self._roles_store().delete(str(name))
+        except RolesFileError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True}
+
+    def start_role(self, name) -> None:
+        self._bus.request("role", str(name))
+
+    def stop_role(self) -> None:
+        self._bus.request("role", "")
+
     def _modes_store(self):
         from abdoh.modes.store import ModesStore
 
@@ -276,6 +341,7 @@ class AppApi:
             "displays": self._display_list(),
             "outputs": self._output_names(),
             "icons": list(ICONS),
+            "roles": self._role_names(),
         }
         try:
             result["modes"] = self._modes_store().forms()

@@ -22,6 +22,7 @@ SETTINGS = (
     "wake_word",
     "voice_replies",
     "follow_up",
+    "role",
 )
 SWITCHES = ("dark_mode", "night_light", "wake_word", "voice_replies", "follow_up")  # on or off
 PERCENTS = ("volume", "brightness")
@@ -162,6 +163,10 @@ def _settings(raw, where: str) -> dict:
         elif key == "audio_output":
             if not isinstance(value, str) or not value.strip():
                 raise ModesFileError(f"{where}: audio_output needs the speakers' name.")
+            value = value.strip()
+        elif key == "role":
+            if not isinstance(value, str) or not value.strip():
+                raise ModesFileError(f"{where}: role needs a role's name (Act as).")
             value = value.strip()
         settings[key] = value
     return settings
