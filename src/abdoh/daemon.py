@@ -4,6 +4,7 @@ Also serves requests from the UI (typed text, pause, set key, ...) on a second t
 """
 
 import logging
+import math
 import random
 import threading
 import time
@@ -26,6 +27,11 @@ log = logging.getLogger(__name__)
 MIC_RETRY_SECONDS = 5.0
 # A device change waits this long for Abdoh's voice to finish before devices are read again.
 RELOAD_WAIT_SECONDS = 30.0
+# Housekeeping (see _housekeeping_tick): how often it looks, how often the speech model is
+# warmed while idle, and how often old unclear clips are deleted.
+HOUSEKEEPING_SECONDS = 30.0
+WARM_EVERY_SECONDS = 240.0
+PRUNE_EVERY_SECONDS = 3600.0
 SORRY = "Sorry, something went wrong."
 # After the hotkey, nothing louder than this came from the mic (of 32768): it's muted or
 # turned right down. Speech is usually in the thousands.
@@ -101,6 +107,9 @@ class Daemon:
         # create(): tests never touch the real audio system).
         self.reload_devices: Callable[[], bool] = lambda: True
         self._devices_stale = False  # read the devices again before the mic opens next
+        self._wake_heard = None  # how clearly the last wake word was heard (score, voice)
+        self._warming = False  # the speech model is being warmed
+        self._last_tick = self._last_warm = self._last_prune = None  # housekeeping
         self._interrupted = threading.Event()  # "stop speaking" for the current request
         self._listen_now = threading.Event()  # the hotkey was pressed
         self._capture: dict | None = None  # a recording for your voice check (record_voice)
@@ -166,7 +175,18 @@ class Daemon:
         from abdoh.about import state_line
 
         mode = getattr(self.modes, "current", None) if self.modes is not None else None
-        return state_line(mode, self.voice_enabled, self.paused)
+        return state_line(mode, self.voice_enabled, self.paused, self._screens_now())
+
+    def _screens_now(self) -> str:
+        """Which screens are connected and on right now ("" if Abdoh can't tell)."""
+        displays = getattr(getattr(self.router, "computer", None), "displays", None)
+        if displays is None:
+            return ""
+        try:
+            return displays.summary()
+        except Exception:
+            log.debug("Couldn't read the screens", exc_info=True)
+            return ""
 
     def _activity(self, text: str) -> None:
         """Claude started something slow (a web search, a file): show it, and say it if Claude
@@ -234,6 +254,7 @@ class Daemon:
         from abdoh.claude.brain import make_brain
 
         old_mic = self.cfg.mic_device
+        kept_clips = self.cfg.keep_unclear_clips
         for f in fields(Config):
             if f.name not in ("app_dir", "claude"):
                 setattr(self.cfg, f.name, getattr(new, f.name))
@@ -255,6 +276,11 @@ class Daemon:
             self.voice_watch.sensitivity = self.cfg.voice_interrupt_sensitivity
         if self.cfg.mic_device != old_mic:
             self.reopen_mic()
+        if kept_clips and not self.cfg.keep_unclear_clips:
+            from abdoh.audio.unclear import delete_all
+
+            if delete_all(self._clips_folder()):
+                log.info("Deleted the unclear recordings")
         log.info("Settings changed")
 
     def _speak_sample(self, text: str) -> None:
@@ -435,15 +461,14 @@ class Daemon:
         if self.voice_enabled:
             self.earcons.start_ticking("thinking")
 
-    def handle_text(
-        self, text: str, voice: bool = False, aside: bool = False, woken: bool = False
-    ) -> str:
+    def handle_text(self, text: str, voice: bool = False, aside: bool = False, woken=False) -> str:
         """Route one request and speak the reply. Never raises.
 
         `voice`: the request was spoken, so if Claude's reply ends with a question, Abdoh
         listens for the answer next (no wake word needed). `aside`: it was said right after a
         reply, without the wake word, so it may be meant for someone else in the room. `woken`: it
-        came after the wake word, which a video or people talking can set off by mistake.
+        came after the wake word, which a video or people talking can set off by mistake (True,
+        or how clearly the name was heard: (score, voice check or None)).
         """
         with self._handle_lock:
             self._interrupted.clear()
@@ -460,7 +485,7 @@ class Daemon:
             watcher = self._watch_reply() if voice else None
             try:
                 try:
-                    maybe = {"aside": True} if aside else {"woken": True} if woken else {}
+                    maybe = {"aside": True} if aside else {"woken": woken} if woken else {}
                     reply = self.router.handle(text, **maybe)
                 except Exception:
                     log.exception("Error handling %r", text)
@@ -488,6 +513,8 @@ class Daemon:
                     acted = bool(turn is not None and turn.actions)
                     if acted and not reply:
                         self._done(_what_was_done(turn.actions))  # Claude did it without a word
+                    elif woken and not reply and getattr(turn, "ignored", False):
+                        self._sound("unclear")  # not for it: say it again if it was
                     if voice:
                         self._listen_for_more(reply, acted)
             finally:
@@ -498,6 +525,84 @@ class Daemon:
                 self._unduck_unless_listening()  # a typed request: its reply is over
             self._status_idle()
             return reply
+
+    def _sound(self, name: str) -> None:
+        if self.voice_enabled:
+            self.earcons.play(name)
+
+    def _heard_unclear(self, audio: bytes) -> None:
+        """You spoke after the wake word but no words came out. A soft sound, no words and no
+        listening afterwards (it may have been talk on the phone or in the room); the next
+        request to Claude says so. With keep_unclear_clips, the recording is kept for a day."""
+        from abdoh.audio.recorder import peak
+
+        loudest = peak(audio)
+        kept = ""
+        if self.cfg.keep_unclear_clips:
+            from abdoh.audio.unclear import save_clip
+
+            try:
+                kept = f"; kept as {save_clip(self._clips_folder(), audio).name}"
+            except OSError as e:
+                log.warning("Couldn't keep the unclear recording: %s", e)
+        log.info(
+            "Heard %.1fs after the wake word but no words (loudest %d of 32768, %.0f dB)%s",
+            len(audio) / BYTES_PER_SECOND,
+            loudest,
+            20 * math.log10(max(loudest, 1) / 32768),
+            kept,
+        )
+        heard = getattr(self.router, "heard_unclear", None)
+        if heard:
+            heard()
+        self._sound("unclear")
+
+    def _clips_folder(self):
+        from abdoh.audio.voicecheck import VOICE_DIR
+
+        return self.cfg.app_dir / VOICE_DIR
+
+    def _warm_speech(self) -> None:
+        """Warm the speech model in the background (see Transcriber.keep_warm)."""
+        warm = getattr(self.transcriber, "keep_warm", None)
+        if warm is None or self._warming:
+            return
+        self._warming = True
+
+        def run() -> None:
+            try:
+                warm()
+            finally:
+                self._warming = False
+
+        threading.Thread(target=run, name="abdoh-warm-speech", daemon=True).start()
+
+    def _housekeeping(self) -> None:
+        while not self.stop_event.wait(HOUSEKEEPING_SECONDS):
+            try:
+                self._housekeeping_tick()
+            except Exception:
+                log.exception("Housekeeping failed")
+
+    def _housekeeping_tick(self, wall: float | None = None, now: float | None = None) -> None:
+        """Keep the speech model warm (every few minutes, and right after the computer wakes
+        from sleep: Windows moves an idle model out of memory) and delete unclear clips older
+        than a day (hourly). `wall`: time.time(); `now`: time.monotonic()."""
+        wall = time.time() if wall is None else wall
+        now = time.monotonic() if now is None else now
+        slept = self._last_tick is not None and wall - self._last_tick > 3 * HOUSEKEEPING_SECONDS
+        self._last_tick = wall
+        if slept:
+            log.info("The computer woke up: warming the speech model")
+        if slept or self._last_warm is None or now - self._last_warm >= WARM_EVERY_SECONDS:
+            self._last_warm = now
+            self._warm_speech()
+        if self._last_prune is None or now - self._last_prune >= PRUNE_EVERY_SECONDS:
+            self._last_prune = now
+            from abdoh.audio.unclear import prune
+
+            if prune(self._clips_folder()):
+                log.info("Deleted unclear recordings older than a day")
 
     def _done(self, text: str) -> None:
         """Something you asked for was done: it shows in the window, and a short sound says so
@@ -764,6 +869,7 @@ class Daemon:
         self._status_idle()
         if self.device_watch is not None:
             self.device_watch.start(self.stop_event)
+        threading.Thread(target=self._housekeeping, name="abdoh-housekeeping", daemon=True).start()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
             self.stop_event.wait()
@@ -832,6 +938,8 @@ class Daemon:
         self.stop_event.wait(self.mic_retry_seconds)
 
     def _on_wake(self) -> None:
+        self._warm_speech()  # back in memory by the time you've finished talking
+        self._wake_heard = getattr(self.engine, "last_wake", None)
         self._duck()
         if self._handle_lock.locked() and self.cfg.wake_word_interrupts:
             self.stop_speaking()  # a typed request is being answered: you get the floor
@@ -874,6 +982,7 @@ class Daemon:
                 answer_wait=self._answer_wait,
                 observe=lambda block: self._observe(block, mic),  # a typed request's reply
                 on_voice=self._heard_voice,
+                on_unclear=self._heard_unclear,
             )
         except MicrophoneError:
             raise
@@ -897,7 +1006,8 @@ class Daemon:
             else:
                 log.info("Paused; ignoring %r", text)
         elif text:
-            self._handle_spoken(text, woken=True)  # Claude decides whether it was for it
+            # Claude decides whether it was for it, knowing how clearly its name was said.
+            self._handle_spoken(text, woken=self._wake_heard or True)
             log.debug("Latency: wake word to reply spoken %.2fs", time.perf_counter() - self._woke)
         self._status_idle()
         mic.clear()  # don't react to our own voice
@@ -1040,7 +1150,7 @@ class Daemon:
             self.bus.emit("wake", self.engine.label)
         log.info("Voice check forgotten")
 
-    def _handle_spoken(self, text: str, aside: bool = False, woken: bool = False) -> None:
+    def _handle_spoken(self, text: str, aside: bool = False, woken=False) -> None:
         """Answer a spoken request, then whatever you said over that answer, and so on."""
         while text and not self.stop_event.is_set():
             self.handle_text(text, voice=True, aside=aside, woken=woken)

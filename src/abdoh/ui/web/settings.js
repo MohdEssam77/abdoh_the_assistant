@@ -191,6 +191,8 @@
       row("Sensitivity", "Left: wakes more easily. Right: fewer false wake-ups.",
         el("div", { class: "range-wrap" }, sensitivity, el("div", { class: "range-ends" }, el("span", {}, "More easily"), el("span", {}, "Fewer mistakes")))),
       row("Only my voice", "Say “Hey Abdoh” ten times (some close, some from across the room) and talk for 20 seconds, and only your voice wakes it. Then you can move Sensitivity to the left without false wake-ups. The recordings stay on this computer.", voiceCheck()),
+      row("Keep unclear recordings", "When Abdoh hears you after its name but can't make out the words, keep that recording for a day, to find out why. Only those, only on this computer. Turning it off deletes them.",
+        toggle(settings.keep_unclear_clips, (on, input) => saveSettings({ keep_unclear_clips: on }).then((ok) => { if (!ok) input.checked = !on; }), "Keep unclear recordings")),
       row("Hotkey", "Press it anywhere to talk without the wake word, or to stop a reply. Empty turns it off.",
         el("div", { class: "btn-row" }, hotkey, saveHotkey)),
       row("Listening with", null, el("span", { class: "tag", id: "wake-engine" }, $("#side-wake").textContent.replace(/^Wake word: /, ""))));

@@ -440,7 +440,9 @@ your own words ("wake me in half an hour", "jot down that I owe Sam ten euros");
 can be turned off on the Permissions page. Claude can also switch your modes, your screens,
 your speakers and dark mode: it knows your modes and your screens by name, so "I'm about to
 watch a film" can switch on Movie mode and "put the picture only on the big monitor" turns the
-others off. Claude can never type for you, press keys, close programs or shut the computer down.
+others off. With every message it also knows which screens are connected right now. It can move
+and maximize windows ("put WhatsApp on the first screen, maximized"), but never close one.
+Claude can never type for you, press keys, close programs or shut the computer down.
 
 Your own commands can use `volume: 30`, `app_volume: browser 30`, `brightness: 70` and
 `type: some text` as actions too, and these: `displays: only 2`, `audio_output: headphones`,
@@ -648,6 +650,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `follow_up_seconds` | `6` | After Claude answers, keep listening this long without the wake word (0 = off) |
 | `confirm_actions` | `sound` | After it does something for you: `sound` (a short sound) or `words` (says what it did) |
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
+| `keep_unclear_clips` | `false` | Keep what Abdoh heard after its name but couldn't make out, for a day, in `voice/` (to find out why) |
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
 | `allow_power` | `true` | Abdoh may put the computer to sleep, shut it down or restart it when you ask |
@@ -696,6 +699,11 @@ leaves an empty `model.bin`); typing still works. From source, run
 changed the speech model in Settings, delete its folder in
 `%USERPROFILE%\.cache\huggingface\hub` (`models--Systran--faster-whisper-...`) and restart
 Abdoh to download it again. The log (Settings → Open logs) has the details.
+
+**Two low taps after you spoke**: Abdoh heard you after its name but couldn't make out the
+words (or decided it wasn't meant for it). Say it again, a bit closer or clearer. To find out
+why, turn on **Settings → Wake word → Keep unclear recordings**: those recordings (only those)
+are kept on this computer for a day, and turning it off deletes them.
 
 **Abdoh chimes, then nothing happens** (or it says "Your microphone may be muted"). It didn't
 hear you. Abdoh uses your default microphone: on Windows open Settings → System → Sound →

@@ -15,6 +15,7 @@ SOUNDS: dict[str, list[tuple[float, float]]] = {
     "ready": [(880, 0.05)],  # one soft note: go on, I'm still listening
     "thinking": [(587, 0.07)],  # soft blip: working on it
     "done": [(880, 0.06), (587, 0.08)],  # falling: stopped
+    "unclear": [(494, 0.05), (0, 0.05), (494, 0.05)],  # two low taps: heard you, didn't act
     "alarm": [(880, 0.15), (0, 0.08), (880, 0.15), (0, 0.08), (880, 0.15)],  # timer finished
 }
 

@@ -38,7 +38,7 @@ SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
 # 8: Xanthos became Krekos (new wake words and wake word model again).
 # 9: Krekos became Abdoh again (Abdoh's wake words and wake word model).
-CONFIG_VERSION = 9
+CONFIG_VERSION = 10
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -56,6 +56,7 @@ CLAUDE_ACTIONS = (
     "audio_output",
     "dark_mode",
     "lamp",
+    "window",
 )
 # Settings older versions wrote that no longer do anything (vosk_model: the old wake word;
 # mic_raw: 0.7.1-0.7.3's raw microphone).
@@ -78,6 +79,7 @@ NEW_ACTIONS = {
     4: ("app_volume",),
     5: ("mode", "displays", "audio_output", "dark_mode"),
     7: ("lamp",),
+    10: ("window",),
 }
 
 
@@ -122,6 +124,7 @@ class Config:
     confirm_actions: str = "sound"  # sound: a short sound after "open Spotify"; words: say it
     follow_up_seconds: float = 6.0  # after a reply, keep listening this long (0 = off)
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
+    keep_unclear_clips: bool = False  # keep "heard you but no words" recordings for a day
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)
     voice_interrupt_sensitivity: str = "medium"  # low | medium | high
     duck_others: bool = True  # other apps go quieter while Abdoh listens and answers

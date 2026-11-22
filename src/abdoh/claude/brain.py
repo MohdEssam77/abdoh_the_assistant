@@ -114,7 +114,10 @@ def _your_things(cfg: Config) -> str:
     if "displays" in cfg.claude.actions:
         screens = _screen_names(cfg.app_dir / "displays.json")
         if screens:
-            lines.append(f"Their screens: {screens}.")
+            lines.append(
+                f"Their screens: {screens}. Each message says which are connected and on right "
+                "now; never send anything to a screen that isn't connected."
+            )
     return "".join(f"\n{line}" for line in lines)
 
 

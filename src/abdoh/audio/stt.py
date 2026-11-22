@@ -99,6 +99,24 @@ class Transcriber:
         """Load the model now (not on the first request)."""
         self.transcribe(b"\0\0" * 1600)
 
+    def keep_warm(self) -> None:
+        """Run the loaded model on a moment of silence, so it's in memory when you talk: Windows
+        moves an idle model out, and the next request then waits while it comes back. Skipped
+        while a real transcription runs (that one warms it anyway)."""
+        if self._model is None or not self._lock.acquire(blocking=False):
+            return
+        try:
+            language = self.last_language
+            self._warm(self._model, np.zeros(1600, dtype=np.float32))
+            self.last_language = language  # a warm-up isn't something you said
+        except Exception:
+            log.debug("Couldn't warm the speech model", exc_info=True)
+        finally:
+            self._lock.release()
+
+    def _warm(self, model, samples: np.ndarray) -> None:
+        self._recognize(model, samples)
+
     def transcribe(self, audio: bytes) -> str:
         """Transcribe 16 kHz mono int16 audio to text."""
         if not audio:
@@ -197,6 +215,9 @@ class WhisperTranscriber(Transcriber):
             without_timestamps=True,
         )
         return " ".join(s.text.strip() for s in segments), info
+
+    def _warm(self, model, samples: np.ndarray) -> None:
+        self._run(model, samples, self.languages[0])  # no language detection for silence
 
     def _recognize(self, model, samples: np.ndarray) -> str:
         if len(self.languages) == 1:

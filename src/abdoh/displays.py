@@ -102,6 +102,20 @@ class Displays:
             )
         return sorted(found, key=lambda d: d.number)
 
+    def summary(self) -> str:
+        """Which screens are connected and on, for Claude with every message:
+        "1 laptop (on), 2 HP 32f (off); not connected: 3 C34H89x"."""
+        connected = self.all()
+        ids = {d.id for d in connected}
+        text = ", ".join(f"{d.number} {d.label} ({'on' if d.active else 'off'})" for d in connected)
+        missing = sorted((e for e in self._load() if e["id"] not in ids),
+                         key=lambda e: e.get("number", 99))  # fmt: skip
+        if missing:
+            names = [f"{e.get('number')} {e.get('nickname') or e.get('name') or 'Monitor'}"
+                     for e in missing]  # fmt: skip
+            text += f"; not connected: {', '.join(names)}"
+        return text
+
     def rename(self, display_id: str, nickname: str) -> None:
         self.all()  # every connected monitor is in the registry
         entries = self._load()

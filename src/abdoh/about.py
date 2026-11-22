@@ -54,12 +54,17 @@ def about(cfg: Config, via: str = "code") -> str:
     )
 
 
-def state_line(mode: str | None = None, voice: bool = True, paused: bool = False) -> str:
-    """How Abdoh is right now, for the start of a message: "mode: Work; voice replies on"."""
+def state_line(
+    mode: str | None = None, voice: bool = True, paused: bool = False, screens: str = ""
+) -> str:
+    """How Abdoh is right now, for the start of a message: "mode: Work; voice replies on;
+    screens: 1 laptop (on); not connected: 2 HP 32f"."""
     parts = [f"mode on: {mode}" if mode else "no mode on"]
     parts.append("voice replies on" if voice else "voice replies off (the user reads)")
     if paused:
         parts.append("not listening for the wake word")
+    if screens:
+        parts.append(f"screens: {screens}")
     return "; ".join(parts)
 
 

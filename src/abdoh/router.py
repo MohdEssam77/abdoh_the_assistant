@@ -31,6 +31,10 @@ from abdoh.system_skills import Done, Question
 
 log = logging.getLogger(__name__)
 
+# How a request came after the wake word: True, or (score, voice check or None) when the wake
+# engine said how clearly the name was heard and how sure it was the user.
+Wake = bool | tuple[float, float | None]
+
 UNKNOWN = "Sorry, I don't know that one yet."
 SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 LOOKING = "Looking at your screen"
@@ -49,13 +53,20 @@ ASIDE = (
     "and nothing else.)\n"
 )
 # Said after the wake word, which a video, music or people talking nearby can set off by mistake.
+# {heard}: how clearly the name was heard (see woken_note).
 WOKEN = (
-    "(Said right after your wake word, which a video, music or people talking nearby sometimes "
-    "set off by mistake. If this clearly isn't said to you as the user's assistant (a line from "
-    "a video or a song, or the user talking to someone else), write only the line "
+    "(Said right after your wake word{heard}. A video, music or people talking nearby sometimes "
+    "set it off by mistake. If this clearly isn't said to you as the user's assistant (a line "
+    "from a video or a song, or the user talking to someone else), write only the line "
     "ACTION ignore: not for me, and nothing else. If it could be a request or a question for "
-    "you, answer it.)\n"
+    "you, answer it: when the user called you clearly in their own voice, it is meant for you.)\n"
 )
+# How the wake word's score reads to Claude: at least CLEAR_WAKE is "clearly", at least
+# FAIR_WAKE "fairly clearly", below that "faintly".
+CLEAR_WAKE, FAIR_WAKE = 0.8, 0.5
+# Abdoh heard you talk after its wake word but no words came out (daemon: heard_unclear).
+UNCLEAR = "(Just before this, Abdoh heard the user speak but couldn't make out any words.)\n"
+UNCLEAR_SECONDS = 60.0
 # One of several things asked at once that nothing but Claude knows (abdoh/steps.py).
 STEP = (
     'The user asked for several things at once: "{request}". Abdoh does them one by one and '
@@ -93,6 +104,22 @@ _REMEMBER = re.compile(
 )
 
 Reply = str | Iterator[str]
+
+
+def woken_note(wake: Wake) -> str:
+    """WOKEN, saying how clearly the name was heard when the wake engine told."""
+    heard = ""
+    if isinstance(wake, tuple):
+        score, voice = wake
+        how = "faintly"
+        if score >= CLEAR_WAKE:
+            how = "clearly"
+        elif score >= FAIR_WAKE:
+            how = "fairly clearly"
+        heard = f", heard {how} ({score:.2f})"
+        if voice is not None:
+            heard += ", in the user's own voice"  # the voice check let it through
+    return WOKEN.format(heard=heard)
 
 
 @dataclass
@@ -134,6 +161,7 @@ class Router:
         self.modes = None  # abdoh.modes.engine.ModeEngine, or None
         self._builtins: dict[str, Callable[[], str]] = {}
         self._builtin_commands: list[Command] = []
+        self._unclear_at: float | None = None  # when Abdoh last heard you but got no words
 
     @property
     def computer(self):
@@ -165,10 +193,22 @@ class Router:
         found = match(request, self._builtin_commands, self.cfg.match_threshold)
         return found[0].name if found else None
 
-    def handle(self, text: str, aside: bool = False, woken: bool = False) -> Reply:
+    def heard_unclear(self) -> None:
+        """You spoke after the wake word but no words came out: the next request to Claude, if
+        it comes soon, says so (so "did you hear me?" gets an honest answer)."""
+        self._unclear_at = time.monotonic()
+
+    def _unclear_note(self) -> str:
+        at, self._unclear_at = self._unclear_at, None
+        if at is not None and time.monotonic() - at <= UNCLEAR_SECONDS:
+            return UNCLEAR
+        return ""
+
+    def handle(self, text: str, aside: bool = False, woken: Wake = False) -> Reply:
         """Route one request. Returns the reply ("" means nothing to say). `aside`: said right
         after a reply without the wake word, so maybe to someone else; `woken`: said after the
-        wake word, which may have been a mistake. Claude decides in both cases."""
+        wake word, which may have been a mistake (True, or how clearly the name was heard:
+        (score, voice check or None)). Claude decides in both cases."""
         prefix = COMMANDS_FILE_ERROR if self.registry.refresh() else ""
         request = strip_wake_words(text, self.wake_words)
         if not request:
@@ -191,7 +231,7 @@ class Router:
         return _prepend(prefix, reply) if prefix else reply
 
     def _route(
-        self, request: str, original: str, aside: bool = False, woken: bool = False
+        self, request: str, original: str, aside: bool = False, woken: Wake = False
     ) -> Reply:
         # 0. "Remember that": save what Claude just did as a command
         remember = _REMEMBER.fullmatch(request)
@@ -217,8 +257,9 @@ class Router:
         # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
-            note = ASIDE if aside else WOKEN if woken else ""
-            return self._ask(note + prompt, original, aside=aside or woken)
+            note = ASIDE if aside else woken_note(woken) if woken else ""
+            prompt = self._unclear_note() + note + prompt
+            return self._ask(prompt, original, aside=bool(aside or woken))
 
         # 6. Nothing matched
         return f"{UNKNOWN} {NOT_CONNECTED}"
@@ -261,7 +302,7 @@ class Router:
 
     # ----- several things at once -----
 
-    def _steps(self, steps: list[str], original: str, aside: bool, woken: bool) -> Reply:
+    def _steps(self, steps: list[str], original: str, aside: bool, woken: Wake) -> Reply:
         """Several things in one request, done one by one, in order. Each goes the way it
         would alone (your commands, the built-in skills); what nothing else knows goes to
         Claude, with the whole request for context."""
@@ -287,7 +328,7 @@ class Router:
         rest: list[tuple[str, str]],
         original: str,
         aside: bool,
-        woken: bool,
+        woken: Wake,
     ) -> Iterator[str]:
         """The steps from the first one only Claude knows: each in turn, after the one before
         has finished (and was said)."""
@@ -301,9 +342,9 @@ class Router:
             for i, (request, part) in enumerate(rest):
                 reply = None if i == 0 else self._route_local(request, part)
                 if reply is None:
-                    note = ASIDE if aside else WOKEN if woken else ""
-                    prompt = note + STEP.format(request=original, step=part)
-                    answer = self._ask(prompt, part, aside=aside or woken)
+                    note = ASIDE if aside else woken_note(woken) if woken else ""
+                    prompt = self._unclear_note() + note + STEP.format(request=original, step=part)
+                    answer = self._ask(prompt, part, aside=bool(aside or woken))
                     for sentence in [answer] if isinstance(answer, str) else answer:
                         if sentence:
                             said.append(sentence)

@@ -188,13 +188,44 @@ def test_the_moment_after_a_reply_is_marked_as_aside():
 
 
 def test_after_the_wake_word_claude_may_ignore_what_it_heard(setup):  # noqa: F811
-    from abdoh.router import WOKEN
+    from abdoh.router import woken_note
 
     router, _, _ = setup
     router.brain = FakeBrain(("ACTION ignore: not for me\n",))
     assert " ".join(router.handle("and that's why the market fell in 1929", woken=True)) == ""
-    assert router.brain.asked[0][0].startswith(WOKEN)
+    assert router.brain.asked[0][0].startswith(woken_note(True))
     assert router.last_turn.ignored is True
+
+
+def test_claude_hears_how_clearly_its_name_was_said(setup):  # noqa: F811
+    router, _, _ = setup
+    router.brain = FakeBrain(("Sure.",))
+    list(router.handle("what's the weather tomorrow", woken=(0.96, 1.0)))
+    prompt = router.brain.asked[0][0]
+    assert "heard clearly (0.96), in the user's own voice" in prompt
+    assert "it is meant for you" in prompt
+    list(router.handle("what's the weather tomorrow", woken=(0.62, None)))
+    assert "heard fairly clearly (0.62)" in router.brain.asked[1][0]
+    assert "in the user's own voice" not in router.brain.asked[1][0]  # no voice check
+    list(router.handle("what's the weather tomorrow", woken=(0.35, 0.9)))
+    assert "heard faintly (0.35)" in router.brain.asked[2][0]
+
+
+def test_claude_is_told_when_abdoh_just_missed_your_words(setup):  # noqa: F811
+    import time
+
+    from abdoh.router import UNCLEAR
+
+    router, _, _ = setup
+    router.brain = FakeBrain(("I heard you, but couldn't make out the words.",))
+    router.heard_unclear()
+    list(router.handle("did you hear what I said before", woken=True))
+    assert router.brain.asked[0][0].startswith(UNCLEAR)
+    list(router.handle("did you hear what I said before", woken=True))
+    assert not router.brain.asked[1][0].startswith(UNCLEAR)  # once only
+    router._unclear_at = time.monotonic() - 61  # a minute later it no longer matters
+    list(router.handle("did you hear me", woken=True))
+    assert UNCLEAR not in router.brain.asked[2][0]
 
 
 def test_a_real_request_after_the_wake_word_is_answered(setup):  # noqa: F811
