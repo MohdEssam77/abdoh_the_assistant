@@ -68,6 +68,7 @@ class OpenWakeWord(WakeWordEngine):
         self.voice_check = None  # audio/voicecheck.py: the wake word only counts in your voice
         self.voice_threshold = 0.5
         self.last_score = 0.0
+        self.last_wake: tuple[float, float | None] | None = None  # the last time it woke
         self.reset()
 
     def reset(self) -> None:
@@ -104,6 +105,7 @@ class OpenWakeWord(WakeWordEngine):
                     heard = voice >= self.voice_threshold
         if heard:
             self._trying, self._tried_at, self._again = False, None, False
+            self.last_wake = (best, voice)  # how clearly, and how sure it was you (or None)
         if heard and again is not None:
             log.info("Wake word on the second try (%.2f, then %.2f)", *again)
         elif heard and voice is None:
