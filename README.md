@@ -536,7 +536,11 @@ teacher, Math teacher, Programming teacher). Each role has:
   still look at your screen ("act as my math teacher… look at this problem").
 - **Voice**: slower, normal or faster than your usual speed. German sentences get the German voice.
 - **Answers**: short as usual, longer (up to 5 sentences) or long (up to 10), for explanations.
-- **Board**: lets the role show things on the board (story 66).
+- **Board**: the role can show what's better seen than heard (code, worked math steps, tables,
+  word lists) on the **board** at the top of the Act as page, and Abdoh's window comes up when
+  something new is on it. It's never read aloud: Abdoh explains and refers to it. Code has a
+  **Copy** button; **Clear** empties the board, and a new role starts with a clean one. Math is
+  written with plain symbols (x², √, ½).
 
 "Act as my <name>" and the role's own phrases start it at once, without Claude. A role you
 didn't save ("act as a chef") works the same, and the Act as page offers to save it. The Home
