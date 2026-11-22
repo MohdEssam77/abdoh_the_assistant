@@ -368,7 +368,9 @@ function hideBanner(source) {
 /* ---------- status ---------- */
 
 const STATUS = {
-  "Listening": ["listening", "Listening", () => `Say “Hey Abdoh” or press ${hotkeyText(App.settings.hotkey)}`],
+  "Listening": ["listening", "Listening", () => App.listening
+    ? "Just talk: no “Hey Abdoh” needed while acting"
+    : `Say “Hey Abdoh” or press ${hotkeyText(App.settings.hotkey)}`],
   "Paused": ["idle", "Paused", () => "Not listening for the wake word. The hotkey still works."],
   "Hotkey only": ["listening", "Hotkey only", () => `The wake word couldn't start. Press ${hotkeyText(App.settings.hotkey)} to talk.`],
   "Listening to you...": ["hearing", "Listening to you", () => "Go ahead, I'm listening"],
@@ -487,6 +489,12 @@ function addToBoard(card) {
   if (window.Roles) window.Roles.board(card);
 }
 
+/* While a role is on, Abdoh keeps listening without the wake word (until you say not to). */
+function setListening(on) {
+  App.listening = !!on;
+  if (App.status === "Listening") setStatus(App.status);
+}
+
 function setRole(name) {
   App.role = name || "";
   const chip = $("#role-chip");
@@ -512,6 +520,7 @@ const HANDLERS = {
   hearing: setHearing,
   mode: setMode,
   role: setRole,
+  listening: setListening,
   board: addToBoard,
   voice: setVoice,
   page: showPage,
@@ -619,6 +628,7 @@ async function start() {
   setHearing(state.hearing);
   setMode(state.mode);
   setRole(state.role);
+  App.listening = !!state.listening;
   App.board = state.board || [];
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");

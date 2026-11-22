@@ -77,6 +77,10 @@ class SileroVad:
     def is_speech(self, block: bytes) -> bool:
         return self.speech_prob(block) >= self.threshold
 
+    def fresh(self) -> "SileroVad":
+        """Another detector with its own state, sharing this one's model."""
+        return SileroVad(session=self._session, threshold=self.threshold)
+
 
 def load_vad() -> SileroVad | None:
     """The bundled VAD, or None (Abdoh then falls back to loudness)."""

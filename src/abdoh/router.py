@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
-from abdoh.claude.reply import ANSWER, IGNORE, LOOK, ROLE, speakable
+from abdoh.claude.reply import ANSWER, IGNORE, LISTEN, LOOK, ROLE, speakable
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
 from abdoh.commands.actions import ActionError, claude_action, run_actions
 from abdoh.commands.learn import append_command
@@ -485,6 +485,12 @@ class Router:
                     self.acting.switch(arg)
                     turn.actions.append((ROLE, arg))  # the done sound if no words
                 return
+            if kind == LISTEN:
+                from abdoh.roles.acting import wants_on
+
+                if self.acting is not None and self.acting.set_listening(wants_on(arg)):
+                    turn.actions.append((LISTEN, arg))
+                return
             if kind == ANSWER:
                 name = self.modes.asked_mode() if self.modes is not None else ""
                 said = self.modes.answer_from_claude(arg) if name else ""
@@ -508,6 +514,8 @@ class Router:
             allowed.append(ANSWER)
         if self.acting is not None:
             allowed.append(ROLE)
+            if self.acting.current is not None:
+                allowed.append(LISTEN)
         chunks = None
         try:
             image = self._capture() if screen else None

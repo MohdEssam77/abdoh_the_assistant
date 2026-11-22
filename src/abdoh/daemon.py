@@ -61,6 +61,10 @@ def _what_was_done(actions: list[tuple[str, str]]) -> str:
 
 class Daemon:
     ALARM_SECONDS = 0.7
+    # While Abdoh keeps listening (a role is on): this much speech in a row starts a recording
+    # (a cough or a click is shorter), and not until Abdoh's own voice has died away.
+    HEAR_ONSET_SECONDS = 0.3
+    HEAR_AFTER_SPEAKING_SECONDS = 0.8
 
     def __init__(
         self,
@@ -102,6 +106,11 @@ class Daemon:
         self._answered = False  # ... and part of its answer was said
         self._next_request: str | None = None  # said over a reply: handle it next
         self._via_voice = False  # this request interrupted a reply
+        self._via_speech = False  # ... was heard while Abdoh keeps listening (no wake word)
+        self._hear_vad = None  # the speech detector for that (its own state)
+        self._hearing = False  # ... and it's hearing now
+        self._heard_for = 0.0  # seconds of speech in a row so far
+        self._hear_from = 0.0  # not before this (time.monotonic): Abdoh's voice dies away
         self.stop_event = threading.Event()
         self.mic = None  # the open microphone
         self._reopen_mic = threading.Event()  # a new microphone was chosen
@@ -530,6 +539,7 @@ class Daemon:
             self.earcons.stop_ticking()
             if not voice:
                 self._unduck_unless_listening()  # a typed request: its reply is over
+            self._quiet_for_hearing()
             self._status_idle()
             return reply
 
@@ -628,6 +638,8 @@ class Daemon:
         after Claude just did something for you)."""
         if not reply or self._interrupted.is_set():
             return
+        if self.keeps_listening():
+            return  # a role is on: the main loop hears you anyway, no chime needed
         asked = self._asked_question(reply)
         if acted and not asked:
             return
@@ -793,6 +805,9 @@ class Daemon:
             self._switch_mode(str(value or ""))
         elif kind == "role":  # the window: a role's name, or "" to stop acting
             self._switch_role(str(value or ""))
+        elif kind == "keep_listening":  # the Act as page: listen without the wake word or not
+            if self.acting is not None:
+                self.acting.set_listening(bool(value))
         elif kind == "stop_speaking":
             self.stop_speaking()
         elif kind == "listen":
@@ -955,6 +970,7 @@ class Daemon:
                 log.exception("Couldn't change the voice speed")
         self.bus.emit("board", None)  # a new role (or none): a clean board
         self.bus.emit("role", role.name if role is not None else "")
+        self.bus.emit("listening", self.keeps_listening())
 
     # The page writes the board out at about this many characters a second (board.js); Abdoh
     # waits as long (at most BOARD_WAIT_MAX per line) before speaking on, like a teacher who
@@ -1013,6 +1029,59 @@ class Daemon:
         self.bus.emit("status", "Error: microphone not available, retrying")
         self.stop_event.wait(self.mic_retry_seconds)
 
+    # ----- keeps listening (a role is on): you just talk, no wake word -----
+
+    def keeps_listening(self) -> bool:
+        acting = self.acting
+        return bool(acting is not None and acting.keeps_listening)
+
+    def _hearing_vad(self):
+        if self._hear_vad is None and self.vad is not None:
+            fresh = getattr(self.vad, "fresh", None)
+            self._hear_vad = fresh() if fresh else self.vad
+        return self._hear_vad
+
+    def _hear(self, block: bytes) -> bool:
+        """Every microphone block while waiting for the wake word: True when you started talking
+        while Abdoh keeps listening. Never while Abdoh talks, nor just after (its own voice)."""
+        now = time.monotonic()
+        if self.paused or self._handle_lock.locked() or not self.keeps_listening():
+            self._hearing, self._heard_for = False, 0.0
+            self._hear_from = now + self.HEAR_AFTER_SPEAKING_SECONDS
+            return False
+        vad = self._hearing_vad()
+        if vad is None or now < self._hear_from:
+            return False
+        if not self._hearing:
+            self._hearing, self._heard_for = True, 0.0
+            vad.reset()
+        if vad.is_speech(block):
+            self._heard_for += len(block) / BYTES_PER_SECOND
+        else:
+            self._heard_for = 0.0  # a click or a cough: not talking yet
+        if self._heard_for < self.HEAR_ONSET_SECONDS:
+            return False
+        self._hearing = False  # the recording resets it; afterwards, start afresh
+        return True
+
+    def _quiet_for_hearing(self) -> None:
+        """Abdoh just answered: while it keeps listening, its own voice dies away first."""
+        self._hearing = False
+        self._hear_from = time.monotonic() + self.HEAR_AFTER_SPEAKING_SECONDS
+
+    def _on_speech(self) -> None:
+        """You started talking while Abdoh keeps listening: hear you out (no chime: you're
+        already talking)."""
+        self._via_speech = True
+        self._warm_speech()
+        self._duck()
+        self._recording = True
+        self._interrupted.clear()
+        self.bus.emit("status", "Listening to you...")
+
+    def _listening_changed(self, on: bool) -> None:
+        self.bus.emit("listening", on)
+
     def _on_wake(self) -> None:
         self._warm_speech()  # back in memory by the time you've finished talking
         self._wake_heard = getattr(self.engine, "last_wake", None)
@@ -1059,6 +1128,8 @@ class Daemon:
                 observe=lambda block: self._observe(block, mic),  # a typed request's reply
                 on_voice=self._heard_voice,
                 on_unclear=self._heard_unclear,
+                hear=self._hear,
+                on_speech=self._on_speech,
             )
         except MicrophoneError:
             raise
@@ -1070,11 +1141,14 @@ class Daemon:
             self._recording = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
         via_voice, self._via_voice = self._via_voice, False
+        via_speech, self._via_speech = self._via_speech, False
         aside = answer and self._soft_chime  # the moment after a reply, not an answer to it
         self._soft_chime = False
         self.speaker.language = getattr(self.transcriber, "last_language", "")
         if text and (via_hotkey or answer or via_voice):
             self._handle_spoken(text, aside)  # the hotkey and answers work even while paused
+        elif text and via_speech:
+            self._handle_spoken(text, aside=True)  # no wake word: it may be for someone else
         elif text and self.paused:
             # While paused, only the built-in "start listening" command is honored.
             if self.router.builtin_name(text) == "start_listening":
@@ -1335,7 +1409,11 @@ def make_roles(cfg: Config, daemon: Daemon):
     from abdoh.roles.acting import Acting
     from abdoh.roles.store import RoleStore
 
-    return Acting(RoleStore(cfg.app_dir / "roles.yaml").load, on_change=daemon._role_changed)
+    return Acting(
+        RoleStore(cfg.app_dir / "roles.yaml").load,
+        on_change=daemon._role_changed,
+        on_listening=daemon._listening_changed,
+    )
 
 
 def make_modes(cfg: Config, router: Router, daemon: Daemon):

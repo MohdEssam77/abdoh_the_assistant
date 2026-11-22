@@ -55,6 +55,8 @@ IGNORE = "ignore"
 ANSWER = "answer"
 # Start a role ("act as my German teacher"), or end it (off). Not one of the switchable actions.
 ROLE = "role"
+# While a role is on: keep listening without the wake word (on), or only after it (off).
+LISTEN = "listen"
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 # What a role shows instead of saying (code, equations, steps): between these, never spoken.

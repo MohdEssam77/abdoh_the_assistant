@@ -50,6 +50,7 @@ class UiState:
         self._hearing = ""
         self._mode = ""
         self._role = ""
+        self._listening = False  # a role is on and Abdoh keeps listening (no wake word)
         self._board: deque[dict] = deque(maxlen=self.BOARD)  # cards {id, text}, oldest first
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
@@ -78,6 +79,8 @@ class UiState:
                 self._mode = value or ""
             elif kind == "role":
                 self._role = value or ""
+            elif kind == "listening":
+                self._listening = bool(value)
             elif kind == "board":  # a card (new, or grown), or None: clear it
                 if value is None:
                     self._board.clear()
@@ -113,6 +116,7 @@ class UiState:
                 "hearing": self._hearing,
                 "mode": self._mode,
                 "role": self._role,
+                "listening": self._listening,
                 "board": [dict(card) for card in self._board],
                 "voice": self._voice,
                 "history": list(self._history),
@@ -324,6 +328,10 @@ class AppApi:
 
     def stop_role(self) -> None:
         self._bus.request("role", "")
+
+    def keep_listening(self, on) -> None:
+        """While a role is on: listen without the wake word (True), or only after it."""
+        self._bus.request("keep_listening", bool(on))
 
     def clear_board(self) -> None:
         self._state.feed("board", None)
