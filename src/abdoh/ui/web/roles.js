@@ -64,6 +64,9 @@
     const current = App.role ? (state.current && state.current.name === App.role ? state.current : { name: App.role, saved: true }) : null;
     const items = App.board || [];
     const listening = App.listening || {};
+    const seconds = Number((App.settings || {}).lesson_listen_seconds ?? 120);
+    const lessons = seconds > 0;
+    const quiet = seconds % 60 ? `${Math.round(seconds)} seconds` : `${seconds / 60} minute${seconds === 60 ? "" : "s"}`;
     box.hidden = !current && !items.length;
     if (box.hidden) return box.replaceChildren();
     const usesBoard = items.length > 0 || !current || current.board !== false;
@@ -72,12 +75,13 @@
         el("span", { class: "cmd-icon", html: svg("role") }),
         el("div", { class: "role-now-name" }, el("b", {}, `Acting as ${current.name}`),
           el("small", {}, "Stop it in any words, like “you can stop acting”."),
-          el("small", {}, !listening.on ? "Listening only after “Hey Abdoh”."
+          el("small", {}, !lessons ? "Listening only after “Hey Abdoh” (keeping listening in a lesson is off in Settings → Conversation)."
+            : !listening.on ? "Listening only after “Hey Abdoh”."
             : listening.now ? "Listening now: just talk, no “Hey Abdoh” needed."
-            : "In a lesson it listens without “Hey Abdoh”: with this window open, something on the board, and you talking with it.")),
+            : `In a lesson it listens without “Hey Abdoh”: with this window open, something on the board, and you talking with it (until ${quiet} quiet).`)),
         el("div", { class: "spacer" }),
-        el("button", { class: "btn small", onclick: () => call("keep_listening", !listening.on) },
-          listening.on ? "Stop listening" : "Keep listening"),
+        lessons ? el("button", { class: "btn small", onclick: () => call("keep_listening", !listening.on) },
+          listening.on ? "Stop listening" : "Keep listening") : null,
         current.saved === false
           ? el("button", { class: "btn small", onclick: () => openEditor({ ...current, phrases: [], board: true }, true) }, "Save this role")
           : null,
@@ -207,6 +211,7 @@
 
   registerPage("roles", {
     boot() { bind(); },
+    settingsChanged() { if ($("#page-roles").classList.contains("active")) renderNow(); },
     async show() {
       await load();
       const open = App.demo && new URLSearchParams(location.search).get("open");  // for screenshots

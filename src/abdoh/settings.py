@@ -45,6 +45,7 @@ _RANGES = {
     "match_threshold": (50, 100),
     "silence_seconds": (0.2, 5),
     "follow_up_seconds": (0, 30),
+    "lesson_listen_seconds": (0, 3600),
     "duck_percent": (0, 90),
     "max_record_seconds": (3, 60),
     "tts_rate": (80, 400),

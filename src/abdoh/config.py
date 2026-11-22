@@ -123,6 +123,9 @@ class Config:
     silence_seconds: float = 0.6
     confirm_actions: str = "sound"  # sound: a short sound after "open Spotify"; words: say it
     follow_up_seconds: float = 6.0  # after a reply, keep listening this long (0 = off)
+    # In a lesson (a role explaining on the board, the window open), listen without the wake word
+    # until this long passes with no word from either side (0 = off: always the wake word).
+    lesson_listen_seconds: float = 120.0
     wake_word_interrupts: bool = True  # saying the wake word stops a reply
     keep_unclear_clips: bool = False  # keep "heard you but no words" recordings for a day
     voice_interrupts: bool = True  # just start talking to stop a reply (no wake word)

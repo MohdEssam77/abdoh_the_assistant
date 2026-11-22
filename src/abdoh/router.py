@@ -514,7 +514,7 @@ class Router:
             allowed.append(ANSWER)
         if self.acting is not None:
             allowed.append(ROLE)
-            if self.acting.current is not None:
+            if self.acting.current is not None and self.cfg.lesson_listen_seconds > 0:
                 allowed.append(LISTEN)
         chunks = None
         try:
