@@ -78,7 +78,7 @@ wants:
 | Settings' microphone list | From Windows (`winaudio`), full names | Always current |
 | Reopening after a change | Reload PortAudio, then open the microphone again | The only way `sounddevice` sees new devices |
 | Roles, memory | `<app_dir>/roles.yaml`, `<app_dir>/memory.yaml` | Like `modes.yaml`: readable, editable, kept on uninstall |
-| The board | A small, safe Markdown renderer in the page's own JS (headings, lists, bold, code blocks, tables; all HTML escaped), math in plain Unicode (x², √, ½) | No new library. KaTeX only if story 66 step 1 shows Unicode math isn't good enough (one-line reason in the commit) |
+| The board | A small, safe Markdown renderer in the page's own JS (headings, lists, bold, code blocks, tables; all HTML escaped), math in plain Unicode (x², √, ½) | No new library. KaTeX only if story 66 step 1 shows Unicode math isn't good enough (one-line reason in the commit). **Built (story 66) with Unicode math; the owner's readability check (step 1) is still to do** |
 
 No new Python dependencies.
 

@@ -129,6 +129,7 @@ class Daemon:
         self._handle_lock = threading.Lock()
         router.on_thinking = self._thinking
         router.on_activity = self._activity
+        router.on_board = self._on_board
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
@@ -950,7 +951,14 @@ class Daemon:
                 configure(rate=self._speech_rate())
             except Exception:
                 log.exception("Couldn't change the voice speed")
+        self.bus.emit("board", None)  # a new role (or none): a clean board
         self.bus.emit("role", role.name if role is not None else "")
+
+    def _on_board(self, text: str) -> None:
+        """A role put something on the board: the window comes up on the Act as page."""
+        self.bus.emit("board", text)
+        self.bus.emit("show")
+        self.bus.emit("page", "roles")
 
     def _switch_role(self, name: str) -> None:
         """The window's Start and Stop buttons."""

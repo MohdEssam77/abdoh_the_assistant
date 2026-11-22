@@ -477,6 +477,12 @@ function setMode(name) {
   $("#mode-chip-name").textContent = App.mode ? `${App.mode} mode` : "";
 }
 
+/* The board (Act as): a role's code, equations and steps; null clears it. */
+function addToBoard(text) {
+  App.board = text == null ? [] : [...(App.board || []), String(text)].slice(-30);
+  if (window.Roles) window.Roles.board();
+}
+
 function setRole(name) {
   App.role = name || "";
   const chip = $("#role-chip");
@@ -502,6 +508,7 @@ const HANDLERS = {
   hearing: setHearing,
   mode: setMode,
   role: setRole,
+  board: addToBoard,
   voice: setVoice,
   page: showPage,
 };
@@ -608,6 +615,7 @@ async function start() {
   setHearing(state.hearing);
   setMode(state.mode);
   setRole(state.role);
+  App.board = state.board || [];
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");
   renderHowToTalk();

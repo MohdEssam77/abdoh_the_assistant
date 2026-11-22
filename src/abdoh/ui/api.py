@@ -37,6 +37,7 @@ class UiState:
     """
 
     HISTORY = 200
+    BOARD = 30  # board items kept for the Act as page
 
     def __init__(self, today=date.today):
         self._today = today
@@ -49,6 +50,7 @@ class UiState:
         self._hearing = ""
         self._mode = ""
         self._role = ""
+        self._board: deque[str] = deque(maxlen=self.BOARD)  # what the role showed, oldest first
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
 
@@ -76,6 +78,11 @@ class UiState:
                 self._mode = value or ""
             elif kind == "role":
                 self._role = value or ""
+            elif kind == "board":  # something to show, or None: clear it
+                if value is None:
+                    self._board.clear()
+                else:
+                    self._board.append(str(value))
             elif kind == "voice":
                 self._voice = bool(value)
             elif kind == "history":
@@ -104,6 +111,7 @@ class UiState:
                 "hearing": self._hearing,
                 "mode": self._mode,
                 "role": self._role,
+                "board": list(self._board),
                 "voice": self._voice,
                 "history": list(self._history),
             }
@@ -314,6 +322,9 @@ class AppApi:
 
     def stop_role(self) -> None:
         self._bus.request("role", "")
+
+    def clear_board(self) -> None:
+        self._state.feed("board", None)
 
     def _modes_store(self):
         from abdoh.modes.store import ModesStore

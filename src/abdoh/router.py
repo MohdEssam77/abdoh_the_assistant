@@ -162,6 +162,7 @@ class Router:
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
+        self.on_board: Callable[[str], None] | None = None  # shows what a role puts on the board
         self.last_turn: ClaudeTurn | None = None
         self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
@@ -501,7 +502,7 @@ class Router:
         try:
             image = self._capture() if screen else None
             chunks = brain.stream(prompt, image)
-            for sentence in speakable(chunks, act, allowed=allowed):
+            for sentence in speakable(chunks, act, allowed=allowed, on_board=self.on_board):
                 if turn.ignored:
                     break  # not for Abdoh: nothing is said
                 yield from _drain(problems)
@@ -516,7 +517,8 @@ class Router:
                 image = self._capture()
                 follow_up = skills.look_follow_up(request, window.title, window.program)
                 chunks = brain.stream(follow_up, image)
-                for sentence in speakable(chunks, act, allowed=self.cfg.claude.actions):
+                allowed = self.cfg.claude.actions
+                for sentence in speakable(chunks, act, allowed=allowed, on_board=self.on_board):
                     yield from _drain(problems)
                     spoken.append(sentence)
                     yield sentence
