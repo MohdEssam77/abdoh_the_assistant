@@ -32,6 +32,7 @@ ACTION_TYPES = (
     "night_light",
     "lamp",
     "mode",
+    "role",
     "type",
     "run",
 )
@@ -146,6 +147,8 @@ def _check_slots(where: str, triggers: list[str], actions: list[tuple[str, str]]
             raise CommandsFileError(f"{where}: '{kind}' actions can't use slots (that's unsafe).")
         if kind == "mode" and not arg.strip():
             raise CommandsFileError(f"{where}: mode needs a mode's name, or normal.")
+        if kind == "role" and not arg.strip():
+            raise CommandsFileError(f"{where}: role needs a role's name, or off.")
         if kind == "app_volume":
             app, _, level = arg.replace("|", " ").strip().rpartition(" ")
             if not app.strip() or not _is_percent(level):

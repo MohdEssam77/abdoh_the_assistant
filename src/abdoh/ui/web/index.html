@@ -23,6 +23,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>
       <span>Modes</span>
     </button>
+    <button data-page="roles" title="Act as" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/><path d="M17.5 3.5l1.2 1.2M20 7h-1.5"/></svg>
+      <span>Act as</span>
+    </button>
     <button data-page="commands" title="Commands" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
       <span>Commands</span>
@@ -58,6 +62,10 @@
       <div class="mode-chip" id="mode-chip" hidden>
         <button class="mode-chip-name" id="mode-chip-name" title="Your modes"></button>
         <button class="mode-chip-end" id="mode-chip-end" title="Back to normal" aria-label="Back to normal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="mode-chip" id="role-chip" hidden>
+        <button class="mode-chip-name" id="role-chip-name" title="Act as"></button>
+        <button class="mode-chip-end" id="role-chip-end" title="Stop acting" aria-label="Stop acting"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       </div>
       <label class="switch-row" title="Listen for the wake word (the hotkey always works)"><span>Wake word</span><input type="checkbox" class="switch" id="listen-toggle" checked></label>
       <label class="switch-row" title="Speak replies out loud"><span>Voice replies</span><input type="checkbox" class="switch" id="voice-toggle" checked></label>
@@ -166,6 +174,33 @@
     </div>
   </section>
 
+  <section class="page" id="page-roles" aria-label="Act as">
+    <div class="scroll">
+      <div class="content">
+        <div class="page-head">
+          <h1>Act as</h1>
+          <p>Give Abdoh a role: a German teacher who speaks slowly, a math teacher who explains step by step. Say “act as my German teacher”, and stop it in any words.</p>
+        </div>
+        <div class="banner" id="role-error" data-kind="error" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+          <div class="text" id="role-error-text"></div>
+        </div>
+        <div class="card role-now" id="role-now" hidden></div>
+        <div class="toolbar">
+          <div class="spacer"></div>
+          <button class="btn" id="role-suggestions">Suggestions</button>
+          <button class="btn primary" id="role-new">New role</button>
+        </div>
+        <div class="cmd-list" id="role-list"></div>
+        <div class="empty-state" id="role-empty" hidden>
+          <h2>No roles yet</h2>
+          <p>Start from a suggestion (German teacher, Math teacher, Programming teacher), or make your own. You can also just say “act as a chef”.</p>
+          <button class="btn primary" id="role-empty-suggestions">Browse suggestions</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="page" id="page-permissions" aria-label="Permissions">
     <div class="scroll"><div class="content" id="perm-content"></div></div>
   </section>
@@ -180,6 +215,7 @@
 <script src="app.js"></script>
 <script src="commands.js"></script>
 <script src="modes.js"></script>
+<script src="roles.js"></script>
 <script src="permissions.js"></script>
 <script src="claude.js"></script>
 <script src="settings.js"></script>

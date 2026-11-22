@@ -53,6 +53,8 @@ LOOK = "look"
 IGNORE = "ignore"
 # Yes or no to the question Abdoh just asked (a mode that needs screens that aren't there).
 ANSWER = "answer"
+# Start a role ("act as my German teacher"), or end it (off). Not one of the switchable actions.
+ROLE = "role"
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")

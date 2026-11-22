@@ -92,6 +92,7 @@ class Daemon:
         self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
         self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
+        self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
         self._watching = False  # the voice watch is following a reply
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
@@ -175,7 +176,10 @@ class Daemon:
         from abdoh.about import state_line
 
         mode = getattr(self.modes, "current", None) if self.modes is not None else None
-        return state_line(mode, self.voice_enabled, self.paused, self._screens_now())
+        role = ""
+        if self.acting is not None:
+            role = self.acting.state_text(self.cfg.claude.voice_reply_max_sentences)
+        return state_line(mode, self.voice_enabled, self.paused, self._screens_now(), role)
 
     def _screens_now(self) -> str:
         """Which screens are connected and on right now ("" if Abdoh can't tell)."""
@@ -263,7 +267,7 @@ class Daemon:
         self._use_brain(make_brain(self.cfg))  # permissions, folders, API key
         configure = getattr(self.speaker, "configure", None)
         if configure:
-            changes = {"rate": self.cfg.tts_rate, "voice": self.cfg.tts_voice}
+            changes = {"rate": self._speech_rate(), "voice": self.cfg.tts_voice}
             if hasattr(self.speaker, "voices"):  # Piper: your voices for English and German
                 from abdoh.speech.piper_voice import your_voices
 
@@ -784,6 +788,8 @@ class Daemon:
                 self.bus.emit("history", f"Abdoh: {e}")
         elif kind == "mode":  # the window or the tray: a mode's name, or "" for normal
             self._switch_mode(str(value or ""))
+        elif kind == "role":  # the window: a role's name, or "" to stop acting
+            self._switch_role(str(value or ""))
         elif kind == "stop_speaking":
             self.stop_speaking()
         elif kind == "listen":
@@ -918,6 +924,43 @@ class Daemon:
                 self.push_to_talk()
             return
         self.bus.emit("history", f"Abdoh: {reply}")
+
+    # ----- roles ("act as my German teacher") -----
+
+    def use_roles(self, acting) -> None:
+        """Roles: the router starts them by name, Claude with ACTION role, modes and commands
+        with the role setting and action."""
+        self.acting = acting
+        self.router.acting = acting
+        if self.router.computer is not None:
+            self.router.computer.acting = acting
+
+    def _speech_rate(self) -> int:
+        """Your voice speed, slower or faster while a role says so."""
+        from abdoh.roles.model import SPEED_FACTORS
+
+        role = self.acting.current if self.acting is not None else None
+        return round(self.cfg.tts_rate * SPEED_FACTORS.get(role.speed if role else "normal", 1))
+
+    def _role_changed(self, role) -> None:
+        """A role started or ended: the voice's speed, and the window."""
+        configure = getattr(self.speaker, "configure", None)
+        if configure:
+            try:
+                configure(rate=self._speech_rate())
+            except Exception:
+                log.exception("Couldn't change the voice speed")
+        self.bus.emit("role", role.name if role is not None else "")
+
+    def _switch_role(self, name: str) -> None:
+        """The window's Start and Stop buttons."""
+        if self.acting is None:
+            return
+        reply = (
+            self.acting.switch(name) if name else ("Stopped acting." if self.acting.stop() else "")
+        )
+        if reply:
+            self.bus.emit("history", f"Abdoh: {reply}")
 
     def use_modes(self, engine) -> None:
         """Modes: the router hears "movie mode", the `mode:` action reaches them."""
@@ -1230,6 +1273,7 @@ class Daemon:
         daemon.device_watch = DeviceWatch(daemon.devices_changed)
         daemon.reload_devices = reload_portaudio
         router.computer.apps.load_in_background()
+        daemon.use_roles(make_roles(cfg, daemon))
         daemon.use_modes(make_modes(cfg, router, daemon))
         return daemon
 
@@ -1256,6 +1300,14 @@ def make_voice_watch(cfg: Config):
     return VoiceWatch(
         tap, canceller, load_vad(), cfg.voice_interrupt_sensitivity, raw_vad=load_vad()
     )
+
+
+def make_roles(cfg: Config, daemon: Daemon):
+    """Your roles (roles.yaml), played by this daemon."""
+    from abdoh.roles.acting import Acting
+    from abdoh.roles.store import RoleStore
+
+    return Acting(RoleStore(cfg.app_dir / "roles.yaml").load, on_change=daemon._role_changed)
 
 
 def make_modes(cfg: Config, router: Router, daemon: Daemon):

@@ -666,7 +666,7 @@ select.input.compact { width: 280px; max-width: 46vw; }
 /* ---------- modes ---------- */
 .mode-chip { display: flex; align-items: center; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); margin-right: 6px; }
 .mode-chip button { border: 0; background: none; color: inherit; cursor: pointer; font: inherit; }
-.mode-chip-name { padding: 5px 4px 5px 12px; font-weight: 600; font-size: 13px; }
+.mode-chip-name { padding: 5px 4px 5px 12px; font-weight: 600; font-size: 13px; white-space: nowrap; }
 .mode-chip-end { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 999px; margin-right: 2px; }
 .mode-chip-end:hover { background: var(--accent-soft); filter: brightness(.95); }
 .mode-chip-end svg { width: 13px; height: 13px; }
@@ -698,3 +698,10 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .voice-check { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .voice-teach { display: flex; flex-direction: column; gap: 8px; width: min(360px, 100%); }
 .voice-teach small { color: var(--muted); }
+
+/* ---------- Act as ---------- */
+.role-text { margin: 2px 0 8px; color: var(--muted); font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.role-now { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.role-now-head { display: flex; align-items: center; gap: 12px; }
+.role-now-name { display: flex; flex-direction: column; gap: 2px; }
+.role-now-name small { color: var(--muted); }

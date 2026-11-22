@@ -65,8 +65,9 @@ def test_prompt_offers_only_the_allowed_actions():
 
 def test_prompt_without_any_actions():
     text = system_prompt(cfg_with(actions=[], allow_screen=False))
-    assert "ACTION" not in text
-    assert NO_ACTIONS.split(":")[0] in text
+    lines = [line for line in text.splitlines() if line.startswith("ACTION")]
+    assert lines == ["ACTION role: off"] or all(line.startswith("ACTION role:") for line in lines)
+    assert NO_ACTIONS.split(":")[0] in text  # roles aren't things done on the computer
 
 
 def test_claude_may_ask_to_look_only_when_the_screen_is_allowed():

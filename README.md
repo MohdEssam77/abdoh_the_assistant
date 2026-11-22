@@ -509,7 +509,8 @@ menu. You can also write modes by hand in `modes.yaml` in Abdoh's data folder:
 ```
 
 Settings: `displays`, `brightness`, `volume`, `audio_output`, `dark_mode`, `power_mode`,
-`night_light`, and Abdoh's own `wake_word`, `voice_replies` and `follow_up`. Actions: anything a command can do,
+`night_light`, Abdoh's own `wake_word`, `voice_replies` and `follow_up`, and `role` (one of your
+roles, see Act as). Actions: anything a command can do,
 plus `exit_actions` for when the mode ends. Switching from one mode to another first puts back
 what the new one leaves alone. A mode that is on when Abdoh restarts can still be undone. Your
 own commands can switch modes too (`mode: Movie`, `mode: normal`).
@@ -522,6 +523,26 @@ the mode aloud when it starts. Times that passed while Abdoh wasn't running are 
 **Night light** (Windows 11) is switched through a setting Windows doesn't document. Abdoh only
 changes it when it recognizes how your Windows stores it; otherwise it opens the Night light
 settings for you.
+
+### Act as
+
+Give Abdoh a role: "**act as my German teacher**", "act as a friendly chef". A role changes how
+Abdoh talks until you stop it, in any words ("you can stop acting", "I'm good, no need to be my
+teacher anymore"). Make your own on the **Act as** page, or start from a suggestion (German
+teacher, Math teacher, Programming teacher). Each role has:
+
+- **Instructions**: how Abdoh acts ("You are my German teacher. I'm a beginner. Speak German
+  slowly and simply…"). Claude follows them in everything it says while the role is on, and can
+  still look at your screen ("act as my math teacher… look at this problem").
+- **Voice**: slower, normal or faster than your usual speed. German sentences get the German voice.
+- **Answers**: short as usual, longer (up to 5 sentences) or long (up to 10), for explanations.
+- **Board**: lets the role show things on the board (story 66).
+
+"Act as my <name>" and the role's own phrases start it at once, without Claude. A role you
+didn't save ("act as a chef") works the same, and the Act as page offers to save it. The Home
+page shows the role that's on, with a way to stop it. Commands can use `role: German teacher`
+(or `role: off`), and a mode can start a role (its `role` setting), which ends with the mode.
+A role ends when Abdoh quits. Roles live in `roles.yaml` in Abdoh's data folder.
 
 ## 6. Install it like an app
 

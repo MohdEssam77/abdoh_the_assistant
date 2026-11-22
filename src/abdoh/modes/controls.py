@@ -45,6 +45,9 @@ class ModeControls:
             return d.voice_enabled
         if key == "follow_up":
             return d.cfg.follow_up_seconds
+        if key == "role":
+            acting = getattr(d, "acting", None)
+            return acting.current.name if acting is not None and acting.current else ""
         raise ValueError(key)
 
     def apply(self, key: str, value) -> None:
@@ -70,6 +73,11 @@ class ModeControls:
         elif key == "follow_up":
             # In memory only: config.yaml keeps your own choice.
             d.cfg.follow_up_seconds = FOLLOW_UP_ON if value is True else (value or 0)
+        elif key == "role":  # "" (put back: no role) ends it
+            acting = getattr(d, "acting", None)
+            if acting is None:
+                raise ActionError("Roles aren't available here.")
+            acting.start(value) if value else acting.stop()
         else:
             raise ValueError(key)
 
