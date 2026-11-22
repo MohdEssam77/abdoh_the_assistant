@@ -331,10 +331,14 @@ def claude_action(kind: str, arg: str, computer) -> None:
     elif kind == "note":
         computer.notes.add(arg)
     elif kind == "mode":
+        from abdoh.system_skills import Question
+
         modes = getattr(computer, "modes", None)
         if modes is None:
             raise ActionError("Modes aren't available here.")
-        modes.switch(arg)
+        reply = modes.switch(arg)
+        if isinstance(reply, Question):
+            raise ActionError(reply)  # spoken: it needs screens that aren't there; yes or no?
     elif kind == "displays":
         computer.screens(arg)
     elif kind == "audio_output":

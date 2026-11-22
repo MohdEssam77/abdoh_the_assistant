@@ -912,6 +912,11 @@ class Daemon:
         except Exception:
             log.exception("Couldn't switch the mode")
             reply = SORRY
+        if isinstance(reply, Question):  # it needs screens that aren't there: ask, and listen
+            self.say(reply)
+            if self.voice_enabled:
+                self.push_to_talk()
+            return
         self.bus.emit("history", f"Abdoh: {reply}")
 
     def use_modes(self, engine) -> None:
