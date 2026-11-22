@@ -12,7 +12,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = ROOT / "src" / "abdoh" / "ui" / "web" / "index.html"
-SHOTS = {"app": "home", "modes": "modes"}  # docs/<name>-<theme>.png -> the app's page
+# docs/<name>-<theme>.png -> the app's page (and the demo's other settings)
+SHOTS = {
+    "app": "page=home",
+    "modes": "page=modes",
+    "roles": "page=roles&role=Math%20teacher",  # a lesson: code, a formula, a word list
+    "memory": "page=memory",
+}
 EDGE = [
     Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
     Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
@@ -30,10 +36,10 @@ def main() -> int:
         print("Microsoft Edge (or Chrome) wasn't found.")
         return 1
     with tempfile.TemporaryDirectory() as profile:
-        for name, page in SHOTS.items():
+        for name, query in SHOTS.items():
             for theme in ("light", "dark"):
                 out = ROOT / "docs" / f"{name}-{theme}.png"
-                url = f"{PAGE.as_uri()}?demo&page={page}&theme={theme}"
+                url = f"{PAGE.as_uri()}?demo&{query}&theme={theme}"
                 subprocess.run(
                     [edge, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run",
                      # no fade-in animations: the shot would catch the messages half-visible

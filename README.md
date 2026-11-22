@@ -861,6 +861,10 @@ Developer scripts:
 - **Speech on macOS and Linux is untested with pyttsx3 2.99.** On Windows that version cut
   every reply off, so Abdoh now uses the Windows voice directly there; macOS and Linux still go
   through pyttsx3.
+- **In a lesson, Abdoh hears everything said in the room** (no wake word needed there). Claude
+  ignores what clearly isn't for it, but can be wrong: before a call or a chat, say "stop
+  listening", press **Stop listening** on the Act as page, or set Settings → Conversation →
+  **Keep listening in a lesson** to Off.
 - **Lamps are untested with a real WiZ lamp.** They follow WiZ's local protocol as other
   open-source projects use it; the first real test is still to come.
 - **The installer isn't code-signed**, so Windows SmartScreen warns the first time ("Windows

@@ -592,3 +592,10 @@ def test_identify_shows_numbers_on_the_screens(modes_api):
 def test_the_voice_check_says_abdoh_is_still_starting(api):
     api._daemon = None
     assert api.voice_check()["starting"] is True
+
+
+def test_the_demo_shows_this_version():
+    from abdoh import __version__
+
+    demo = (WEB_DIR / "bridge.js").read_text(encoding="utf-8")
+    assert f'version: "{__version__}", platform' in demo  # the download page's screenshots
