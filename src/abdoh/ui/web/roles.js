@@ -63,6 +63,7 @@
     const box = $("#role-now");
     const current = App.role ? (state.current && state.current.name === App.role ? state.current : { name: App.role, saved: true }) : null;
     const items = App.board || [];
+    const listening = App.listening || {};
     box.hidden = !current && !items.length;
     if (box.hidden) return box.replaceChildren();
     const usesBoard = items.length > 0 || !current || current.board !== false;
@@ -71,12 +72,12 @@
         el("span", { class: "cmd-icon", html: svg("role") }),
         el("div", { class: "role-now-name" }, el("b", {}, `Acting as ${current.name}`),
           el("small", {}, "Stop it in any words, like “you can stop acting”."),
-          el("small", {}, App.listening
-            ? "Listening: just talk, no “Hey Abdoh” needed. Say when it should stop listening."
-            : "Listening only after “Hey Abdoh”.")),
+          el("small", {}, !listening.on ? "Listening only after “Hey Abdoh”."
+            : listening.now ? "Listening now: just talk, no “Hey Abdoh” needed."
+            : "In a lesson it listens without “Hey Abdoh”: with this window open, something on the board, and you talking with it.")),
         el("div", { class: "spacer" }),
-        el("button", { class: "btn small", onclick: () => call("keep_listening", !App.listening) },
-          App.listening ? "Stop listening" : "Keep listening"),
+        el("button", { class: "btn small", onclick: () => call("keep_listening", !listening.on) },
+          listening.on ? "Stop listening" : "Keep listening"),
         current.saved === false
           ? el("button", { class: "btn small", onclick: () => openEditor({ ...current, phrases: [], board: true }, true) }, "Save this role")
           : null,

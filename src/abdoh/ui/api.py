@@ -50,7 +50,8 @@ class UiState:
         self._hearing = ""
         self._mode = ""
         self._role = ""
-        self._listening = False  # a role is on and Abdoh keeps listening (no wake word)
+        # Abdoh listens without the wake word in lessons (on), and right now (now)
+        self._listening = {"on": False, "now": False}
         self._board: deque[dict] = deque(maxlen=self.BOARD)  # cards {id, text}, oldest first
         self._voice = True
         self._history: deque[str] = deque(maxlen=self.HISTORY)
@@ -80,7 +81,7 @@ class UiState:
             elif kind == "role":
                 self._role = value or ""
             elif kind == "listening":
-                self._listening = bool(value)
+                self._listening = {"on": bool(value["on"]), "now": bool(value["now"])}
             elif kind == "board":  # a card (new, or grown), or None: clear it
                 if value is None:
                     self._board.clear()
@@ -116,7 +117,7 @@ class UiState:
                 "hearing": self._hearing,
                 "mode": self._mode,
                 "role": self._role,
-                "listening": self._listening,
+                "listening": dict(self._listening),
                 "board": [dict(card) for card in self._board],
                 "voice": self._voice,
                 "history": list(self._history),
@@ -335,6 +336,7 @@ class AppApi:
 
     def clear_board(self) -> None:
         self._state.feed("board", None)
+        self._bus.request("board_cleared")  # nothing on it: no lesson going on
 
     def _modes_store(self):
         from abdoh.modes.store import ModesStore

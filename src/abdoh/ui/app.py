@@ -83,6 +83,8 @@ def _escape(text: str) -> str:
 
 
 class WebWindow:
+    _open: bool | None = None  # the window is open (shown, not minimized); None: not known yet
+
     def __init__(self, bus: Bus, cfg: Config, start_hidden: bool = False, tray=None):
         import webview
 
@@ -105,6 +107,18 @@ class WebWindow:
             background_color="#0f1115" if windows_dark_mode() else "#f4f5f7",
         )
         self.window.events.closing += self._on_closing
+        # Open (not hidden in the tray, not minimized)? Abdoh keeps listening in a lesson only
+        # while you can see the board.
+        self._open = None
+        self._seen(not start_hidden)
+        self.window.events.minimized += lambda: self._seen(False)
+        self.window.events.restored += lambda: self._seen(True)
+        self.window.events.maximized += lambda: self._seen(True)
+
+    def _seen(self, open_: bool) -> None:
+        if open_ != self._open:
+            self._open = open_
+            self.bus.request("window_open", open_)
 
     def _on_closing(self):
         """Closing the window only hides it; Abdoh keeps running in the tray."""
@@ -116,9 +130,11 @@ class WebWindow:
     def show(self) -> None:
         self.window.show()
         self.window.restore()
+        self._seen(True)
 
     def hide(self) -> None:
         self.window.hide()
+        self._seen(False)
 
     def pick_folder(self) -> str | None:
         """A folder chosen in Windows' folder picker, or None."""

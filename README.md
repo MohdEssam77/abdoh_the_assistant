@@ -544,12 +544,14 @@ teacher, Math teacher, Programming teacher). Each role has:
   is one card. It's never read aloud: Abdoh explains and refers to it. Math is shown properly
   (LaTeX, drawn by KaTeX, which comes with Abdoh). Code has a **Copy** button; **Clear** empties
   the board, and a new role starts with a clean one.
-- **Keeps listening**: while a role is on you don't need "Hey Abdoh": just talk, also to answer
-  its questions, and take your time to think (what you say ends after a 1.2 s pause instead of
+- **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
+  something and you're talking with it (the last word less than 2 minutes ago), you don't need
+  "Hey Abdoh": just talk, also to answer its questions, and take your time to think (what you say ends after a 1.2 s pause instead of
   0.6 s, and may be up to 30 s long). It never listens to itself while it talks; talking over it
   works as always. Say in any words when it should stop listening ("I'll call you when I need
-  you"): the role stays on and Abdoh goes back to the wake word. The Act as page has a **Stop
-  listening** / **Keep listening** button too.
+  you"): the role stays on and Abdoh goes back to the wake word. The Act as page shows when it's
+  listening, with a **Stop listening** / **Keep listening** button. With the window hidden or
+  minimized, an empty board or 2 quiet minutes, it's the wake word as usual.
 
 "Act as my <name>" and the role's own phrases start it at once, without Claude. A role you
 didn't save ("act as a chef") works the same, and the Act as page offers to save it. The Home
