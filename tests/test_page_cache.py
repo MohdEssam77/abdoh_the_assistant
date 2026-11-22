@@ -34,3 +34,27 @@ def test_the_first_start_after_installing_over_an_old_version_drops_it(tmp_path)
 def test_a_fresh_install_works(tmp_path):
     forget_old_page(tmp_path / "webview", "0.5.1")
     assert (tmp_path / "webview" / "version.txt").read_text() == "0.5.1"
+
+
+def test_any_change_to_the_page_is_a_new_page(tmp_path):
+    """Running from source between releases keeps the version: the page's files decide."""
+    from abdoh.ui.app import page_stamp
+
+    web = tmp_path / "web"
+    (web / "vendor").mkdir(parents=True)
+    (web / "settings.js").write_text("one")
+    (web / "vendor" / "katex.js").write_text("k")
+    first = page_stamp("0.8.0", web)
+    assert first.startswith("0.8.0+") and page_stamp("0.8.0", web) == first
+    (web / "settings.js").write_text("two")  # a new setting on the page
+    assert page_stamp("0.8.0", web) != first
+    (web / "settings.js").write_text("one")
+    (web / "vendor" / "katex.js").write_text("k2")
+    assert page_stamp("0.8.0", web) != first
+    assert page_stamp("0.9.0", web) != page_stamp("0.8.0", web)
+
+
+def test_the_real_page_has_a_stamp():
+    from abdoh.ui.app import page_stamp
+
+    assert len(page_stamp("0.8.0").split("+")[1]) == 12
