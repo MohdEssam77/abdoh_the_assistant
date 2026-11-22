@@ -271,6 +271,44 @@ class AppApi:
 
     # ----- roles ("act as my German teacher") -----
 
+    # ----- memory (the Memory page) -----
+
+    def _memory(self):
+        from abdoh.memory import Memory
+
+        return Memory(self._cfg.app_dir / "memory.yaml")
+
+    def memory(self) -> dict:
+        """What Abdoh remembers about you, oldest first, and how full it is."""
+        from abdoh.memory import MAX_CHARS, MAX_ENTRIES, MemoryFileError, size
+
+        result = {"ok": True, "entries": [], "max_entries": MAX_ENTRIES, "max_chars": MAX_CHARS}
+        try:
+            entries = self._memory().load()
+        except MemoryFileError as e:
+            return {**result, "ok": False, "error": str(e), "chars": 0}
+        return {**result, "entries": [e.as_item() for e in entries], "chars": size(entries)}
+
+    def _memory_change(self, change) -> dict:
+        from abdoh.memory import MemoryChangeError
+
+        try:
+            entry = change(self._memory())
+        except MemoryChangeError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "entry": entry.as_item()}
+
+    def add_memory(self, text, kind="fact") -> dict:
+        return self._memory_change(lambda memory: memory.add(str(text or ""), str(kind)))
+
+    def change_memory(self, old_text, text, kind) -> dict:
+        return self._memory_change(
+            lambda memory: memory.change(str(old_text or ""), str(text or ""), str(kind))
+        )
+
+    def forget_memory(self, text) -> dict:
+        return self._memory_change(lambda memory: memory.forget(str(text or "")))
+
     def _roles_store(self):
         from abdoh.roles.store import RoleStore
 

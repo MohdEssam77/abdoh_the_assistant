@@ -192,3 +192,48 @@ def test_remember_that_after_telling_it_something_goes_to_claude(tmp_path):
     router.brain = FakeBrain(("ACTION remember: Their sister is called Lina.\nGot it.",))
     assert " ".join(router.handle("remember that")) == "Got it."  # not "nothing to remember"
     assert memory(tmp_path).load()[0].text == "Their sister is called Lina."
+
+
+# ----- the Memory page -----
+
+
+def make_api(tmp_path):
+    from abdoh.events import Bus
+    from abdoh.ui.api import AppApi, UiState
+
+    return AppApi(Bus(), UiState(), Config(app_dir=tmp_path))
+
+
+def test_the_memory_page(tmp_path):
+    api = make_api(tmp_path)
+    assert api.add_memory("My sister is called Lina.", "fact")["ok"]
+    assert api.add_memory("  ", "fact") == {"ok": False, "error": "There's nothing to remember."}
+    page = api.memory()
+    assert [e["text"] for e in page["entries"]] == ["My sister is called Lina."]
+    assert page["max_entries"] == MAX_ENTRIES and page["chars"] == len("My sister is called Lina.")
+    assert api.change_memory(
+        "My sister is called Lina.", "My sister Lina lives in Berlin.", "fact"
+    )["ok"]
+    assert api.forget_memory("My sister Lina lives in Berlin.")["ok"]
+    assert api.memory()["entries"] == []
+
+
+def test_the_page_says_when_the_file_is_broken(tmp_path):
+    (tmp_path / "memory.yaml").write_text("- text: [broken", encoding="utf-8")
+    result = make_api(tmp_path).memory()
+    assert not result["ok"] and "can't be read" in result["error"]
+
+
+def test_the_page_refreshes_when_claude_changes_the_memory(tmp_path):
+    from fakes import FakeTranscriber, FakeWakeWord
+
+    from abdoh.daemon import Daemon
+    from abdoh.events import Bus
+    from abdoh.speech.tts import FakeSpeaker
+
+    router = Router(Config(app_dir=tmp_path), CommandRegistry(tmp_path / "none.yaml"))
+    bus = Bus()
+    Daemon(Config(app_dir=tmp_path), router, FakeSpeaker(), None, FakeWakeWord(99),
+           FakeTranscriber([]), bus=bus)  # fmt: skip
+    router.on_memory()
+    assert ("memory", None) in bus.pending_events()

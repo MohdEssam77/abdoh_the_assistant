@@ -414,6 +414,7 @@ input.switch:disabled { opacity: 0.5; cursor: default; }
 .card > p.lead { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; }
 .row { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid var(--border); }
 .card > h2 + .row, .card > p.lead + .row { border-top: 0; padding-top: 6px; }
+.card > .row:first-child { border-top: 0; padding: 0; }
 .row .label { flex: 1; min-width: 0; }
 .row .label b { display: block; font-weight: 600; font-size: 14px; }
 .row .label small { display: block; color: var(--muted); font-size: 12.5px; line-height: 1.4; margin-top: 1px; }
@@ -728,6 +729,12 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .board-math.display { display: block; overflow-x: auto; overflow-y: hidden; margin: 2px 0 8px; }
 .board-math.display .katex-display { margin: 4px 0; }
 .board-item .katex { font-size: 1.15em; }
+.memory-list { display: flex; flex-direction: column; gap: 8px; }
+.memory-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.memory-item .memory-text { flex: 1; min-width: 0; }
+.memory-item .memory-text b { display: block; font-weight: 500; overflow-wrap: anywhere; }
+.memory-item .memory-text small { color: var(--muted); }
+.memory-group { margin: 14px 2px 6px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .lesson-listening { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .lesson-custom { display: inline-flex; align-items: center; gap: 6px; }
 .lesson-custom[hidden] { display: none; }
