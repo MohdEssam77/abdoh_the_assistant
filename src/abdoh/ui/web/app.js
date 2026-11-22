@@ -484,7 +484,7 @@ function addToBoard(card) {
   if (card == null) App.board = [];
   else if (board.length && board[board.length - 1].id === card.id) App.board = [...board.slice(0, -1), card];
   else App.board = [...board, card].slice(-30);
-  if (window.Roles) window.Roles.board();
+  if (window.Roles) window.Roles.board(card);
 }
 
 function setRole(name) {

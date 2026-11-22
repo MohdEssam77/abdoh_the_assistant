@@ -94,6 +94,7 @@ class Daemon:
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
         self._board_card = 0  # the board card the window last came up for
+        self._board_text = ""  # and what's on it
         self._watching = False  # the voice watch is following a reply
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
@@ -955,14 +956,29 @@ class Daemon:
         self.bus.emit("board", None)  # a new role (or none): a clean board
         self.bus.emit("role", role.name if role is not None else "")
 
+    # The page writes the board out at about this many characters a second (board.js); Abdoh
+    # waits as long (at most BOARD_WAIT_MAX per line) before speaking on, like a teacher who
+    # writes a line, then explains it.
+    BOARD_CHARS_PER_SECOND = 40
+    BOARD_WAIT_MAX = 3.0
+
     def _on_board(self, card: int, text: str) -> None:
-        """A role's board card grew (it fills in while Claude writes it). For a new card the
-        window comes up on the Act as page."""
+        """A role's board card grew by a line. For a new card the window comes up on the Act as
+        page; then Abdoh waits while the page writes the new part out."""
+        before = self._board_text if card == self._board_card else ""
+        new = text[len(before) :] if text.startswith(before) else text
         self.bus.emit("board", {"id": card, "text": text})
         if card != self._board_card:
             self._board_card = card
             self.bus.emit("show")
             self.bus.emit("page", "roles")
+        self._board_text = text
+        self._pause(min(len(new) / self.BOARD_CHARS_PER_SECOND, self.BOARD_WAIT_MAX))
+
+    def _pause(self, seconds: float) -> None:
+        """Wait a moment in the middle of a reply (ends early if you talk over it)."""
+        if seconds > 0:
+            self._interrupted.wait(seconds)
 
     def _switch_role(self, name: str) -> None:
         """The window's Start and Stop buttons."""

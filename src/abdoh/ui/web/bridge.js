@@ -63,7 +63,8 @@ const Bridge = (() => {
     const demoBoard = [
       { id: 1, text: "### Solving 2x + 3 = 11\n\n1. Take 3 from both sides: 2x = 8\n2. Divide both sides by 2: x = 4\n\n**Check:** 2 × 4 + 3 = 11 ✓" },
       { id: 2, text: "A loop that adds up the numbers:\n\n```python\ntotal = 0\nfor n in range(1, 5):\n    total += n\nprint(total)  # 10\n```" },
-      { id: 3, text: "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |" },
+      { id: 3, text: "The quadratic formula:\n$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$\nHere $a = 1$, $b = -1$ and $c = -13$, so $b^2 - 4ac = 53$ and $x = \\frac{1 \\pm \\sqrt{53}}{2}$." },
+      { id: 4, text: "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |" },
     ];
     const roleSuggestions = [
       { name: "German teacher", description: "Teaches you German slowly, in German, and corrects you kindly.", phrases: ["german lesson"], instructions: "You are my German teacher.", speed: "slow", answers: "long", board: true },

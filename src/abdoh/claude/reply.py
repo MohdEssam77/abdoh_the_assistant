@@ -99,7 +99,7 @@ def speakable(
     def show() -> None:
         nonlocal shown
         current = "\n".join(board or []).strip("\n")
-        text = "\n\n".join(p for p in (*parts, current) if p.strip())
+        text = "\n".join(p for p in (*parts, current) if p.strip())  # one board, written on
         if text == shown:
             return
         if on_board is None:
