@@ -479,6 +479,13 @@ A mode switches a set of things at once, and puts them back when you're done. Sa
 "**movie mode**", "**switch to work mode**", and "**back to normal**" (or "exit movie mode") to
 undo everything the mode changed. "Which mode am I in?" and "what modes do I have?" work too.
 
+A mode checks your setup first. If it needs screens or speakers that aren't connected (you
+undocked the laptop), it asks: "Study mode wants screens 2 and 3, but only screen 1, laptop, is
+connected. Run it on what's connected?" Say yes (in any words) and it runs on what's there:
+windows meant for a missing screen go to your main screen, and missing speakers are skipped.
+No changes nothing. A mode that starts by its schedule runs on what's there and says what it
+left out.
+
 Make modes on the **Modes** page: pick an icon, click the screens to keep on in a drawing of your
 desk, set the volume, brightness, speakers, theme and power, and add actions. **Save and try it**
 switches it on; if your screens change, Abdoh asks "Keep these screens?" and goes back by itself
