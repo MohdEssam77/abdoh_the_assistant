@@ -50,21 +50,33 @@
     return node;
   }
 
-  /* The role that's on: its name, a way to stop it, and (made up on the spot) to keep it. */
+  /* The role that's on: its name, a way to stop it, (made up on the spot) to keep it, and the
+     board: what it shows instead of only saying it. */
   function renderNow() {
     const box = $("#role-now");
     const current = App.role ? (state.current && state.current.name === App.role ? state.current : { name: App.role, saved: true }) : null;
-    box.hidden = !current;
-    if (!current) return box.replaceChildren();
-    box.replaceChildren(el("div", { class: "role-now-head" },
-      el("span", { class: "cmd-icon", html: svg("role") }),
-      el("div", { class: "role-now-name" }, el("b", {}, `Acting as ${current.name}`),
-        el("small", {}, "Stop it in any words, like “you can stop acting”.")),
-      el("div", { class: "spacer" }),
-      current.saved === false
-        ? el("button", { class: "btn small", onclick: () => openEditor({ ...current, phrases: [], board: true }, true) }, "Save this role")
-        : null,
-      el("button", { class: "btn small", onclick: stop }, "Stop")));
+    const items = App.board || [];
+    box.hidden = !current && !items.length;
+    if (box.hidden) return box.replaceChildren();
+    const usesBoard = items.length > 0 || !current || current.board !== false;
+    box.replaceChildren(
+      current ? el("div", { class: "role-now-head" },
+        el("span", { class: "cmd-icon", html: svg("role") }),
+        el("div", { class: "role-now-name" }, el("b", {}, `Acting as ${current.name}`),
+          el("small", {}, "Stop it in any words, like “you can stop acting”.")),
+        el("div", { class: "spacer" }),
+        current.saved === false
+          ? el("button", { class: "btn small", onclick: () => openEditor({ ...current, phrases: [], board: true }, true) }, "Save this role")
+          : null,
+        el("button", { class: "btn small", onclick: stop }, "Stop")) : null,
+      usesBoard ? el("div", { class: "board-wrap" },
+        el("div", { class: "board-head" }, el("b", {}, "Board"), el("div", { class: "spacer" }),
+          items.length ? el("button", { class: "btn small", onclick: () => call("clear_board") }, "Clear") : null),
+        el("div", { class: "board", id: "board" }, items.length
+          ? items.map((text) => Board.render(text))
+          : el("p", { class: "board-empty" }, "Code, equations and steps the role shows appear here."))) : null);
+    const board = $("#board");
+    if (board && board.lastElementChild) board.lastElementChild.scrollIntoView({ block: "nearest" });
   }
 
   function render() {
@@ -172,7 +184,7 @@
     $("#role-chip-end").addEventListener("click", stop);
   }
 
-  window.Roles = { load };
+  window.Roles = { load, board: () => { if ($("#page-roles").classList.contains("active")) renderNow(); } };
 
   registerPage("roles", {
     boot() { bind(); },

@@ -60,6 +60,11 @@ const Bridge = (() => {
       { name: "German teacher", phrases: ["german lesson"], instructions: "You are my German teacher, and I'm a beginner. Speak German slowly and simply, explain new words in English, correct my mistakes kindly, and ask me to repeat new phrases.", speed: "slow", answers: "long", board: true, saved: true },
       { name: "Math teacher", phrases: ["math lesson"], instructions: "You are my patient math teacher. Explain step by step and check that I follow before going on. Put the worked steps on the board.", speed: "normal", answers: "long", board: true, saved: true },
     ];
+    const demoBoard = [
+      "### Solving 2x + 3 = 11\n\n1. Take 3 from both sides: 2x = 8\n2. Divide both sides by 2: x = 4\n\n**Check:** 2 × 4 + 3 = 11 ✓",
+      "A loop that adds up the numbers:\n\n```python\ntotal = 0\nfor n in range(1, 5):\n    total += n\nprint(total)  # 10\n```",
+      "| German | English |\n|---|---|\n| der Apfel | the apple |\n| die Schule | the school |\n| `lernen` | to learn |",
+    ];
     const roleSuggestions = [
       { name: "German teacher", description: "Teaches you German slowly, in German, and corrects you kindly.", phrases: ["german lesson"], instructions: "You are my German teacher.", speed: "slow", answers: "long", board: true },
       { name: "Programming teacher", description: "Explains ideas simply, and shows the code on the board.", phrases: ["coding lesson"], instructions: "You are my programming teacher.", speed: "normal", answers: "long", board: true },
@@ -90,7 +95,7 @@ const Bridge = (() => {
       demo: true,
       boot: async () => ({
         version: "0.8.0", platform: "win32", demo: true, settings,
-        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, voice: true, history },
+        state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, voice: true, history, board: currentRole ? demoBoard : [] },
       }),
       events: async () => queue.splice(0),
       send: async (text) => {
@@ -135,7 +140,8 @@ const Bridge = (() => {
       },
       delete_role: async (name) => { roles = roles.filter((r) => r.name !== name); return { ok: true }; },
       start_role: async (name) => { currentRole = name; push("role", name); push("history", `Abdoh: Acting as ${name}.`); },
-      stop_role: async () => { currentRole = ""; push("role", ""); push("history", "Abdoh: Stopped acting."); },
+      stop_role: async () => { currentRole = ""; push("board", null); push("role", ""); push("history", "Abdoh: Stopped acting."); },
+      clear_board: async () => push("board", null),
       save_mode: async (mode, oldName) => {
         if (!mode.name.trim()) return { ok: false, error: "Give the mode a name." };
         modes = modes.filter((m) => m.name !== oldName && m.name !== mode.name).concat([mode]);
