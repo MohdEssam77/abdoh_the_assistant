@@ -659,7 +659,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `piper_voice_en` | `en_US-lessac-medium` | The natural voice for English (see Settings for the choices) |
 | `piper_voice_de` | `de_DE-thorsten-medium` | The natural voice for German |
 | `tts_voice` | `""` | A Windows voice's name (it also speaks while a natural voice downloads); empty means the default voice |
-| `mic_device` | `""` | A microphone's name; empty means Windows' default microphone |
+| `mic_device` | `""` | A microphone's name; empty means Windows' default microphone (also used while the chosen one isn't connected) |
 | `allow_run` | `false` | Allow `run:` actions |
 | `check_updates` | `true` | Look for a new version once a day |
 | `setup_done` | `false` | The first-start setup was finished or skipped |
@@ -700,7 +700,9 @@ Abdoh to download it again. The log (Settings → Open logs) has the details.
 **Abdoh chimes, then nothing happens** (or it says "Your microphone may be muted"). It didn't
 hear you. Abdoh uses your default microphone: on Windows open Settings → System → Sound →
 Input, choose the microphone you talk into, make sure it isn't muted, and set its volume to
-about 80%. A webcam's microphone is often the default.
+about 80%. A webcam's microphone is often the default. Abdoh follows Windows while it runs:
+plug in a headset or undock, and it switches to the new default microphone and speakers
+after the current request (Settings lists the microphones connected right now).
 
 **You can't hear Abdoh.** It speaks through your default speakers. Check
 that the window says **Voice replies: On** and that your volume is up, then try
