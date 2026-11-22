@@ -57,6 +57,10 @@ ANSWER = "answer"
 ROLE = "role"
 # While a role is on: keep listening without the wake word (on), or only after it (off).
 LISTEN = "listen"
+# Memory (abdoh/memory.py), while it's on: a fact about the user, a lesson (what works on this
+# computer), or forgetting one.
+REMEMBER, LESSON, FORGET = "remember", "lesson", "forget"
+MEMORY_ACTIONS = (REMEMBER, LESSON, FORGET)
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 # What a role shows instead of saying (code, equations, steps): between these, never spoken.
