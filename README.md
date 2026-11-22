@@ -178,7 +178,8 @@ back to its old, simple window.
 - **Keep talking**: after Claude answers a question or chats with you, Abdoh listens for about
   six more seconds (one soft note), so you can go on without the wake word. Say "thanks",
   "okay" or "that's it", or stay quiet, to end it. If what you say then was meant for someone
-  else in the room, Claude notices and Abdoh stays quiet.
+  else in the room, Claude notices and Abdoh stays quiet. An "um", a breath or a click with no
+  words in it doesn't end the listening: Abdoh listens again for your answer.
 - **Just start talking**: while Abdoh explains something, talk and it goes quiet at once and
   listens. "Okay" or "go on" lets it carry on from the same word; "wait" or "thanks" stops it;
   anything else becomes your next request, and Claude still remembers the conversation. If you
@@ -543,6 +544,12 @@ teacher, Math teacher, Programming teacher). Each role has:
   is one card. It's never read aloud: Abdoh explains and refers to it. Math is shown properly
   (LaTeX, drawn by KaTeX, which comes with Abdoh). Code has a **Copy** button; **Clear** empties
   the board, and a new role starts with a clean one.
+- **Keeps listening**: while a role is on you don't need "Hey Abdoh": just talk, also to answer
+  its questions, and take your time to think (what you say ends after a 1.2 s pause instead of
+  0.6 s, and may be up to 30 s long). It never listens to itself while it talks; talking over it
+  works as always. Say in any words when it should stop listening ("I'll call you when I need
+  you"): the role stays on and Abdoh goes back to the wake word. The Act as page has a **Stop
+  listening** / **Keep listening** button too.
 
 "Act as my <name>" and the role's own phrases start it at once, without Claude. A role you
 didn't save ("act as a chef") works the same, and the Act as page offers to save it. The Home

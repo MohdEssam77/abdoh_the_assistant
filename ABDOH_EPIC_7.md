@@ -215,6 +215,23 @@ A **role** (`roles.yaml`):
   empties it, and it is cleared when the role ends.
 - Rendered with the page's own small Markdown renderer (section 3); everything is escaped.
 
+### 4.5b Keeps listening while a role is on (owner's request after story 66)
+
+- **Why:** in two lessons Abdoh asked a question, then stopped listening. The answer window
+  started on an "um" (or a breath, or its own echo), ended at the 0.6 s pause while the owner
+  thought, no words came out, and Abdoh silently went back to the wake word.
+- Every answer window (`listener._push_to_talk`): a recording with no words in it is listened
+  for again (up to 2 more times), logged "Heard a sound but no words; listening again".
+- While a role is on, Abdoh keeps listening (`Acting.listening`, on when a role starts): the
+  main loop's `wait_for_trigger` gets `hear(block)`, which turns true after 0.3 s of speech in a
+  row (the VAD, its own state: `SileroVad.fresh`), never while Abdoh answers nor in the 0.8 s
+  after (its own voice). The recording keeps 1 s from before it was noticed, ends after a 1.2 s
+  pause and may be 30 s long; no chime. What you said goes to Claude as an aside (it may
+  `ACTION ignore` talk meant for someone else). No answer windows meanwhile: you just talk.
+- Stopping it in any words: `ACTION listen: off` (Claude decides; the role stays on), and
+  `ACTION listen: on` to listen again. The state line says which, and how. The Act as page shows
+  it, with a Stop listening / Keep listening button (request `keep_listening`).
+
 ### 4.6 Abdoh edits itself
 
 New Claude actions, behind a new permission "Let Abdoh change its own commands, modes and
