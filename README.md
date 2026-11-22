@@ -551,7 +551,9 @@ teacher, Math teacher, Programming teacher). Each role has:
   It never listens to itself while it talks; talking over it works as always. Say in any words when it should stop listening ("I'll call you when I need
   you"): the role stays on and Abdoh goes back to the wake word. The Act as page shows when it's
   listening, with a **Stop listening** / **Keep listening** button. With the window hidden or
-  minimized, an empty board or 2 quiet minutes, it's the wake word as usual.
+  minimized, an empty board or 2 quiet minutes, it's the wake word as usual. How long (1, 2, 5,
+  10 minutes or your own) or Off (always the wake word): Settings → Conversation → **Keep
+  listening in a lesson** (`lesson_listen_seconds`).
 
 "Act as my <name>" and the role's own phrases start it at once, without Claude. A role you
 didn't save ("act as a chef") works the same, and the Act as page offers to save it. The Home
@@ -691,6 +693,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |
 | `follow_up_seconds` | `6` | After Claude answers, keep listening this long without the wake word (0 = off) |
+| `lesson_listen_seconds` | `120` | In a lesson (a role explaining on the board, the window open), no wake word until this long passes quietly (0 = off) |
 | `confirm_actions` | `sound` | After it does something for you: `sound` (a short sound) or `words` (says what it did) |
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
 | `keep_unclear_clips` | `false` | Keep what Abdoh heard after its name but couldn't make out, for a day, in `voice/` (to find out why) |

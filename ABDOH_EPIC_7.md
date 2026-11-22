@@ -225,8 +225,9 @@ A **role** (`roles.yaml`):
 - In a lesson, Abdoh keeps listening (`Daemon.keeps_listening`): a role is on with
   `Acting.listening` (on when a role starts), Abdoh's window is open (`WebWindow` tells the
   daemon `window_open` on show, hide, minimize and restore), the board shows something (Clear
-  tells it `board_cleared`; a new role clears it), and you talked with Abdoh in the last 2
-  minutes. Otherwise it's the wake word as usual, though the role is on. Then the main loop's
+  tells it `board_cleared`; a new role clears it), and you or Abdoh said something in the last
+  `lesson_listen_seconds` (Settings → Conversation: Off, 1, 2 (default), 5, 10 minutes or your
+  own; Off means the wake word always, and Claude isn't told about listening at all). Otherwise it's the wake word as usual, though the role is on. Then the main loop's
   `wait_for_trigger` gets `hear(block)`, which turns true after 0.3 s of speech in a
   row (the VAD, its own state: `SileroVad.fresh`), never while Abdoh answers nor in the 0.8 s
   after (its own voice). The recording keeps 1 s from before it was noticed, ends after a 1.2 s

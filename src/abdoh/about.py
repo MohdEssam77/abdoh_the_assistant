@@ -149,6 +149,10 @@ def _conversation(cfg: Config) -> str:
         f"listening {cfg.follow_up_seconds:g} more seconds after an answer"
         if cfg.follow_up_seconds
         else "no listening after answers",
+        f"in a lesson (a role explaining on the board, the window open) listening without the "
+        f"wake word until {cfg.lesson_listen_seconds / 60:g} quiet minutes"
+        if cfg.lesson_listen_seconds
+        else "always the wake word in lessons too",
         "talking over you stops you" if cfg.voice_interrupts else "only the wake word stops you",
         f"other apps drop to {cfg.duck_percent}% during a conversation"
         if cfg.duck_others

@@ -165,7 +165,7 @@ def test_the_quiet_minutes_count_from_the_end_of_its_answer(tmp_path):
     in_lesson(daemon)
 
     def long_explanation(text, **kwargs):
-        daemon._last_exchange -= daemon.LESSON_QUIET_SECONDS - 1  # you asked almost 2 min ago
+        daemon._last_exchange -= daemon.cfg.lesson_listen_seconds - 1  # you asked almost 2 min ago
         return ""
 
     daemon.router.handle = long_explanation
@@ -189,7 +189,8 @@ def test_only_while_the_lesson_goes_on(tmp_path):
     daemon.handle_request("board_cleared")  # nothing on the board
     assert not hears()
     in_lesson(daemon)
-    daemon._last_exchange = time.monotonic() - daemon.LESSON_QUIET_SECONDS - 1  # 2 quiet minutes
+    quiet = daemon.cfg.lesson_listen_seconds + 1  # 2 quiet minutes (the setting)
+    daemon._last_exchange = time.monotonic() - quiet
     assert not hears()
     in_lesson(daemon)
     daemon.acting.start("a pirate")  # a new role: a clean board
@@ -373,3 +374,53 @@ def test_the_window_tells_abdoh_when_it_is_open(tmp_path, monkeypatch):
     assert [value for kind, value in requests if kind == "window_open"] == [
         False, True, False, True, False,
     ]  # fmt: skip
+
+
+# ----- the setting: how long, or off -----
+
+
+def test_off_means_the_wake_word_always(tmp_path):
+    daemon, bus = make_daemon(tmp_path)
+    in_lesson(daemon)
+    daemon.cfg.lesson_listen_seconds = 0  # Settings -> Conversation -> Off
+    daemon._hear_from = 0
+    assert not any(daemon._hear(TONE) for _ in range(5))
+    assert not daemon.keeps_listening()
+    assert "ACTION listen" not in daemon.acting.state_text(4, lessons=False)  # Claude isn't told
+    daemon._show_listening()
+    assert bus.pending_events()[-1] == ("listening", {"on": False, "now": False})
+
+
+def test_your_own_minutes(tmp_path):
+    daemon, _ = make_daemon(tmp_path)
+    in_lesson(daemon)
+    daemon.cfg.lesson_listen_seconds = 300  # Custom: 5 minutes
+    daemon._last_exchange = time.monotonic() - 200
+    assert daemon.keeps_listening()
+    daemon._last_exchange = time.monotonic() - 301
+    assert not daemon.keeps_listening()
+
+
+def test_claude_cant_switch_listening_when_it_is_off(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text("[]", encoding="utf-8")
+    router = Router(Config(app_dir=tmp_path, lesson_listen_seconds=0), CommandRegistry(path))
+    router.acting = Acting(lambda: parse_roles([TEACHER]))
+    router.acting.start("Math teacher")
+    router.acting.set_listening(False)
+    router.brain = FakeBrain(("Sure.\nACTION listen: on",))
+    list(router.handle("keep listening to me"))
+    assert not router.acting.listening  # not allowed: the setting is off
+
+
+def test_the_setting_is_checked(tmp_path):
+    from abdoh.settings import SettingsError, save_settings
+
+    assert save_settings(tmp_path, {"lesson_listen_seconds": 300}).lesson_listen_seconds == 300
+    assert save_settings(tmp_path, {"lesson_listen_seconds": 0}).lesson_listen_seconds == 0
+    try:
+        save_settings(tmp_path, {"lesson_listen_seconds": 99999})
+    except SettingsError:
+        pass
+    else:
+        raise AssertionError("more than an hour should be refused")

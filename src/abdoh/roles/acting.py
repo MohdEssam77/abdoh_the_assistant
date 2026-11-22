@@ -123,8 +123,9 @@ class Acting:
         role = self.start(what)
         return f"Acting as {role.name}." if role else "Stopped acting."
 
-    def state_text(self, usual_sentences: int) -> str:
-        """For the line Claude gets with every message ("" with no role on)."""
+    def state_text(self, usual_sentences: int, lessons: bool = True) -> str:
+        """For the line Claude gets with every message ("" with no role on). `lessons`: Abdoh
+        may keep listening in a lesson (the lesson_listen_seconds setting isn't 0)."""
         role = self.current
         if role is None:
             return ""
@@ -134,4 +135,6 @@ class Acting:
             text += f" (answers may be up to {sentences} sentences)"
         if role.board:
             text += BOARD
+        if not lessons:  # keeping listening in lessons is off (Settings): the wake word always
+            return text
         return text + (LISTENING if self.listening else NOT_LISTENING)

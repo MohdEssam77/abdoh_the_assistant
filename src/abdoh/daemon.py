@@ -65,9 +65,6 @@ class Daemon:
     # (a cough or a click is shorter), and not until Abdoh's own voice has died away.
     HEAR_ONSET_SECONDS = 0.3
     HEAR_AFTER_SPEAKING_SECONDS = 0.8
-    # A lesson goes on while you talk with Abdoh: after this long without a word, it's over and
-    # the wake word is needed again (the role stays on).
-    LESSON_QUIET_SECONDS = 120.0
 
     def __init__(
         self,
@@ -199,7 +196,10 @@ class Daemon:
         mode = getattr(self.modes, "current", None) if self.modes is not None else None
         role = ""
         if self.acting is not None:
-            role = self.acting.state_text(self.cfg.claude.voice_reply_max_sentences)
+            role = self.acting.state_text(
+                self.cfg.claude.voice_reply_max_sentences,
+                lessons=self.cfg.lesson_listen_seconds > 0,
+            )
         return state_line(mode, self.voice_enabled, self.paused, self._screens_now(), role)
 
     def _screens_now(self) -> str:
@@ -286,6 +286,7 @@ class Daemon:
         for f in fields(ClaudeConfig):
             setattr(self.cfg.claude, f.name, getattr(new.claude, f.name))
         self._use_brain(make_brain(self.cfg))  # permissions, folders, API key
+        self._show_listening()  # in lessons or not (lesson_listen_seconds)
         configure = getattr(self.speaker, "configure", None)
         if configure:
             changes = {"rate": self._speech_rate(), "voice": self.cfg.tts_voice}
@@ -1049,15 +1050,18 @@ class Daemon:
 
     def keeps_listening(self) -> bool:
         """In a lesson, Abdoh hears you without the wake word: a role is on (and you didn't say
-        to stop listening), Abdoh's window is open, the board shows something, and you talked
-        with Abdoh in the last LESSON_QUIET_SECONDS. Otherwise, as usual: the wake word."""
+        to stop listening), Abdoh's window is open, the board shows something, and you or Abdoh
+        said something in the last lesson_listen_seconds (a setting; 0 = never). Otherwise, as
+        usual: the wake word."""
         acting = self.acting
+        quiet = float(self.cfg.lesson_listen_seconds or 0)
         return bool(
-            acting is not None
+            quiet > 0
+            and acting is not None
             and acting.keeps_listening
             and self._window_open
             and self._board_shown
-            and time.monotonic() - self._last_exchange < self.LESSON_QUIET_SECONDS
+            and time.monotonic() - self._last_exchange < quiet
         )
 
     def _show_listening(self) -> None:
@@ -1071,7 +1075,7 @@ class Daemon:
                 else "No lesson going on: the wake word again"
             )
         self._listening_now = now
-        on = bool(acting is not None and acting.keeps_listening)
+        on = bool(acting is not None and acting.keeps_listening and self.cfg.lesson_listen_seconds)
         self.bus.emit("listening", {"on": on, "now": now})
 
     def _hearing_vad(self):

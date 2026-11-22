@@ -17,6 +17,7 @@ silence_seconds: 0.6              # pause that ends a request (speech is detecte
 max_record_seconds: 10
 confirm_actions: "sound"         # after "open Spotify": sound = a short sound, words = say what it did
 follow_up_seconds: 6             # after Claude answers, keep listening this long (no wake word); 0 = off
+lesson_listen_seconds: 120       # in a lesson (a role explaining on the board), no wake word until this long is quiet; 0 = off
 wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
 keep_unclear_clips: false        # keep what it heard but couldn't make out (one day, to check why)
 voice_interrupts: true           # or just start talking: Abdoh goes quiet and listens

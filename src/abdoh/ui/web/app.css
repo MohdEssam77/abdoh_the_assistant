@@ -728,3 +728,6 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .board-math.display { display: block; overflow-x: auto; overflow-y: hidden; margin: 2px 0 8px; }
 .board-math.display .katex-display { margin: 4px 0; }
 .board-item .katex { font-size: 1.15em; }
+.lesson-listening { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.lesson-custom { display: inline-flex; align-items: center; gap: 6px; }
+.lesson-custom[hidden] { display: none; }

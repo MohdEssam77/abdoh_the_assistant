@@ -325,6 +325,33 @@
 
   /* ---------- conversation ---------- */
 
+  const LESSON_TIMES = [[0, "Off"], [60, "1 minute"], [120, "2 minutes (recommended)"], [300, "5 minutes"], [600, "10 minutes"]];
+
+  /* How long Abdoh keeps listening in a lesson after the last word: a choice, your own number of
+     minutes (Custom), or off. */
+  function lessonListening(settings) {
+    const seconds = Number(settings.lesson_listen_seconds ?? 120);
+    const preset = LESSON_TIMES.some(([value]) => value === seconds);
+    const minutes = el("input", { type: "number", class: "input compact", min: 1, max: 60, step: 1,
+      value: preset ? 3 : Math.round((seconds / 60) * 10) / 10, "aria-label": "Minutes", style: "width:5.5em" });
+    const custom = el("span", { class: "lesson-custom", hidden: preset }, minutes, el("small", {}, "minutes"));
+    const saveMinutes = () => {
+      const value = Math.min(60, Math.max(1, Number(minutes.value) || 1));
+      minutes.value = value;
+      return saveSettings({ lesson_listen_seconds: Math.round(value * 60) });
+    };
+    minutes.addEventListener("change", saveMinutes);
+    const pick = select([...LESSON_TIMES.map(([value, text]) => [String(value), text]), ["custom", "Custom…"]],
+      preset ? String(seconds) : "custom", (value) => {
+        custom.hidden = value !== "custom";
+        if (value === "custom") {
+          saveMinutes();
+          minutes.focus();
+        } else saveSettings({ lesson_listen_seconds: Number(value) });
+      }, "Keep listening in a lesson");
+    return el("div", { class: "lesson-listening" }, pick, custom);
+  }
+
   function conversationCard() {
     const settings = App.settings;
     const claude = settings.claude || {};
@@ -335,6 +362,8 @@
           (value) => saveSettings({ confirm_actions: value }), "When it does something for you")),
       row("Keep listening after a reply", "After Claude answers a question, Abdoh listens for a few more seconds, so you can go on without the wake word. Not after it did something for you. Say “thanks” or just stay quiet to end.",
         toggle(settings.follow_up_seconds > 0, (on, input) => save({ follow_up_seconds: on ? 6 : 0 }, input, on), "Keep listening after a reply")),
+      row("Keep listening in a lesson", "While a role (Act as) explains on the board with this window open, just talk: no “Hey Abdoh” needed. It goes back to the wake word after this long without a word from either of you, when you hide the window, or when you tell it to stop listening. Off: always the wake word.",
+        lessonListening(settings)),
       row("Answer Claude's questions right away", "When Claude asks you something, just answer.",
         toggle(claude.listen_after_question, (on, input) => save({ claude: { listen_after_question: on } }, input, on), "Answer questions right away")),
       row("Stop when I start talking", App.hearing
