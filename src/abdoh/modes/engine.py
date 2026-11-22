@@ -4,17 +4,24 @@ Before a mode changes a setting for the first time, the engine remembers what it
 from one mode to another first puts back what the old mode changed and the new one doesn't
 set; "back to normal" puts everything back. What's remembered is saved (mode_state.json), so
 a restart in the middle of a movie still knows how to undo it.
+
+A mode that needs screens or speakers that aren't connected asks first ("Study mode wants
+screens 2 and 3, but only screen 1, laptop, is connected. Run it on what's connected?"). The
+next thing said answers it: a plain yes or no here (`answer`), anything else through Claude
+(`answer_from_claude`), and after that the question is gone.
 """
 
 import json
 import logging
 import threading
+import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 from abdoh.commands.actions import ActionError
 from abdoh.modes.model import SETTINGS, Mode, ModesFileError, parse_schedule
-from abdoh.system_skills import Done
+from abdoh.system_skills import _NO, _YES, CONFIRM_SECONDS, Done, Question
 
 log = logging.getLogger(__name__)
 
@@ -22,6 +29,17 @@ NO_MODE = "No mode is on."
 BACK_TO_NORMAL = "Back to normal."
 # Abdoh's own switches: Windows keeps the rest by itself across a restart.
 ABDOH_SWITCHES = ("wake_word", "voice_replies", "follow_up")
+WONT = "Okay, I won't."
+
+
+@dataclass
+class _Question:
+    """A mode waiting for a yes to run with what's connected."""
+
+    text: str
+    mode: str
+    until: float
+    tries: int = 0  # requests it was offered to: it lives for the next one only
 
 
 class ModeEngine:
@@ -36,6 +54,7 @@ class ModeEngine:
         run: Callable[[list[tuple[str, str]]], list[str]],
         state_path: Path,
         emit: Callable[[str], None] = lambda name: None,
+        clock: Callable[[], float] = time.monotonic,
     ):
         self._modes = modes
         self.controls = controls
@@ -45,6 +64,8 @@ class ModeEngine:
         self._lock = threading.RLock()
         self._depth = 0  # a mode's actions switching to another mode: once only
         self._last_tick = ""  # the minute the schedules were last checked
+        self._clock = clock
+        self._question: _Question | None = None
         state = self._load()
         self.current: str | None = state.get("current")
         self.remembered: dict = state.get("remembered", {})
@@ -70,21 +91,96 @@ class ModeEngine:
             return self.deactivate()
         return self.activate(name)
 
-    def activate(self, name: str) -> str:
+    def activate(self, name: str, adapt: bool = False, tell: bool = False) -> str:
+        """Switch a mode on. When it needs screens or speakers that aren't connected, it asks
+        first (a Question), unless `adapt`: then it runs with what's there, and with `tell`
+        says what it left out (nobody was asked)."""
         with self._lock:
             mode = self.find(name)
             if mode is None:
                 raise ActionError(f"You don't have a mode called {name.strip()}.")
             if self._depth > 1:
                 raise ActionError("A mode can only hand over to one other mode.")
+            fitted, missing, have = self._fit(mode)
+            if missing and not adapt:
+                return self._ask(mode, missing, have)
             self._depth += 1
             try:
-                return self._activate(mode)
+                skipped = [_not_connected(missing)] if missing and tell else []
+                return self._activate(fitted, skipped)
             finally:
                 self._depth -= 1
 
-    def _activate(self, mode: Mode) -> str:
-        problems: list[str] = []
+    # ----- asking first -----
+
+    def _fit(self, mode: Mode) -> tuple[Mode, list[str], str]:
+        fit = getattr(self.controls, "fit", None)
+        if fit is None:
+            return mode, [], ""
+        try:
+            return fit(mode)
+        except Exception:
+            log.exception("Couldn't check what %s mode needs", mode.name)
+            return mode, [], ""
+
+    def _ask(self, mode: Mode, missing: list[str], have: str) -> Question:
+        wants = " and ".join(missing)
+        if have:
+            text = f"{mode.name} mode wants {wants}, but {have}. Run it on what's connected?"
+        else:
+            text = f"{mode.name} mode wants {wants}, but they aren't connected. Run it anyway?"
+        log.info("%s mode needs what isn't connected: %s", mode.name, wants)
+        self._question = _Question(text, mode.name, self._clock() + CONFIRM_SECONDS)
+        return Question(text)
+
+    def answer(self, request: str) -> str | None:
+        """What you said next, if a mode just asked something: yes runs it with what's
+        connected, no leaves everything; None for anything else (Claude may still take it as
+        the answer, see open_question)."""
+        question = self._question
+        if question is None:
+            return None
+        if question.tries or self._clock() > question.until:
+            self._question = None  # it had its chance
+            return None
+        question.tries += 1
+        if _YES.fullmatch(request):
+            return self._run_asked(question)
+        if _NO.fullmatch(request):
+            self._question = None
+            return WONT
+        return None
+
+    def open_question(self) -> str | None:
+        """The question the request being handled may answer, for Claude."""
+        question = self._question
+        if question is None or question.tries > 1 or self._clock() > question.until:
+            return None
+        return question.text
+
+    def asked_mode(self) -> str:
+        """The mode the open question is about ("" if none)."""
+        return self._question.mode if self.open_question() else ""
+
+    def answer_from_claude(self, answer: str) -> str:
+        """Claude's ACTION answer: yes or no, to the open question."""
+        question = self._question
+        if question is None:
+            return ""
+        if answer.strip().lower().startswith("y"):
+            return self._run_asked(question)
+        self._question = None
+        return WONT
+
+    def _run_asked(self, question: _Question) -> str:
+        self._question = None
+        try:
+            return self.activate(question.mode, adapt=True)
+        except ActionError as e:
+            return str(e)
+
+    def _activate(self, mode: Mode, problems: list[str] | None = None) -> str:
+        problems = list(problems or [])
         old = self.find(self.current) if self.current else None
         if old is not None and old.name != mode.name:
             self._run_quietly(old.exit_actions, problems)
@@ -169,7 +265,7 @@ class ModeEngine:
                         return None
                     log.info("It's %s: %s mode", entry, mode.name)
                     try:
-                        return self.activate(mode.name)
+                        return self.activate(mode.name, adapt=True, tell=True)  # nobody to ask
                     except ActionError as e:
                         return str(e)
         return None
@@ -235,3 +331,11 @@ class ModeEngine:
         state = {"current": self.current, "remembered": self.remembered}
         tmp.write_text(json.dumps(state, indent=2), encoding="utf-8")
         tmp.replace(self.path)
+
+
+def _not_connected(missing: list[str]) -> str:
+    """For a mode that ran without them: "Screens 2 and 3 aren't connected, so I left them out"."""
+    text = " and ".join(missing)
+    plural = len(missing) > 1 or text.startswith("screens ") or text.endswith("speakers")
+    verb, them = ("aren't", "them") if plural else ("isn't", "it")
+    return f"{text[:1].upper()}{text[1:]} {verb} connected, so I left {them} out."
