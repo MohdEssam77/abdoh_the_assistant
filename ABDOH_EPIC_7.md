@@ -267,6 +267,11 @@ ACTION undo_change: last
   10 changes since Abdoh started). Claude understands "undo that".
 - The running Claude conversation is not restarted after a change (Claude knows what it saved);
   the next conversation gets the new list.
+- Built (story 68): `abdoh/self_edit.py` and a `save_item` in each store. Saving an existing
+  name merges: fields Claude leaves out stay, and the item keeps its own name ("work" changes
+  Work mode). A role's instructions are cut short in Claude's list; sent back like that, the
+  full ones are kept. Checked on copies of the owner's real files: undo puts them back byte
+  for byte.
 
 ### 4.7 Memory
 
