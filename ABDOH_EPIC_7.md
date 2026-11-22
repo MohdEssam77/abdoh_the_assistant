@@ -198,11 +198,15 @@ A **role** (`roles.yaml`):
 - The top of the Act as page, used only while a role with `board: true` is on.
 - The state line tells Claude: "You can show things on Abdoh's board: code, equations, worked
   steps, tables, word lists, anything better seen than heard. Put it between a line `[board]`
-  and a line `[/board]`. The board is shown, never read aloud; speak the explanation and refer
-  to the board."
+  and a line `[/board]`. Build the board as you talk: put each part right before you talk
+  about it. The board is shown, never read aloud; speak the explanation and refer to the board."
 - `reply.py`: lines between the markers go to `on_board(text)`, never to the voice. A reply with
   board content brings Abdoh's window up on the Act as page (where it last was; Claude can move
   it with `window`).
+- Live (owner's request after story 66): the board grows line by line. The reply is read only as
+  fast as it is spoken, so a part written just before Claude talks about it appears as Abdoh
+  starts saying it. All the parts of one answer are one card (`{id, text}`, the newest replaced
+  as it grows); the window comes up once per card.
 - The board keeps the role's items, newest at the bottom, with a Copy button on code. **Clear**
   empties it, and it is cleared when the role ends.
 - Rendered with the page's own small Markdown renderer (section 3); everything is escaped.
