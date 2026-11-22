@@ -25,7 +25,7 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{roles}{memory}{files}{web}{tools}If you need more information, ask one short \
+{look}{roles}{memory}{self_edit}{files}{web}{tools}If you need more information, ask one short \
 question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
@@ -82,6 +82,36 @@ them, tell them.{full}
 """
 MEMORY_FULL = """ Your memory is nearly full: before remembering something new, forget something \
 or merge two entries (forget both, then remember the merged one)."""
+
+# Abdoh changes its own commands, modes and roles (abdoh/self_edit.py): how, and what's there.
+SELF_EDIT = """You can make, change and delete the user's own commands, modes and roles (the \
+Commands, Modes and Act as pages) when they ask. Write one line, with the item as JSON on that \
+same line:
+ACTION save_item: command | {{"name": "Good evening", "triggers": ["good evening"], "actions": \
+[{{"power": "lock"}}]}}
+ACTION save_item: mode | {{"name": "Study", "icon": "book", "phrases": ["study time"], \
+"settings": {{"displays": [2, 3], "volume": 40}}, "actions": [{{"open_app": "Notion"}}], \
+"exit_actions": [{{"close_app": "Notion"}}]}}
+ACTION save_item: role | {{"name": "Chef", "instructions": "You are my friendly chef...", \
+"phrases": ["cooking time"], "speed": "normal", "answers": "normal", "board": false}}
+ACTION delete_item: <command, mode or role> | <its name>
+ACTION undo_change: last
+Saving with a name that exists changes that item: send only the fields that change (to add an \
+action, send all of its actions). Actions of commands and modes, one per entry, in order: \
+{actions}. Mode settings (each is put back when the mode ends): displays ("all", or the screen \
+numbers to keep on), brightness and volume (0-100), audio_output (speakers by name), dark_mode, \
+night_light, wake_word, voice_replies and follow_up (true or false), power_mode ({power}), role \
+(one of the user's roles). Mode icons: {icons}. A role's speed is slow, normal or fast; its \
+answers short, normal (5 sentences) or long (10); board true shows code, equations and steps.
+Before saving, ask one short question about anything you can't tell: what should start it, \
+what it should do, which screens or apps. Fill in names, icons and obvious details yourself. \
+After save_item, delete_item or undo_change write no words: Abdoh says what it did. When the \
+user says "undo that" right after a change of yours, write ACTION undo_change: last. When the \
+user asks again for something you have a lesson about and it took several actions, offer once \
+to save it as a command.
+The user's commands, modes and roles now:
+{items}
+"""
 
 # Claude decides when it needs to see the screen; Abdoh then sends a picture of it.
 LOOK = """You can see the user's screen when you need to. Whenever what they say points at \
@@ -175,6 +205,23 @@ def _memory(cfg: Config) -> str:
     return MEMORY.format(full=MEMORY_FULL if nearly_full(entries) else "", entries=known)
 
 
+def _self_edit(cfg: Config) -> str:
+    """The self-editing section (SELF_EDIT), or "" when it isn't allowed."""
+    if not cfg.claude.allow_self_edit:
+        return ""
+    from abdoh.commands.registry import ACTION_TYPES
+    from abdoh.modes.model import ICONS, POWER_MODES
+    from abdoh.self_edit import current_items
+
+    actions = [kind for kind in ACTION_TYPES if kind != "run" or cfg.allow_run]
+    return SELF_EDIT.format(
+        actions=", ".join(actions),
+        power=", ".join(POWER_MODES),
+        icons=", ".join(ICONS),
+        items=current_items(cfg),
+    )
+
+
 def _screen_names(path: Path) -> str:
     """'1 Laptop screen, 2 HP 32f (TV), 3 C34H89x' from Abdoh's screen numbers."""
     import json
@@ -241,6 +288,7 @@ def system_prompt(
         look=LOOK if cfg.claude.allow_screen else "",
         roles=ROLES.format(names=_role_names(cfg)),
         memory=_memory(cfg),
+        self_edit=_self_edit(cfg),
         files=files,
         web=WEB_LINE if web else "",
         tools=(CONNECTORS.format(names=", ".join(connectors)) if connectors else "")

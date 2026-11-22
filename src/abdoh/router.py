@@ -22,6 +22,9 @@ from abdoh.claude.reply import (
     LOOK,
     MEMORY_ACTIONS,
     ROLE,
+    SAVE_ITEM,
+    SELF_EDIT_ACTIONS,
+    UNDO_CHANGE,
     speakable,
 )
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
@@ -174,6 +177,9 @@ class Router:
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
         self.on_memory: Callable[[], None] = lambda: None  # the memory changed (the page)
+        # Claude changed a command, mode or role ("command", "mode", "role"): the pages refresh.
+        self.on_self_edit: Callable[[str], None] = lambda kind: None
+        self._editor = None  # abdoh.self_edit.SelfEditor, made when first needed
         # Shows what a role puts on the board: (card, text so far), one card per reply.
         self.on_board: Callable[[int, str], None] | None = None
         self._cards = itertools.count(1)
@@ -497,6 +503,12 @@ class Router:
                     self.acting.switch(arg)
                     turn.actions.append((ROLE, arg))  # the done sound if no words
                 return
+            if kind in SELF_EDIT_ACTIONS:
+                done, said = self._self_edit_action(kind, arg)
+                problems.append(said)  # Abdoh says what it changed, or why it couldn't
+                if done:
+                    turn.actions.append((kind, arg))
+                return
             if kind in MEMORY_ACTIONS:
                 problem = self._memory_action(kind, arg)
                 if problem:
@@ -533,6 +545,8 @@ class Router:
             allowed.append(ANSWER)
         if self.cfg.memory:
             allowed.extend(MEMORY_ACTIONS)
+        if self.cfg.claude.allow_self_edit:
+            allowed.extend(SELF_EDIT_ACTIONS)
         if self.acting is not None:
             allowed.append(ROLE)
             if self.acting.current is not None and self.cfg.lesson_listen_seconds > 0:
@@ -599,6 +613,36 @@ class Router:
 
         turn = self.last_turn
         return [(k, a) for k, a in turn.actions if k in ACTION_TYPES] if turn is not None else []
+
+    def _self_editor(self):
+        if self._editor is None:
+            from abdoh.self_edit import SelfEditor
+
+            apps = getattr(self.computer, "apps", None)
+            self._editor = SelfEditor(
+                self.cfg, find_app=apps.find if apps is not None else None, on_change=self._edited
+            )
+        return self._editor
+
+    def _edited(self, kind: str) -> None:
+        if kind == "command":
+            self.registry.refresh(force=True)  # use it right away
+        self.on_self_edit(kind)
+
+    def _self_edit_action(self, kind: str, arg: str) -> tuple[bool, str]:
+        """ACTION save_item, delete_item or undo_change: (done, what to say)."""
+        from abdoh.self_edit import SelfEditError
+
+        editor = self._self_editor()
+        try:
+            if kind == SAVE_ITEM:
+                return True, editor.save(arg)
+            if kind == UNDO_CHANGE:
+                return True, editor.undo(arg)
+            return True, editor.delete(arg)
+        except SelfEditError as e:
+            log.info("Couldn't %s %r: %s", kind, arg, e)
+            return False, str(e)
 
     def _memory_action(self, kind: str, arg: str) -> str:
         """ACTION remember, lesson or forget. Returns "" when done, or what to say."""

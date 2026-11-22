@@ -158,6 +158,16 @@ class ModesStore:
         self._write(items)
         return parse_mode(item)
 
+    def save_item(self, item) -> Mode:
+        """Add a mode given as a modes.yaml item, or replace the one with its name (Abdoh
+        changing its own modes). The same checks as the app's."""
+        mode = parse_mode(item)
+        return self.save(as_form(mode), mode.name)
+
+    def items(self) -> list[dict]:
+        """The modes as modes.yaml items."""
+        return self._items()
+
     def delete(self, name: str) -> None:
         items = [it for it in self._items() if it["name"].lower() != name.lower()]
         self._write(items)

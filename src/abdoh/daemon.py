@@ -148,6 +148,7 @@ class Daemon:
         router.on_activity = self._activity
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
+        router.on_self_edit = self._self_edited
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
@@ -1128,6 +1129,19 @@ class Daemon:
         self._recording = True
         self._interrupted.clear()
         self.bus.emit("status", "Listening to you...")
+
+    def _self_edited(self, kind: str) -> None:
+        """Claude changed one of your commands, modes or roles: the role that's on follows its
+        new settings, and the app's page shows the change."""
+        acting = self.acting
+        if kind == "role" and acting is not None and acting.current is not None:
+            fresh = acting.find(acting.current.name)
+            if fresh is not None and acting.current.saved:
+                acting.current = fresh  # e.g. "make the German teacher speak slower"
+                configure = getattr(self.speaker, "configure", None)
+                if configure:
+                    configure(rate=self._speech_rate())
+        self.bus.emit(f"{kind}s", None)  # "commands", "modes", "roles"
 
     def _listening_changed(self, on: bool) -> None:
         self._show_listening()

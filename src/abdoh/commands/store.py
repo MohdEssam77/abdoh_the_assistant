@@ -222,6 +222,18 @@ class CommandsStore:
         self._write(items)
         return as_dict(saved)
 
+    def save_item(self, item) -> dict:
+        """Add a command given as a commands.yaml item, or replace the one with its name (Abdoh
+        changing its own commands). The same checks as the app's. Returns it as saved."""
+        commands = parse_commands([item])  # its own errors, with a clear message
+        name = commands[0].name.lower()
+        existing = next((c.name for c in self._commands() if c.name.lower() == name), None)
+        return self.save(as_dict(commands[0]), existing)
+
+    def items(self) -> list[dict]:
+        """The commands as commands.yaml items."""
+        return [_item(c) for c in self._commands()]
+
     def delete(self, name: str) -> None:
         items = [_item(c) for c in self._commands()]
         kept = [it for it in items if it["name"] != name]

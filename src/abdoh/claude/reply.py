@@ -61,6 +61,9 @@ LISTEN = "listen"
 # computer), or forgetting one.
 REMEMBER, LESSON, FORGET = "remember", "lesson", "forget"
 MEMORY_ACTIONS = (REMEMBER, LESSON, FORGET)
+# Abdoh changes its own commands, modes and roles (abdoh/self_edit.py, claude.allow_self_edit).
+SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE = "save_item", "delete_item", "undo_change"
+SELF_EDIT_ACTIONS = (SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE)
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 # What a role shows instead of saying (code, equations, steps): between these, never spoken.
