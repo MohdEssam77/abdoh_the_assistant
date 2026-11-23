@@ -95,6 +95,8 @@ class Daemon:
         self.vad = vad  # SileroVad, or None to detect the end of speech by loudness
         self.voice_watch = voice_watch  # hears you talk over a reply (audio/bargein.py)
         self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
+        # Speech recognition on the graphics card (audio/gpu_speech.py), set in create().
+        self.gpu_speech = None
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
         self._board_card = 0  # the board card the window last came up for
@@ -160,6 +162,8 @@ class Daemon:
 
     def stop(self) -> None:
         self.stop_event.set()
+        if self.gpu_speech is not None:
+            self.gpu_speech.stop()  # a download continues next time
         self._unduck()
         tap = getattr(self.voice_watch, "tap", None)
         if tap is not None:
@@ -282,6 +286,7 @@ class Daemon:
 
         old_mic = self.cfg.mic_device
         kept_clips = self.cfg.keep_unclear_clips
+        used_gpu = self.cfg.use_gpu
         for f in fields(Config):
             if f.name not in ("app_dir", "claude"):
                 setattr(self.cfg, f.name, getattr(new, f.name))
@@ -304,6 +309,8 @@ class Daemon:
             self.voice_watch.sensitivity = self.cfg.voice_interrupt_sensitivity
         if self.cfg.mic_device != old_mic:
             self.reopen_mic()
+        if self.cfg.use_gpu != used_gpu and self.gpu_speech is not None:
+            self.gpu_speech.apply()
         if kept_clips and not self.cfg.keep_unclear_clips:
             from abdoh.audio.unclear import delete_all
 
@@ -911,6 +918,8 @@ class Daemon:
         if self.device_watch is not None:
             self.device_watch.start(self.stop_event)
         threading.Thread(target=self._housekeeping, name="abdoh-housekeeping", daemon=True).start()
+        if self.gpu_speech is not None:
+            self.gpu_speech.start()
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
             self.stop_event.wait()
@@ -1436,6 +1445,10 @@ class Daemon:
             displays=Displays(cfg.app_dir / "displays.json"),
         )
         router.computer.lamps = Lamps(cfg.app_dir / "lamps.json")
+        if transcriber is not None:
+            from abdoh.audio.gpu_speech import GpuSpeech
+
+            daemon.gpu_speech = GpuSpeech(cfg, transcriber, lambda t: daemon.bus.emit("gpu", t))
         daemon.device_watch = DeviceWatch(daemon.devices_changed)
         daemon.reload_devices = reload_portaudio
         router.computer.apps.load_in_background()

@@ -119,6 +119,7 @@ class Config:
     hotkey: str = "ctrl+alt+space"  # push-to-talk / stop speaking; "" turns it off
     languages: list[str] = field(default_factory=lambda: ["en"])  # what you speak to Abdoh
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
+    use_gpu: bool = True  # speech recognition on a suitable graphics card (abdoh/gpu.py)
     whisper_model: str = "small"  # Whisper size, used for languages other than English
     match_threshold: int = 85
     silence_seconds: float = 0.6

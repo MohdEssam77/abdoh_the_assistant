@@ -42,6 +42,15 @@ python -m venv .venv
 pip install -e .[dev]
 ```
 
+On Windows, to run speech recognition on a graphics card as the app does, swap onnxruntime for
+its DirectML build (it runs on the processor too). Piper and faster-whisper ask for the plain
+build, which has the same files, so do this after every `pip install -e`:
+
+```
+pip uninstall -y onnxruntime
+pip install --no-deps onnxruntime-directml==1.24.4
+```
+
 On Linux you may also need PortAudio, Tk and a speech engine:
 `sudo apt install libportaudio2 python3-tk espeak-ng`.
 
@@ -714,6 +723,26 @@ starting with `Timing:` in the log), so you can see which part is slow on your c
 Short on memory? **Settings → Speech recognition → Quality → Lighter** uses Whisper instead of
 Parakeet: about 700 MB less memory, about twice the mistakes.
 
+**On a graphics card.** If your computer has a graphics card with 4 GB or more of its own
+memory (NVIDIA, AMD or Intel Arc; a laptop's built-in graphics don't count), Abdoh downloads the
+full-size Parakeet model in the background the first time (2.4 GB, into its data folder) and
+moves speech recognition there. Until then, and on any other computer, it runs on the processor
+as before. Measured on a laptop with an RTX 3050 (6 GB):
+
+| | On the processor | On the graphics card |
+|---|---|---|
+| Understanding a short request (under 4 s) | 0.37 to 0.40 s | 0.23 to 0.25 s |
+| Understanding a 4 to 10 s request | 0.62 to 0.65 s | 0.27 to 0.31 s |
+| Processor time per request | 6 to 14 s (every core, for a moment) | about 0.25 s |
+| Abdoh's memory (its own process) | about 1,070 MB | about 710 MB |
+| Graphics card memory | none | about 2.5 GB |
+
+What stays in memory on the card is mostly the graphics driver itself (about 400 MB). Windows'
+"Committed" memory goes up by about 2.8 GB: it counts the card's memory there, not RAM in use.
+**Settings → Speech recognition → Use the graphics card** (`use_gpu`) shows how it's going and
+switches it off right away. If the card fails (a driver update, say), Abdoh goes back to the
+processor until it restarts. A download that was interrupted continues the next time.
+
 Developers can measure this themselves without a microphone:
 `python scripts/measure_latency.py "Hey Abdoh, what time is it?"`.
 
@@ -735,6 +764,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `wake_word_aliases` | `["abdo", "abdu", "abdou", ...]` | Other spellings speech recognition may write for "Abdoh"; left out of your requests |
 | `languages` | `["en"]` | What you speak to Abdoh. English and German (together, or either alone, or any one of Parakeet's 25 languages) use Parakeet, which tells them apart by itself; other languages, or other mixes (e.g. `["en", "ar"]`), use Whisper. Abdoh answers in the language you spoke |
 | `speech_engine` | `auto` | `auto`, `parakeet` or `whisper` (lighter: about 700 MB less memory, more mistakes) |
+| `use_gpu` | `true` | Speech recognition on a graphics card with 4 GB or more of its own (downloads 2.4 GB once); faster, with less memory |
 | `whisper_model` | `small` | Whisper size for languages Parakeet doesn't have: `base` (fast), `small`, `medium` (slow) |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
@@ -857,8 +887,11 @@ Developer scripts:
   never mistook its own voice for theirs. In a simulated loud room it heard normal speech in
   about 0.3 s; a quiet voice under a loud, distorting speaker took up to 3 s.
 
-- **Memory while idle is about 870 MB**: the Parakeet speech model is big. The Lighter quality
+- **Memory while idle is about 870 MB**: the Parakeet speech model is big. On a graphics card
+  with 4 GB or more it's about 360 MB less (see "On a graphics card"); the Lighter quality
   setting (Whisper) brings it down to about 350 MB.
+- **On a laptop running on battery,** speech recognition on the graphics card uses more power
+  than on the processor. Switch it off in Settings if that matters to you.
 - **Languages Parakeet doesn't have use Whisper** (Arabic, Turkish, Hindi, Chinese, ...): `small`
   by default, which is about seven times slower and makes more mistakes; `medium` is better if
   your computer is fast. Parakeet v3 knows English, German, French, Spanish, Italian,

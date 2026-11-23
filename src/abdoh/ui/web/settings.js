@@ -381,6 +381,16 @@
 
   /* ---------- speech recognition ---------- */
 
+  /* On a suitable graphics card speech recognition runs there: the switch, and how it's going. */
+  const GPU_HINT = "Faster speech recognition with less memory, on a graphics card with 4 GB or more of its own. Downloads 2.4 GB once.";
+
+  function gpuRow(settings) {
+    const line = row("Use the graphics card", App.gpu || GPU_HINT,
+      toggle(settings.use_gpu, (on, input) => saveSettings({ use_gpu: on }).then((ok) => { if (!ok) input.checked = !on; }), "Use the graphics card"));
+    line.querySelector("small").id = "gpu-status";
+    return line;
+  }
+
   function speechCard() {
     const settings = App.settings;
     const chosen = new Set(settings.languages || ["en"]);
@@ -402,9 +412,10 @@
         : "English and German work without choosing: Abdoh hears which one you spoke, with the fastest and most accurate model. Add any other language you speak here.";
     return card("Speech recognition", "How Abdoh turns what you say into text. Everything runs on this computer.",
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Abdoh"), el("small", {}, how)), picks),
-      fast ? row("Quality", "Best accuracy uses about 700 MB more memory.",
+      fast ? row("Quality", "Best accuracy uses about 700 MB more memory (less on a graphics card).",
         select([["auto", "Best accuracy (recommended)"], ["whisper", "Lighter"]], lighter ? "whisper" : "auto",
           (value) => saveSettings({ speech_engine: value }).then((ok) => ok && render()), "Speech quality")) : null,
+      fast && !lighter ? gpuRow(settings) : null,
       !fast || lighter ? row("Whisper model", (MODELS.find(([v]) => v === settings.whisper_model) || ["", "", ""])[2],
         select(MODELS.map(([v, label]) => [v, label]).concat(MODELS.some(([v]) => v === settings.whisper_model) ? [] : [[settings.whisper_model, settings.whisper_model]]),
           settings.whisper_model, (value) => saveSettings({ whisper_model: value }), "Whisper model")) : null);
@@ -470,6 +481,7 @@
     async event(kind, value) {
       const tag = $("#wake-engine");
       if (kind === "wake" && tag) tag.textContent = value;
+      if (kind === "gpu" && $("#gpu-status")) $("#gpu-status").textContent = value || GPU_HINT;
       if (kind === "devices" && $("#mic-card")) {  // a microphone was plugged in or out
         const mics = await call("microphones");
         const old = $("#mic-card");

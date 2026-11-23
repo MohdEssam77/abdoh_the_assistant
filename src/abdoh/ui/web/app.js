@@ -525,6 +525,7 @@ const HANDLERS = {
   listening: setListening,
   board: addToBoard,
   voice: setVoice,
+  gpu: (text) => { App.gpu = text || ""; },
   page: showPage,
 };
 
@@ -632,6 +633,7 @@ async function start() {
   setRole(state.role);
   App.listening = state.listening || { on: false, now: false };
   App.board = state.board || [];
+  App.gpu = state.gpu || ""; // speech recognition on the graphics card: how it's going
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");
   renderHowToTalk();

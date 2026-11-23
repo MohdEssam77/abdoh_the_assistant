@@ -11,6 +11,7 @@ hotkey: "ctrl+alt+space"         # press to talk without the wake word, or to st
 wake_word_aliases: ["abdo", "ab doe", "abdul", "hey abdo", "hey abdul"]
 languages: ["en"]                # what you speak to Abdoh, e.g. ["en"] or ["en", "ar"]
 speech_engine: "auto"            # auto | parakeet (English only, most accurate) | whisper
+use_gpu: true                    # on a graphics card with 4 GB+ of its own: faster speech recognition, less memory (downloads 2.4 GB once)
 whisper_model: "small"           # Whisper size for languages other than English: base | small | medium
 match_threshold: 85
 silence_seconds: 0.6              # pause that ends a request (speech is detected by a VAD)
