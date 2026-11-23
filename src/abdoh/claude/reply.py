@@ -64,6 +64,8 @@ MEMORY_ACTIONS = (REMEMBER, LESSON, FORGET)
 # Abdoh changes its own commands, modes and roles (abdoh/self_edit.py, claude.allow_self_edit).
 SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE = "save_item", "delete_item", "undo_change"
 SELF_EDIT_ACTIONS = (SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE)
+# "Remember that" after Claude did something: those steps become one of the user's commands.
+SAVE_STEPS = "save_steps"
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 # What a role shows instead of saying (code, equations, steps): between these, never spoken.
