@@ -49,6 +49,15 @@ def test_append_to_a_missing_file(tmp_path):
     )
 
 
+def test_append_to_an_empty_list(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text("# None yet.\n[]\n", encoding="utf-8")
+    append_command(path, "focus", [("timer", "25 minutes")], "focus", set())
+    text = path.read_text(encoding="utf-8")
+    assert text.startswith("# None yet.")
+    assert [c.name for c in parse_commands(yaml.safe_load(text))] == ["learned_focus"]
+
+
 def test_nothing_is_written_if_the_result_would_be_invalid(tmp_path):
     path = tmp_path / "commands.yaml"
     path.write_text(EXISTING, encoding="utf-8")

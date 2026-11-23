@@ -296,6 +296,10 @@ ACTION undo_change: last
 - After the release (story 70): "remember that", in any words, always goes to Claude. It writes
   `ACTION save_steps: <phrase>` (the steps that worked become a command, which can be undone and
   shows on the Commands page), `ACTION remember`, or asks which one when it could be either.
+- Story 71: asked again for something that took several actions, Claude does it and offers once
+  to save it as a command, with a phrase. `abdoh/commands/repeats.py` keeps those requests in
+  `repeats.json` (memory on), and Claude is told the ones asked for once that aren't commands;
+  after the second time they're never offered again. This replaces the offer for lessons (4.6).
 
 ### 4.8 The new actions at a glance
 

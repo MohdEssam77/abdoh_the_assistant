@@ -92,7 +92,18 @@ It saves the actions that worked in your previous reply (or, after action lines 
 those) as one of their commands, which then runs instantly, without you. Use the phrase they \
 gave, else their request in a few words, the way they would say it again. {memory} After \
 save_steps write no words: Abdoh says what it saved.
+When the user asks you for something that takes several actions and they asked you for the same \
+before ({before}), do it, then ask once in one short sentence whether to save it as a command, \
+suggesting a short phrase for it ("Want me to save that as a command, say music time?"). If \
+they say yes, write ACTION save_steps with that phrase, or theirs. Never offer for a single \
+action, and never again for something they said no to.{asked}
 """
+# Where Claude can tell the user asked for it before.
+BEFORE = "earlier in this conversation, or you have a lesson about it"
+BEFORE_MEMORY = "earlier in this conversation, in the list below, or you have a lesson about it"
+ASKED_ONCE = """
+Asked for once before, in earlier conversations:
+{things}"""
 SAVE_STEPS_OR_MEMORY = """"Remember that" can also mean a fact they just told you: then it's \
 ACTION remember. Think about which they mean from the conversation. When it could be either, \
 for example they told you something and you also did something, ask in one short question \
@@ -123,9 +134,7 @@ answers short, normal (5 sentences) or long (10); board true shows code, equatio
 Before saving, ask one short question about anything you can't tell: what should start it, \
 what it should do, which screens or apps. Fill in names, icons and obvious details yourself. \
 After save_item, delete_item or undo_change write no words: Abdoh says what it did. When the \
-user says "undo that" right after a change of yours, write ACTION undo_change: last. When the \
-user asks again for something you have a lesson about and it took several actions, offer once \
-to save it as a command.
+user says "undo that" right after a change of yours, write ACTION undo_change: last.
 The user's commands, modes and roles now:
 {items}
 """
@@ -226,7 +235,25 @@ def _save_steps(cfg: Config) -> str:
     """The "remember that" section (SAVE_STEPS), or "" when Claude can't do things."""
     if not cfg.claude.actions:
         return ""
-    return SAVE_STEPS.format(memory=SAVE_STEPS_OR_MEMORY if cfg.memory else SAVE_STEPS_NO_MEMORY)
+    things = _asked_once(cfg) if cfg.memory else ""
+    return SAVE_STEPS.format(
+        memory=SAVE_STEPS_OR_MEMORY if cfg.memory else SAVE_STEPS_NO_MEMORY,
+        before=BEFORE_MEMORY if things else BEFORE,
+        asked=ASKED_ONCE.format(things=things) if things else "",
+    )
+
+
+def _asked_once(cfg: Config) -> str:
+    """What took several actions and was asked for once so far, and isn't a command yet."""
+    from abdoh.commands import repeats
+    from abdoh.commands.registry import CommandsFileError
+    from abdoh.commands.store import CommandsStore
+
+    try:
+        saved = [repeats.command_steps(item) for item in CommandsStore(cfg.commands_path).items()]
+    except CommandsFileError:
+        saved = []
+    return repeats.for_claude(cfg.app_dir / repeats.FILE, saved)
 
 
 def _self_edit(cfg: Config) -> str:

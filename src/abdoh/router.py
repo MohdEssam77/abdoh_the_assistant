@@ -587,6 +587,16 @@ class Router:
                 self.last_reply = turn.answer
             turn.finished_at = time.monotonic()
             self.last_turn = turn
+            self._note_repeat(turn)
+
+    def _note_repeat(self, turn: ClaudeTurn) -> None:
+        """Several actions for one request are noted (while memory is on), so that Claude can
+        offer to save them as a command when the user asks for the same again."""
+        if not self.cfg.memory or turn.ignored or any(k == SAVE_STEPS for k, _ in turn.actions):
+            return
+        from abdoh.commands import repeats
+
+        repeats.record(self.cfg.app_dir / repeats.FILE, turn.request, _command_steps(turn))
 
     def _clipboard(self, request: str) -> str:
         """Your clipboard, for Claude, when you talk about it ("translate what I copied")."""
