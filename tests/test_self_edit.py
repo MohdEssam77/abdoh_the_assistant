@@ -207,6 +207,35 @@ def test_a_broken_file_is_left_alone(files):
     assert text(files, "modes.yaml") == "- name: [broken"
 
 
+def learned(app_dir):
+    """A command "remember that" saved: its name isn't what you say."""
+    from abdoh.commands.learn import append_command
+
+    append_command(
+        app_dir / "commands.yaml", "chat time", [("open_app", "WhatsApp")], "chat time", set()
+    )
+
+
+def test_a_command_is_found_by_what_you_say(files):
+    learned(files)
+    ed = editor(files)
+    assert ed.delete("command | Chat Time") == "Deleted the command chat time."
+    assert "learned_chat_time" not in text(files, "commands.yaml")
+    assert ed.undo() == "Undone: the command chat time is back as it was."
+
+
+def test_changing_it_by_what_you_say_keeps_its_name(files):
+    learned(files)
+    said = save(editor(files), "command", {"name": "chat time", "actions": [{"volume": 75}]})
+    assert said == "Changed the command chat time."
+    assert "learned_chat_time" in text(files, "commands.yaml")
+    assert "volume" in text(files, "commands.yaml")
+
+
+def test_a_mode_is_found_by_its_phrase(files):
+    assert editor(files).delete("mode | time to work") == "Deleted Work mode."
+
+
 def test_delete_something_that_isnt_there(files):
     with pytest.raises(SelfEditError, match="There's no command called Dance"):
         editor(files).delete("command | Dance")
