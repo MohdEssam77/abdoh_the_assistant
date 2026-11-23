@@ -65,6 +65,21 @@ def _what(kind: str, name: str) -> str:
     return f"{name} mode" if kind == "mode" else f"the {kind} {name}"
 
 
+def _said_as(kind: str, item: dict) -> str:
+    """How to say an item's name: a command "remember that" saved (learned_chat_time) by the
+    phrase that starts it (chat time)."""
+    name = str(item.get("name", ""))
+    triggers = item.get("triggers") or []
+    if kind == "command" and name.startswith("learned_") and triggers:
+        return str(triggers[0])
+    return name
+
+
+def _phrases(kind: str, item: dict) -> list[str]:
+    """What you say to start it: a command's triggers, a mode's or role's phrases."""
+    return [str(p) for p in item.get("triggers" if kind == "command" else "phrases") or []]
+
+
 def _steps(item: dict) -> list[tuple[str, str]]:
     """A command's or mode's actions (and a mode's exit actions) as (kind, value)."""
     steps = []
@@ -112,18 +127,27 @@ class SelfEditor:
             if kind == "role" and _cut_short(item.get("instructions"), old.get("instructions")):
                 item["instructions"] = old["instructions"]  # sent back as Claude saw it
         self._check(kind, item)
-        self.change(kind, item["name"], store.path, lambda: store.save_item(item))
+        said = _said_as(kind, item)
+        self.change(kind, said, store.path, lambda: store.save_item(item))
         verb = "Changed" if old is not None else "Saved"
         log.info("%s %s %r: %s", verb, kind, item["name"], json.dumps(item, ensure_ascii=False))
-        return f"{verb} {_what(kind, item['name'])}."
+        return f"{verb} {_what(kind, said)}."
 
     def _existing(self, store, kind: str, name: str) -> dict | None:
         try:
             items = store.items()
         except (CommandsFileError, ModesFileError, RolesFileError) as e:
             raise SelfEditError(f"Your {kind}s file has an error, so I left it alone.") from e
+        from abdoh.commands.matcher import normalize
+
         wanted = " ".join(str(name).split()).lower()
-        return next((dict(it) for it in items if str(it.get("name", "")).lower() == wanted), None)
+        found = next((it for it in items if str(it.get("name", "")).lower() == wanted), None)
+        if found is None:  # by what you say to start it ("chat time" is learned_chat_time)
+            said = normalize(str(name))
+            found = next(
+                (it for it in items if said in {normalize(p) for p in _phrases(kind, it)}), None
+            )
+        return dict(found) if found is not None else None
 
     def _check(self, kind: str, item: dict) -> None:
         if kind == "role":
@@ -151,9 +175,10 @@ class SelfEditor:
         old = self._existing(store, kind, name)
         if old is None:
             raise SelfEditError(f"There's no {kind} called {name}.")
-        self.change(kind, old["name"], store.path, lambda: store.delete(old["name"]))
+        said = _said_as(kind, old)
+        self.change(kind, said, store.path, lambda: store.delete(old["name"]))
         log.info("Deleted %s %r", kind, old["name"])
-        return f"Deleted {_what(kind, old['name'])}."
+        return f"Deleted {_what(kind, said)}."
 
     def undo(self, arg: str = "last") -> str:
         """ACTION undo_change: last. Puts the file back as it was before the last change."""
