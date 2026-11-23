@@ -310,10 +310,14 @@ says the phrase to use, the Commands page shows it, and "undo that" takes it out
 had also just told it something about yourself, Claude asks whether you mean a command or
 something to remember.
 
-Abdoh also offers. When you ask again for something that took several actions ("open Spotify
-and set the volume to 30"), Claude does it and asks once: "Want me to save that as a command,
-say music time?" Say yes (or another phrase) and it's saved. It never offers for a single action,
-and never again after you say no. With memory on, the second time can be in a later
+This works after Abdoh's own quick replies too: when it opened WhatsApp and set the volume by
+itself, without Claude, "keep that as chat time" saves those steps.
+
+Abdoh also offers. When you ask again for something that took several actions ("open WhatsApp
+and set the volume to 75"), in any words or order, Abdoh does it and asks once: "Want me to save
+that as a command?" Claude understands your answer: "yes, call it chat time", "no", or "yes, but
+make it 80". It never offers for a single action, for something that's already one of your
+commands, or again after you say no. With memory on, the second time can be in a later
 conversation: Abdoh keeps a short list of those requests in `repeats.json` in its data folder.
 
 **Follow-up questions.** Within a minute of an answer you can follow up ("and what about

@@ -39,20 +39,36 @@ def _steps(entry: dict) -> Steps:
     return [(str(k), str(v)) for k, v in entry.get("steps") or []]
 
 
-def record(path: Path, request: str, steps: Steps, today: date | None = None) -> None:
-    """Note that Claude did `steps` for `request` (only when there are several)."""
+def same(a: Steps, b: Steps) -> bool:
+    """The same things done, in any order ("volume 75, then WhatsApp" is "WhatsApp, volume 75")."""
+
+    def key(steps: Steps) -> list[tuple[str, str]]:
+        return sorted((str(k).casefold(), str(v).strip().casefold()) for k, v in steps)
+
+    return key(a) == key(b)
+
+
+def is_saved(steps: Steps, saved: list[Steps]) -> bool:
+    """Is there a command that does just these steps?"""
+    return any(same(steps, command) for command in saved)
+
+
+def record(path: Path, request: str, steps: Steps, today: date | None = None) -> int:
+    """Note that `steps` were done for `request` (only when there are several). Returns how
+    many times they have been asked for now (0: not noted)."""
     if len(steps) < MIN_STEPS:
-        return
+        return 0
     steps = [(str(k), str(v)) for k, v in steps]
     entries = _load(path)
-    old = next((e for e in entries if _steps(e) == steps), None)
+    old = next((e for e in entries if same(_steps(e), steps)), None)
     if old is not None:
         entries.remove(old)
+    times = int(old.get("times", 1)) + 1 if old else 1
     entries.append(
         {
             "request": " ".join(request.split())[:_REQUEST_CHARS],
             "steps": [list(s) for s in steps],
-            "times": int(old.get("times", 1)) + 1 if old else 1,
+            "times": times,
             "last": (today or date.today()).isoformat(),
         }
     )
@@ -60,6 +76,7 @@ def record(path: Path, request: str, steps: Steps, today: date | None = None) ->
         write_atomic(Path(path), json.dumps(entries[-KEEP:], ensure_ascii=False, indent=1))
     except OSError as e:
         log.warning("Couldn't save %s: %s", path, e)
+    return times
 
 
 def command_steps(item: dict) -> Steps:
@@ -77,7 +94,7 @@ def for_claude(path: Path, saved: list[Steps]) -> str:
     lines = []
     for entry in reversed(_load(path)):
         steps = _steps(entry)
-        if entry.get("times") != 1 or len(steps) < MIN_STEPS or steps in saved:
+        if entry.get("times") != 1 or len(steps) < MIN_STEPS or is_saved(steps, saved):
             continue
         did = "; ".join(f"{k}: {v}" for k, v in steps)
         lines.append(f'- "{entry.get("request", "")}" ({did})')
