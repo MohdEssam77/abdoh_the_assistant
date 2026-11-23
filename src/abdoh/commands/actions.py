@@ -363,5 +363,10 @@ def claude_action(kind: str, arg: str, computer) -> None:
             computer.window(place)
         else:
             computer.move_window(*place)
+    elif kind == "power":
+        what = arg.strip().lower().replace(" ", "_")
+        if what not in ("lock", "screens_off"):  # sleep and shutdown: you, and Abdoh asks
+            raise ActionError("I can only lock the computer or turn the screens off.")
+        computer.power(what)
     else:
         raise ActionError(f"I can't do {kind}.")

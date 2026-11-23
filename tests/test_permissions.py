@@ -317,8 +317,30 @@ def test_claude_switches_modes_screens_speakers_and_the_theme():
 def test_claude_still_cant_type_press_keys_close_apps_or_shut_down():
     from abdoh.config import CLAUDE_ACTIONS
 
-    for kind in ("type", "keys", "close_app", "power", "run", "wait", "focus_app"):
+    for kind in ("type", "keys", "close_app", "run", "wait", "focus_app", "shutdown"):
         assert kind not in CLAUDE_ACTIONS
+
+
+def test_claude_locks_but_never_puts_it_to_sleep():
+    import pytest
+
+    from abdoh.commands.actions import ActionError, claude_action
+
+    class Computer:
+        def __init__(self):
+            self.done = []
+
+        def power(self, what):
+            self.done.append(what)
+
+    computer = Computer()
+    claude_action("power", "lock", computer)
+    claude_action("power", "screens off", computer)
+    assert computer.done == ["lock", "screens_off"]
+    for what in ("sleep", "shutdown", "restart"):
+        with pytest.raises(ActionError):
+            claude_action("power", what, computer)
+    assert computer.done == ["lock", "screens_off"]
 
 
 def test_claude_moves_windows_but_never_closes_one():

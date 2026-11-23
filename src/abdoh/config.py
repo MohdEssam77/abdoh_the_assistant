@@ -37,8 +37,9 @@ SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
 # 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
 # 8: Xanthos became Krekos (new wake words and wake word model again).
-# 9: Krekos became Abdoh again (Abdoh's wake words and wake word model).
-CONFIG_VERSION = 10
+# 9: Krekos became Abdoh again (Abdoh's wake words and wake word model). 10: Claude can move
+# windows. 11: Claude can lock the computer and turn the screens off.
+CONFIG_VERSION = 11
 # Things Claude can do on the computer (abdoh.claude.reply.ACTION_HELP has the same names).
 CLAUDE_ACTIONS = (
     "open_url",
@@ -57,6 +58,7 @@ CLAUDE_ACTIONS = (
     "dark_mode",
     "lamp",
     "window",
+    "power",
 )
 # Settings older versions wrote that no longer do anything (vosk_model: the old wake word;
 # mic_raw: 0.7.1-0.7.3's raw microphone).
@@ -80,6 +82,7 @@ NEW_ACTIONS = {
     5: ("mode", "displays", "audio_output", "dark_mode"),
     7: ("lamp",),
     10: ("window",),
+    11: ("power",),
 }
 
 
