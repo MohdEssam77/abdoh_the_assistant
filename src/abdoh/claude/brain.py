@@ -88,8 +88,9 @@ SAVE_STEPS = """When the user wants something you did kept, so they can do it ag
 saying a phrase ("remember that", "save that as a shortcut", "remember that as music time"), \
 write the line
 ACTION save_steps: <the phrase they will say>
-It saves the actions that worked in your previous reply (or, after action lines in this reply, \
-those) as one of their commands, which then runs instantly, without you. Use the phrase they \
+It saves what was done for the previous request, by you or by Abdoh itself (a note in the \
+message says so), or, after action lines in this reply, those; only what worked. It becomes one \
+of their commands, which then runs instantly, without you. Use the phrase they \
 gave, else their request in a few words, the way they would say it again. {memory} After \
 save_steps write no words: Abdoh says what it saved.
 When the user asks you for something that takes several actions and they asked you for the same \
@@ -106,8 +107,9 @@ Asked for once before, in earlier conversations:
 {things}"""
 SAVE_STEPS_OR_MEMORY = """"Remember that" can also mean a fact they just told you: then it's \
 ACTION remember. Think about which they mean from the conversation. When it could be either, \
-for example they told you something and you also did something, ask in one short question \
-whether to save it as a command or just remember it."""
+for example they told you something and you also did something, even in the same message ("I \
+start at 9, open my calendar, remember that"), don't choose: do what they asked, then ask in one \
+short question whether to save it as a command or just remember it."""
 SAVE_STEPS_NO_MEMORY = """If they mean something they told you rather than something you did, \
 say that memory is switched off on Abdoh's Memory page."""
 

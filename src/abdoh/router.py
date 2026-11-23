@@ -39,6 +39,7 @@ from abdoh.commands.matcher import (
     strip_wake_words,
 )
 from abdoh.commands.registry import Command, CommandRegistry
+from abdoh.commands.steps import StepRecorder
 from abdoh.config import Config
 from abdoh.local_skills import LocalSkills
 from abdoh.steps import split_steps
@@ -90,6 +91,22 @@ UNCLEAR_SECONDS = 60.0
 STEP = (
     'The user asked for several things at once: "{request}". Abdoh does them one by one and '
     "takes care of the others. Do only this one now: {step}"
+)
+# What Abdoh did by itself just before (the built-in skills, your commands), so Claude knows.
+ABDOH_DID = (
+    '(Just before this, Abdoh did this itself, without you, for the user\'s request "{request}": '
+    "{steps}. ACTION save_steps would save those steps.)\n"
+)
+ABDOH_DID_SECONDS = 600.0
+# Asked for a second time (abdoh/commands/repeats.py): Abdoh offers to make it a command, and
+# Claude understands the answer.
+OFFER = "Want me to save that as a command?"
+OFFER_SECONDS = 60.0
+OFFER_NOTE = (
+    '(For the user\'s request "{request}" this was done: {steps}. They have asked for it '
+    'before, so Abdoh asked them: "{offer}" What they say now is the answer. If it\'s yes, '
+    "write ACTION save_steps: <the phrase they gave, or a short one you choose>. If it's no, "
+    "just say okay. If they say something else, do that instead.)\n"
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
@@ -151,6 +168,7 @@ class ClaudeTurn:
     actions: list[tuple[str, str]] = field(default_factory=list)
     finished_at: float = 0.0
     ignored: bool = False  # it wasn't meant for Abdoh (ACTION ignore)
+    by_abdoh: bool = False  # Abdoh did it by itself, without Claude
 
 
 class Router:
@@ -180,6 +198,12 @@ class Router:
         self.on_board: Callable[[int, str], None] | None = None
         self._cards = itertools.count(1)
         self.last_turn: ClaudeTurn | None = None
+        # What Abdoh did by itself for the request being handled (steps.StepRecorder notes it).
+        self._done: list[tuple[str, str]] = []
+        self._told: ClaudeTurn | None = None  # the turn of Abdoh's own Claude was told about
+        self._offer: ClaudeTurn | None = None  # Abdoh asked whether to save this as a command
+        self._offer_at = 0.0
+        self._in_steps = False  # one of several things asked at once is with Claude
         self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
         self._act = act
@@ -201,7 +225,7 @@ class Router:
         self.local = None
         if computer is not None:
             self.local = LocalSkills(
-                computer,
+                StepRecorder(computer, self._done.append),
                 last_reply=lambda: self.last_reply,
                 allow_power=lambda: self.cfg.allow_power,
             )
@@ -242,13 +266,18 @@ class Router:
         if not request:
             return prefix
         original = remove_wake_words(text, self.wake_words) or request
+        self._done.clear()
+        offered = self._open_offer()
         exact = match_command(request, self.registry.commands, 100)  # one of yours, as it is
-        steps = [] if exact else split_steps(original)
-        if steps:
+        steps = [] if exact or offered else split_steps(original)
+        if offered is not None and self.brain is not None:
+            reply = self._answer_offer(offered, original)
+        elif steps:
             reply = self._steps(steps, original, aside, woken)
         else:
             reply = self._route(request, original, aside, woken)
         if isinstance(reply, str):
+            reply = self._did_it_myself(reply, original)
             if reply:
                 self.last_reply = reply
             if not prefix:
@@ -283,7 +312,7 @@ class Router:
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
             note = ASIDE if aside else woken_note(woken) if woken else ""
-            prompt = self._unclear_note() + note + prompt
+            prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
             return self._ask(prompt, original, aside=bool(aside or woken))
 
         # 6. Nothing matched
@@ -321,8 +350,9 @@ class Router:
         if found:
             log.info("Matched command %r (score %.0f)", found.command.name, found.score)
             try:
+                computer = StepRecorder(self.computer, self._done.append) if self.computer else None
                 spoken = self._run(
-                    found.command, self.cfg.allow_run, computer=self.computer, slots=found.slots
+                    found.command, self.cfg.allow_run, computer=computer, slots=found.slots
                 )
                 text = " ".join(spoken)
                 if any(isinstance(line, Question) for line in spoken):
@@ -373,17 +403,22 @@ class Router:
         """The steps from the first one only Claude knows: each in turn, after the one before
         has finished (and was said)."""
         turn = ClaudeTurn(original)  # the whole request, for the done sound and follow-ups
+        turn.actions += self._done  # what Abdoh did itself before this
         said: list[str] = []
+        self._in_steps = True
         try:
             for reply in replies:
                 if reply and not isinstance(reply, Done):
                     said.append(reply)
                     yield reply
             for i, (request, part) in enumerate(rest):
+                before = len(self._done)
                 reply = None if i == 0 else self._route_local(request, part)
+                turn.actions += self._done[before:]
                 if reply is None:
                     note = ASIDE if aside else woken_note(woken) if woken else ""
-                    prompt = self._unclear_note() + note + STEP.format(request=original, step=part)
+                    prompt = STEP.format(request=original, step=part)
+                    prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
                     answer = self._ask(prompt, part, aside=bool(aside or woken))
                     for sentence in [answer] if isinstance(answer, str) else answer:
                         if sentence:
@@ -401,7 +436,13 @@ class Router:
                     yield reply
                     if isinstance(reply, Question):
                         return
+            self._in_steps = False
+            offer = self._offer_after(turn, said)
+            if offer:
+                said.append(offer)
+                yield offer
         finally:
+            self._in_steps = False
             turn.answer = " ".join(said)
             turn.finished_at = time.monotonic()
             self.last_turn = turn
@@ -423,7 +464,9 @@ class Router:
             if name and modes.find(name) and modes.current != modes.find(name).name:
                 return f"{modes.find(name).name} mode isn't on."
             try:
-                return modes.deactivate()
+                said = modes.deactivate()
+                self._done.append(("mode", "normal"))
+                return said
             except ActionError as e:
                 return str(e)
         choices = [
@@ -435,7 +478,9 @@ class Router:
             return None
         log.info("Mode %r (score %.0f)", found[0].name, found[1])
         try:
-            return modes.activate(found[0].name)
+            said = modes.activate(found[0].name)
+            self._done.append(("mode", found[0].name))
+            return said
         except ActionError as e:
             return str(e)
 
@@ -576,6 +621,11 @@ class Router:
                     spoken.append(sentence)
                     yield sentence
                 yield from _drain(problems)
+            if not turn.ignored and not self._in_steps:
+                offer = self._offer_after(turn, spoken)
+                if offer:
+                    spoken.append(offer)
+                    yield offer
         except (BrainError, ScreenCaptureError) as e:
             yield str(e)
         finally:
@@ -587,16 +637,72 @@ class Router:
                 self.last_reply = turn.answer
             turn.finished_at = time.monotonic()
             self.last_turn = turn
-            self._note_repeat(turn)
 
-    def _note_repeat(self, turn: ClaudeTurn) -> None:
-        """Several actions for one request are noted (while memory is on), so that Claude can
-        offer to save them as a command when the user asks for the same again."""
+    # ----- what Abdoh did itself, and asking for the same again -----
+
+    def _did_it_myself(self, reply: str, original: str) -> str:
+        """A request Abdoh handled without Claude: if it did something, that's the last turn
+        ("remember that" keeps it), and the second time it's asked for, Abdoh offers to make it
+        a command."""
+        if not self._done:
+            return reply
+        turn = ClaudeTurn(original, str(reply), list(self._done), time.monotonic(), by_abdoh=True)
+        self.last_turn = turn
+        offer = self._offer_after(turn, [str(reply)])
+        return Question(f"{reply} {offer}".strip()) if offer else reply
+
+    def _offer_after(self, turn: ClaudeTurn, said: list[str]) -> str:
+        """Note what took several steps (while memory is on). The second time it's asked for,
+        and it isn't one of your commands, Abdoh offers to save it, unless the reply already
+        asks something (Claude's own offer, say). Returns the offer, or ""."""
+        if self._note_repeat(turn) != 2 or self._is_command(turn):
+            return ""
+        if said and said[-1].rstrip(" \"'”’)").endswith("?"):
+            return ""
+        log.info("Asked for a second time: offering to save it as a command")
+        self._offer, self._offer_at = turn, time.monotonic()
+        return OFFER
+
+    def _note_repeat(self, turn: ClaudeTurn) -> int:
+        """Several actions for one request are noted (while memory is on). Returns how many
+        times they have been asked for now (0: not noted)."""
         if not self.cfg.memory or turn.ignored or any(k == SAVE_STEPS for k, _ in turn.actions):
-            return
+            return 0
         from abdoh.commands import repeats
 
-        repeats.record(self.cfg.app_dir / repeats.FILE, turn.request, _command_steps(turn))
+        return repeats.record(self.cfg.app_dir / repeats.FILE, turn.request, _command_steps(turn))
+
+    def _is_command(self, turn: ClaudeTurn) -> bool:
+        from abdoh.commands.repeats import is_saved
+
+        saved = [[(k, str(v)) for k, v in c.actions] for c in self.registry.commands]
+        return is_saved(_command_steps(turn), saved)
+
+    def _open_offer(self) -> ClaudeTurn | None:
+        """The turn Abdoh just offered to save, if this may be the answer (once)."""
+        offered, self._offer = self._offer, None
+        if offered is not None and time.monotonic() - self._offer_at <= OFFER_SECONDS:
+            return offered
+        return None
+
+    def _answer_offer(self, offered: ClaudeTurn, original: str) -> Reply:
+        """The answer to "Want me to save that as a command?": Claude understands it."""
+        self._told = offered
+        note = OFFER_NOTE.format(
+            request=offered.request, steps=_steps_text(_command_steps(offered)), offer=OFFER
+        )
+        return self._ask(note + self._with_context(original), original)
+
+    def _abdoh_did_note(self) -> str:
+        """Tell Claude (once) what Abdoh did by itself just before, so "keep that as chat time"
+        or "turn it down a bit more" make sense to it."""
+        turn = self.last_turn
+        if turn is None or not turn.by_abdoh or turn is self._told:
+            return ""
+        if time.monotonic() - turn.finished_at > ABDOH_DID_SECONDS:
+            return ""
+        self._told = turn
+        return ABDOH_DID.format(request=turn.request, steps=_steps_text(turn.actions))
 
     def _clipboard(self, request: str) -> str:
         """Your clipboard, for Claude, when you talk about it ("translate what I copied")."""
@@ -692,6 +798,10 @@ class Router:
             return False, "Sorry, I couldn't save that to your commands file."
         log.info("Saved a command for %r: %s", trigger, actions)
         return True, f"Saved. Next time just say: {trigger}."
+
+
+def _steps_text(steps: list[tuple[str, str]]) -> str:
+    return "; ".join(f"{kind}: {arg}" for kind, arg in steps)
 
 
 def _command_steps(turn: ClaudeTurn | None) -> list[tuple[str, str]]:
