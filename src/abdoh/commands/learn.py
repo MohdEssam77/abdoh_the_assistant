@@ -13,6 +13,9 @@ import yaml
 
 from abdoh.commands.registry import parse_commands
 
+# A file holding no commands written as an empty list: the new one replaces it.
+_EMPTY_LIST = re.compile(r"^\[\s*\]\s*(?:#.*)?$", re.M)
+
 
 def command_name(trigger: str, taken: set[str]) -> str:
     """'open the python website' -> 'learned_open_the_python_website' (unique)."""
@@ -41,6 +44,7 @@ def append_command(
     file wouldn't be valid afterwards (it is then left untouched)."""
     path = Path(path)
     current = path.read_text(encoding="utf-8") if path.exists() else ""
+    current = _EMPTY_LIST.sub("", current)
     name = command_name(trigger, taken)
     if current and not current.endswith("\n"):
         current += "\n"
