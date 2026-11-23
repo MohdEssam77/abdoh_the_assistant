@@ -412,7 +412,7 @@
         : "English and German work without choosing: Abdoh hears which one you spoke, with the fastest and most accurate model. Add any other language you speak here.";
     return card("Speech recognition", "How Abdoh turns what you say into text. Everything runs on this computer.",
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Abdoh"), el("small", {}, how)), picks),
-      fast ? row("Quality", "Best accuracy uses about 700 MB more memory.",
+      fast ? row("Quality", "Best accuracy uses about 700 MB more memory (less on a graphics card).",
         select([["auto", "Best accuracy (recommended)"], ["whisper", "Lighter"]], lighter ? "whisper" : "auto",
           (value) => saveSettings({ speech_engine: value }).then((ok) => ok && render()), "Speech quality")) : null,
       fast && !lighter ? gpuRow(settings) : null,
