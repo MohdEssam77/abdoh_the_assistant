@@ -479,6 +479,30 @@ def test_abdoh_listens_for_the_answer_to_its_question():
     assert not daemon._awaiting_answer
 
 
+def test_abdohs_own_window_can_be_moved(tmp_path):
+    """ "Maximize the app": Abdoh's window (the board) is found too, only to move or bring up."""
+    from abdoh.computer import Computer
+
+    class System:
+        def __init__(self):
+            self.asked, self.moved = [], []
+
+        def app_windows(self, name, own=False):
+            self.asked.append((name, own))
+            return [(7, "Abdoh", "abdoh")] if own and name == "Abdoh" else []
+
+        def window_rect(self, hwnd):
+            return (100, 100, 800, 600)
+
+        def move_window(self, hwnd, rect, how):
+            self.moved.append((hwnd, how))
+
+    system = System()
+    computer = Computer(system=system, displays=Displays(tmp_path / "d.json", FakeBackend()))
+    computer.move_window("Abdoh", "current", "maximized")
+    assert system.asked == [("Abdoh", True)] and system.moved == [(7, "maximized")]
+
+
 def test_brightness_on_every_screen_that_can(tmp_path):
     from abdoh.computer import Computer
 

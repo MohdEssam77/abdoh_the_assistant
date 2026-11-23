@@ -588,10 +588,11 @@ class Computer:
         return bool(self._on_system().app_windows(name))
 
     def move_window(self, app: str | None, screen: str, how: str = "maximized") -> str:
-        """Put a program's window (or the one in front) on a screen. Returns the screen."""
+        """Put a program's window (Abdoh's too), or the one in front, on a screen. Returns the
+        screen."""
         system = self._on_system()
         if app:
-            windows = system.app_windows(app)
+            windows = system.app_windows(app, own=True)
             if not windows:
                 raise ActionError(f"{app.strip().capitalize()} isn't open.")
             handle = windows[0][0]
