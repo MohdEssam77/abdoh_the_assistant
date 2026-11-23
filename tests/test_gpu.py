@@ -382,3 +382,9 @@ def test_settings_turn_it_on_and_off_right_away(tmp_path):
 
 def test_no_audio_is_needed_for_any_of_this():
     assert np.zeros(1).dtype  # (the fakes above never touch a microphone or a card)
+
+
+def test_the_app_is_built_with_the_directml_runtime():
+    workflow = (Path(__file__).parents[1] / ".github/workflows/release.yml").read_text("utf-8")
+    swap = workflow.index("pip install --no-deps onnxruntime-directml")
+    assert workflow.index("pip uninstall -y onnxruntime") < swap < workflow.index("Run the tests")
