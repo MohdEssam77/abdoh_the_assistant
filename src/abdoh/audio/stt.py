@@ -14,6 +14,7 @@ The models ship with Abdoh in models/ (scripts/download_models.py puts them ther
 model that isn't there is downloaded the first time it's used.
 """
 
+import gc
 import logging
 import os
 import threading
@@ -45,6 +46,15 @@ PARAKEET_FILES = (
     "encoder-model.int8.onnx",
 )
 WHISPER_FILES = ("model.bin", "config.json")
+# The full model on the graphics card (abdoh/gpu.py): DirectML, on the most capable card (not
+# a laptop's built-in graphics), with the processor for what DirectML can't run.
+GPU_PROVIDERS = [
+    (
+        "DmlExecutionProvider",
+        {"performance_preference": "high_performance", "device_filter": "gpu"},
+    ),
+    "CPUExecutionProvider",
+]
 # Quiet recordings (a microphone turned down in Windows) are brought up to this peak level,
 # but never amplified more than MAX_GAIN (that would only amplify noise).
 TARGET_PEAK = 0.9
@@ -131,6 +141,9 @@ class Transcriber:
 
 
 class ParakeetTranscriber(Transcriber):
+    """Parakeet: the compact model on the processor, or (`gpu_dir`, v3 only) the full-size one
+    on the graphics card. If the card fails, it goes back to the processor until Abdoh restarts."""
+
     name = "Parakeet"
 
     def __init__(
@@ -138,6 +151,7 @@ class ParakeetTranscriber(Transcriber):
         model_dir: Path,
         make_model: Callable | None = None,
         languages: list[str] | None = None,
+        gpu_dir: Path | None = None,
     ):
         super().__init__()
         self.model_dir = Path(model_dir)
@@ -145,18 +159,80 @@ class ParakeetTranscriber(Transcriber):
         self.model_id = PARAKEET if self.v3 else PARAKEET_V2
         self.languages = list(languages or ["en"])
         self._make_model = make_model  # onnx_asr.load_model (a fake in tests)
+        self.gpu_dir = Path(gpu_dir) if gpu_dir is not None and self.v3 else None
+        self.on_gpu = False  # the model now in use runs on the graphics card
+        self.gpu_failed = False  # it did, then failed: the processor until Abdoh restarts
+
+    def _make(self) -> Callable:
+        if self._make_model is not None:
+            return self._make_model
+        import onnx_asr
+
+        return onnx_asr.load_model
 
     def _load(self):
-        make = self._make_model
-        if make is None:
-            import onnx_asr
+        if self.gpu_dir is not None:
+            try:
+                model = self._load_gpu(self.gpu_dir)
+                self.on_gpu = True
+                return model
+            except Exception:
+                log.exception("Couldn't use the graphics card for speech; using the processor")
+                self.gpu_dir, self.gpu_failed = None, True
+        self.on_gpu = False
+        return self._load_cpu()
 
-            make = onnx_asr.load_model
+    def _load_cpu(self):
         log.info("Loading the Parakeet speech model from %s", self.model_dir)
-        return make(self.model_id, self.model_dir, quantization="int8")
+        return self._make()(self.model_id, self.model_dir, quantization="int8")
+
+    def _load_gpu(self, folder: Path):
+        log.info("Loading the full Parakeet model on the graphics card from %s", folder)
+        model = self._make()(
+            self.model_id,
+            folder,
+            quantization=None,
+            providers=GPU_PROVIDERS,
+            sess_options=_gpu_session_options(),
+        )
+        model.recognize(np.zeros(1600, dtype=np.float32), sample_rate=16000)  # fails here, if
+        return model
+
+    def use_gpu(self, folder: Path | None) -> bool:
+        """Move to the full model on the graphics card (`folder`), or back to the processor
+        (None). The new model loads while the old one keeps working, then takes over. Returns
+        whether speech recognition runs on the graphics card now."""
+        if not self.v3 or (folder is not None and self.gpu_failed):
+            return False
+        if (folder is not None) == self.on_gpu and self._model is not None:
+            return self.on_gpu
+        try:
+            model = self._load_gpu(Path(folder)) if folder is not None else self._load_cpu()
+        except Exception:
+            log.exception("Couldn't move speech recognition to the graphics card")
+            self.gpu_failed = True
+            return self.on_gpu
+        with self._lock:
+            self._model = model
+            self.gpu_dir = Path(folder) if folder is not None else None
+            self.on_gpu = folder is not None
+        gc.collect()  # the old model's memory goes back
+        where = "graphics card" if self.on_gpu else "processor"
+        log.info("Speech recognition runs on the %s", where)
+        return self.on_gpu
 
     def _recognize(self, model, samples: np.ndarray) -> str:
-        text = str(model.recognize(samples.astype(np.float32), sample_rate=16000))
+        samples = samples.astype(np.float32)
+        try:
+            text = str(model.recognize(samples, sample_rate=16000))
+        except Exception:
+            if not self.on_gpu:
+                raise
+            # A driver update or a reset card: carry on with the processor.
+            log.exception("Speech recognition failed on the graphics card; using the processor")
+            self.gpu_dir, self.on_gpu, self.gpu_failed = None, False, True
+            self._model = model = self._load_cpu()
+            text = str(model.recognize(samples, sample_rate=16000))
         self.last_language = self._language_of(text)
         return text
 
@@ -236,6 +312,16 @@ class WhisperTranscriber(Transcriber):
         return text
 
 
+def _gpu_session_options():
+    import onnxruntime as ort
+
+    opts = ort.SessionOptions()
+    opts.enable_mem_pattern = False  # DirectML needs these two
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    opts.log_severity_level = 3  # not the note that some steps run on the processor
+    return opts
+
+
 def parakeet_available(cfg) -> Path | None:
     """The Parakeet model's folder if it's complete (and onnx-asr is installed): v3, or else
     the English-only v2 of older installs."""
@@ -270,11 +356,25 @@ def choose_engine(cfg, parakeet: Path | None) -> str:
     return "parakeet" if parakeet_handles(cfg, parakeet) else "whisper"
 
 
+def gpu_model_dir(cfg, find_gpu=None) -> Path | None:
+    """The full model's folder, when speech recognition should run on the graphics card now:
+    switched on, downloaded, and a suitable card is there."""
+    from abdoh.audio import gpu_model
+
+    folder = cfg.app_dir / gpu_model.FOLDER
+    if not getattr(cfg, "use_gpu", False) or not gpu_model.ready(folder):
+        return None
+    if find_gpu is None:
+        from abdoh.gpu import find_gpu
+    return folder if find_gpu() is not None else None
+
+
 def make_transcriber(cfg) -> Transcriber:
     """The speech recognizer for these settings."""
     parakeet = parakeet_available(cfg)
     if choose_engine(cfg, parakeet) == "parakeet":
-        return ParakeetTranscriber(parakeet, languages=cfg.languages)
+        gpu = gpu_model_dir(cfg) if not Path(parakeet).name.endswith("v2") else None
+        return ParakeetTranscriber(parakeet, languages=cfg.languages, gpu_dir=gpu)
     return _whisper(cfg, fallback=cfg.speech_engine != "whisper" and cfg.languages == ["en"])
 
 
