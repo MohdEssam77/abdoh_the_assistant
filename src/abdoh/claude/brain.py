@@ -91,8 +91,9 @@ ACTION save_steps: <the phrase they will say>
 It saves what was done for the previous request, by you or by Abdoh itself (a note in the \
 message says so), or, after action lines in this reply, those; only what worked. It becomes one \
 of their commands, which then runs instantly, without you. Use the phrase they \
-gave, else their request in a few words, the way they would say it again. {memory} After \
-save_steps write no words: Abdoh says what it saved.
+gave. If they gave none, don't choose one: ask in one short question what they'd like to say \
+to start it, suggesting a short phrase ("What should I call it, maybe music time?"), and save \
+it when they answer. {memory} After save_steps write no words: Abdoh says what it saved.
 When the user asks you for something that takes several actions and they asked you for the same \
 before ({before}), do it, then ask once in one short sentence whether to save it as a command, \
 suggesting a short phrase for it ("Want me to save that as a command, say music time?"). If \

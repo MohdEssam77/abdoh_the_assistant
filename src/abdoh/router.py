@@ -104,9 +104,11 @@ OFFER = "Want me to save that as a command?"
 OFFER_SECONDS = 60.0
 OFFER_NOTE = (
     '(For the user\'s request "{request}" this was done: {steps}. They have asked for it '
-    'before, so Abdoh asked them: "{offer}" What they say now is the answer. If it\'s yes, '
-    "write ACTION save_steps: <the phrase they gave, or a short one you choose>. If it's no, "
-    "just say okay. If they say something else, do that instead.)\n"
+    'before, so Abdoh asked them: "{offer}" What they say now answers that, or the question '
+    "you asked about it. If it's yes and they said what to call it, write ACTION save_steps: "
+    "<their phrase>. If it's yes without a name, don't choose one: ask in one short question "
+    "what they'd like to say to start it, suggesting a short phrase. If it's no, just say "
+    "okay. If they say something else, do that instead.)\n"
 )
 FOLLOW_UP = """For context, the previous exchange was:
 User: {request}
@@ -197,12 +199,14 @@ class Router:
         # Shows what a role puts on the board: (card, text so far), one card per reply.
         self.on_board: Callable[[int, str], None] | None = None
         self._cards = itertools.count(1)
-        self.last_turn: ClaudeTurn | None = None
+        self._last_turn: ClaudeTurn | None = None
+        self._turn_before: ClaudeTurn | None = None
         # What Abdoh did by itself for the request being handled (steps.StepRecorder notes it).
         self._done: list[tuple[str, str]] = []
         self._told: ClaudeTurn | None = None  # the turn of Abdoh's own Claude was told about
         self._offer: ClaudeTurn | None = None  # Abdoh asked whether to save this as a command
         self._offer_at = 0.0
+        self._answering: ClaudeTurn | None = None  # the request being handled answers the offer
         self._in_steps = False  # one of several things asked at once is with Claude
         self.last_reply = ""  # what Abdoh said last, for "repeat that"
         self._run = run
@@ -267,7 +271,7 @@ class Router:
             return prefix
         original = remove_wake_words(text, self.wake_words) or request
         self._done.clear()
-        offered = self._open_offer()
+        offered = self._answering = self._open_offer()
         exact = match_command(request, self.registry.commands, 100)  # one of yours, as it is
         steps = [] if exact or offered else split_steps(original)
         if offered is not None and self.brain is not None:
@@ -626,6 +630,9 @@ class Router:
                 if offer:
                     spoken.append(offer)
                     yield offer
+            if self._answering is not None and spoken and _asks(spoken[-1]):
+                if not turn.ignored and not turn.actions:  # "What should I call it?"
+                    self._offer, self._offer_at = self._answering, time.monotonic()
         except (BrainError, ScreenCaptureError) as e:
             yield str(e)
         finally:
@@ -657,7 +664,7 @@ class Router:
         asks something (Claude's own offer, say). Returns the offer, or ""."""
         if self._note_repeat(turn) != 2 or self._is_command(turn):
             return ""
-        if said and said[-1].rstrip(" \"'”’)").endswith("?"):
+        if said and _asks(said[-1]):
             return ""
         log.info("Asked for a second time: offering to save it as a command")
         self._offer, self._offer_at = turn, time.monotonic()
@@ -771,11 +778,32 @@ class Router:
         self.on_memory()
         return ""
 
+    @property
+    def last_turn(self) -> ClaudeTurn | None:
+        return self._last_turn
+
+    @last_turn.setter
+    def last_turn(self, turn: ClaudeTurn | None) -> None:
+        if turn is not self._last_turn:
+            self._turn_before = self._last_turn
+        self._last_turn = turn
+
+    def _to_save(self, current: ClaudeTurn) -> Iterator[ClaudeTurn | None]:
+        """Whose steps ACTION save_steps saves, in order: this reply's; the request Abdoh
+        offered to save, while that's being answered; the previous reply's, or the one before
+        it when the previous reply only asked something ("what should I call it?")."""
+        yield current
+        yield self._answering
+        last = self.last_turn
+        yield last
+        if last is not None and not _command_steps(last) and _asks(last.answer):
+            yield self._turn_before
+
     def _save_steps(self, phrase: str, current: ClaudeTurn) -> tuple[bool, str]:
         """ACTION save_steps: what Claude did that worked, as a command you start by saying
         `phrase`: this reply's actions so far, else the previous reply's. It can be undone like
         Claude's other changes. Returns (done, what to say)."""
-        turn = current if _command_steps(current) else self.last_turn
+        turn = next((t for t in self._to_save(current) if _command_steps(t)), None)
         actions = _command_steps(turn)
         if turn is None or not actions:
             return False, NOTHING_TO_SAVE
@@ -798,6 +826,11 @@ class Router:
             return False, "Sorry, I couldn't save that to your commands file."
         log.info("Saved a command for %r: %s", trigger, actions)
         return True, f"Saved. Next time just say: {trigger}."
+
+
+def _asks(text: str) -> bool:
+    """Whether a reply ends with a question."""
+    return text.rstrip(" \"'”’)").endswith("?")
 
 
 def _steps_text(steps: list[tuple[str, str]]) -> str:
