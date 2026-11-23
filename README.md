@@ -316,7 +316,8 @@ itself, without Claude, "keep that as chat time" saves those steps.
 Abdoh also offers. When you ask again for something that took several actions ("open WhatsApp
 and set the volume to 75"), in any words or order, Abdoh does it and asks once: "Want me to save
 that as a command?" Claude understands your answer: "yes, call it chat time", "no", or "yes, but
-make it 80". It never offers for a single action, for something that's already one of your
+make it 80". If you just say yes (or "remember that" without a name), it asks what you'd like to
+say to start it, and the command is named by that phrase. It never offers for a single action, for something that's already one of your
 commands, or again after you say no. With memory on, the second time can be in a later
 conversation: Abdoh keeps a short list of those requests in `repeats.json` in its data folder.
 

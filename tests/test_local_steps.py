@@ -10,7 +10,7 @@ from test_router import Answers, FakeAct, FakeBrain, FakeRun, text_of
 from abdoh.commands.registry import CommandRegistry
 from abdoh.commands.steps import StepRecorder
 from abdoh.config import Config
-from abdoh.router import ABDOH_DID, OFFER, OFFER_SECONDS, Router
+from abdoh.router import ABDOH_DID, NOTHING_TO_SAVE, OFFER, OFFER_SECONDS, Router
 from abdoh.system_skills import Question
 
 WHATSAPP = [("open_app", "WhatsApp"), ("volume", "75")]
@@ -118,7 +118,35 @@ def test_no_means_never_again(router, tmp_path):
     assert said(router, "no thanks", "Okay.") == "Okay."
     third = router.handle("open WhatsApp and set the volume to 75")
     assert not isinstance(third, Question)
-    assert "learned" not in (tmp_path / "commands.yaml").read_text(encoding="utf-8")
+    assert "WhatsApp" not in (tmp_path / "commands.yaml").read_text(encoding="utf-8")
+
+
+ASKS_NAME = "What should I call it, maybe chat time?"
+
+
+def test_yes_without_a_name_and_claude_asks_for_one(router, tmp_path):
+    router.handle("open WhatsApp and set the volume to 75")
+    router.handle("open WhatsApp and set the volume to 75")
+    assert said(router, "yes please", ASKS_NAME, "ACTION save_steps: chat time\n") == ASKS_NAME
+    assert "WhatsApp" not in (tmp_path / "commands.yaml").read_text(encoding="utf-8")
+    reply = said(router, "chat time")  # straight to Claude, like the yes
+    assert reply == "Saved. Next time just say: chat time."
+    assert "Abdoh asked them" in router.brain.asked[1]
+    text = (tmp_path / "commands.yaml").read_text(encoding="utf-8")
+    assert '- name: "chat time"' in text and 'open_app: "WhatsApp"' in text
+
+
+def test_remember_that_without_a_name(router, tmp_path):
+    said(router, "open WhatsApp and set the volume to 75")
+    said(router, "remember that", ASKS_NAME, "ACTION save_steps: chat time\n")
+    assert said(router, "chat time") == "Saved. Next time just say: chat time."
+    assert 'open_app: "WhatsApp"' in (tmp_path / "commands.yaml").read_text(encoding="utf-8")
+
+
+def test_only_a_question_keeps_the_steps_waiting(router):
+    said(router, "open WhatsApp and set the volume to 75")
+    said(router, "what's the weather", "Sunny.", "ACTION save_steps: chat time\n")
+    assert said(router, "chat time") == NOTHING_TO_SAVE
 
 
 def test_the_answer_goes_to_claude_even_if_it_sounds_like_a_skill(router):
