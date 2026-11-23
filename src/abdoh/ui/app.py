@@ -95,6 +95,8 @@ def _escape(text: str) -> str:
 
 class WebWindow:
     _open: bool | None = None  # the window is open (shown, not minimized); None: not known yet
+    _minimized = False
+    _maximized = False  # before it was minimized, too
 
     def __init__(self, bus: Bus, cfg: Config, start_hidden: bool = False, tray=None):
         import webview
@@ -122,9 +124,17 @@ class WebWindow:
         # while you can see the board.
         self._open = None
         self._seen(not start_hidden)
-        self.window.events.minimized += lambda: self._seen(False)
-        self.window.events.restored += lambda: self._seen(True)
-        self.window.events.maximized += lambda: self._seen(True)
+        self.window.events.minimized += lambda: self._sized(minimized=True)
+        self.window.events.restored += lambda: self._sized(maximized=False)
+        self.window.events.maximized += lambda: self._sized(maximized=True)
+
+    def _sized(self, minimized: bool = False, maximized: bool | None = None) -> None:
+        """Minimized, or back up: normal size or maximized (a minimized window keeps what it
+        was)."""
+        self._minimized = minimized
+        if maximized is not None:
+            self._maximized = maximized
+        self._seen(not minimized)
 
     def _seen(self, open_: bool) -> None:
         if open_ != self._open:
@@ -139,8 +149,15 @@ class WebWindow:
         return False
 
     def show(self) -> None:
+        """Bring the window up. Only a minimized one is restored: a maximized window stays
+        maximized (the board shows a new card on every reply)."""
         self.window.show()
-        self.window.restore()
+        if self._minimized:
+            maximized = self._maximized
+            self.window.restore()  # pywebview's restore is to normal size
+            if maximized:
+                self.window.maximize()
+            self._minimized = False
         self._seen(True)
 
     def hide(self) -> None:

@@ -279,8 +279,10 @@ def press_keys(text: str, send=None) -> None:
 # ----- other programs' windows -----
 
 
-def app_windows(name: str) -> list[tuple[int, str, str]]:
-    """Visible windows of a program you named: (handle, title, program), front first."""
+def app_windows(name: str, own: bool = False) -> list[tuple[int, str, str]]:
+    """Visible windows of a program you named: (handle, title, program), front first. Abdoh's
+    own window only with `own` (to move or bring it up, not to close it), and then before the
+    others ("Abdoh" also matches VS Code with abdoh_the_assistant open)."""
     _windows()
     import ctypes
     from ctypes import wintypes
@@ -290,8 +292,9 @@ def app_windows(name: str) -> list[tuple[int, str, str]]:
     user32 = ctypes.windll.user32
     wanted = re.sub(r"^(?:the|my) |(?: app| window| program)$", "", name.lower().strip())
     squeezed = wanted.replace(" ", "")
-    own = os.getpid()
+    me = os.getpid()
     found: list[tuple[int, str, str]] = []
+    mine: list[tuple[int, str, str]] = []
     callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
     def visit(hwnd, _):
@@ -301,18 +304,18 @@ def app_windows(name: str) -> list[tuple[int, str, str]]:
             return True
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        if pid.value == own:
+        if pid.value == me and not own:
             return True
         length = user32.GetWindowTextLengthW(hwnd)
         buffer = ctypes.create_unicode_buffer(length + 1)
         user32.GetWindowTextW(hwnd, buffer, length + 1)
         program = process_name(pid.value)
         if matches_window(squeezed, program, buffer.value):
-            found.append((hwnd, buffer.value, program))
+            (mine if pid.value == me else found).append((hwnd, buffer.value, program))
         return True
 
     user32.EnumWindows(callback_type(visit), 0)
-    return found
+    return mine + found
 
 
 def matches_window(wanted: str, program: str, title: str) -> bool:
@@ -359,8 +362,8 @@ def focus_window(hwnd: int) -> None:
 
 
 def focus_app(name: str) -> str:
-    """Bring a program's window to the front. Returns its title."""
-    windows = app_windows(name)
+    """Bring a program's window to the front (Abdoh's too). Returns its title."""
+    windows = app_windows(name, own=True)
     if not windows:
         raise ActionError(f"{name.strip().capitalize()} isn't open.")
     hwnd, title, _ = windows[0]

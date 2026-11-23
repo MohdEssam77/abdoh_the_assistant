@@ -24,6 +24,17 @@ NOT_LISTENING = (
     "again (like going on with the lesson), add the line ACTION listen: on."
 )
 _OFF = {"off", "no", "false", "stop", "0"}
+NAME_LENGTH = 60
+
+
+def _role_name(description: str) -> str:
+    """A made-up role's name: its description up to the first full stop or comma
+    ("theoretical computer science professor. Sharp, patient..." -> "Theoretical computer
+    science professor"), cut at a word if it's still long."""
+    name = re.split(r"[.,;:!?](?:\s|$)", description, maxsplit=1)[0].strip()
+    if len(name) > NAME_LENGTH:
+        name = name[:NAME_LENGTH].rsplit(" ", 1)[0]
+    return name[:1].upper() + name[1:]
 
 
 def wants_on(value: str) -> bool:
@@ -99,8 +110,7 @@ class Acting:
             return None
         role = self.find(what)
         if role is None:
-            description = _ARTICLE.sub("", what)
-            name = description[:1].upper() + description[1:60]
+            name = _role_name(_ARTICLE.sub("", what))
             role = Role(name, f"Act as {what}.", board=True, saved=False)
         self.current = role
         self.listening = True  # a lesson: no wake word needed

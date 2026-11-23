@@ -43,8 +43,11 @@ ACTION_HELP: dict[str, str] = {
     "(the user's smart lamps)",
     "window": "ACTION window: <app> to <screen> [maximized, left, right or keep]   (moves an "
     "open app's window to one of the user's screens, by number or name, e.g. WhatsApp to 1 "
-    "maximized or Chrome to the laptop left; this to <screen> moves the window in front), or "
-    "ACTION window: <minimize, maximize, restore, desktop or switch>   (the window in front)",
+    "maximized or Chrome to the laptop left; this to <screen> moves the window in front; "
+    "<app> to current keeps it on its screen; Abdoh's own window, the one with the board, is "
+    "Abdoh: Abdoh to current maximized), or "
+    "ACTION window: <minimize, maximize, restore, desktop or switch>   (the window in front, "
+    "usually the app the user is working in, not Abdoh's)",
 }
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).

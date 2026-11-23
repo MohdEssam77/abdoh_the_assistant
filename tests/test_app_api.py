@@ -384,6 +384,9 @@ class FakeWebviewWindow:
     def restore(self):
         self.calls.append("restore")
 
+    def maximize(self):
+        self.calls.append("maximize")
+
     def hide(self):
         self.calls.append("hide")
 
@@ -420,7 +423,27 @@ def test_route_sends_events_to_tray_window_and_page(bus):
     assert win.tray.voice is False
     assert [k for k, _ in win.state.drain()] == ["status", "voice", "history"]
     win.route("show", None)
+    assert win.window.calls == ["show"]
+
+
+def test_showing_keeps_a_maximized_window_maximized(bus):
+    """The board brings the window up on every reply: a maximized window stays so."""
+    win = window_without_gui(bus)
+    win._sized(maximized=True)  # you maximized it
+    win.show()
+    assert win.window.calls == ["show"]
+    win._sized(minimized=True)
+    win.show()  # back up from the taskbar: maximized again
+    assert win.window.calls == ["show", "show", "restore", "maximize"]
+
+
+def test_showing_restores_a_minimized_window(bus):
+    win = window_without_gui(bus)
+    win._sized(minimized=True)
+    win.show()
     assert win.window.calls == ["show", "restore"]
+    win.show()  # up already: not again
+    assert win.window.calls == ["show", "restore", "show"]
 
 
 def test_the_page_gets_the_status_even_if_the_tray_fails(bus):
