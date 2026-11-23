@@ -116,6 +116,17 @@ def test_a_role_made_up_on_the_spot():
     assert acting.switch("off") == "Stopped acting." and acting.current is None
 
 
+def test_a_made_up_roles_name_is_its_first_words():
+    acting, _ = make_acting()
+    role = acting.start(
+        "a theoretical computer science professor. Sharp, patient and a bit witty. Explain"
+    )
+    assert role.name == "Theoretical computer science professor"
+    assert role.instructions.startswith("Act as a theoretical computer science professor. Sharp")
+    long = acting.start("a " + "very " * 20 + "kind teacher")
+    assert len(long.name) <= 60 and not long.name.endswith(" ")
+
+
 def test_claude_hears_the_role_with_every_message():
     acting, _ = make_acting()
     assert acting.state_text(4) == ""
