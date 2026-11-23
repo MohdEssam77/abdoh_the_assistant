@@ -2,6 +2,8 @@
 asking for the same steps a second time (in any words or order) makes Abdoh offer to save them
 as a command. Claude understands the answer."""
 
+import os
+
 import pytest
 from test_router import Answers, FakeAct, FakeBrain, FakeRun, text_of
 
@@ -140,6 +142,8 @@ def test_not_for_one_of_your_commands(router, tmp_path):
         '    - volume: 75\n    - open_app: "WhatsApp"\n',
         encoding="utf-8",
     )
+    st = (tmp_path / "commands.yaml").stat()
+    os.utime(tmp_path / "commands.yaml", (st.st_atime, st.st_mtime + 5))  # seen as changed
     router.handle("open WhatsApp and set the volume to 75")
     assert not isinstance(router.handle("open WhatsApp and set the volume to 75"), Question)
 

@@ -777,7 +777,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `lesson_listen_seconds` | `120` | In a lesson (a role explaining on the board, the window open), no wake word until this long passes quietly (0 = off) |
 | `confirm_actions` | `sound` | After it does something for you: `sound` (a short sound) or `words` (says what it did) |
 | `wake_word_interrupts` | `true` | Saying the wake word stops a reply (needs the trained wake word model) |
-| `keep_unclear_clips` | `false` | Keep what Abdoh heard after its name but couldn't make out, for a day, in `voice/` (to find out why) |
+| `keep_unclear_clips` | `false` | Keep what Abdoh heard after its name but couldn't make out, or a sound it didn't take for speech, for a day, in `voice/` (to find out why) |
 | `voice_interrupts` | `true` | Just start talking to stop a reply (no wake word) |
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
 | `allow_power` | `true` | Abdoh may put the computer to sleep, shut it down or restart it when you ask |
