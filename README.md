@@ -294,9 +294,12 @@ didn't switch on is refused. `claude.connectors: []` turns them all off (and bri
 `--safe-mode` back).
 
 **Make it instant next time.** When Claude did something for you ("open the Python website"),
-say **"Abdoh, remember that"** (or "remember that as python time"). Abdoh adds it to
-`commands.yaml` as a normal command, so next time it happens instantly, without Claude. The rest
-of your file is left as it is.
+say **"Abdoh, remember that"**, in any words ("save that as a shortcut", "remember that as
+python time"). Claude works out what you mean and Abdoh adds the steps that worked to
+`commands.yaml` as a normal command, so next time it happens instantly, without Claude. Abdoh
+says the phrase to use, the Commands page shows it, and "undo that" takes it out again. If you
+had also just told it something about yourself, Claude asks whether you mean a command or
+something to remember.
 
 **Follow-up questions.** Within a minute of an answer you can follow up ("and what about
 tomorrow?"); Abdoh gives Claude the previous question and answer. Change the window with
@@ -594,8 +597,8 @@ keys, card numbers or health details unless you explicitly ask.
 - It lives in `memory.yaml` in Abdoh's data folder, on this computer, and goes to Claude with
   your requests like everything else. A new memory reaches Claude's next conversation (the one
   that's open already knows, it just saved it).
-- Saying just "remember that" after Claude **did** something still saves it as a command;
-  after you told it something, it's remembered instead.
+- "Remember that" is Claude's to understand: after it **did** something, the steps become a
+  command; after you told it something, it's remembered; when it could be either, it asks.
 
 ## 6. Install it like an app
 
