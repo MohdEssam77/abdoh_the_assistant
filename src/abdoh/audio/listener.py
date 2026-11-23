@@ -1,6 +1,7 @@
 """Wake word → record → transcribe: turns microphone audio into one request's text."""
 
 import logging
+import math
 import time
 from collections.abc import Callable
 
@@ -28,6 +29,9 @@ WAKE_WAIT_SECONDS = 5.0
 # around it) with no words in it: "I heard you, but didn't catch it" (on_unclear). Less is a
 # cough or a click.
 UNCLEAR_MIN_SECONDS = 0.5
+# Nothing taken for speech after the wake word, but this loud (of 32768): something was there
+# (you, quietly or late, or the TV). Rooms in the logs stay under 200; speech goes far above.
+SOUND_AFTER_WAKE = 500
 # A transcription slower than this is logged: the speech model was probably out of memory.
 SLOW_TRANSCRIPTION_SECONDS = 0.6
 # An answer that came out as no words (an "um", a breath, a click, Abdoh's own echo): listen
@@ -60,6 +64,7 @@ def listen_for_request(
     on_unclear: Callable[[bytes], None] = lambda audio: None,
     hear: Callable[[bytes], bool] | None = None,
     on_speech: Callable[[], None] = lambda: None,
+    on_missed: Callable[[bytes], None] = lambda audio: None,
 ) -> str | None:
     """Wait for the wake word and return the request that was said, or None if stopped.
 
@@ -75,7 +80,8 @@ def listen_for_request(
     While waiting, every block also goes to `observe`; when it returns True (you talked over a
     reply), what `on_voice(mic)` returns is the request.
     When you talked after the wake word but no words came out, `on_unclear(audio)` gets the
-    recording (and "" is returned).
+    recording (and "" is returned). When nothing was taken for speech but there was some
+    sound (you, too quietly or too late?), `on_missed(audio)` gets those seconds.
     While Abdoh keeps listening, every block goes to `hear`; when it returns True (you started
     talking), `on_speech()` is called and what you say is the request, no wake word needed.
     """
@@ -97,15 +103,26 @@ def listen_for_request(
             mic, engine, transcriber, cfg, vad, on_listen, PUSH_TO_TALK_WAIT_SECONDS, on_nothing
         )
     on_wake()
-    return _after_wake_word(mic, engine, transcriber, speaker, cfg, vad, on_listen, on_unclear)
+    return _after_wake_word(
+        mic, engine, transcriber, speaker, cfg, vad, on_listen, on_unclear, on_missed
+    )
 
 
 def _after_wake_word(
-    mic, engine, transcriber, speaker, cfg: Config, vad, on_listen, on_unclear=lambda audio: None
+    mic,
+    engine,
+    transcriber,
+    speaker,
+    cfg: Config,
+    vad,
+    on_listen,
+    on_unclear=lambda audio: None,
+    on_missed=lambda audio: None,
 ) -> str:
     """The request said right after the wake word (the wake word itself is left out)."""
     detect = speech_detector(vad, mic.recent())
     spoken = 0  # bytes the detector took for speech
+    waited: list[bytes] = []  # what came in before any speech
 
     def is_speech(block: bytes) -> bool:
         nonlocal spoken
@@ -113,16 +130,30 @@ def _after_wake_word(
         spoken += len(block) if speech else 0
         return speech
 
+    def read() -> bytes:
+        block = mic.read()
+        if not spoken:
+            waited.append(block)
+        return block
+
     on_listen()  # heard you; keep talking
     audio = record_until_silence(
-        mic.read,
+        read,
         is_speech,
         cfg.silence_seconds,
         cfg.max_record_seconds,
         wait_seconds=WAKE_WAIT_SECONDS,
     )
     if not audio:  # only the wake word, or a wake-up by mistake: nothing to say
-        log.info("Nothing said after the wake word")
+        sound = b"".join(waited)
+        loudest = peak(sound)
+        log.info(
+            "Nothing said after the wake word (loudest sound %d of 32768, %.0f dB)",
+            loudest,
+            20 * math.log10(max(loudest, 1) / 32768),
+        )
+        if loudest >= SOUND_AFTER_WAKE:
+            on_missed(sound)  # something was there: kept to check why (keep_unclear_clips)
     text = _transcribe(transcriber, audio)
     mic.clear()
     engine.reset()

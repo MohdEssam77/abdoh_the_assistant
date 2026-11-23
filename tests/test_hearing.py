@@ -50,6 +50,48 @@ def test_words_are_not_unclear():
     assert text == "what time is it" and heard == []
 
 
+class NoSpeech:
+    """A voice detector that hears no speech in anything (a quiet or late "act as ...")."""
+
+    def reset(self):
+        pass
+
+    def speech_prob(self, audio):
+        return 0.0
+
+    def is_speech(self, block):
+        return False
+
+
+def missed_after_wake(blocks):
+    missed = []
+    text = listen_for_request(
+        FakeMic([silent_block()] * 2 + blocks),
+        FakeWakeWord(fire_on=2),
+        FakeTranscriber([]),
+        FakeSpeaker(),
+        Config(),
+        vad=NoSpeech(),
+        on_missed=missed.append,
+    )
+    return text, missed
+
+
+def test_a_sound_after_the_wake_word_that_wasnt_speech_is_reported(caplog):
+    caplog.set_level("INFO")
+    text, missed = missed_after_wake([tone_block(2000)] * 10)
+    assert text == "" and len(missed) == 1
+    assert len(missed[0]) >= 10 * len(tone_block())  # the seconds it waited, sound and all
+    assert "Nothing said after the wake word (loudest sound 2000 of 32768, -24 dB)" in caplog.text
+
+
+def test_silence_after_the_wake_word_is_not(caplog):
+    caplog.set_level("INFO")
+    text, missed = missed_after_wake([tone_block(150)] * 10)  # a room's hum
+    assert text == "" and missed == []
+    assert "loudest sound 150 of 32768" in caplog.text
+
+
 # ----- the daemon -----
 
 
@@ -119,6 +161,20 @@ def test_with_the_switch_on_the_recording_is_kept(tmp_path):
     [clip] = unclear.clips(tmp_path / "voice")
     with wave.open(str(clip)) as wav:
         assert (wav.getframerate(), wav.getnframes()) == (16000, 15 * 1600)
+
+
+def test_a_missed_request_is_kept_and_claude_hears_of_it(tmp_path):
+    daemon = make_daemon(tmp_path, keep_unclear_clips=True)
+    daemon._missed_after_wake(tone_block() * 50)
+    assert len(unclear.clips(tmp_path / "voice")) == 1
+    assert daemon.router.unclear == 1  # "did you hear me?" gets an honest answer
+    assert daemon.earcons.played == []  # no sound: it may have been the TV
+
+
+def test_a_missed_request_isnt_kept_with_the_switch_off(tmp_path):
+    daemon = make_daemon(tmp_path)
+    daemon._missed_after_wake(tone_block() * 50)
+    assert unclear.clips(tmp_path / "voice") == [] and daemon.router.unclear == 1
 
 
 def test_turning_the_switch_off_deletes_the_recordings(tmp_path):

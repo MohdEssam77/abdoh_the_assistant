@@ -594,6 +594,22 @@ class Daemon:
             heard()
         self._sound("unclear")
 
+    def _missed_after_wake(self, audio: bytes) -> None:
+        """After the wake word nothing was taken for speech, but there was some sound: maybe
+        you, too quietly or after the few seconds it waits. With keep_unclear_clips it's kept
+        for a day, to check why. Claude hears of it, so "did you hear me?" gets an honest
+        answer. No sound: it may have been the TV."""
+        if self.cfg.keep_unclear_clips:
+            from abdoh.audio.unclear import save_clip
+
+            try:
+                log.info("Kept it as %s", save_clip(self._clips_folder(), audio).name)
+            except OSError as e:
+                log.warning("Couldn't keep the recording: %s", e)
+        heard = getattr(self.router, "heard_unclear", None)
+        if heard:
+            heard()
+
     def _clips_folder(self):
         from abdoh.audio.voicecheck import VOICE_DIR
 
@@ -1201,6 +1217,7 @@ class Daemon:
                 observe=lambda block: self._observe(block, mic),  # a typed request's reply
                 on_voice=self._heard_voice,
                 on_unclear=self._heard_unclear,
+                on_missed=self._missed_after_wake,
                 hear=self._hear,
                 on_speech=self._on_speech,
             )
