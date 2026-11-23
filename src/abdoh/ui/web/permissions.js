@@ -20,6 +20,7 @@
     ["dark_mode", "Dark mode", "Switches Windows between dark and light."],
     ["lamp", "Lamps", "Switches your smart lamps on and off, and sets their brightness and colour."],
     ["window", "Windows", "Moves and maximizes app windows on your screens (it never closes them)."],
+    ["power", "Lock the computer", "Locks it, or turns the screens off. Sleep and shutdown are yours to say, and Abdoh asks first."],
   ];
   const MAX_INSTRUCTIONS = 2000;
   let draft = null; // instructions being typed, kept across redraws

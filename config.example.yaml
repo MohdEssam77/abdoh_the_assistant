@@ -50,7 +50,7 @@ claude:
   folders: []                    # where Claude may work with files; [] = your home folder
   allow_screen: true             # let Claude look at your screen when you ask about it
   # What Claude may do on the computer (turn them on and off on the Permissions page):
-  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp", "window"]
+  actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp", "window", "power"]
   instructions: ""               # your own instructions for Claude, sent with every request
   connectors: ["Gmail", "Google Calendar"]   # your claude.ai connectors Claude may use (Claude Code only)
   timeout_seconds: 120

@@ -805,7 +805,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
 | `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it |
 | `claude.allow_self_edit` | `true` | Let Claude make, change and delete your commands, modes and roles when you ask ("undo that" puts it back) |
-| `claude.actions` | all fourteen | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note`, `mode`, `displays`, `audio_output`, `dark_mode` |
+| `claude.actions` | all seventeen | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note`, `mode`, `displays`, `audio_output`, `dark_mode`, `lamp`, `window`, `power` (lock the computer or turn the screens off; sleep and shutdown only when you say so to Abdoh, which asks first) |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |
 | `claude.timeout_seconds` | `120` | Give up on an answer after this long |
 | `claude.followup_seconds` | `60` | API key only: a question this soon after an answer can follow up on it (0 = off). Claude Code remembers the whole conversation by itself |

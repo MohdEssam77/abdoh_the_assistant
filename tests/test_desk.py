@@ -348,20 +348,23 @@ def test_old_settings_get_claudes_new_actions(app_dir):
     old = 'config_version: 2\nclaude:\n  actions: ["open_url", "timer"]\n'
     (app_dir / "config.yaml").write_text(old)
     cfg = load_config(app_dir)
-    system = ["mode", "displays", "audio_output", "dark_mode", "lamp", "window"]
+    system = ["mode", "displays", "audio_output", "dark_mode", "lamp", "window", "power"]
     assert cfg.claude.actions == [
         "open_url", "timer", "volume", "brightness", "remind", "note", "app_volume", *system
     ]  # fmt: skip
-    assert cfg.config_version == 10
+    assert cfg.config_version == 11
     from_0_4 = 'config_version: 3\nclaude:\n  actions: ["open_url", "volume"]\n'
     (app_dir / "config.yaml").write_text(from_0_4)
     assert load_config(app_dir).claude.actions == ["open_url", "volume", "app_volume", *system]
     from_0_5 = 'config_version: 6\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(from_0_5)
-    assert load_config(app_dir).claude.actions == ["open_url", "lamp", "window"]  # lamps: 0.6
+    assert load_config(app_dir).claude.actions == ["open_url", "lamp", "window", "power"]
     from_0_8 = 'config_version: 9\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(from_0_8)
-    assert load_config(app_dir).claude.actions == ["open_url", "window"]  # windows came in 0.9
-    current = 'config_version: 10\nclaude:\n  actions: ["open_url"]\n'
+    assert load_config(app_dir).claude.actions == ["open_url", "window", "power"]  # windows: 0.9
+    from_0_11 = 'config_version: 10\nclaude:\n  actions: ["open_url"]\n'
+    (app_dir / "config.yaml").write_text(from_0_11)
+    assert load_config(app_dir).claude.actions == ["open_url", "power"]  # locking came in 0.12
+    current = 'config_version: 11\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(current)
     assert load_config(app_dir).claude.actions == ["open_url"]  # your choice from then on

@@ -48,6 +48,9 @@ ACTION_HELP: dict[str, str] = {
     "Abdoh: Abdoh to current maximized), or "
     "ACTION window: <minimize, maximize, restore, desktop or switch>   (the window in front, "
     "usually the app the user is working in, not Abdoh's)",
+    "power": "ACTION power: <lock or screens_off>   (locks the computer, or turns the screens "
+    "off until the mouse moves. Sleep, shut down and restart aren't actions: Abdoh does them "
+    "when the user says so to it directly, e.g. shut down the computer, and asks first)",
 }
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).
