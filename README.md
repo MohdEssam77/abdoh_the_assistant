@@ -301,6 +301,12 @@ says the phrase to use, the Commands page shows it, and "undo that" takes it out
 had also just told it something about yourself, Claude asks whether you mean a command or
 something to remember.
 
+Abdoh also offers. When you ask again for something that took several actions ("open Spotify
+and set the volume to 30"), Claude does it and asks once: "Want me to save that as a command,
+say music time?" Say yes (or another phrase) and it's saved. It never offers for a single action,
+and never again after you say no. With memory on, the second time can be in a later
+conversation: Abdoh keeps a short list of those requests in `repeats.json` in its data folder.
+
 **Follow-up questions.** Within a minute of an answer you can follow up ("and what about
 tomorrow?"); Abdoh gives Claude the previous question and answer. Change the window with
 `claude.followup_seconds` (0 turns it off).
@@ -599,6 +605,8 @@ keys, card numbers or health details unless you explicitly ask.
   that's open already knows, it just saved it).
 - "Remember that" is Claude's to understand: after it **did** something, the steps become a
   command; after you told it something, it's remembered; when it could be either, it asks.
+- While memory is on, requests that took several actions are noted in `repeats.json`, so Abdoh
+  can offer to make them a command when you ask again (see "Make it instant next time").
 
 ## 6. Install it like an app
 
