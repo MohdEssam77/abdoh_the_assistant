@@ -10,6 +10,7 @@ Piper is GPL-3.0 licensed (it includes espeak-ng); each voice has its own licens
 card.
 """
 
+import gc
 import logging
 import threading
 import time
@@ -203,10 +204,35 @@ class PiperSpeaker(Speaker):
         if rate is not None:
             self.rate = rate
         if voices is not None:
-            self.voices = dict(voices)
+            self._change_voices(dict(voices))
         configure = getattr(self.fallback, "configure", None)
         if configure:
             configure(rate=rate, voice=voice)
+
+    def _change_voices(self, voices: dict[str, str]) -> None:
+        """Your new choices: a voice you no longer use leaves memory right away (60 to 120 MB
+        each), and the one that replaces it gets ready in the background, as at the start."""
+        languages = set(self.voices) | set(voices)
+        before = {language: self.voice_name(language) for language in languages}
+        self.voices = voices
+        changed = [lang for lang in languages if self.voice_name(lang) != before[lang]]
+        in_use = {self.voice_name(lang) for lang in languages | set(DEFAULT_VOICES)}
+        with self._lock:
+            gone = [before[lang] for lang in changed if before[lang] in self._loaded]
+            for name in gone:
+                if name not in in_use:
+                    del self._loaded[name]
+        if not gone:
+            return
+        log.info("Let go of the voice %s", ", ".join(gone))
+        gc.collect()
+        ready = [lang for lang in changed if before[lang] in gone]
+
+        def run() -> None:
+            for language in ready:
+                self._voice_for(language)
+
+        threading.Thread(target=run, name="abdoh-voices", daemon=True).start()
 
     warm_languages = ("en", "de")
 

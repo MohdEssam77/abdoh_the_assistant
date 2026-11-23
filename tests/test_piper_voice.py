@@ -136,6 +136,26 @@ def test_your_choice_of_voice_and_speed():
     assert voice.voice_name("en") == "en_US-lessac-medium" and voice._length_scale() == 1.0
 
 
+def test_a_voice_you_no_longer_use_leaves_memory():
+    voice = speaker(installed=("en_US-lessac-medium", "en_US-ryan-medium", "de_DE-thorsten-medium"))
+    voice.say("Hello.")
+    voice.language = "de"
+    voice.say("Hallo.")
+    assert set(voice._loaded) == {"en_US-lessac-medium", "de_DE-thorsten-medium"}
+    voice.configure(voices={"en": "en_US-ryan-medium"})
+    assert "en_US-lessac-medium" not in voice._loaded  # let go of right away
+    assert wait_for(lambda: "en_US-ryan-medium" in voice._loaded)  # the new one gets ready
+    assert "de_DE-thorsten-medium" in voice._loaded  # German didn't change
+
+
+def test_choosing_the_same_voices_again_changes_nothing():
+    voice = speaker()
+    voice.say("Hello.")
+    voice.configure(rate=200, voices={})
+    voice.configure(voices={"en": "en_US-lessac-medium"})  # the default, chosen by name
+    assert voice.loaded == ["en_US-lessac-medium.onnx"]
+
+
 def test_stop_cuts_it_off():
     output = Output(slow=True)
     voice = speaker(output=output)
