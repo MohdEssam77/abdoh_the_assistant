@@ -7,7 +7,7 @@ from abdoh.claude.screen import ScreenCaptureError
 from abdoh.commands.actions import ActionError
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import Config
-from abdoh.router import COMMANDS_FILE_ERROR, NOTHING_TO_REMEMBER, UNKNOWN, Router
+from abdoh.router import COMMANDS_FILE_ERROR, NOTHING_TO_SAVE, UNKNOWN, Router
 
 COMMANDS = """
 - name: good_morning
@@ -306,21 +306,26 @@ def learning(tmp_path):
     path.write_text(COMMANDS, encoding="utf-8")
     run = FakeRun()
     brain = FakeBrain(["ACTION open_url: https://www.python.org\n", "Opening it."])
-    router = Router(  # memory off: "remember that" is only for commands here (see test_memory)
-        Config(app_dir=tmp_path, memory=False),
-        CommandRegistry(path),
-        brain=brain,
-        run=run,
-        act=FakeAct(),
+    router = Router(
+        Config(app_dir=tmp_path), CommandRegistry(path), brain=brain, run=run, act=FakeAct()
     )
     return router, run, path
+
+
+def remember_that(
+    router, reply="ACTION save_steps: open the Python website\n", said="remember that"
+):
+    """Claude understands "remember that" (here: as `reply`); what Abdoh says."""
+    router.brain = FakeBrain([reply])
+    return text_of(router.handle(said))
 
 
 def test_remember_that_saves_what_claude_did(learning):
     router, run, path = learning
     text_of(router.handle("Abdoh, open the Python website"))
-    reply = router.handle("Abdoh, remember that")
+    reply = remember_that(router, said="Abdoh, remember that")
     assert reply == "Saved. Next time just say: open the python website."
+    assert "remember that" in router.brain.asked[0][0]  # Claude decided, not a fixed phrase
     assert "learned_open_the_python_website" in path.read_text(encoding="utf-8")
     # Now it's an instant command: no Claude
     router.brain.asked.clear()
@@ -329,37 +334,83 @@ def test_remember_that_saves_what_claude_did(learning):
     assert router.brain.asked == []
 
 
-def test_remember_that_as_a_phrase(learning):
+def test_any_words_and_claudes_phrase(learning):
     router, run, _ = learning
     text_of(router.handle("open the Python website"))
-    assert router.handle("remember that as python time") == (
-        "Saved. Next time just say: python time."
-    )
+    reply = remember_that(router, "ACTION save_steps: python time\n", "keep that as a shortcut")
+    assert reply == "Saved. Next time just say: python time."
     router.handle("python time")
     assert run.ran == ["learned_python_time"]
 
 
+def test_done_and_saved_in_one_reply(learning):
+    """ "Python website, save it as python time": this reply's own steps."""
+    router, _, path = learning
+    reply = remember_that(
+        router,
+        "ACTION open_url: https://www.python.org\nACTION save_steps: python time\n",
+        "python website, save it as python time",
+    )
+    assert reply == "Saved. Next time just say: python time."
+    assert "https://www.python.org" in path.read_text(encoding="utf-8")
+
+
+class Answers:
+    """A Claude that gives each request the next of its replies."""
+
+    def __init__(self, *replies):
+        self.replies = list(replies)
+        self.asked = []
+
+    def stream(self, prompt, image_png=None):
+        self.asked.append(prompt)
+        yield self.replies.pop(0)
+
+
+def test_done_then_saved_as_the_next_step(learning):
+    """ "Open the Python website and save it as python time": two steps, the second saves
+    what the first did."""
+    router, _, path = learning
+    router.brain = Answers(
+        "ACTION open_url: https://www.python.org\n", "ACTION save_steps: python time\n"
+    )
+    reply = text_of(router.handle("open the python website and save it as python time"))
+    assert reply == "Saved. Next time just say: python time."
+    assert "https://www.python.org" in path.read_text(encoding="utf-8")
+
+
 def test_remember_needs_something_claude_did(learning):
-    router, _, _ = learning
-    assert router.handle("remember that") == NOTHING_TO_REMEMBER
+    router, _, path = learning
+    before = path.read_text(encoding="utf-8")
+    assert remember_that(router) == NOTHING_TO_SAVE
     router.brain = FakeBrain(["Tokyo is the capital."])  # an answer, but no action
     text_of(router.handle("capital of japan"))
-    assert router.handle("remember that") == NOTHING_TO_REMEMBER
+    assert remember_that(router) == NOTHING_TO_SAVE
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_failed_actions_are_not_remembered(learning):
     router, _, _ = learning
     router._act = FakeAct(fail="I couldn't open that link.")
     text_of(router.handle("open the Python website"))
-    assert router.handle("remember that") == NOTHING_TO_REMEMBER
+    assert remember_that(router) == NOTHING_TO_SAVE
 
 
 def test_remember_twice_does_not_duplicate(learning):
     router, _, path = learning
     text_of(router.handle("open the Python website"))
-    router.handle("remember that")
-    assert router.handle("save that") == NOTHING_TO_REMEMBER
+    remember_that(router)
+    assert remember_that(router, said="save that") == NOTHING_TO_SAVE
     assert path.read_text(encoding="utf-8").count("- name: learned_") == 1
+
+
+def test_a_phrase_you_already_have(learning):
+    router, _, path = learning
+    text_of(router.handle("open the Python website"))
+    before = path.read_text(encoding="utf-8")
+    reply = remember_that(router, "ACTION save_steps: open my mail\n")
+    assert reply == "You already have a command for open my mail."
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_remember_refuses_when_the_file_has_an_error(learning):
@@ -369,8 +420,41 @@ def test_remember_refuses_when_the_file_has_an_error(learning):
     st = path.stat()
     os.utime(path, (st.st_atime, st.st_mtime + 5))
     router.registry.refresh()
-    assert "Fix it first" in router.handle("remember that")
+    assert "Fix it first" in remember_that(router)
     assert path.read_text(encoding="utf-8") == "- name: [broken"
+
+
+def test_a_saved_command_shows_and_can_be_undone(learning):
+    router, _, path = learning
+    pages = []
+    router.on_self_edit = pages.append
+    before = path.read_text(encoding="utf-8")
+    text_of(router.handle("open the Python website"))
+    remember_that(router)
+    assert pages == ["command"]  # the Commands page refreshes
+    reply = remember_that(router, "ACTION undo_change: last\n", "undo that")
+    assert reply.startswith("Undone")
+    assert path.read_text(encoding="utf-8") == before
+    assert router.handle("open the Python website") != ""  # Claude's again
+
+
+def test_asking_which_one_saves_nothing(learning):
+    """ "I start work at 9, open my calendar" then "remember that": Claude may ask."""
+    router, _, path = learning
+    before = path.read_text(encoding="utf-8")
+    text_of(router.handle("I start work at 9, open the Python website"))
+    reply = remember_that(router, "As a command, or should I just remember it?")
+    assert reply == "As a command, or should I just remember it?"
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_no_saving_when_claude_cant_do_things(learning):
+    router, _, path = learning
+    text_of(router.handle("open the Python website"))
+    router.cfg.claude.actions = []
+    before = path.read_text(encoding="utf-8")
+    assert remember_that(router) == ""  # not one of its actions here: nothing happens
+    assert path.read_text(encoding="utf-8") == before
 
 
 def test_follow_up_gets_the_previous_exchange(learning):

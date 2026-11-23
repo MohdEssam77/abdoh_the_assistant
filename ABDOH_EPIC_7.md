@@ -292,8 +292,10 @@ ACTION undo_change: last
 - A **Memory** page in the window: every entry, edit, delete, add, and a switch
   (`memory: true`). Off: nothing is sent and the memory actions aren't offered.
 - Built (story 67): `abdoh/memory.py` (a broken file is reported, never overwritten; "forget"
-  also finds nearly the same words). A bare "remember that" still saves a command when Claude
-  just did something a command can do; otherwise it goes to Claude, which remembers it.
+  also finds nearly the same words).
+- After the release (story 70): "remember that", in any words, always goes to Claude. It writes
+  `ACTION save_steps: <phrase>` (the steps that worked become a command, which can be undone and
+  shows on the Commands page), `ACTION remember`, or asks which one when it could be either.
 
 ### 4.8 The new actions at a glance
 

@@ -23,6 +23,7 @@ from abdoh.claude.reply import (
     MEMORY_ACTIONS,
     ROLE,
     SAVE_ITEM,
+    SAVE_STEPS,
     SELF_EDIT_ACTIONS,
     UNDO_CHANGE,
     speakable,
@@ -57,9 +58,7 @@ _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:
 CLIPBOARD_LIMIT = 4000
 CLIPBOARD_NOTE = '\n\nThe user\'s clipboard contains:\n"""\n{text}\n"""'
 COMMANDS_FILE_ERROR = "Your commands file has an error."
-NOTHING_TO_REMEMBER = (
-    "There's nothing to remember yet. Ask me to do something, then say: remember that."
-)
+NOTHING_TO_SAVE = "I didn't just do anything I could save as a command."
 # What you say right after a reply, without the wake word, may be meant for someone else.
 ASIDE = (
     "(Said right after your last reply, without your name. It may be meant for someone else "
@@ -123,9 +122,6 @@ MODE_MATCH = 90  # mode names are short: only a close match counts ("dark" isn't
 # Anything else about roles (a made-up one, stopping in any words) is Claude's to understand.
 _ROLE_ON = ("act as {name}", "act as my {name}", "act as a {name}", "act as an {name}",
             "be my {name}", "{name} role")  # fmt: skip
-_REMEMBER = re.compile(
-    r"(?:please )?(?:remember|save) (?:that|this|it)(?: (?:as|for) (?P<phrase>.+?))?(?: please)?"
-)
 
 Reply = str | Iterator[str]
 
@@ -265,12 +261,8 @@ class Router:
     def _route(
         self, request: str, original: str, aside: bool = False, woken: Wake = False
     ) -> Reply:
-        # 0. "Remember that": save what Claude just did as a command. If it did nothing a
-        # command could do, it's something to remember about you (memory): Claude decides.
-        remember = _REMEMBER.fullmatch(request)
-        if remember and (self._command_actions() or not self.cfg.memory):
-            return self._remember(remember.group("phrase"))
-
+        # "Remember that" is Claude's to understand: what it just did becomes a command
+        # (ACTION save_steps), something you told it goes to memory, or it asks which.
         reply = self._route_local(request, original)
         if reply is not None:
             return reply
@@ -509,6 +501,12 @@ class Router:
                 if done:
                     turn.actions.append((kind, arg))
                 return
+            if kind == SAVE_STEPS:
+                done, said = self._save_steps(arg, turn)
+                problems.append(said)  # "Saved. Next time just say: ...", or why not
+                if done:
+                    turn.actions.append((kind, arg))
+                return
             if kind in MEMORY_ACTIONS:
                 problem = self._memory_action(kind, arg)
                 if problem:
@@ -543,6 +541,8 @@ class Router:
             allowed.append(IGNORE)
         if answer:
             allowed.append(ANSWER)
+        if self.cfg.claude.actions:
+            allowed.append(SAVE_STEPS)
         if self.cfg.memory:
             allowed.extend(MEMORY_ACTIONS)
         if self.cfg.claude.allow_self_edit:
@@ -607,13 +607,6 @@ class Router:
             return FOLLOW_UP.format(request=turn.request, answer=turn.answer, text=text)
         return text
 
-    def _command_actions(self) -> list[tuple[str, str]]:
-        """What Claude did last time that a command can do (not remembering, or listening)."""
-        from abdoh.commands.registry import ACTION_TYPES
-
-        turn = self.last_turn
-        return [(k, a) for k, a in turn.actions if k in ACTION_TYPES] if turn is not None else []
-
     def _self_editor(self):
         if self._editor is None:
             from abdoh.self_edit import SelfEditor
@@ -662,29 +655,41 @@ class Router:
         self.on_memory()
         return ""
 
-    def _remember(self, phrase: str | None) -> str:
-        turn = self.last_turn
-        actions = self._command_actions()
+    def _save_steps(self, phrase: str, current: ClaudeTurn) -> tuple[bool, str]:
+        """ACTION save_steps: what Claude did that worked, as a command you start by saying
+        `phrase`: this reply's actions so far, else the previous reply's. It can be undone like
+        Claude's other changes. Returns (done, what to say)."""
+        turn = current if _command_steps(current) else self.last_turn
+        actions = _command_steps(turn)
         if turn is None or not actions:
-            return NOTHING_TO_REMEMBER
+            return False, NOTHING_TO_SAVE
         if self.registry.error:
-            return f"{COMMANDS_FILE_ERROR} Fix it first, then try again."
-        if phrase in ("a command", "command", "a shortcut"):
-            phrase = None
-        trigger = normalize(phrase or turn.request)
-        existing = match_command(trigger, self.registry.commands, 100)
-        if existing:
-            return f"You already have a command for {trigger}."
+            return False, f"{COMMANDS_FILE_ERROR} Fix it first, then try again."
+        trigger = normalize(phrase) or normalize(turn.request)
+        if match_command(trigger, self.registry.commands, 100):
+            return False, f"You already have a command for {trigger}."
         taken = {c.name for c in self.registry.commands}
+        path = self.registry.path
         try:
-            name = append_command(self.registry.path, trigger, actions, turn.request, taken)
+            self._self_editor().change(
+                "command",
+                trigger,
+                path,
+                lambda: append_command(path, trigger, actions, turn.request, taken),
+            )
         except (ValueError, OSError) as e:
             log.error("Couldn't save the command: %s", e)
-            return "Sorry, I couldn't save that to your commands file."
-        log.info("Saved command %r for %r: %s", name, trigger, actions)
-        self.registry.refresh(force=True)
-        self.last_turn = None  # remembered; don't save it twice
-        return f"Saved. Next time just say: {trigger}."
+            return False, "Sorry, I couldn't save that to your commands file."
+        log.info("Saved a command for %r: %s", trigger, actions)
+        return True, f"Saved. Next time just say: {trigger}."
+
+
+def _command_steps(turn: ClaudeTurn | None) -> list[tuple[str, str]]:
+    """What Claude did in a reply that a command can do (not remembering, looking or
+    listening)."""
+    from abdoh.commands.registry import ACTION_TYPES
+
+    return [(k, a) for k, a in turn.actions if k in ACTION_TYPES] if turn is not None else []
 
 
 def _together(replies: list[str]) -> str:

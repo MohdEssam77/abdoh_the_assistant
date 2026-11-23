@@ -194,6 +194,13 @@ def test_remember_that_after_telling_it_something_goes_to_claude(tmp_path):
     assert memory(tmp_path).load()[0].text == "Their sister is called Lina."
 
 
+def test_claude_is_told_what_remember_that_can_mean(tmp_path):
+    on = system_prompt(Config(app_dir=tmp_path))
+    assert "ACTION save_steps:" in on and "ACTION remember" in on.split("ACTION save_steps:")[1]
+    off = system_prompt(Config(app_dir=tmp_path, memory=False))
+    assert "ACTION save_steps:" in off and "memory is switched off" in off
+
+
 # ----- the Memory page -----
 
 

@@ -112,7 +112,7 @@ class SelfEditor:
             if kind == "role" and _cut_short(item.get("instructions"), old.get("instructions")):
                 item["instructions"] = old["instructions"]  # sent back as Claude saw it
         self._check(kind, item)
-        self._change(kind, item["name"], store.path, lambda: store.save_item(item))
+        self.change(kind, item["name"], store.path, lambda: store.save_item(item))
         verb = "Changed" if old is not None else "Saved"
         log.info("%s %s %r: %s", verb, kind, item["name"], json.dumps(item, ensure_ascii=False))
         return f"{verb} {_what(kind, item['name'])}."
@@ -151,7 +151,7 @@ class SelfEditor:
         old = self._existing(store, kind, name)
         if old is None:
             raise SelfEditError(f"There's no {kind} called {name}.")
-        self._change(kind, old["name"], store.path, lambda: store.delete(old["name"]))
+        self.change(kind, old["name"], store.path, lambda: store.delete(old["name"]))
         log.info("Deleted %s %r", kind, old["name"])
         return f"Deleted {_what(kind, old['name'])}."
 
@@ -168,7 +168,9 @@ class SelfEditor:
         self.on_change(change.kind)
         return f"Undone: {_what(change.kind, change.name)} is back as it was."
 
-    def _change(self, kind: str, name: str, path: Path, do: Callable[[], object]) -> None:
+    def change(self, kind: str, name: str, path: Path, do: Callable[[], object]) -> None:
+        """Run `do` (which changes the file at `path`), keeping the text before so it can be
+        undone. Also used for "remember that" (the router's save_steps)."""
         path = Path(path)
         before = path.read_text(encoding="utf-8") if path.exists() else None
         try:

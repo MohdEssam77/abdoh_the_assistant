@@ -25,8 +25,8 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{roles}{memory}{self_edit}{files}{web}{tools}If you need more information, ask one short \
-question. Don't end with a question otherwise.
+{look}{roles}{memory}{save_steps}{self_edit}{files}{web}{tools}If you need more information, \
+ask one short question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
@@ -82,6 +82,23 @@ them, tell them.{full}
 """
 MEMORY_FULL = """ Your memory is nearly full: before remembering something new, forget something \
 or merge two entries (forget both, then remember the merged one)."""
+
+# "Remember that": what Claude did becomes one of the user's commands, or Claude asks.
+SAVE_STEPS = """When the user wants something you did kept, so they can do it again just by \
+saying a phrase ("remember that", "save that as a shortcut", "remember that as music time"), \
+write the line
+ACTION save_steps: <the phrase they will say>
+It saves the actions that worked in your previous reply (or, after action lines in this reply, \
+those) as one of their commands, which then runs instantly, without you. Use the phrase they \
+gave, else their request in a few words, the way they would say it again. {memory} After \
+save_steps write no words: Abdoh says what it saved.
+"""
+SAVE_STEPS_OR_MEMORY = """"Remember that" can also mean a fact they just told you: then it's \
+ACTION remember. Think about which they mean from the conversation. When it could be either, \
+for example they told you something and you also did something, ask in one short question \
+whether to save it as a command or just remember it."""
+SAVE_STEPS_NO_MEMORY = """If they mean something they told you rather than something you did, \
+say that memory is switched off on Abdoh's Memory page."""
 
 # Abdoh changes its own commands, modes and roles (abdoh/self_edit.py): how, and what's there.
 SELF_EDIT = """You can make, change and delete the user's own commands, modes and roles (the \
@@ -205,6 +222,13 @@ def _memory(cfg: Config) -> str:
     return MEMORY.format(full=MEMORY_FULL if nearly_full(entries) else "", entries=known)
 
 
+def _save_steps(cfg: Config) -> str:
+    """The "remember that" section (SAVE_STEPS), or "" when Claude can't do things."""
+    if not cfg.claude.actions:
+        return ""
+    return SAVE_STEPS.format(memory=SAVE_STEPS_OR_MEMORY if cfg.memory else SAVE_STEPS_NO_MEMORY)
+
+
 def _self_edit(cfg: Config) -> str:
     """The self-editing section (SELF_EDIT), or "" when it isn't allowed."""
     if not cfg.claude.allow_self_edit:
@@ -288,6 +312,7 @@ def system_prompt(
         look=LOOK if cfg.claude.allow_screen else "",
         roles=ROLES.format(names=_role_names(cfg)),
         memory=_memory(cfg),
+        save_steps=_save_steps(cfg),
         self_edit=_self_edit(cfg),
         files=files,
         web=WEB_LINE if web else "",
