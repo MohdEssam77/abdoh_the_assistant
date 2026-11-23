@@ -326,11 +326,11 @@ def test_remember_that_saves_what_claude_did(learning):
     reply = remember_that(router, said="Abdoh, remember that")
     assert reply == "Saved. Next time just say: open the python website."
     assert "remember that" in router.brain.asked[0][0]  # Claude decided, not a fixed phrase
-    assert "learned_open_the_python_website" in path.read_text(encoding="utf-8")
+    assert '- name: "open the python website"' in path.read_text(encoding="utf-8")
     # Now it's an instant command: no Claude
     router.brain.asked.clear()
     assert router.handle("open the Python website") == ""
-    assert run.ran == ["learned_open_the_python_website"]
+    assert run.ran == ["open the python website"]
     assert router.brain.asked == []
 
 
@@ -340,7 +340,7 @@ def test_any_words_and_claudes_phrase(learning):
     reply = remember_that(router, "ACTION save_steps: python time\n", "keep that as a shortcut")
     assert reply == "Saved. Next time just say: python time."
     router.handle("python time")
-    assert run.ran == ["learned_python_time"]
+    assert run.ran == ["python time"]
 
 
 def test_done_and_saved_in_one_reply(learning):
@@ -401,7 +401,7 @@ def test_remember_twice_does_not_duplicate(learning):
     text_of(router.handle("open the Python website"))
     remember_that(router)
     assert remember_that(router, said="save that") == NOTHING_TO_SAVE
-    assert path.read_text(encoding="utf-8").count("- name: learned_") == 1
+    assert path.read_text(encoding="utf-8").count("# Learned on") == 1
 
 
 def test_a_phrase_you_already_have(learning):

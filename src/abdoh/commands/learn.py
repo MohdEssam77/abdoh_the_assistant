@@ -18,18 +18,20 @@ _EMPTY_LIST = re.compile(r"^\[\s*\]\s*(?:#.*)?$", re.M)
 
 
 def command_name(trigger: str, taken: set[str]) -> str:
-    """'open the python website' -> 'learned_open_the_python_website' (unique)."""
-    slug = re.sub(r"[^a-z0-9]+", "_", trigger.lower()).strip("_")[:40] or "command"
-    name, n = f"learned_{slug}", 2
-    while name in taken:
-        name, n = f"learned_{slug}_{n}", n + 1
+    """A new command is named by the phrase that starts it: 'chat time' (or 'chat time 2' if
+    that name is taken). Commands saved before 0.12 are named 'learned_chat_time'."""
+    phrase = " ".join(trigger.split())[:40].strip() or "command"
+    used = {t.casefold() for t in taken}
+    name, n = phrase, 2
+    while name.casefold() in used:
+        name, n = f"{phrase} {n}", n + 1
     return name
 
 
 def command_text(name: str, trigger: str, actions: list[tuple[str, str]], said: str) -> str:
     lines = [
         f"# Learned on {date.today():%Y-%m-%d} from: {said}",
-        f"- name: {name}",
+        f"- name: {json.dumps(name)}",
         f"  triggers: [{json.dumps(trigger)}]",
         "  actions:",
     ]

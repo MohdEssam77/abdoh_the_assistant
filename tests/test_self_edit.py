@@ -208,12 +208,22 @@ def test_a_broken_file_is_left_alone(files):
 
 
 def learned(app_dir):
-    """A command "remember that" saved: its name isn't what you say."""
+    """A command "remember that" saved before 0.12: its name isn't what you say."""
+    path = app_dir / "commands.yaml"
+    path.write_text(
+        path.read_text(encoding="utf-8")
+        + '\n- name: learned_chat_time\n  triggers: ["chat time"]\n'
+        + '  actions:\n    - open_app: "WhatsApp"\n',
+        encoding="utf-8",
+    )
+
+
+def test_a_new_one_is_named_by_what_you_say(files):
     from abdoh.commands.learn import append_command
 
-    append_command(
-        app_dir / "commands.yaml", "chat time", [("open_app", "WhatsApp")], "chat time", set()
-    )
+    path = files / "commands.yaml"
+    append_command(path, "chat time", [("open_app", "WhatsApp")], "chat time", set())
+    assert editor(files).delete("command | chat time") == "Deleted the command chat time."
 
 
 def test_a_command_is_found_by_what_you_say(files):
