@@ -6,7 +6,7 @@
   const PLANS_URL = "https://claude.com/pricing";
   const CONSOLE_URL = "https://platform.claude.com/";
   const POLL_MS = 3000;
-  let waiting = null; // {kind: "install" | "sign_in", until: time}
+  let waiting = null; // {kind: "install" | "sign_in", until: time, url: the sign-in page}
 
   function link(text, url) {
     return el("a", { href: "#", onclick: (e) => { e.preventDefault(); call("open_link", url); } }, text);
@@ -37,9 +37,14 @@
           if (await act(e.currentTarget, "claude_sign_out")) { toast("Signed out of Claude."); refresh(body); }
         } }, "Sign out"));
     } else if (state.installed) {
-      help = "Sign in with your Claude Pro, Max, Team or Enterprise account. It opens Claude Code's sign-in, then your browser.";
+      help = "Sign in with your Claude Pro, Max, Team or Enterprise account, on Anthropic's page in your browser.";
       buttons.append(el("button", { class: "btn primary small", onclick: async (e) => {
-        if (await act(e.currentTarget, "claude_sign_in")) wait("sign_in", body);
+        const button = e.currentTarget;
+        button.disabled = true;
+        const result = await call("claude_sign_in");
+        button.disabled = false;
+        if (result && !result.ok) toast(result.error, true);
+        else if (result) wait("sign_in", body, result.url);
       } }, "Sign in with Claude"));
     } else {
       help = "To use your Claude account, Abdoh needs Claude Code, Anthropic's free app. It installs for you only, no admin rights needed.";
@@ -49,8 +54,9 @@
     }
     if (waiting) {
       help = waiting.kind === "install"
-        ? "Installing Claude Code in the other window… This page updates when it's done."
-        : "Finish signing in in your browser… This page updates when you're signed in.";
+        ? "Installing Claude Code… This takes a minute or two, and this page updates when it's done."
+        : el("span", {}, "Finish signing in in your browser… This page updates when you're signed in. ",
+          waiting.url ? link("The browser didn't open?", waiting.url) : null);
     }
     return row("Your Claude account", help, buttons);
   }
@@ -107,8 +113,8 @@
     else toast(result.error, true);
   }
 
-  function wait(kind, body) {
-    waiting = { kind, until: Date.now() + (kind === "install" ? 10 : 5) * 60 * 1000 };
+  function wait(kind, body, url = "") {
+    waiting = { kind, url, until: Date.now() + (kind === "install" ? 15 : 10) * 60 * 1000 };
     refresh(body);
     const tick = async () => {
       if (!waiting || !body.isConnected) { waiting = null; return; }

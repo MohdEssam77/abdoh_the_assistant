@@ -1,15 +1,17 @@
 """Connect Claude from the app: is Claude Code installed, signed in, and with which plan?
 
-Abdoh never handles your Claude account. Signing in happens in Claude Code's own window and in
-your browser, on Anthropic's sign-in page (`claude auth login`); Abdoh only asks Claude Code
-whether it's signed in (`claude auth status`). An API key, if you use one, is your own and stays
-in Abdoh's settings folder on this computer.
+Abdoh never handles your Claude account. Signing in happens in your browser, on Anthropic's
+sign-in page: Claude Code's own sign-in (`claude auth login`) runs in the background, without a
+window, and opens it; Abdoh only asks Claude Code whether it's signed in (`claude auth status`).
+An API key, if you use one, is your own and stays in Abdoh's settings folder on this computer.
 """
 
 import logging
 import os
+import re
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 from abdoh.claude.brain import NOT_CONNECTED, BrainError, make_brain
@@ -25,8 +27,10 @@ from abdoh.config import Config, save_api_key
 log = logging.getLogger(__name__)
 
 INSTALL_URL = "https://claude.ai/install.ps1"  # Anthropic's official Windows installer
-NEW_CONSOLE = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
 KEY_PREFIX = "sk-ant-"
+SIGN_IN_MINUTES = 10  # then a sign-in nobody finished in the browser stops waiting
+INSTALL_MINUTES = 15
+_URL = re.compile(r"https://\S+")
 
 
 class SetupError(RuntimeError):
@@ -100,39 +104,99 @@ def connectors(cfg: Config, find=find_claude_code, listing=list_connectors) -> d
     }
 
 
-def install_claude_code(popen=subprocess.Popen, platform: str = sys.platform) -> None:
-    """Run Anthropic's official installer in a window you can watch."""
+class Background:
+    """A helper running without a window (Claude Code's sign-in, its installer). What it says
+    goes to the log; the first link it prints is kept (the sign-in page, in case the browser
+    didn't open); it's stopped after `minutes` if it's still waiting."""
+
+    def __init__(self, what: str, args: list[str], popen, minutes: float, env=None, timer=None):
+        self.what = what
+        self.url = ""
+        self._link = threading.Event()
+        self.proc = popen(
+            args,
+            stdin=subprocess.PIPE,  # open (never written): Claude Code waits for the browser
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=env,
+            creationflags=NO_WINDOW,
+        )
+        threading.Thread(target=self._read, name=f"abdoh-{what}", daemon=True).start()
+        self._stopper = (timer or threading.Timer)(minutes * 60, self.stop)
+        self._stopper.daemon = True
+        self._stopper.start()
+
+    def _read(self) -> None:
+        for line in self.proc.stdout or []:
+            line = line.rstrip()
+            found = _URL.search(line)
+            if found and not self.url:
+                self.url = found[0]
+                self._link.set()
+                continue  # the sign-in link isn't for the log
+            if line:
+                log.info("%s: %s", self.what, line)
+        self._link.set()
+        log.info("%s finished (%s)", self.what, self.proc.wait())
+
+    def link(self, seconds: float) -> str:
+        """The link it printed, waiting at most `seconds` for it ("" if none)."""
+        self._link.wait(seconds)
+        return self.url
+
+    def stop(self) -> None:
+        self._stopper.cancel()
+        if self.proc.poll() is None:
+            log.info("Stopped %s: nobody finished it", self.what)
+            self.proc.kill()
+
+
+_running: dict[str, Background] = {}  # one sign-in, one install at a time
+
+
+def _start(what: str, *args, **kwargs) -> Background:
+    old = _running.pop(what, None)
+    if old is not None:
+        old.stop()  # pressed again: the new one counts
+    _running[what] = job = Background(what, *args, **kwargs)
+    return job
+
+
+def install_claude_code(popen=subprocess.Popen, platform: str = sys.platform, timer=None) -> None:
+    """Run Anthropic's official installer in the background (the app shows when it's done)."""
     if platform != "win32":
         raise SetupError("Install Claude Code from code.claude.com/docs/en/setup, then come back.")
-    script = (
-        "Write-Host 'Installing Claude Code from Anthropic...'; Write-Host '';"
-        f"irm {INSTALL_URL} | iex; Write-Host '';"
-        "Write-Host 'Done. Close this window and go back to Abdoh to sign in.'"
-    )
+    script = f"irm {INSTALL_URL} | iex"
     try:
-        popen(
-            ["powershell.exe", "-NoProfile", "-NoExit", "-Command", script],
-            creationflags=NEW_CONSOLE,
+        _start(
+            "Claude Code's installer",
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+            popen,
+            INSTALL_MINUTES,
+            timer=timer,
         )
     except OSError as e:
         raise SetupError(f"Couldn't start the installer: {e}") from e
 
 
-def sign_in(exe: Path, popen=subprocess.Popen) -> None:
-    """Open Claude Code's own sign-in (it continues in your browser) in a window you can see."""
-    script = (
-        "& $env:ABDOH_CLAUDE auth login; Write-Host '';"
-        "Write-Host 'Signed in? Close this window and go back to Abdoh.'"
-    )
-    env = {**child_env(), "ABDOH_CLAUDE": str(exe)}  # the path goes in safely, never parsed
+def sign_in(exe: Path, popen=subprocess.Popen, timer=None, wait: float = 5.0) -> str:
+    """Start Claude Code's own sign-in in the background: it opens Anthropic's sign-in page in
+    your browser and waits there. Returns that page's link, in case the browser didn't open."""
     try:
-        popen(
-            ["powershell.exe", "-NoProfile", "-NoExit", "-Command", script],
-            env=env,
-            creationflags=NEW_CONSOLE,
+        job = _start(
+            "Claude Code's sign-in",
+            [str(exe), "auth", "login", "--claudeai"],
+            popen,
+            SIGN_IN_MINUTES,
+            env=child_env(),  # with the account, not a key
+            timer=timer,
         )
     except OSError as e:
         raise SetupError(f"Couldn't open Claude Code's sign-in: {e}") from e
+    return job.link(wait)
 
 
 def sign_out(exe: Path, run=subprocess.run) -> None:
