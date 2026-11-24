@@ -34,16 +34,58 @@ FIND_SECONDS = 2.0
 ANSWER_SECONDS = 0.6
 TRIES = 3  # UDP can lose a message: send again
 WARM, NEUTRAL, COOL = 2700, 4000, 6500
+CANDLE = 2200  # the warmest a WiZ white goes
 COLOURS = {
-    "red": (255, 0, 0), "orange": (255, 110, 0), "yellow": (255, 210, 0),
-    "green": (0, 255, 0), "teal": (0, 200, 160), "cyan": (0, 255, 255),
-    "blue": (0, 0, 255), "purple": (140, 0, 255), "violet": (140, 0, 255),
-    "pink": (255, 60, 160), "magenta": (255, 0, 255),
+    "red": (255, 0, 0), "crimson": (220, 20, 60), "rose": (255, 60, 110),
+    "coral": (255, 95, 70), "salmon": (255, 130, 110), "peach": (255, 160, 110),
+    "orange": (255, 110, 0), "amber": (255, 150, 0), "gold": (255, 190, 0),
+    "yellow": (255, 220, 0), "lime": (170, 255, 0), "green": (0, 255, 0),
+    "mint": (80, 255, 170), "teal": (0, 200, 160), "turquoise": (0, 230, 210),
+    "cyan": (0, 255, 255), "sky blue": (90, 190, 255), "blue": (0, 0, 255),
+    "royal blue": (50, 80, 255), "indigo": (80, 0, 255), "purple": (140, 0, 255),
+    "violet": (170, 60, 255), "lavender": (190, 150, 255), "magenta": (255, 0, 255),
+    "pink": (255, 60, 160), "hot pink": (255, 20, 140),
 }  # fmt: skip
 WHITES = {
-    "warm white": WARM, "warm": WARM, "cozy": WARM, "soft white": WARM,
+    "warm white": WARM, "warm": WARM, "soft white": WARM, "candle white": CANDLE,
     "white": NEUTRAL, "neutral white": NEUTRAL, "natural white": NEUTRAL,
     "cool white": COOL, "cool": COOL, "cold white": COOL, "daylight": COOL, "bright white": COOL,
+}  # fmt: skip
+# The WiZ app's own scenes (sceneId), as pywizlight lists them; Rhythm, Alarm and the custom
+# and sync ones are left out. Some move (Party, Ocean...): `speed` (10-200) sets how fast.
+SCENES = {
+    "ocean": 1, "romance": 2, "sunset": 3, "party": 4, "fireplace": 5, "cozy": 6, "forest": 7,
+    "pastel colors": 8, "wake up": 9, "bedtime": 10, "warm white": 11, "daylight": 12,
+    "cool white": 13, "night light": 14, "focus": 15, "relax": 16, "true colors": 17,
+    "tv time": 18, "plant growth": 19, "spring": 20, "summer": 21, "fall": 22, "deep dive": 23,
+    "jungle": 24, "mojito": 25, "club": 26, "christmas": 27, "halloween": 28,
+    "candlelight": 29, "golden white": 30, "pulse": 31, "steampunk": 32, "diwali": 33,
+    "white": 34, "snowy sky": 36, "dim to warm": 40,
+}  # fmt: skip
+SCENE_NAMES = {number: name for name, number in SCENES.items()}
+SCENE_WORDS = {
+    **{name: name for name in SCENES},
+    "disco": "party", "cosy": "cozy", "pastel colours": "pastel colors", "autumn": "fall",
+    "true colours": "true colors", "candle light": "candlelight", "plantgrowth": "plant growth",
+    "wake-up": "wake up", "dim-to-warm": "dim to warm", "deepdive": "deep dive",
+}  # fmt: skip
+# Said alone, these are a white, not the scene of the same name ("scene daylight" is the scene).
+WHITE_FIRST = {"warm white", "cool white", "daylight", "white"}
+# Which scenes a white-only lamp has (pywizlight's TW_SCENES, DW_SCENES; not Alarm).
+WHITE_SCENES = {6, 9, 10, 11, 12, 13, 14, 15, 16, 18, 29, 30, 31, 32, 33, 40}
+DIMMABLE_SCENES = {9, 10, 14, 29, 31, 32, 34}
+SPEEDS = {"very slow": 20, "slowly": 50, "slow": 50, "fast": 160, "quick": 160, "very fast": 200}
+# What a lamp can do, from the WiZ module name ("ESP24_SHRGBC_01": colour).
+COLOUR, WHITE, DIMMABLE, PLUG = "colour", "white", "dimmable", "plug"
+KIND_NAMES = {
+    COLOUR: "colours and whites", WHITE: "whites only", DIMMABLE: "brightness only",
+    PLUG: "on and off only",
+}  # fmt: skip
+# Words that may be left over in "set the desk lamp to the party scene, fast, at 60 percent".
+_FILLER = {
+    "and", "with", "at", "to", "a", "the", "in", "please", "scene", "mode", "colour", "color",
+    "brightness", "speed", "light", "lights", "lamp", "lamps", "now", "it", "turn", "make", "set",
+    "switch", "put", "change", "of", "on",
 }  # fmt: skip
 # A lamp whose WiZ app only allows its own ("verified") controls refuses changes with these.
 REFUSED_CODES = {-32602, -32605}
@@ -65,39 +107,149 @@ class Lamp:
     name: str
     mac: str
     ip: str
+    kind: str = ""  # colour, white, dimmable or plug ("" until Abdoh has asked it)
 
 
-def setting(text: str) -> dict:
-    """What you want a lamp to do, as setPilot params: "off", "on", "40%", "red", "warm white",
-    "blue 30%", "3000k", "dim", "bright". Raises ActionError."""
-    words = " ".join(text.lower().replace("percent", "%").split())
+def _words(name: str) -> str:
+    return r"\b" + r"[\s-]+".join(map(re.escape, name.split())) + r"\b"
+
+
+def _take(pattern: str, text: str) -> tuple[re.Match | None, str]:
+    """The first match of `pattern` in `text`, and the text without it."""
+    found = re.search(pattern, text)
+    if found is None:
+        return None, text
+    return found, f"{text[: found.start()]} {text[found.end() :]}"
+
+
+def setting(text: str, strict: bool = False) -> dict:
+    """What you want a lamp to do, as setPilot params: "off", "on", "40%", "red", "#ff8800",
+    "warm white", "blue 30%", "3000k", "dim", "bright", "party", "scene ocean slow",
+    "fireplace 40%". `strict`: nothing else may be in it (a sentence that just mentions a
+    lamp isn't one). Raises ActionError."""
+    words = " ".join(text.lower().replace("percent", "%").replace(",", " ").split())
+    rest = words
     params: dict = {}
-    if re.search(r"\boff\b", words):
-        return {"state": False}
-    level = re.search(r"(\d{1,3})\s*%", words)
+    off, rest = _take(r"\boff\b", rest)
+    level, rest = _take(r"(\d{1,3})\s*%", rest)
     if level:
         params["dimming"] = max(10, min(100, int(level[1])))
-    elif re.search(r"\b(?:dim|dimmer|low|darker)\b", words):
-        params["dimming"] = 30
-    elif re.search(r"\b(?:bright|brighter|full|max)\b", words):
-        params["dimming"] = 100
-    kelvin = re.search(r"\b(\d{4})\s*k\b", words)
-    if kelvin:
-        params["temp"] = max(2200, min(6500, int(kelvin[1])))
-    else:
-        for name in sorted(WHITES, key=len, reverse=True):
-            if re.search(rf"\b{name}\b", words):
-                params["temp"] = WHITES[name]
-                break
+    # A scene: "scene X" or "X scene" (any), or its name alone (unless that's also a white)
+    scene = None
+    for word in sorted(SCENE_WORDS, key=len, reverse=True):
+        name = SCENE_WORDS[word]
+        found, after = _take(rf"\bscene\s+{_words(word)}|{_words(word)}\s+scene\b", rest)
+        if found is None and name not in WHITE_FIRST:
+            found, after = _take(_words(word), rest)
+        if found is not None:
+            scene, rest = SCENES[name], after
+            break
+    if scene is not None:
+        params["sceneId"] = scene
+        speed, rest = _take(r"\bspeed\s+(\d{1,3})\b", rest)
+        if speed:
+            params["speed"] = max(10, min(200, int(speed[1])))
         else:
-            for name, (r, g, b) in COLOURS.items():
-                if re.search(rf"\b{name}\b", words):
-                    params.update(r=r, g=g, b=b)
+            for word in sorted(SPEEDS, key=len, reverse=True):
+                found, rest = _take(rf"\b{word}\b", rest)
+                if found:
+                    params["speed"] = SPEEDS[word]
                     break
-    if not params and not re.search(r"\bon\b", words):
+    else:
+        kelvin, rest = _take(r"\b(\d{4})\s*k\b", rest)
+        hex_colour, rest = _take(r"#([0-9a-f]{6})\b", rest)
+        if kelvin:
+            params["temp"] = max(2200, min(6500, int(kelvin[1])))
+        elif hex_colour:
+            value = hex_colour[1]
+            params.update(r=int(value[0:2], 16), g=int(value[2:4], 16), b=int(value[4:6], 16))
+        else:
+            for name in sorted(WHITES, key=len, reverse=True):
+                found, rest = _take(_words(name), rest)
+                if found:
+                    params["temp"] = WHITES[name]
+                    break
+            else:
+                for name in sorted(COLOURS, key=len, reverse=True):
+                    found, rest = _take(_words(name), rest)
+                    if found:
+                        params["r"], params["g"], params["b"] = COLOURS[name]
+                        break
+    dim, rest = _take(r"\b(?:dim|dimmer|low|darker)\b", rest)
+    bright, rest = _take(r"\b(?:bright|brighter|full|max)\b", rest)
+    if "dimming" not in params:  # "dim it to 30%": the number
+        if dim:
+            params["dimming"] = 30
+        elif bright:
+            params["dimming"] = 100
+    on = re.search(r"\bon\b", words)
+    leftover = [w for w in rest.split() if w not in _FILLER]
+    if strict and leftover:
+        raise ActionError(f"I don't know how to make a lamp {text.strip()}.")
+    if off:
+        return {"state": False}
+    if not params and not on:
         raise ActionError(f"I don't know how to make a lamp {text.strip()}.")
     params["state"] = True
     return params
+
+
+def lamp_kind(module: str) -> str:
+    """What a lamp can do, from its WiZ module name (getSystemConfig's moduleName): the part
+    after the first "_" says it, like pywizlight reads it. "" if it can't tell."""
+    parts = str(module or "").upper().split("_")
+    if len(parts) < 2:
+        return ""
+    part = parts[1]
+    if "RGB" in part:
+        return COLOUR
+    if "TW" in part:
+        return WHITE
+    if "SOCKET" in part:
+        return PLUG
+    return DIMMABLE
+
+
+def fit(kind: str, params: dict) -> dict | None:
+    """`params` as a lamp of this kind can take them, or None if it can't at all (a scene it
+    doesn't have). A colour on a white-only lamp becomes the nearest white: warm for red and
+    orange, cool for blue. An unknown kind ("") gets them as they are."""
+    params = dict(params)
+    if not kind or kind == COLOUR or not params.get("state"):
+        return params
+    if kind == PLUG:
+        return {"state": True}
+    scene = params.get("sceneId")
+    if scene is not None and scene not in (WHITE_SCENES if kind == WHITE else DIMMABLE_SCENES):
+        return None
+    if "r" in params:
+        r, b = params.pop("r"), params.pop("b")
+        params.pop("g", None)
+        if kind == WHITE:
+            params["temp"] = CANDLE if r > b else COOL
+    if kind == DIMMABLE:
+        params.pop("temp", None)
+    return params
+
+
+def options() -> dict:
+    """For the app's lamp pickers: the colours (as #rrggbb), the whites and the scenes, with
+    which kinds of lamp have each scene."""
+    return {
+        "colours": [[name, "#{:02x}{:02x}{:02x}".format(*rgb)] for name, rgb in COLOURS.items()],
+        "whites": [["candle", CANDLE], ["warm", WARM], ["neutral", NEUTRAL], ["cool", COOL]],
+        "scenes": [
+            {
+                "id": number,
+                "name": name[:1].upper() + name[1:],
+                "kinds": [COLOUR]
+                + ([WHITE] if number in WHITE_SCENES else [])
+                + ([DIMMABLE] if number in DIMMABLE_SCENES else []),
+            }
+            for name, number in SCENES.items()
+        ],
+        "kinds": KIND_NAMES,
+    }
 
 
 class Wiz:
@@ -175,6 +327,8 @@ def _as_it_was(before: dict) -> dict:
         params["dimming"] = before["dimming"]
     if before.get("sceneId"):
         params["sceneId"] = before["sceneId"]
+        if before.get("speed"):
+            params["speed"] = before["speed"]
     elif before.get("temp"):
         params["temp"] = before["temp"]
     elif any(before.get(k) for k in ("r", "g", "b")):
@@ -223,7 +377,8 @@ class Lamps:
             entries = json.loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return []
-        return [Lamp(**{k: e.get(k, "") for k in ("name", "mac", "ip")}) for e in entries]
+        keys = ("name", "mac", "ip", "kind")
+        return [Lamp(**{k: str(e.get(k) or "") for k in keys}) for e in entries]
 
     def _save(self, lamps: list[Lamp]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -242,8 +397,29 @@ class Lamps:
                     lamp = Lamp(f"Lamp {len(lamps) + 1}" if lamps else "Lamp", mac, ip)
                     lamps.append(lamp)
                     known[mac] = lamp
+                if not known[mac].kind:
+                    known[mac].kind = self._ask_kind(known[mac])
             self._save(lamps)
             return lamps
+
+    def _ask_kind(self, lamp: Lamp) -> str:
+        """What the lamp can do (colours, whites...), from its WiZ module name."""
+        try:
+            config = self.wiz.send(lamp.ip, "getSystemConfig")
+        except ActionError:
+            return ""
+        kind = lamp_kind(config.get("moduleName", ""))
+        log.info("%s is a WiZ %s (%s)", lamp.name, kind or "lamp", config.get("moduleName"))
+        return kind
+
+    def _kind(self, lamp: Lamp) -> str:
+        """The lamp's kind, asked once and kept in lamps.json."""
+        if not lamp.kind:
+            lamp.kind = self._ask_kind(lamp)
+            if lamp.kind:
+                with self._lock:
+                    self._save([lamp if lamp.mac == o.mac else o for o in self.all()])
+        return lamp.kind
 
     def rename(self, mac: str, name: str) -> None:
         name = " ".join(name.split())
@@ -276,12 +452,63 @@ class Lamps:
         raise ActionError(f"You don't have a lamp called {which.strip()}.")
 
     def set(self, which: str, how: str) -> list[str]:
-        """Change the lamps `which` names. Returns their names."""
+        """Change the lamps `which` names, each as far as it can: a colour on a white-only
+        lamp becomes the nearest white, and a scene it doesn't have leaves it alone. Returns
+        the names of the lamps changed."""
         params = setting(how)
         lamps = self.pick(which)
+        done, cant = [], []
         for lamp in lamps:
-            self._send(lamp, "setPilot", params)
-        return [lamp.name for lamp in lamps]
+            fitted = fit(self._kind(lamp), params)
+            if fitted is None:
+                cant.append(lamp)
+                continue
+            self._send(lamp, "setPilot", fitted)
+            done.append(lamp.name)
+        if cant:
+            log.info("Left alone (they don't have that scene): %s", [lamp.name for lamp in cant])
+        if not done:
+            what = KIND_NAMES.get(cant[0].kind, "")
+            raise ActionError(f"{cant[0].name} doesn't have that scene ({what}).")
+        return done
+
+    # ----- before and after: a role or a mode puts the lamps back as they were -----
+
+    def snapshot(self) -> dict[str, dict]:
+        """How each lamp that answers is now, by MAC address (plain JSON)."""
+        states = {}
+        for lamp in self.all():
+            try:
+                states[lamp.mac] = self._send(lamp, "getPilot")
+            except ActionError:
+                log.info("%s didn't say how it is", lamp.name)
+        return states
+
+    def restore(self, states: dict) -> None:
+        """Put the lamps back as a snapshot found them."""
+        for lamp in self.all():
+            before = (states or {}).get(lamp.mac)
+            if not before:
+                continue
+            try:
+                self._send(lamp, "setPilot", _as_it_was(before))
+            except ActionError as e:
+                log.info("Couldn't put %s back: %s", lamp.name, e)
+
+    _kept: dict | None = None
+
+    def keep_for_later(self) -> None:
+        """Note how the lamps are, once, before something (a role) changes them."""
+        if self._kept is None:
+            self._kept = self.snapshot()
+
+    def put_back(self) -> bool:
+        """The lamps as they were at keep_for_later(). False if nothing was kept."""
+        kept, self._kept = self._kept, None
+        if kept is None:
+            return False
+        self.restore(kept)
+        return True
 
     def command(self, text: str) -> None:
         """The lamp action: "desk lamp | warm white 60%", "all | off", or just "off"."""

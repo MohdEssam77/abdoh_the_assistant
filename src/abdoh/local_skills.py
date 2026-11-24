@@ -347,12 +347,12 @@ class LocalSkills:
             return None
         how = re.sub(rf"\b{re.escape(said)}\b", " ", request, count=1)
         how = " ".join(_LAMP_FILLER.sub(" ", how).split())
-        if re.fullmatch(r"\d{1,3}", how):
-            how += "%"  # "dim the lamp to 30"
+        if re.fullmatch(r"(?:(?:dim|dimmer|bright|brighter) )?\d{1,3}", how):
+            how += "%"  # "dim the lamp to 30", "desk lamp 50"
         elif request.startswith("dim") and not how:
             how = "dim"
         try:
-            setting(how)
+            setting(how, strict=True)  # all of it: "the light in the ocean film" isn't one
         except ActionError:
             return None  # "what colour is the lamp": a question for Claude
         names_set = lamps.set("all" if said in _LAMP_WORDS else said, how)
