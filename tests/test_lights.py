@@ -258,6 +258,24 @@ def test_a_lamp_that_only_takes_the_wiz_apps_controls(tmp_path):
     assert [method for _, method, _ in network.told] == ["setPilot"]  # no search, no retry
 
 
+def test_the_app_finds_names_and_tries_lamps(tmp_path):
+    """Settings → Lamps, and the "Try" button of the lamp pickers in commands and modes."""
+    from abdoh.config import Config
+    from abdoh.events import Bus
+    from abdoh.ui.api import AppApi, UiState
+
+    network = Network({"aa": "10.0.0.1"}, modules={"aa": "ESP01_SHTW1C_31"})
+    api = AppApi(Bus(), UiState(), Config(app_dir=tmp_path), lamps=lamps_on(tmp_path, network))
+    found = api.find_lamps()
+    assert found["ok"] and found["lamps"][0]["kind"] == "white" and found["options"]["scenes"]
+    assert api.rename_lamp("aa", "Desk lamp")["lamps"][0]["name"] == "Desk lamp"
+    network.told.clear()
+    refused = api.try_lamp("Desk lamp", "scene party")  # no Party on a white-only lamp
+    assert refused["ok"] is False and "doesn't have that scene" in refused["error"]
+    assert api.try_lamp("Desk lamp", "candlelight 40%")["ok"] is True
+    assert network.told == [("10.0.0.1", "setPilot", {"dimming": 40, "sceneId": 29, "state": True})]
+
+
 def test_a_lamp_goes_back_to_its_scene_white_or_colour():
     from abdoh.lights import _as_it_was
 

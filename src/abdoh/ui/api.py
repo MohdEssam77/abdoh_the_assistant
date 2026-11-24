@@ -661,7 +661,15 @@ class AppApi:
         return self._lamps
 
     def lamps(self) -> dict:
-        return {"lamps": [vars(lamp) for lamp in self._lamp_list().all()]}
+        """Your lamps (with what each can do), and the colours, whites and scenes there are
+        (the lamp pickers in commands and modes)."""
+        from abdoh.lights import options
+
+        return {"lamps": [vars(lamp) for lamp in self._lamp_list().all()], "options": options()}
+
+    def try_lamp(self, which, how) -> dict:
+        """Show a lamp setting for real, from a lamp picker ("Desk lamp", "party fast 60%")."""
+        return self._lamp_action(self._lamp_list().set, str(which or "all"), str(how or ""))
 
     def find_lamps(self) -> dict:
         """Look for WiZ lamps on your network (a couple of seconds)."""
@@ -670,7 +678,7 @@ class AppApi:
         except Exception:
             log.warning("Couldn't look for lamps", exc_info=True)
             return {"ok": False, "error": "Couldn't look for lamps on your network."}
-        return {"ok": True, "lamps": [vars(lamp) for lamp in found]}
+        return {"ok": True, **self.lamps(), "lamps": [vars(lamp) for lamp in found]}
 
     def rename_lamp(self, mac, name) -> dict:
         return self._lamp_action(self._lamp_list().rename, str(mac), str(name))

@@ -249,6 +249,12 @@ def options() -> dict:
             for name, number in SCENES.items()
         ],
         "kinds": KIND_NAMES,
+        # For reading a setting back into a picker the way setting() reads it
+        "scene_words": SCENE_WORDS,
+        "white_first": sorted(WHITE_FIRST),
+        "white_names": WHITES,
+        "speeds": SPEEDS,
+        "filler": sorted(_FILLER),
     }
 
 
