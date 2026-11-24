@@ -309,18 +309,11 @@ def test_outside_a_role_the_lamps_just_change(router):
 def test_claude_hears_of_the_mood_only_with_lamps_it_may_switch(tmp_path):
     from abdoh.claude.brain import ROLE_LAMPS
 
-    assert ROLE_LAMPS not in system_prompt(Config(app_dir=tmp_path))  # no lamps yet
-    (tmp_path / "lamps.json").write_text(
-        '[{"name": "Desk lamp", "mac": "aa", "ip": "10.0.0.1", "kind": "colour"}]', "utf-8"
-    )
-    prompt = system_prompt(Config(app_dir=tmp_path))
+    prompt = system_prompt(Config(app_dir=tmp_path))  # lamps found later count too
     assert ROLE_LAMPS in prompt and "party" in prompt
     off = Config(app_dir=tmp_path)
     off.claude.actions = [a for a in off.claude.actions if a != "lamp"]
     assert ROLE_LAMPS not in system_prompt(off)
-    from abdoh.about import about
-
-    assert "Desk lamp (colours and whites)" in about(Config(app_dir=tmp_path))
 
 
 def test_the_router_hears_roles_through_the_daemon(tmp_path):

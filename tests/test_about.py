@@ -39,7 +39,7 @@ def test_it_describes_its_parts_and_settings(tmp_path):
     assert "en_US-ryan-medium for English" in text or "Windows voice" in text
     assert "Claude Code" in text and "model: sonnet" in text and "effort high" in text
     assert "a few words" in text and "other apps keep their volume" in text
-    assert "Work, Movie" in text and "Desk lamp" in text
+    assert "Work, Movie" in text and "Desk lamp" not in text  # lamps: every message says
     assert '"good morning"' in text  # a command from the example commands file
 
 
@@ -60,9 +60,20 @@ def test_parakeet_v3_is_described_when_it_is_there(tmp_path):
 
 def test_a_broken_part_is_left_out_not_an_error(tmp_path):
     (tmp_path / "modes.yaml").write_text(": not yaml [", encoding="utf-8")
-    (tmp_path / "lamps.json").write_text("{broken")
     text = about(Config(app_dir=tmp_path))
-    assert "Smart lamps: none set up yet." in text
+    assert "The user's modes" not in text and "Version" in text
+
+
+def test_every_message_says_which_lamps_there_are(tmp_path):
+    """Found in Settings a minute ago: Claude knows at once (its instructions are older)."""
+    from abdoh.about import lamps_text
+    from abdoh.lights import Lamp
+
+    assert lamps_text([]) == "none set up yet"
+    lamps = [Lamp("Main Lamp", "aa", "10.0.0.1", "colour"), Lamp("Lamp 2", "bb", "10.0.0.2")]
+    said = lamps_text(lamps)
+    assert said == "Main Lamp (colours and whites), Lamp 2"
+    assert state_line("Work", lamps=said).endswith("lamps: Main Lamp (colours and whites), Lamp 2")
 
 
 def test_how_it_is_right_now():

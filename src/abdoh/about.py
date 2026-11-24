@@ -64,15 +64,18 @@ def state_line(
     paused: bool = False,
     screens: str = "",
     role: str = "",
+    lamps: str = "",
 ) -> str:
     """How Abdoh is right now, for the start of a message: "mode: Work; voice replies on;
-    screens: 1 laptop (on); not connected: 2 HP 32f"."""
+    screens: 1 laptop (on); not connected: 2 HP 32f; lamps: Desk lamp (colours and whites)"."""
     parts = [f"mode on: {mode}" if mode else "no mode on"]
     parts.append("voice replies on" if voice else "voice replies off (the user reads)")
     if paused:
         parts.append("not listening for the wake word")
     if screens:
         parts.append(f"screens: {screens}")
+    if lamps:
+        parts.append(f"lamps: {lamps}")
     if role:
         parts.append(role)  # last: "acting as German teacher: <its instructions>"
     return "; ".join(parts)
@@ -172,9 +175,7 @@ def _things(cfg: Config) -> str:
     commands = _safe(lambda: _commands(cfg), "")
     if commands:
         lines.append(f"- The user's own commands (run instantly, without you): {commands}.")
-    lamps = _safe(lambda: _lamps(cfg), "")
-    lines.append(f"- Smart lamps: {lamps}." if lamps else "- Smart lamps: none set up yet.")
-    return "\n".join(lines)
+    return "\n".join(lines)  # the lamps are in every message's first line (state_line)
 
 
 def _modes(cfg: Config) -> str:
@@ -192,12 +193,12 @@ def _commands(cfg: Config, limit: int = 30) -> str:
     return ", ".join(said) + more
 
 
-def _lamps(cfg: Config) -> str:
-    """ "Desk lamp (colours and whites), Lamp 2 (whites only)"."""
-    from abdoh.lights import KIND_NAMES, Lamps
+def lamps_text(lamps) -> str:
+    """ "Desk lamp (colours and whites), Lamp 2 (whites only)", or "none set up yet"."""
+    from abdoh.lights import KIND_NAMES
 
-    lamps = Lamps(cfg.app_dir / "lamps.json").all()
-    return ", ".join(
+    named = [
         f"{lamp.name} ({KIND_NAMES[lamp.kind]})" if lamp.kind in KIND_NAMES else lamp.name
         for lamp in lamps
-    )
+    ]
+    return ", ".join(named) if named else "none set up yet"

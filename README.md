@@ -509,14 +509,18 @@ scene it doesn't have leaves it as it is. "The lamp" or "the lights" means all o
 name means just that one. By voice, Abdoh does it itself only when it understands the whole
 request; anything else ("make it feel like a rainy evening") goes to Claude.
 
-- **In commands**: the **Set a lamp** action picks a lamp (or all), then what it does, with
-  colour swatches, a warm-to-cool slider, the scenes that lamp has with a speed slider (like
-  the WiZ app's; double-click it for normal), and a brightness.
-  **Try** shows it on the lamp. In `commands.yaml`: `lamp: "desk lamp | scene party fast 80%"`.
-- **In modes**: the **Lamps** setting gives each lamp its own look while the mode is on (all
-  lamps first, then one can differ), and puts them back as they were when the mode ends. In
+- **In commands**: the **Set a lamp** action shows a short summary ("All lamps: Party scene,
+  fast"); clicking it opens the lamp dialog: which lamp (or all), then on, off, a colour
+  (swatches or any colour), a white (candle to cool), or one of the scenes that lamp has with a
+  speed slider like the WiZ app's (double-click for normal), and a brightness. A bulb at the top
+  shows how it will look. **Try it** shows it on the lamps for 4 seconds, then they go back.
+  In `commands.yaml`: `lamp: "desk lamp | scene party speed 160 80%"`.
+- **In modes**: the **Lamps** setting lists your lamps (and all of them); **Set** opens the same
+  dialog. Each lamp gets its own look while the mode is on (all lamps first, then one can
+  differ), and they go back as they were when the mode ends. In
   `modes.yaml`: `lamps: {all: "warm white 30%", Desk lamp: "scene fireplace"}`.
-- **Claude** can switch them in any words (Permissions → Lamps), and knows which lamp does what.
+- **Claude** can switch them in any words (Permissions → Lamps), and knows which lamp does what
+  (every message tells it, so a lamp found a minute ago counts).
   While it plays a role it sets the mood when it fits (a therapist warm and dim, a DJ the party
   scene), and Abdoh puts the lamps back when the role ends.
 

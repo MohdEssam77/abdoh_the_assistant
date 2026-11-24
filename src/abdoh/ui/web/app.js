@@ -93,7 +93,10 @@ function svg(name) {
 /* A dialog over the page. Returns {close}. Escape or a click outside closes it. */
 function openModal({ title, body, actions = [], wide = false, onClose }) {
   const back = el("div", { class: "modal-back" });
-  const onKey = (e) => { if (e.key === "Escape") close(); };
+  const onKey = (e) => {
+    const top = [...document.querySelectorAll(".modal-back")].pop();
+    if (e.key === "Escape" && back === top) close();
+  };
   function close() {
     back.remove();
     document.removeEventListener("keydown", onKey);
@@ -292,7 +295,7 @@ function actionRows(actions, canBeEmpty = false) {
   return { box: el("div", {}, box, el("div", { style: "margin-top:10px" }, addButton)), values: () => rows.map((r) => ({ ...r })) };
 }
 
-/* ---------- smart lamps: one picker for commands and modes ---------- */
+/* ---------- smart lamps: a dialog of their own, for commands and modes ---------- */
 
 /* Your lamps (with what each can do) and the colours, whites and scenes there are (lights.py). */
 const Lamps = { list: [], options: null, loading: null };
@@ -308,23 +311,47 @@ function loadLamps(force = false) {
   return Lamps.loading;
 }
 
-const LAMP_WHAT = [["on", "On"], ["off", "Off"], ["colour", "A colour"], ["white", "A white"], ["scene", "A scene"]];
+const LAMP_WHAT = [["on", "On"], ["off", "Off"], ["colour", "Colour"], ["white", "White"], ["scene", "Scene"]];
+const WHITE_PRESETS = [[2200, "Candle"], [2700, "Warm"], [4000, "Neutral"], [6500, "Cool"]];
+const WHITE_NAMES = { 2200: "candle white", 2700: "warm white", 4000: "neutral white", 6500: "cool white" };
 /* How fast a moving scene goes: 10 to 200, like the WiZ app's slider (100 is normal). */
 const NORMAL_SPEED = 100;
 function speedName(n) {
   return n <= 30 ? "very slow" : n < 100 ? "slow" : n === 100 ? "normal" : n < 190 ? "fast" : "very fast";
 }
-const WHITE_NAMES = { 2200: "candle white", 2700: "warm white", 4000: "neutral white", 6500: "cool white" };
+/* What the scenes look like, roughly, for the preview: their colours, or the white they are. */
+const SCENE_LOOKS = {
+  ocean: ["#0047ff", "#00c2d6", "#3a7bff"], romance: ["#ff2d6f", "#ff6fa5", "#c2185b"],
+  sunset: ["#ff7a00", "#ff3d6e", "#8e44ff"], party: ["#ff0040", "#ffd000", "#00e676", "#2979ff", "#d500f9"],
+  fireplace: ["#ff4500", "#ff8c00", "#ffb347"], cozy: ["#ff9a3c", "#ffb870", "#ff7f2a"],
+  forest: ["#1b8a3a", "#7ccf4a", "#2e7d32"], "pastel colors": ["#ffb3c6", "#b5e7ff", "#d7c4ff", "#c8f7c5"],
+  "true colors": ["#ff5252", "#69f0ae", "#448aff"], "plant growth": ["#d500f9", "#ff1744"],
+  spring: ["#9be15d", "#ffd6e8", "#ffe57f"], summer: ["#ffd000", "#ff6f00", "#00b0ff"],
+  fall: ["#d35400", "#e67e22", "#a04000"], "deep dive": ["#001f7a", "#0066cc", "#00bfa5"],
+  jungle: ["#00a651", "#c6ff00", "#00796b"], mojito: ["#76ff03", "#00e5ff", "#e0f7fa"],
+  club: ["#7c4dff", "#ff4081", "#18ffff"], christmas: ["#e53935", "#43a047", "#ffd54f"],
+  halloween: ["#ff6d00", "#7b1fa2", "#76ff03"], steampunk: ["#ff8f00", "#8d6e63", "#ffb300"],
+  diwali: ["#ff9100", "#ffd600", "#ff3d00"], "snowy sky": ["#e3f2fd", "#90caf9", "#ffffff"],
+};
+const SCENE_WHITES = {
+  "warm white": 2700, daylight: 6500, "cool white": 6500, "night light": 2200, focus: 5000,
+  relax: 2700, "tv time": 3000, candlelight: 2200, "golden white": 3200, bedtime: 2400,
+  "wake up": 2700, "dim to warm": 2400, white: 4000, pulse: 2700,
+};
 
 function lampWords(name) {
   return name.trim().split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[\\s-]+");
 }
 
-/* "scene party fast 60%" -> {what, colour, temp, scene, speed, level}, read the way lights.py
-   reads it; null if there's more in it than the picker can show (it stays written out). */
+function defaultLook() {
+  return { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: NORMAL_SPEED, level: null };
+}
+
+/* "scene party speed 160 60%" -> {what, colour, temp, scene, speed, level}, read the way
+   lights.py reads it; null if there's more in it than the dialog can show (it stays as written). */
 function lampLookFrom(text, options) {
   let rest = ` ${String(text || "").toLowerCase().replace(/percent/g, "%").replace(/,/g, " ")} `;
-  const look = { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: NORMAL_SPEED, level: null };
+  const look = defaultLook();
   const take = (re) => {
     const found = rest.match(re);
     if (found) rest = rest.replace(found[0], " ");
@@ -345,7 +372,7 @@ function lampLookFrom(text, options) {
       break;
     }
   }
-  if (look.scene && look.what === "scene") {
+  if (look.what === "scene") {
     const speed = take(/\bspeed\s+(\d{1,3})\b/);
     if (speed) look.speed = Math.max(10, Math.min(200, Number(speed[1])));
     else {
@@ -379,6 +406,55 @@ function lampLookText(look) {
   return `on${level}`;
 }
 
+const capital = (text) => `${text[0].toUpperCase()}${text.slice(1)}`;
+
+/* "Party scene, fast, 80%", "Sky blue, 30%", "Warm white (2700 K)", "Off". */
+function lampSummary(how) {
+  const look = Lamps.options ? lampLookFrom(how, Lamps.options) : null;
+  if (!look) return String(how || "");
+  const level = look.level ? `, ${look.level}%` : "";
+  if (look.what === "off") return "Off";
+  if (look.what === "colour") return `${look.colour.startsWith("#") ? look.colour.toUpperCase() : capital(look.colour)}${level}`;
+  if (look.what === "white") return `${capital(WHITE_NAMES[look.temp] || "white")} (${look.temp} K)${level}`;
+  if (look.what === "scene") {
+    const speed = look.speed !== NORMAL_SPEED ? `, ${speedName(look.speed)}` : "";
+    const named = Lamps.options.scenes.find((s) => s.name.toLowerCase() === look.scene);
+    return `${named ? named.name : capital(look.scene)} scene${speed}${level}`;
+  }
+  return `On${level}`;
+}
+
+/* Roughly the colour of a white (Tanner Helland's formula). */
+function kelvinColour(kelvin) {
+  const t = kelvin / 100;
+  const r = t <= 66 ? 255 : 329.7 * (t - 60) ** -0.1332;
+  const g = t <= 66 ? 99.47 * Math.log(t) - 161.12 : 288.12 * (t - 60) ** -0.0755;
+  const b = t >= 66 ? 255 : t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04;
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v)));
+  return `rgb(${c(r)}, ${c(g)}, ${c(b)})`;
+}
+
+/* How a lamp setting looks, for the dot and the preview bulb. */
+function lampPaint(how) {
+  const look = Lamps.options ? lampLookFrom(how, Lamps.options) : null;
+  if (!look) return { background: "var(--border-strong)", glow: "transparent", moving: false, level: 1 };
+  if (look.what === "off") return { background: "#3a3d45", glow: "transparent", moving: false, level: 1 };
+  let colours = [kelvinColour(2700)];
+  if (look.what === "colour") {
+    const named = (Lamps.options.colours.find(([n]) => n === look.colour) || [])[1];
+    colours = [look.colour.startsWith("#") ? look.colour : named || "#ffffff"];
+  } else if (look.what === "white") colours = [kelvinColour(look.temp)];
+  else if (look.what === "scene") colours = SCENE_LOOKS[look.scene] || [kelvinColour(SCENE_WHITES[look.scene] || 2700)];
+  const moving = look.what === "scene" && colours.length > 1;
+  const background = moving ? `conic-gradient(${[...colours, colours[0]].join(", ")})` : colours[0];
+  return { background, glow: colours[0], moving, level: (look.level || 100) / 100, speed: look.speed };
+}
+
+function lampDot(how) {
+  const paint = lampPaint(how);
+  return el("span", { class: "lamp-dot", style: `background:${paint.background}` });
+}
+
 /* What the lamps `which` names can do: colour, white, dimmable, plug, or "" (mixed or not known). */
 function lampKind(which) {
   const wanted = String(which || "all").toLowerCase();
@@ -387,178 +463,201 @@ function lampKind(which) {
   return kinds.size === 1 ? [...kinds][0] : "";
 }
 
-/* How a lamp should be: on/off, a colour (swatches or any colour), a white (warm to cool), a
-   scene and its speed, and the brightness. onChange(text) gets it as lights.py reads it. */
-function lampLook(text, kindOf, onChange) {
-  const options = Lamps.options;
-  const node = el("div", { class: "lamp-look" });
-  if (!options) {
-    const input = el("input", { class: "input", value: text || "", placeholder: "warm white 60%", "aria-label": "How the lamp should be" });
-    input.addEventListener("input", () => onChange(input.value));
-    node.append(input);
-    return { node, redraw: () => {} };
-  }
-  let look = lampLookFrom(text, options);
-  let written = look ? null : String(text || "");
-  look = look || { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: NORMAL_SPEED, level: null };
-  const current = () => (written !== null ? written : lampLookText(look));
-  const emit = () => onChange(current());
+function lampLabel(which) {
+  if (String(which).toLowerCase() !== "all") return which;
+  return Lamps.list.length > 1 ? "All lamps" : "The lamp";
+}
 
-  const colourPicker = (kind) => {
-    const box = el("div", { class: "swatches" });
-    for (const [name, hex] of options.colours) {
-      box.append(el("button", {
-        type: "button", class: `swatch${look.colour === name ? " on" : ""}`, style: `background:${hex}`,
-        title: name, "aria-label": name, onclick: () => { look.colour = name; draw(); },
-      }));
-    }
-    const custom = el("input", { type: "color", class: "swatch-custom", title: "Any colour", "aria-label": "Any colour",
-      value: look.colour.startsWith("#") ? look.colour : "#ff8800" });
-    custom.addEventListener("input", () => { look.colour = custom.value; emit(); });
-    custom.addEventListener("change", () => draw());
-    box.append(custom);
-    if (kind && kind !== "colour") box.append(el("small", { class: "muted" }, "This lamp does white only: it takes the nearest white."));
-    return box;
-  };
+/* The lamp dialog: which lamp (unless `fixed`), and how it should be. Resolves to
+   {which, how} on Save, or null. Try shows it on the lamps for 4 seconds. */
+function openLampDialog({ title = "Set a lamp", which = "all", how = "on", fixed = false }) {
+  return new Promise((resolve) => {
+    const options = Lamps.options;
+    let look = lampLookFrom(how, options);
+    let written = look ? null : String(how || "");
+    look = look || defaultLook();
+    let answered = false;
+    const finish = (value) => { if (!answered) { answered = true; resolve(value); } };
+    const text = () => (written !== null ? written : lampLookText(look));
 
-  const whitePicker = () => {
-    const name = (k) => (k <= 2400 ? "candle" : k <= 3200 ? "warm" : k < 5000 ? "neutral" : "cool");
-    const range = el("input", { type: "range", class: "white-range", min: "2200", max: "6500", step: "100", value: String(look.temp), "aria-label": "White, from warm to cool" });
-    const shown = el("span", { class: "value" });
-    const show = () => { shown.textContent = `${look.temp} K, ${name(look.temp)}`; };
-    range.addEventListener("input", () => { look.temp = Number(range.value); show(); emit(); });
-    show();
-    return el("div", { class: "set-control" }, range, shown);
-  };
-
-  const scenePicker = (kind) => {
-    const scenes = options.scenes.filter((s) => !kind || s.kinds.includes(kind));
-    if (!scenes.some((s) => s.name.toLowerCase() === look.scene)) look.scene = (scenes[0] || { name: "Cozy" }).name.toLowerCase();
-    const scene = el("select", { class: "input compact", "aria-label": "Scene" },
-      scenes.map((s) => el("option", { value: s.name.toLowerCase(), selected: s.name.toLowerCase() === look.scene }, s.name)));
-    scene.addEventListener("change", () => { look.scene = scene.value; emit(); });
-    const speed = el("input", { type: "range", class: "speed-range", min: "10", max: "200", step: "10", value: String(look.speed), "aria-label": "Speed" });
-    const shown = el("span", { class: "value" });
-    const show = () => { shown.textContent = `${speedName(look.speed)} (${look.speed})`; };
-    speed.addEventListener("input", () => { look.speed = Number(speed.value); show(); emit(); });
-    speed.addEventListener("dblclick", () => { look.speed = NORMAL_SPEED; speed.value = String(NORMAL_SPEED); show(); emit(); });
-    show();
-    const rows = [el("div", { class: "set-control" }, scene),
-      el("div", { class: "set-control", title: "Double-click for normal speed" }, el("span", { class: "muted" }, "Speed"), speed, shown)];
-    if (!kind && Lamps.list.length > 1) rows.push(el("small", { class: "muted" }, "A lamp without this scene stays as it is."));
-    return el("div", { class: "scene-pick" }, ...rows);
-  };
-
-  const levelPicker = () => {
-    const change = el("input", { type: "checkbox", class: "switch", checked: look.level != null, "aria-label": "Set the brightness" });
-    const range = el("input", { type: "range", min: "10", max: "100", step: "5", value: String(look.level || 100), disabled: look.level == null, "aria-label": "Brightness" });
-    const shown = el("span", { class: "value" }, look.level != null ? `${look.level}%` : "");
-    const sync = () => {
-      range.disabled = !change.checked;
-      look.level = change.checked ? Number(range.value) : null;
-      shown.textContent = change.checked ? `${look.level}%` : "";
-      emit();
+    const bulb = el("div", { class: "lamp-bulb" });
+    const said = el("div", { class: "lamp-said" });
+    const body = el("div", { class: "lamp-dialog" });
+    const paint = () => {
+      const p = lampPaint(text());
+      bulb.style.background = p.background;
+      bulb.style.setProperty("--glow", p.glow);
+      bulb.style.opacity = String(0.35 + 0.65 * p.level);
+      bulb.style.setProperty("--spin", `${(1200 / (p.speed || NORMAL_SPEED)).toFixed(1)}s`);
+      bulb.classList.toggle("moving", p.moving);
+      said.replaceChildren(el("b", {}, lampLabel(which)), el("span", { class: "muted" }, lampSummary(text())));
     };
-    change.addEventListener("change", sync);
-    range.addEventListener("input", sync);
-    return el("div", { class: "set-control" }, change, el("span", { class: "muted" }, "Brightness"), range, shown);
-  };
+    const changed = () => paint();
+    const pick = (label, on, onclick, extra) => el("button", { type: "button", class: on ? "pick on" : "pick", onclick }, label, extra || null);
 
-  function draw() {
-    const kind = kindOf();
-    const whats = LAMP_WHAT.filter(([v]) => (kind === "plug" ? v === "on" || v === "off" : kind === "dimmable" ? !["colour", "white"].includes(v) : true));
-    if (written !== null) whats.push(["written", "As written"]);
-    const what = el("select", { class: "input compact", "aria-label": "What the lamp does" },
-      whats.map(([v, label]) => el("option", { value: v, selected: (written !== null ? "written" : look.what) === v }, label)));
-    what.addEventListener("change", () => {
-      if (what.value === "written") return;
-      written = null;
-      look.what = what.value;
-      draw();
+    const lampSection = () => {
+      const choices = [["all", Lamps.list.length > 1 ? "All lamps" : "The lamp", ""],
+        ...Lamps.list.map((l) => [l.name, l.name, (Lamps.options.kinds || {})[l.kind] || ""])];
+      if (!choices.some(([v]) => v.toLowerCase() === which.toLowerCase())) choices.push([which, `${which} (not found)`, ""]);
+      return el("div", { class: "field" }, el("label", {}, "Lamp"),
+        el("div", { class: "picks" }, choices.map(([v, label, kind]) => pick(label, v.toLowerCase() === which.toLowerCase(),
+          () => { which = v; draw(); }, kind ? el("small", { class: "pick-note" }, kind) : null))));
+    };
+
+    const colourPanel = (kind) => {
+      const swatches = el("div", { class: "swatches big" }, options.colours.map(([name, hex]) =>
+        el("button", { type: "button", class: `swatch${look.colour === name ? " on" : ""}`, style: `background:${hex}`,
+          title: capital(name), "aria-label": name, onclick: () => { look.colour = name; draw(); } })));
+      const custom = el("input", { type: "color", class: "swatch-custom", title: "Any colour", "aria-label": "Any colour",
+        value: look.colour.startsWith("#") ? look.colour : "#ff8800" });
+      custom.addEventListener("input", () => { look.colour = custom.value; changed(); });
+      custom.addEventListener("change", () => draw());
+      swatches.append(el("label", { class: "swatch-any" }, custom, "Any colour"));
+      const some = which.toLowerCase() === "all" && Lamps.list.some((l) => l.kind && l.kind !== "colour");
+      const note = kind && kind !== "colour" ? "This lamp does white only: it takes the nearest white."
+        : some ? "A lamp that does white only takes the nearest white." : "";
+      return [swatches, note ? el("small", { class: "muted" }, note) : null];
+    };
+
+    const whitePanel = () => {
+      const range = el("input", { type: "range", class: "white-range", min: "2200", max: "6500", step: "100", value: String(look.temp), "aria-label": "White, from warm to cool" });
+      const shown = el("span", { class: "value" }, `${look.temp} K`);
+      range.addEventListener("input", () => { look.temp = Number(range.value); shown.textContent = `${look.temp} K`; presets.querySelectorAll(".pick").forEach((b, i) => b.classList.toggle("on", WHITE_PRESETS[i][0] === look.temp)); changed(); });
+      const presets = el("div", { class: "picks" }, WHITE_PRESETS.map(([k, label]) => pick(label, look.temp === k, () => { look.temp = k; draw(); })));
+      return [presets, el("div", { class: "set-control" }, range, shown)];
+    };
+
+    const scenePanel = (kind) => {
+      const scenes = options.scenes.filter((s) => !kind || s.kinds.includes(kind));
+      if (!scenes.some((s) => s.name.toLowerCase() === look.scene)) look.scene = (scenes[0] || { name: "Cozy" }).name.toLowerCase();
+      const grid = el("div", { class: "picks scenes" }, scenes.map((s) => {
+        const name = s.name.toLowerCase();
+        return pick(s.name, name === look.scene, () => { look.scene = name; draw(); }, lampDot(`scene ${name}`));
+      }));
+      const speed = el("input", { type: "range", class: "speed-range", min: "10", max: "200", step: "10", value: String(look.speed), "aria-label": "Speed" });
+      const shown = el("span", { class: "value" });
+      const show = () => { shown.textContent = `${capital(speedName(look.speed))} (${look.speed})`; };
+      speed.addEventListener("input", () => { look.speed = Number(speed.value); show(); changed(); });
+      speed.addEventListener("dblclick", () => { look.speed = NORMAL_SPEED; speed.value = String(NORMAL_SPEED); show(); changed(); });
+      show();
+      return [grid,
+        el("div", { class: "set-control", title: "Double-click for normal speed" }, el("span", { class: "muted" }, "Speed"), speed, shown),
+        !kind && Lamps.list.length > 1 ? el("small", { class: "muted" }, "A lamp without this scene stays as it is.") : null];
+    };
+
+    const levelSection = () => {
+      const change = el("input", { type: "checkbox", class: "switch", checked: look.level != null, "aria-label": "Set the brightness" });
+      const range = el("input", { type: "range", min: "10", max: "100", step: "5", value: String(look.level || 100), disabled: look.level == null, "aria-label": "Brightness" });
+      const shown = el("span", { class: "value" }, look.level != null ? `${look.level}%` : "As it is");
+      const sync = () => {
+        range.disabled = !change.checked;
+        look.level = change.checked ? Number(range.value) : null;
+        shown.textContent = change.checked ? `${look.level}%` : "As it is";
+        changed();
+      };
+      change.addEventListener("change", sync);
+      range.addEventListener("input", sync);
+      return el("div", { class: "field" }, el("label", {}, "Brightness"), el("div", { class: "set-control" }, change, range, shown));
+    };
+
+    function draw() {
+      const kind = lampKind(which);
+      const whats = LAMP_WHAT.filter(([v]) => (kind === "plug" ? ["on", "off"].includes(v) : kind === "dimmable" ? !["colour", "white"].includes(v) : true));
+      const lightPicks = el("div", { class: "picks" }, whats.map(([v, label]) => pick(label, written === null && look.what === v,
+        () => { written = null; look.what = v; draw(); })));
+      const sections = [el("div", { class: "lamp-preview" }, bulb, said)];
+      if (!fixed) sections.push(lampSection());
+      sections.push(el("div", { class: "field" }, el("label", {}, "Light"), lightPicks));
+      if (written !== null) {
+        const input = el("input", { class: "input", value: written, "aria-label": "How the lamp should be" });
+        input.addEventListener("input", () => { written = input.value; changed(); });
+        sections.push(el("div", { class: "field" }, el("label", {}, "As written"), input,
+          el("small", {}, "Pick one above to set it here instead.")));
+      } else if (look.what === "colour") sections.push(el("div", { class: "field" }, el("label", {}, "Colour"), ...colourPanel(kind)));
+      else if (look.what === "white") sections.push(el("div", { class: "field" }, el("label", {}, "White"), ...whitePanel()));
+      else if (look.what === "scene") sections.push(el("div", { class: "field" }, el("label", {}, "Scene"), ...scenePanel(kind)));
+      if ((written !== null || look.what !== "off") && kind !== "plug" && written === null) sections.push(levelSection());
+      body.replaceChildren(...sections.filter(Boolean));
+      paint();
+    }
+    draw();
+
+    const tryIt = el("button", { class: "btn", type: "button", title: "Shows it on the lamp for 4 seconds", onclick: async () => {
+      const result = await call("try_lamp", which, text());
+      if (result && !result.ok) toast(result.error, true);
+    } }, "Try it");
+    const dialog = openModal({
+      title, body, wide: true, onClose: () => finish(null),
+      actions: [tryIt, el("div", { class: "spacer" }),
+        el("button", { class: "btn", type: "button", onclick: () => dialog.close() }, "Cancel"),
+        el("button", { class: "btn primary", type: "button", onclick: () => { finish({ which, how: text() }); dialog.close(); } }, "Save")],
     });
-    const parts = [what];
-    if (written !== null) {
-      const input = el("input", { class: "input", value: written, "aria-label": "How the lamp should be" });
-      input.addEventListener("input", () => { written = input.value; emit(); });
-      parts.push(input);
-    } else if (look.what === "colour") parts.push(colourPicker(kind));
-    else if (look.what === "white") parts.push(whitePicker());
-    else if (look.what === "scene") parts.push(scenePicker(kind));
-    if (written === null && look.what !== "off" && kind !== "plug") parts.push(levelPicker());
-    node.replaceChildren(...parts);
-    emit();
-  }
-  draw();
-  return { node, redraw: draw, text: current };
+  });
 }
 
-/* A "Try" button: shows the setting on the real lamps. */
-function tryLampButton(which, how) {
-  return el("button", { class: "btn small", type: "button", title: "See it on the lamp now", onclick: async () => {
-    const result = await call("try_lamp", which(), how());
-    if (result && !result.ok) toast(result.error, true);
-  } }, "Try");
-}
-
-/* The "Set a lamp" action: which lamp (or all), then how. row.value is "Desk lamp | party fast". */
+/* The "Set a lamp" action: a short summary; the lamp dialog to change it. row.value is
+   "Desk lamp | scene party speed 160". */
 function lampAction(row) {
-  const node = el("div", { class: "lamp-pick" }, el("small", { class: "muted" }, "Looking for your lamps…"));
-  loadLamps().then(() => {
+  if (!row.value) row.value = "all | on";
+  const box = el("div", { class: "lamp-pick" });
+  const parts = () => {
     const text = String(row.value || "");
     const [left, right] = text.includes("|") ? text.split("|", 2) : ["all", text];
-    let which = left.trim() || "all";
-    let how = (right || "").trim() || "on";
-    const save = () => { row.value = `${which} | ${how}`; };
-    const choices = [["all", Lamps.list.length > 1 ? "All lamps" : "The lamp"], ...Lamps.list.map((l) => [l.name, l.name])];
-    if (!choices.some(([v]) => v.toLowerCase() === which.toLowerCase())) choices.push([which, `${which} (not found)`]);
-    const lamp = el("select", { class: "input compact", "aria-label": "Which lamp" },
-      choices.map(([v, label]) => el("option", { value: v, selected: v.toLowerCase() === which.toLowerCase() }, label)));
-    const look = lampLook(how, () => lampKind(which), (value) => { how = value; save(); });
-    lamp.addEventListener("change", () => { which = lamp.value; save(); look.redraw(); });
-    node.replaceChildren(el("div", { class: "lamp-head" }, lamp, tryLampButton(() => which, () => how)), look.node);
-    if (!Lamps.list.length) node.append(el("small", { class: "muted" }, "No lamps yet: find them in Settings → Lamps."));
-    save();
-  });
-  return node;
+    return { which: left.trim() || "all", how: (right || "").trim() || "on" };
+  };
+  const draw = () => {
+    const { which, how } = parts();
+    box.replaceChildren(el("button", { class: "lamp-chip", type: "button", title: "Change it", onclick: async () => {
+      await loadLamps();
+      const picked = await openLampDialog({ which, how });
+      if (picked) { row.value = `${picked.which} | ${picked.how}`; draw(); }
+    } }, lampDot(how), el("span", {}, `${lampLabel(which)}: ${lampSummary(how)}`), el("small", { class: "muted" }, "Change")));
+  };
+  draw();
+  loadLamps().then(draw);
+  return box;
 }
 
-/* A mode's lamps: each lamp (and all of them) as it should be in the mode, or left alone.
-   value() is {"Desk lamp": "scene party", "Lamp 2": "off"}, or undefined. */
+/* A mode's lamps: each lamp (and all of them) as it should be in the mode, or left as it is.
+   value() is {"all": "warm white 30%", "Desk lamp": "scene party"}, or undefined. */
 function lampsSetting(value) {
-  const box = el("div", { class: "lamp-rows" }, el("small", { class: "muted" }, "Looking for your lamps…"));
   const chosen = new Map(Object.entries(value || {}));
-  loadLamps().then(() => {
+  const box = el("div", { class: "lamp-rows" }, el("small", { class: "muted" }, "Looking for your lamps…"));
+  const keyOf = (name) => [...chosen.keys()].find((k) => k.toLowerCase() === name.toLowerCase());
+  const draw = () => {
     const names = Lamps.list.map((l) => l.name);
     const order = [...(names.length > 1 ? ["all"] : []), ...names];
-    for (const name of chosen.keys()) if (!order.some((n) => n.toLowerCase() === name.toLowerCase())) order.push(name);
+    for (const key of chosen.keys()) if (!order.some((n) => n.toLowerCase() === key.toLowerCase())) order.push(key);
     if (!order.length) {
       box.replaceChildren(el("small", { class: "muted" }, "No lamps yet: find them in Settings → Lamps."));
       return;
     }
     box.replaceChildren(...order.map((name) => {
-      const key = [...chosen.keys()].find((k) => k.toLowerCase() === name.toLowerCase());
-      let how = key !== undefined ? chosen.get(key) : "on";
-      const known = name === "all" || names.includes(name);
-      const label = name === "all" ? "All lamps" : known ? name : `${name} (not found)`;
-      const change = el("input", { type: "checkbox", class: "switch", checked: key !== undefined, "aria-label": `Change ${label}` });
-      const look = lampLook(how, () => lampKind(name), (text) => { how = text; if (change.checked) chosen.set(key || name, how); });
-      const tryIt = tryLampButton(() => name, () => how);
-      const sync = () => {
-        look.node.hidden = tryIt.hidden = !change.checked;
-        if (change.checked) chosen.set(key || name, how);
-        else chosen.delete(key || name);
+      const key = keyOf(name);
+      const how = key !== undefined ? chosen.get(key) : null;
+      const known = name === "all" || names.some((n) => n.toLowerCase() === name.toLowerCase());
+      const label = `${lampLabel(name)}${known ? "" : " (not found)"}`;
+      const edit = async () => {
+        await loadLamps();
+        const picked = await openLampDialog({ title: label, which: name, how: how || "on", fixed: true });
+        if (picked) { chosen.set(key || name, picked.how); draw(); }
       };
-      change.addEventListener("change", sync);
-      sync();
-      return el("div", { class: "lamp-row" }, change, el("b", {}, label), look.node, tryIt);
+      return el("div", { class: "lamp-row" },
+        how ? lampDot(how) : el("span", { class: "lamp-dot unset" }),
+        el("b", {}, label),
+        el("span", { class: how ? "" : "muted" }, how ? lampSummary(how) : "Left as it is"),
+        el("div", { class: "btn-row" },
+          el("button", { class: "btn small", type: "button", onclick: edit }, how ? "Change" : "Set"),
+          how ? el("button", { class: "icon-btn", type: "button", title: "Leave it as it is", "aria-label": "Leave it as it is", html: svg("x"),
+            onclick: () => { chosen.delete(key); draw(); } }) : null));
     }));
-  });
+  };
+  loadLamps().then(draw);
   return {
-    node: el("div", { style: "width:100%" }, box,
-      el("small", { class: "muted" }, "“All lamps” comes first, then each lamp, so one can differ.")),
+    node: el("div", { style: "width:100%" }, box),
     value: () => {
       if (!chosen.size) return undefined;
-      const keys = [...chosen.keys()];  // all lamps first: then one lamp can differ
+      const keys = [...chosen.keys()]; // all lamps first: then one lamp can differ
       const first = [...keys.filter((k) => k.toLowerCase() === "all"), ...keys.filter((k) => k.toLowerCase() !== "all")];
       return Object.fromEntries(first.map((k) => [k, chosen.get(k)]));
     },

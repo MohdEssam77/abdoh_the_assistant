@@ -206,7 +206,22 @@ class Daemon:
                 self.cfg.claude.voice_reply_max_sentences,
                 lessons=self.cfg.lesson_listen_seconds > 0,
             )
-        return state_line(mode, self.voice_enabled, self.paused, self._screens_now(), role)
+        return state_line(
+            mode, self.voice_enabled, self.paused, self._screens_now(), role, self._lamps_now()
+        )
+
+    def _lamps_now(self) -> str:
+        """Your lamps as they are now (found a minute ago in Settings, say), for Claude."""
+        from abdoh.about import lamps_text
+
+        lamps = getattr(getattr(self.router, "computer", None), "lamps", None)
+        if lamps is None:
+            return ""
+        try:
+            return lamps_text(lamps.all())
+        except Exception:
+            log.debug("Couldn't read the lamps", exc_info=True)
+            return ""
 
     def _screens_now(self) -> str:
         """Which screens are connected and on right now ("" if Abdoh can't tell)."""

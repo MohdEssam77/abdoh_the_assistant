@@ -186,6 +186,46 @@ def test_lamps_are_put_back_as_they_were(tmp_path):
     assert lamps.put_back() is False  # nothing kept any more
 
 
+class Later:
+    """A timer that fires when the test says."""
+
+    made: list = []
+
+    def __init__(self, seconds, function):
+        self.seconds, self.function, self.cancelled = seconds, function, False
+        Later.made.append(self)
+
+    def start(self):
+        pass
+
+    def cancel(self):
+        self.cancelled = True
+
+    def fire(self):
+        if not self.cancelled:
+            self.function()
+
+
+def test_try_shows_it_for_a_few_seconds_then_puts_it_back(tmp_path):
+    network = Network({"aa": "10.0.0.1"})
+    Later.made = []
+    lamps = Lamps(tmp_path / "lamps.json", Wiz(network.socket), timer=Later)
+    lamps.find_new()
+    network.state["aa"] = {"state": True, "sceneId": 11, "temp": 2700, "dimming": 100}
+    lamps.preview("all", "red")
+    lamps.preview("all", "party")  # tried again: back to how it was before the first try
+    first, second = Later.made
+    assert first.cancelled and second.seconds == 4.0
+    network.told.clear()
+    second.fire()
+    assert network.told == [
+        ("10.0.0.1", "setPilot", {"state": True, "dimming": 100, "sceneId": 11})
+    ]
+    network.state["aa"] = {"state": False}  # switched off since
+    lamps.preview("all", "blue")  # a new try notes the lamps again
+    assert lamps._before_preview["aa"]["state"] is False
+
+
 def test_the_app_gets_the_choices():
     from abdoh.lights import options
 
@@ -273,7 +313,7 @@ def test_the_app_finds_names_and_tries_lamps(tmp_path):
     refused = api.try_lamp("Desk lamp", "scene party")  # no Party on a white-only lamp
     assert refused["ok"] is False and "doesn't have that scene" in refused["error"]
     assert api.try_lamp("Desk lamp", "candlelight 40%")["ok"] is True
-    assert network.told == [
+    assert [t for t in network.told if t[1] == "setPilot"] == [
         ("10.0.0.1", "setPilot", {"dimming": 40, "sceneId": 29, "speed": 100, "state": True})
     ]
 
