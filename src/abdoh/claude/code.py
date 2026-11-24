@@ -474,11 +474,24 @@ class ClaudeCodeBrain(Brain):
         )
 
     def status(self) -> str:
+        self._find_moved()
         return describe_status(auth_status(self.exe, self._run))
+
+    def _find_moved(self) -> None:
+        """An editor's copy of Claude Code moves when the extension updates itself
+        (anthropic.claude-code-2.1.330 -> 2.1.331, the old folder deleted): then use the newest
+        copy, so Abdoh keeps working without a restart."""
+        if self.exe.is_file() or "anthropic.claude-code-" not in str(self.exe):
+            return
+        newest = editor_binaries(self.home)
+        if newest and newest[0] != self.exe:
+            log.info("Claude Code moved with an update of the extension: now %s", newest[0])
+            self.exe = newest[0]
 
     # ----- the process -----
 
     def _start(self) -> _Session:
+        self._find_moved()
         self.workdir.mkdir(parents=True, exist_ok=True)
         prompt_file = self.workdir / "system-prompt.txt"
         prompt_file.write_text(self.instructions(), "utf-8")

@@ -1,6 +1,7 @@
 """Claude Code backend with a fake `claude` process (no Claude Code, no network)."""
 
 import json
+import shutil
 import subprocess
 import threading
 from pathlib import Path
@@ -558,6 +559,26 @@ def test_not_signed_in_from_stderr(tmp_path):
     with pytest.raises(BrainError, match="isn't signed in"):
         list(brain.stream("hi"))
     assert brain._session is None  # not kept for the next question
+
+
+def test_an_editors_copy_that_moved_with_an_update_is_found_again(tmp_path):
+    """The VS Code extension updated itself while Abdoh ran: 2.1.330's folder is gone."""
+
+    def copy(version):
+        folder = tmp_path / ".vscode" / "extensions" / f"anthropic.claude-code-{version}-win32-x64"
+        exe = folder / "resources" / "native-binary" / "claude.exe"
+        exe.parent.mkdir(parents=True)
+        exe.write_text("")
+        return folder, exe
+
+    old_folder, old = copy("2.1.330")
+    popen = FakePopen([INIT, delta("Hi."), result()])
+    brain = ClaudeCodeBrain(Config(app_dir=tmp_path), old, popen=popen, workdir=tmp_path / "w",
+                            home=tmp_path, folders={}, keep_warm=False)  # fmt: skip
+    _, new = copy("2.1.331")
+    shutil.rmtree(old_folder)
+    assert "".join(brain.stream("hi")) == "Hi."
+    assert popen.calls[0][0][0] == str(new) and brain.exe == new
 
 
 def test_cannot_start(tmp_path):
