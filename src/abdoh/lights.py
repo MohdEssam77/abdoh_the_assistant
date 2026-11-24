@@ -245,7 +245,7 @@ def options() -> dict:
         "scenes": [
             {
                 "id": number,
-                "name": name[:1].upper() + name[1:],
+                "name": "TV time" if name == "tv time" else name[:1].upper() + name[1:],
                 "kinds": [COLOUR]
                 + ([WHITE] if number in WHITE_SCENES else [])
                 + ([DIMMABLE] if number in DIMMABLE_SCENES else []),

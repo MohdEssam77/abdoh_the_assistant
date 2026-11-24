@@ -1,3 +1,4 @@
+import json
 import re
 import threading
 from pathlib import Path
@@ -508,6 +509,14 @@ def test_the_demo_has_every_method_the_page_calls():
     demo = (WEB_DIR / "bridge.js").read_text(encoding="utf-8")
     has = set(re.findall(r"\b(\w+): async", demo))
     assert sorted(called_api_methods() - has) == []
+
+
+def test_the_demo_has_the_lamp_choices_abdoh_has():
+    from abdoh.lights import options
+
+    demo = (WEB_DIR / "bridge.js").read_text(encoding="utf-8")
+    found = re.search(r"const demoLampOptions = (\{.*?\});\n", demo, re.S)
+    assert found and json.loads(found[1]) == json.loads(json.dumps(options()))
 
 
 def test_every_file_the_page_loads_exists():
