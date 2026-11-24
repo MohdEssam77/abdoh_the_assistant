@@ -124,6 +124,32 @@ def test_lamps_are_looked_for_from_each_address(tmp_path):
     assert bound == ["172.24.192.1", "10.9.9.9", "192.168.0.93"]
 
 
+def test_a_lamp_that_only_takes_the_wiz_apps_controls(tmp_path):
+    """Newer firmware with "verified control" on: reads work, changes are refused, and Abdoh
+    says what to switch (not "is it switched on?", and without looking for it again)."""
+    from abdoh.lights import REFUSED
+
+    network = Network({"aa": "192.168.0.87"})
+    lamps = lamps_on(tmp_path, network)
+    lamps.find_new()
+
+    class Strict(Socket):
+        def sendto(self, data, address):
+            if json.loads(data)["method"] == "getPilot":
+                return super().sendto(data, address)
+            network.told.append((address[0], "setPilot", {}))
+            error = {"code": -32602, "message": "Invalid params", "sigTs": 1795527727}
+            answer = {"method": "setPilot", "env": "pro", "error": error, "hmac": "x"}
+            self.inbox.append((json.dumps(answer).encode(), address[0]))
+
+    lamps.wiz = Wiz(lambda broadcast=False, bind="": Strict(network))
+    network.told.clear()
+    with pytest.raises(ActionError) as refused:
+        lamps.set("all", "red")
+    assert str(refused.value) == REFUSED
+    assert [method for _, method, _ in network.told] == ["setPilot"]  # no search, no retry
+
+
 def test_a_lamp_goes_back_to_its_scene_white_or_colour():
     from abdoh.lights import _as_it_was
 

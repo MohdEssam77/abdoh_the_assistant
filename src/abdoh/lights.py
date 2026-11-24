@@ -7,11 +7,13 @@ WiZ lamps listen for small JSON messages on UDP port 38899 on the home network:
 presets). Lamps are found by broadcasting from each of the computer's addresses (Windows would
 send a plain broadcast out of just one network adapter, maybe WSL's); each is
 remembered in <app_dir>/lamps.json by its MAC address, with the name you gave it ("desk lamp"),
-and found again if its IP address changes. If no lamp answers, turn on "Allow local
-communication" in the WiZ app's settings.
+and found again if its IP address changes.
 
-Checked with a real WiZ bulb (2026-11-24): getPilot answers {"mac", "rssi", "state",
-"sceneId", "temp", "dimming", ...}.
+Checked with a real WiZ bulb (2026-11-24, firmware 1.29.0): getPilot answers {"mac", "rssi",
+"state", "sceneId", "temp", "dimming", ...}; every setting here worked. Newer firmware answers
+with "env": "pro" and an "hmac", and refuses changes ("Invalid params", -32602) unless the
+WiZ app allows all controls (Settings, Security) or they are signed with the home's key, which
+Abdoh doesn't do yet.
 """
 
 import json
@@ -43,9 +45,19 @@ WHITES = {
     "white": NEUTRAL, "neutral white": NEUTRAL, "natural white": NEUTRAL,
     "cool white": COOL, "cool": COOL, "cold white": COOL, "daylight": COOL, "bright white": COOL,
 }  # fmt: skip
+# A lamp whose WiZ app only allows its own ("verified") controls refuses changes with these.
+REFUSED_CODES = {-32602, -32605}
+REFUSED = (
+    "The lamp only takes commands from the WiZ app. In the WiZ app, go to Settings, then "
+    "Security, and allow all controls."
+)
 ALL = {"all", "both", "every", "everything", "lamps", "lights", "the lamps", "the lights"}
 # Said for "the lamp" when you have one, or for all of them.
 GENERIC = {"lamp", "light", "the lamp", "the light", "my lamp", "my light", ""}
+
+
+class LampRefused(ActionError):
+    """The lamp answered, but said no: asking again (or elsewhere) won't help."""
 
 
 @dataclass
@@ -108,8 +120,13 @@ class Wiz:
                 except (TimeoutError, OSError):
                     continue
                 answer = json.loads(data.decode("utf-8", "replace"))
-                if "error" in answer:
-                    raise ActionError(f"The lamp said no ({answer['error']}).")
+                error = answer.get("error")
+                if error:
+                    code = error.get("code") if isinstance(error, dict) else None
+                    log.info("The lamp at %s said no to %s: %s", ip, method, error)
+                    if method == "setPilot" and code in REFUSED_CODES:
+                        raise LampRefused(REFUSED)
+                    raise LampRefused(f"The lamp said no ({error}).")
                 return answer.get("result") or {}
         finally:
             sock.close()
@@ -290,6 +307,8 @@ class Lamps:
     def _send(self, lamp: Lamp, method: str, params: dict | None = None) -> dict:
         try:
             return self.wiz.send(lamp.ip, method, params)
+        except LampRefused:
+            raise
         except ActionError:
             # Its IP address may have changed (the router gave it another one): find it again.
             moved = {mac: ip for ip, mac in self.wiz.find()}
