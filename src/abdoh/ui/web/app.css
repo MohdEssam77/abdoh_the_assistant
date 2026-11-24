@@ -752,5 +752,7 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .set-control input[type="range"].white-range, .white-range { flex: 0 0 200px; width: 200px; height: 8px; border-radius: 999px; appearance: none; -webkit-appearance: none;
   background: linear-gradient(90deg, #ff8a1f, #ffc98f 25%, #fff3e3 50%, #e3edff 80%, #c4dbff); cursor: pointer; }
 .white-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
+.scene-pick { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.speed-range { width: 200px; }
 .lamp-rows { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .lamp-row { display: grid; grid-template-columns: auto 110px minmax(0, 1fr) auto; gap: 8px; align-items: center; }

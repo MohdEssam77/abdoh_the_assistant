@@ -309,7 +309,11 @@ function loadLamps(force = false) {
 }
 
 const LAMP_WHAT = [["on", "On"], ["off", "Off"], ["colour", "A colour"], ["white", "A white"], ["scene", "A scene"]];
-const LAMP_SPEEDS = [["very slow", "Very slow"], ["slow", "Slow"], ["", "Normal speed"], ["fast", "Fast"], ["very fast", "Very fast"]];
+/* How fast a moving scene goes: 10 to 200, like the WiZ app's slider (100 is normal). */
+const NORMAL_SPEED = 100;
+function speedName(n) {
+  return n <= 30 ? "very slow" : n < 100 ? "slow" : n === 100 ? "normal" : n < 190 ? "fast" : "very fast";
+}
 const WHITE_NAMES = { 2200: "candle white", 2700: "warm white", 4000: "neutral white", 6500: "cool white" };
 
 function lampWords(name) {
@@ -320,7 +324,7 @@ function lampWords(name) {
    reads it; null if there's more in it than the picker can show (it stays written out). */
 function lampLookFrom(text, options) {
   let rest = ` ${String(text || "").toLowerCase().replace(/percent/g, "%").replace(/,/g, " ")} `;
-  const look = { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: "", level: null };
+  const look = { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: NORMAL_SPEED, level: null };
   const take = (re) => {
     const found = rest.match(re);
     if (found) rest = rest.replace(found[0], " ");
@@ -343,11 +347,10 @@ function lampLookFrom(text, options) {
   }
   if (look.scene && look.what === "scene") {
     const speed = take(/\bspeed\s+(\d{1,3})\b/);
-    const byNumber = (n) => (n <= 30 ? "very slow" : n < 100 ? "slow" : n === 100 ? "" : n < 190 ? "fast" : "very fast");
-    if (speed) look.speed = byNumber(Number(speed[1]));
+    if (speed) look.speed = Math.max(10, Math.min(200, Number(speed[1])));
     else {
       const word = longestFirst(Object.keys(options.speeds)).find((w) => take(new RegExp(`\\b${w}\\b`)));
-      if (word) look.speed = byNumber(options.speeds[word]);
+      if (word) look.speed = options.speeds[word];
     }
   } else if (look.what !== "off") {
     const kelvin = take(/\b(\d{4})\s*k\b/);
@@ -372,7 +375,7 @@ function lampLookText(look) {
   const level = look.level ? ` ${look.level}%` : "";
   if (look.what === "colour") return `${look.colour}${level}`;
   if (look.what === "white") return `${WHITE_NAMES[look.temp] || `${look.temp}k`}${level}`;
-  if (look.what === "scene") return `scene ${look.scene}${look.speed ? ` ${look.speed}` : ""}${level}`;
+  if (look.what === "scene") return `scene ${look.scene}${look.speed !== NORMAL_SPEED ? ` speed ${look.speed}` : ""}${level}`;
   return `on${level}`;
 }
 
@@ -397,7 +400,7 @@ function lampLook(text, kindOf, onChange) {
   }
   let look = lampLookFrom(text, options);
   let written = look ? null : String(text || "");
-  look = look || { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: "", level: null };
+  look = look || { what: "on", colour: "red", temp: 2700, scene: "cozy", speed: NORMAL_SPEED, level: null };
   const current = () => (written !== null ? written : lampLookText(look));
   const emit = () => onChange(current());
 
@@ -434,12 +437,16 @@ function lampLook(text, kindOf, onChange) {
     const scene = el("select", { class: "input compact", "aria-label": "Scene" },
       scenes.map((s) => el("option", { value: s.name.toLowerCase(), selected: s.name.toLowerCase() === look.scene }, s.name)));
     scene.addEventListener("change", () => { look.scene = scene.value; emit(); });
-    const speed = el("select", { class: "input compact", "aria-label": "Speed" },
-      LAMP_SPEEDS.map(([v, label]) => el("option", { value: v, selected: v === look.speed }, label)));
-    speed.addEventListener("change", () => { look.speed = speed.value; emit(); });
-    const parts = [scene, speed];
-    if (!kind && Lamps.list.length > 1) parts.push(el("small", { class: "muted" }, "A lamp without this scene stays as it is."));
-    return el("div", { class: "set-control" }, ...parts);
+    const speed = el("input", { type: "range", class: "speed-range", min: "10", max: "200", step: "10", value: String(look.speed), "aria-label": "Speed" });
+    const shown = el("span", { class: "value" });
+    const show = () => { shown.textContent = `${speedName(look.speed)} (${look.speed})`; };
+    speed.addEventListener("input", () => { look.speed = Number(speed.value); show(); emit(); });
+    speed.addEventListener("dblclick", () => { look.speed = NORMAL_SPEED; speed.value = String(NORMAL_SPEED); show(); emit(); });
+    show();
+    const rows = [el("div", { class: "set-control" }, scene),
+      el("div", { class: "set-control", title: "Double-click for normal speed" }, el("span", { class: "muted" }, "Speed"), speed, shown)];
+    if (!kind && Lamps.list.length > 1) rows.push(el("small", { class: "muted" }, "A lamp without this scene stays as it is."));
+    return el("div", { class: "scene-pick" }, ...rows);
   };
 
   const levelPicker = () => {

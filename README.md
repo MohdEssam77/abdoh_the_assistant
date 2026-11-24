@@ -501,7 +501,8 @@ What a lamp can be:
   colors, wake up, bedtime, night light, focus, relax, true colors, TV time, plant growth,
   spring, summer, fall, deep dive, jungle, mojito, club, christmas, halloween, candlelight,
   golden white, pulse, steampunk, diwali, snowy sky, dim to warm. The moving ones take a speed:
-  "lights party fast", "scene ocean very slow".
+  "lights party fast", "scene ocean very slow", or exactly "party speed 150" (10 to 200, normal
+  is 100).
 
 A white-only lamp turns a colour into the nearest white (red: candle-warm, blue: cool), and a
 scene it doesn't have leaves it as it is. "The lamp" or "the lights" means all of them; a lamp's
@@ -509,7 +510,8 @@ name means just that one. By voice, Abdoh does it itself only when it understand
 request; anything else ("make it feel like a rainy evening") goes to Claude.
 
 - **In commands**: the **Set a lamp** action picks a lamp (or all), then what it does, with
-  colour swatches, a warm-to-cool slider, the scenes that lamp has, a speed and a brightness.
+  colour swatches, a warm-to-cool slider, the scenes that lamp has with a speed slider (like
+  the WiZ app's; double-click it for normal), and a brightness.
   **Try** shows it on the lamp. In `commands.yaml`: `lamp: "desk lamp | scene party fast 80%"`.
 - **In modes**: the **Lamps** setting gives each lamp its own look while the mode is on (all
   lamps first, then one can differ), and puts them back as they were when the mode ends. In
