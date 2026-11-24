@@ -668,8 +668,9 @@ class AppApi:
         return {"lamps": [vars(lamp) for lamp in self._lamp_list().all()], "options": options()}
 
     def try_lamp(self, which, how) -> dict:
-        """Show a lamp setting for real, from a lamp picker ("Desk lamp", "party fast 60%")."""
-        return self._lamp_action(self._lamp_list().set, str(which or "all"), str(how or ""))
+        """Show a lamp setting for a few seconds, from the lamp dialog ("Desk lamp", "party
+        fast 60%"); then the lamps go back as they were."""
+        return self._lamp_action(self._lamp_list().preview, str(which or "all"), str(how or ""))
 
     def find_lamps(self) -> dict:
         """Look for WiZ lamps on your network (a couple of seconds)."""

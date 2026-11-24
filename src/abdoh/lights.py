@@ -32,6 +32,7 @@ PORT = 38899
 BROADCAST = "255.255.255.255"
 FIND_SECONDS = 2.0
 ANSWER_SECONDS = 0.6
+PREVIEW_SECONDS = 4.0  # "Try" in the lamp dialog: then the lamps go back
 TRIES = 3  # UDP can lose a message: send again
 WARM, NEUTRAL, COOL = 2700, 4000, 6500
 CANDLE = 2200  # the warmest a WiZ white goes
@@ -376,10 +377,13 @@ def _anywhere() -> list[str]:
 class Lamps:
     """Your lamps, by the names you gave them (<app_dir>/lamps.json)."""
 
-    def __init__(self, path: Path, wiz: Wiz | None = None):
+    def __init__(self, path: Path, wiz: Wiz | None = None, timer=threading.Timer):
         self.path = Path(path)
         self.wiz = wiz or Wiz()
         self._lock = threading.Lock()
+        self._timer = timer
+        self._preview = None  # the timer that ends a "Try"
+        self._before_preview: dict | None = None
 
     def all(self) -> list[Lamp]:
         try:
@@ -503,6 +507,26 @@ class Lamps:
                 self._send(lamp, "setPilot", _as_it_was(before))
             except ActionError as e:
                 log.info("Couldn't put %s back: %s", lamp.name, e)
+
+    def preview(self, which: str, how: str, seconds: float = PREVIEW_SECONDS) -> list[str]:
+        """Show a setting for a few seconds ("Try"), then put the lamps back as they were.
+        Trying again meanwhile still goes back to how they were before the first try."""
+        if self._preview is not None:
+            self._preview.cancel()
+        elif self._before_preview is None:
+            self._before_preview = self.snapshot()
+        try:
+            names = self.set(which, how)
+        finally:
+            self._preview = self._timer(seconds, self._end_preview)
+            self._preview.daemon = True
+            self._preview.start()
+        return names
+
+    def _end_preview(self) -> None:
+        before, self._before_preview, self._preview = self._before_preview, None, None
+        if before:
+            self.restore(before)
 
     _kept: dict | None = None
 

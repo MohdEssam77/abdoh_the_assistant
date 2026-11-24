@@ -228,12 +228,9 @@ def _role_names(cfg: Config) -> str:
 
 
 def _role_lamps(cfg: Config) -> str:
-    """ROLE_LAMPS, when Claude may switch the lamps and there are some."""
-    if "lamp" not in cfg.claude.actions:
-        return ""
-    from abdoh.lights import Lamps
-
-    return ROLE_LAMPS if Lamps(cfg.app_dir / "lamps.json").all() else ""
+    """ROLE_LAMPS, when Claude may switch the lamps (which there are: every message's first
+    line says, so lamps found later count too)."""
+    return ROLE_LAMPS if "lamp" in cfg.claude.actions else ""
 
 
 def _memory(cfg: Config) -> str:
