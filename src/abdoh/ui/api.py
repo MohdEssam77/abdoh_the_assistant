@@ -731,11 +731,16 @@ class AppApi:
         return self._claude().find_claude_code(self._config().claude.code_path)
 
     def claude_sign_in(self) -> dict:
-        """Open Claude Code's own sign-in, which continues in your browser."""
+        """Start Claude Code's own sign-in (in the background): it opens your browser. The
+        link comes back too, in case the browser didn't open."""
         exe = self._claude_code()
         if not exe:
             return {"ok": False, "error": "Install Claude Code first."}
-        return self._claude_action(self._claude().sign_in, exe)
+        try:
+            url = self._claude().sign_in(exe)
+        except self._claude().SetupError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True, "url": url or ""}
 
     def claude_sign_out(self) -> dict:
         exe = self._claude_code()

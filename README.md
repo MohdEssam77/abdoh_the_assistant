@@ -240,9 +240,10 @@ Anything that isn't one of your commands goes to Claude. Abdoh uses **your Claud
 (Pro or Max) through **Claude Code**, so there's nothing to pay for beyond your plan:
 
 The easy way: open **Settings** in Abdoh's window. The **Claude** card shows whether you're
-connected and with which plan. **Install Claude Code** runs Anthropic's official installer in a
-window you can watch (for you only, no admin rights). **Sign in with Claude** opens Claude Code's
-own sign-in, which finishes in your browser; the card updates by itself when you're done.
+connected and with which plan. **Install Claude Code** runs Anthropic's official installer in
+the background (for you only, no admin rights). **Sign in with Claude** starts Claude Code's own
+sign-in in the background, which opens Anthropic's page in your browser (the card has the link
+too, in case the browser didn't open); the card updates by itself when you're done.
 **Test** asks Claude one word. Abdoh never sees your password or your Claude login: it only
 asks Claude Code whether it's signed in. Each person who uses Abdoh connects their own Claude.
 

@@ -4,8 +4,8 @@ import pytest
 
 from abdoh.claude import setup
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
+from abdoh.claude.code import NO_WINDOW
 from abdoh.claude.setup import (
-    NEW_CONSOLE,
     SetupError,
     check_connection,
     claude_state,
@@ -73,26 +73,88 @@ class Recorder:
         self.calls.append((args, kwargs))
 
 
-def test_install_runs_anthropics_installer_in_a_visible_window():
-    popen = Recorder()
-    install_claude_code(popen, platform="win32")
+class Proc:
+    """A process that printed `lines` and is still running (waiting for the browser)."""
+
+    def __init__(self, lines):
+        self.stdout = iter(line + "\n" for line in lines)
+        self.killed = False
+
+    def poll(self):
+        return 1 if self.killed else None
+
+    def wait(self):
+        return 0
+
+    def kill(self):
+        self.killed = True
+
+
+class Starts(Recorder):
+    def __init__(self, *lines):
+        super().__init__()
+        self.lines = lines
+        self.procs = []
+
+    def __call__(self, args, **kwargs):
+        super().__call__(args, **kwargs)
+        self.procs.append(Proc(self.lines))
+        return self.procs[-1]
+
+
+class NoTimer:
+    def __init__(self, seconds, function):
+        self.seconds, self.function = seconds, function
+
+    def start(self):
+        pass
+
+    def cancel(self):
+        pass
+
+
+def test_install_runs_anthropics_installer_in_the_background():
+    popen = Starts("Setting up Claude Code...")
+    install_claude_code(popen, platform="win32", timer=NoTimer)
     ((args, kwargs),) = popen.calls
-    assert args[0] == "powershell.exe" and "-NoExit" in args
-    assert "irm https://claude.ai/install.ps1 | iex" in args[-1]
-    assert kwargs["creationflags"] == NEW_CONSOLE
+    assert args[0] == "powershell.exe" and "-NoExit" not in args
+    assert args[-1] == "irm https://claude.ai/install.ps1 | iex"
+    assert kwargs["creationflags"] == NO_WINDOW  # no window: the app shows how it's going
     with pytest.raises(SetupError, match="code.claude.com"):
         install_claude_code(popen, platform="linux")
 
 
-def test_sign_in_opens_claude_codes_own_sign_in(monkeypatch):
+SIGN_IN_SAYS = (  # what Claude Code's sign-in prints with no window (checked 2026-11-24)
+    "Opening browser to sign in…",
+    "If the browser didn't open, visit:",
+    "https://claude.ai/oauth/authorize?z-abc",
+)
+
+
+def test_sign_in_runs_in_the_background_and_gives_the_link(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-secret")
-    popen = Recorder()
-    sign_in(EXE, popen)
+    popen = Starts(*SIGN_IN_SAYS)
+    assert sign_in(EXE, popen, timer=NoTimer) == "https://claude.ai/oauth/authorize?z-abc"
     ((args, kwargs),) = popen.calls
-    assert "& $env:ABDOH_CLAUDE auth login" in args[-1]
-    assert kwargs["env"]["ABDOH_CLAUDE"] == str(EXE)
+    assert args == [str(EXE), "auth", "login", "--claudeai"]
+    assert kwargs["creationflags"] == NO_WINDOW  # no PowerShell window left open
     assert "ANTHROPIC_API_KEY" not in kwargs["env"]  # sign in with the account, not a key
-    assert kwargs["creationflags"] == NEW_CONSOLE
+    sign_in(EXE, popen, timer=NoTimer)  # pressed again: the first one stops
+    assert popen.procs[0].killed and not popen.procs[1].killed
+
+
+def test_a_sign_in_nobody_finishes_stops_waiting():
+    timers = []
+
+    def timer(seconds, function):
+        timers.append(NoTimer(seconds, function))
+        return timers[-1]
+
+    popen = Starts(*SIGN_IN_SAYS)
+    sign_in(EXE, popen, timer=timer)
+    assert timers[0].seconds == 10 * 60
+    timers[0].function()
+    assert popen.procs[0].killed
 
 
 def test_sign_out():
@@ -166,6 +228,7 @@ class FakeSetup:
 
     def sign_in(self, exe):
         self._do("sign_in", exe)
+        return "https://claude.ai/oauth/authorize?z-abc"
 
     def sign_out(self, exe):
         self._do("sign_out", exe)
@@ -194,7 +257,7 @@ def test_app_connects_claude(app_dir):
     api, bus, fake = app(app_dir)
     assert api.claude_status()["summary"] == "Connected with your Pro plan."
     assert api.install_claude() == {"ok": True}
-    assert api.claude_sign_in() == {"ok": True}
+    assert api.claude_sign_in() == {"ok": True, "url": "https://claude.ai/oauth/authorize?z-abc"}
     assert api.claude_test()["reply"] == "OK"
     assert requests(bus) == []  # nothing changed yet
     assert api.claude_sign_out() == {"ok": True}
