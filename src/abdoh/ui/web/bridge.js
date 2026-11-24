@@ -106,7 +106,7 @@ const Bridge = (() => {
     return {
       demo: true,
       boot: async () => ({
-        version: "0.11.3", platform: "win32", demo: true, settings,
+        version: "0.12.0", platform: "win32", demo: true, settings,
         state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, listening: { on: !!currentRole, now: !!currentRole }, voice: true, history, board: currentRole ? demoBoard : [], gpu: "Speech recognition runs on your NVIDIA GeForce RTX 3050 6GB Laptop GPU (6 GB): about twice as fast, with less memory." },
       }),
       events: async () => queue.splice(0),

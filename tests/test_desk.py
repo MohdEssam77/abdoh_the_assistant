@@ -364,7 +364,7 @@ def test_old_settings_get_claudes_new_actions(app_dir):
     assert load_config(app_dir).claude.actions == ["open_url", "window", "power"]  # windows: 0.9
     from_0_11 = 'config_version: 10\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(from_0_11)
-    assert load_config(app_dir).claude.actions == ["open_url", "power"]  # locking came in 0.12
+    assert load_config(app_dir).claude.actions == ["open_url", "power"]  # locking came in 0.11.3
     current = 'config_version: 11\nclaude:\n  actions: ["open_url"]\n'
     (app_dir / "config.yaml").write_text(current)
     assert load_config(app_dir).claude.actions == ["open_url"]  # your choice from then on

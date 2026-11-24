@@ -208,7 +208,7 @@ def test_a_broken_file_is_left_alone(files):
 
 
 def learned(app_dir):
-    """A command "remember that" saved before 0.12: its name isn't what you say."""
+    """A command "remember that" saved before 0.11.1: its name isn't what you say."""
     path = app_dir / "commands.yaml"
     path.write_text(
         path.read_text(encoding="utf-8")
