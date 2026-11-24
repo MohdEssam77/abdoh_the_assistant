@@ -1014,6 +1014,17 @@ class Daemon:
         self.bus.emit("role", role.name if role is not None else "")
         self._board_shown = False
         self._show_listening()
+        lamps = getattr(self.router.computer, "lamps", None)
+        if role is None and lamps is not None:  # the mood it set goes, in the background
+            threading.Thread(target=self._lamps_back, args=(lamps,), daemon=True).start()
+
+    @staticmethod
+    def _lamps_back(lamps) -> None:
+        try:
+            if lamps.put_back():
+                log.info("The lamps are back as they were before the role")
+        except Exception:
+            log.exception("Couldn't put the lamps back")
 
     # The page writes the board out at about this many characters a second (board.js); Abdoh
     # waits as long (at most BOARD_WAIT_MAX per line) before speaking on, like a teacher who

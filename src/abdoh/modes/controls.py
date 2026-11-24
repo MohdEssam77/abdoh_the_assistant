@@ -39,6 +39,8 @@ class ModeControls:
             return c.power_mode()
         if key == "night_light":
             return c.night_light()
+        if key == "lamps":
+            return _lamps(c).snapshot()
         if key == "wake_word":
             return not d.paused
         if key == "voice_replies":
@@ -66,6 +68,15 @@ class ModeControls:
             c.set_power_mode(value)
         elif key == "night_light":
             c.set_night_light(bool(value))
+        elif key == "lamps":
+            problems = []
+            for which, how in value.items():
+                try:
+                    _lamps(c).set(which, how)
+                except ActionError as e:
+                    problems.append(str(e))
+            if problems:
+                raise ActionError(problems[0])
         elif key == "wake_word":
             d.set_paused(not value)
         elif key == "voice_replies":
@@ -163,8 +174,17 @@ class ModeControls:
             c.restore_brightness(snapshot)
         elif key == "follow_up":
             d.cfg.follow_up_seconds = float(snapshot)
+        elif key == "lamps":
+            _lamps(c).restore(snapshot)
         else:
             self.apply(key, snapshot)
+
+
+def _lamps(computer):
+    lamps = getattr(computer, "lamps", None)
+    if lamps is None:
+        raise ActionError("Lamps aren't available here.")
+    return lamps
 
 
 def _screens_text(parts: list[str]) -> str:

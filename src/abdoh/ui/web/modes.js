@@ -229,6 +229,7 @@
     const theme = choice([KEEP, ["true", "Dark"], ["false", "Light"]], s.dark_mode === undefined ? UNSET : String(s.dark_mode), "Theme");
     const power = choice([KEEP, ...POWER], s.power_mode || UNSET, "Power mode");
     const night = onOff(s.night_light, "On (warmer screens)", "Off");
+    const lamps = lampsSetting(s.lamps);
     const wake = onOff(s.wake_word, "Listens for its name", "Doesn't listen");
     const voice = onOff(s.voice_replies, "Speaks replies", "Quiet (shows them)");
     const follow = onOff(s.follow_up, "Keeps listening after a reply", "Doesn't");
@@ -254,6 +255,7 @@
           setRow("Theme", theme),
           setRow("Power", power),
           setRow("Night light", night),
+          el("div", { class: "set-row" }, el("b", {}, "Lamps"), lamps.node),
           setRow("Wake word", wake),
           setRow("Voice replies", voice),
           setRow("Follow-up", follow),
@@ -271,7 +273,7 @@
       const settings = {
         displays: screens.value(), volume: volume.value(), brightness: brightness.value(),
         audio_output: pick(output), dark_mode: bool(theme), power_mode: pick(power), night_light: bool(night),
-        wake_word: bool(wake), voice_replies: bool(voice), follow_up: bool(follow), role: pick(role),
+        lamps: lamps.value(), wake_word: bool(wake), voice_replies: bool(voice), follow_up: bool(follow), role: pick(role),
       };
       Object.keys(settings).forEach((k) => settings[k] === undefined && delete settings[k]);
       return { name: name.value, icon, phrases: phrases.values(), settings,

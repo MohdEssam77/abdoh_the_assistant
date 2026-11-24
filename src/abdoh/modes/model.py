@@ -1,7 +1,8 @@
 """What a mode is, and reading modes.yaml.
 
 A mode has settings (things with a state, put back when the mode ends: which screens are on,
-volume, brightness, speakers, theme, power mode, and three of Abdoh's own switches) and actions
+volume, brightness, speakers, theme, power mode, the lamps, and three of Abdoh's own switches)
+and actions
 (things that just happen, like a command's: open an app, play music, say something).
 """
 
@@ -19,6 +20,7 @@ SETTINGS = (
     "dark_mode",
     "power_mode",
     "night_light",
+    "lamps",
     "wake_word",
     "voice_replies",
     "follow_up",
@@ -168,8 +170,33 @@ def _settings(raw, where: str) -> dict:
             if not isinstance(value, str) or not value.strip():
                 raise ModesFileError(f"{where}: role needs a role's name (Act as).")
             value = value.strip()
+        elif key == "lamps":
+            value = _lamps(value, where)
         settings[key] = value
     return settings
+
+
+def _lamps(value, where: str) -> dict[str, str]:
+    """Each lamp (by its name, or all) and how it should be: {"Desk lamp": "party",
+    "Lamp 2": "warm white 40%"}."""
+    from abdoh.commands.actions import ActionError
+    from abdoh.lights import setting
+
+    if not isinstance(value, dict) or not value:
+        raise ModesFileError(f'{where}: lamps is each lamp and how, like {{"all": "warm 40%"}}.')
+    lamps = {}
+    for name, how in value.items():
+        if isinstance(how, bool):  # YAML reads a bare off or on as false or true
+            how = "on" if how else "off"
+        name, how = str(name).strip(), str(how if how is not None else "").strip()
+        if not name or not how:
+            raise ModesFileError(f"{where}: lamps needs a lamp's name and how it should be.")
+        try:
+            setting(how)
+        except ActionError as e:
+            raise ModesFileError(f"{where}: {name}: {e}") from None
+        lamps[name] = how
+    return lamps
 
 
 def _displays(value, where: str) -> str | list[str]:

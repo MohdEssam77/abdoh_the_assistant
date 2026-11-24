@@ -285,6 +285,8 @@
   function lampsCard() {
     const body = el("div", {});
     const draw = (lamps) => {
+      loadLamps(true); // the pickers in commands and modes see the change
+      const kinds = (Lamps.options && Lamps.options.kinds) || {};
       const rows = lamps.map((lamp) => {
         const name = el("input", { class: "input", value: lamp.name, "aria-label": "Lamp name", style: "width:160px" });
         name.addEventListener("change", async () => {
@@ -292,7 +294,8 @@
           if (result && !result.ok) toast(result.error, true);
           else if (result) toast(`Say “turn on the ${name.value.trim().toLowerCase()}”.`);
         });
-        return row(lamp.name, `On your network at ${lamp.ip}.`, el("div", { class: "btn-row" }, name,
+        const does = kinds[lamp.kind] ? `${kinds[lamp.kind][0].toUpperCase()}${kinds[lamp.kind].slice(1)}. ` : "";
+        return row(lamp.name, `${does}On your network at ${lamp.ip}.`, el("div", { class: "btn-row" }, name,
           el("button", { class: "btn small", onclick: async () => {
             const result = await call("blink_lamp", lamp.mac);
             if (result && !result.ok) toast(result.error, true);
@@ -320,7 +323,7 @@
         el("div", { class: "btn-row", style: "margin-top:10px" }, find));
     };
     call("lamps").then((state) => draw((state && state.lamps) || []));
-    return card("Lamps", "WiZ smart lamps on your Wi-Fi. Say “turn on the lamp”, “desk lamp blue” or “dim the lights to 30 percent”, or use them in your modes and commands.", body);
+    return card("Lamps", "WiZ smart lamps on your Wi-Fi. Say “turn on the lamp”, “desk lamp blue”, “lights party fast” or “dim the lights to 30 percent”, or use them in your modes and commands.", body);
   }
 
   /* ---------- conversation ---------- */

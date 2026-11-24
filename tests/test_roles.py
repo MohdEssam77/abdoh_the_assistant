@@ -261,6 +261,68 @@ def test_a_role_slows_the_voice_and_the_window_shows_it(tmp_path):
     assert "acting as" not in daemon._state_line()
 
 
+class MoodLamps:
+    """Lamps that note what the role did with them."""
+
+    def __init__(self):
+        self.calls = []
+
+    def all(self):
+        return []  # none Abdoh could switch by itself: Claude's
+
+    def keep_for_later(self):
+        self.calls.append("keep")
+
+    def put_back(self):
+        self.calls.append("back")
+        return True
+
+
+def test_a_role_sets_the_mood_and_the_lamps_go_back_after(tmp_path):
+    """A DJ puts the party scene on; when the role ends, the lamps are as they were."""
+    import time
+
+    daemon, _ = make_daemon(tmp_path)
+    lamps = MoodLamps()
+    daemon.router.computer = type("Computer", (), {"lamps": lamps})()
+    daemon.router._act = FakeAct()
+    daemon.router.brain = FakeBrain(("ACTION lamp: all | party fast\n", "Let's go!"))
+    daemon.acting.start("a DJ")
+    assert " ".join(daemon.router.handle("play me something")) == "Let's go!"
+    assert lamps.calls == ["keep"] and daemon.router._act.done == [("lamp", "all | party fast")]
+    daemon.acting.stop()
+    for _ in range(50):  # in the background
+        if "back" in lamps.calls:
+            break
+        time.sleep(0.02)
+    assert lamps.calls == ["keep", "back"]
+
+
+def test_outside_a_role_the_lamps_just_change(router):
+    lamps = MoodLamps()
+    router.computer = type("Computer", (), {"lamps": lamps})()
+    router.brain = FakeBrain(("ACTION lamp: all | warm white\n", "Done."))
+    " ".join(router.handle("make it warm"))
+    assert lamps.calls == []
+
+
+def test_claude_hears_of_the_mood_only_with_lamps_it_may_switch(tmp_path):
+    from abdoh.claude.brain import ROLE_LAMPS
+
+    assert ROLE_LAMPS not in system_prompt(Config(app_dir=tmp_path))  # no lamps yet
+    (tmp_path / "lamps.json").write_text(
+        '[{"name": "Desk lamp", "mac": "aa", "ip": "10.0.0.1", "kind": "colour"}]', "utf-8"
+    )
+    prompt = system_prompt(Config(app_dir=tmp_path))
+    assert ROLE_LAMPS in prompt and "party" in prompt
+    off = Config(app_dir=tmp_path)
+    off.claude.actions = [a for a in off.claude.actions if a != "lamp"]
+    assert ROLE_LAMPS not in system_prompt(off)
+    from abdoh.about import about
+
+    assert "Desk lamp (colours and whites)" in about(Config(app_dir=tmp_path))
+
+
 def test_the_router_hears_roles_through_the_daemon(tmp_path):
     daemon, _ = make_daemon(tmp_path)
     assert daemon.router.acting is daemon.acting

@@ -14,9 +14,10 @@ from abdoh.system_skills import Done
 class Network:
     """Lamps on a pretend network: {mac: ip}. Records what each lamp was told."""
 
-    def __init__(self, lamps, silent=()):
+    def __init__(self, lamps, silent=(), modules=None):
         self.lamps = dict(lamps)  # mac -> ip
         self.silent = set(silent)  # ips that never answer
+        self.modules = dict(modules or {})  # mac -> WiZ module name (a colour bulb if not given)
         self.told: list[tuple[str, str, dict]] = []  # (ip, method, params)
         self.state = {}
 
@@ -44,6 +45,11 @@ class Socket:
         )
         for mac, lamp_ip in targets:
             if lamp_ip in self.network.silent:
+                continue
+            if method == "getSystemConfig":  # what it can do: a read, not recorded
+                module = self.network.modules.get(mac, "ESP24_SHRGBC_01")
+                answer = {"method": method, "result": {"mac": mac, "moduleName": module}}
+                self.inbox.append((json.dumps(answer).encode(), lamp_ip))
                 continue
             self.network.told.append((lamp_ip, method, params))
             if method == "getPilot":
@@ -86,6 +92,108 @@ def lamps_on(tmp_path, network):
 )
 def test_what_you_say_becomes_a_setting(said, params):
     assert setting(said) == params
+
+
+@pytest.mark.parametrize(
+    "said, params",
+    [
+        ("party", {"sceneId": 4, "speed": 100, "state": True}),
+        ("disco", {"sceneId": 4, "speed": 100, "state": True}),
+        ("scene ocean slow", {"sceneId": 1, "speed": 50, "state": True}),
+        ("fireplace 40%", {"dimming": 40, "sceneId": 5, "speed": 100, "state": True}),
+        ("club, very fast", {"sceneId": 26, "speed": 200, "state": True}),
+        ("party speed 150", {"sceneId": 4, "speed": 150, "state": True}),
+        ("cozy", {"sceneId": 6, "speed": 100, "state": True}),
+        ("golden white", {"sceneId": 30, "speed": 100, "state": True}),  # a scene, not "white"
+        ("dim to warm", {"sceneId": 40, "speed": 100, "state": True}),  # not "dim"
+        ("daylight", {"temp": 6500, "state": True}),  # alone: the white
+        ("scene daylight", {"sceneId": 12, "speed": 100, "state": True}),
+        ("warm white scene", {"sceneId": 11, "speed": 100, "state": True}),
+        ("#ff8800 50%", {"dimming": 50, "r": 255, "g": 136, "b": 0, "state": True}),
+        ("sky blue", {"r": 90, "g": 190, "b": 255, "state": True}),
+        ("hot pink", {"r": 255, "g": 20, "b": 140, "state": True}),
+        ("candle white", {"temp": 2200, "state": True}),
+    ],
+)
+def test_scenes_speeds_and_more_colours(said, params):
+    assert setting(said) == params
+
+
+def test_strict_takes_only_what_it_understands():
+    assert setting("set it to the party scene, fast, at 60 percent", strict=True) == {
+        "dimming": 60, "sceneId": 4, "speed": 160, "state": True
+    }  # fmt: skip
+    with pytest.raises(ActionError):
+        setting("blue like in the ocean film", strict=True)
+    assert setting("blue like in the ocean film")["sceneId"] == 1  # Claude's: not strict
+
+
+def test_a_lamp_says_what_it_can_do():
+    from abdoh.lights import COLOUR, DIMMABLE, PLUG, WHITE, lamp_kind
+
+    assert lamp_kind("ESP24_SHRGBC_01") == COLOUR  # the owner's bulb
+    assert lamp_kind("ESP01_SHTW1C_31") == WHITE
+    assert lamp_kind("ESP01_SHDW1C_31") == DIMMABLE
+    assert lamp_kind("ESP10_SOCKET_06") == PLUG
+    assert lamp_kind("") == ""
+
+
+def test_each_kind_of_lamp_gets_what_it_can_take():
+    from abdoh.lights import COLOUR, DIMMABLE, PLUG, WHITE, fit
+
+    red = setting("red 40%")
+    assert fit(COLOUR, red) == red and fit("", red) == red
+    assert fit(WHITE, red) == {"dimming": 40, "temp": 2200, "state": True}  # warm, like red
+    assert fit(WHITE, setting("blue"))["temp"] == 6500
+    assert fit(DIMMABLE, red) == {"dimming": 40, "state": True}
+    assert fit(PLUG, red) == {"state": True}
+    assert fit(WHITE, setting("party")) is None  # no Party scene on a white-only lamp
+    assert fit(WHITE, setting("candlelight")) == {"sceneId": 29, "speed": 100, "state": True}
+    assert fit(WHITE, setting("off")) == {"state": False}
+
+
+def test_all_lamps_each_as_far_as_it_can(tmp_path):
+    network = Network(
+        {"aa": "10.0.0.1", "bb": "10.0.0.2"}, modules={"bb": "ESP01_SHTW1C_31"}
+    )  # a colour bulb and a white-only one, on the owner's stand
+    lamps = lamps_on(tmp_path, network)
+    lamps.find_new()
+    assert [lamp.kind for lamp in lamps.all()] == ["colour", "white"]  # kept in lamps.json
+    network.told.clear()
+    assert lamps.set("all", "red") == ["Lamp", "Lamp 2"]
+    assert dict((ip, p) for ip, _, p in network.told)["10.0.0.2"] == {"temp": 2200, "state": True}
+    network.told.clear()
+    assert lamps.set("all", "party") == ["Lamp"]  # the white one has no Party
+    with pytest.raises(ActionError, match="Lamp 2 doesn't have that scene"):
+        lamps.set("lamp 2", "party")
+
+
+def test_lamps_are_put_back_as_they_were(tmp_path):
+    network = Network({"aa": "10.0.0.1", "bb": "10.0.0.2"})
+    lamps = lamps_on(tmp_path, network)
+    lamps.find_new()
+    network.state["aa"] = {"state": True, "sceneId": 11, "temp": 2700, "dimming": 100}
+    network.state["bb"] = {"state": False, "temp": 4000, "dimming": 80}
+    lamps.keep_for_later()
+    lamps.set("all", "party")
+    lamps.keep_for_later()  # once: the first one counts
+    network.told.clear()
+    assert lamps.put_back() is True
+    assert [(ip, p) for ip, _, p in network.told] == [
+        ("10.0.0.1", {"state": True, "dimming": 100, "sceneId": 11}),
+        ("10.0.0.2", {"state": False, "dimming": 80, "temp": 4000}),
+    ]
+    assert lamps.put_back() is False  # nothing kept any more
+
+
+def test_the_app_gets_the_choices():
+    from abdoh.lights import options
+
+    choices = options()
+    assert ["red", "#ff0000"] in choices["colours"]
+    party = next(s for s in choices["scenes"] if s["name"] == "Party")
+    candle = next(s for s in choices["scenes"] if s["name"] == "Candlelight")
+    assert party["kinds"] == ["colour"] and candle["kinds"] == ["colour", "white", "dimmable"]
 
 
 def test_nonsense_is_not_a_setting():
@@ -150,6 +258,26 @@ def test_a_lamp_that_only_takes_the_wiz_apps_controls(tmp_path):
     assert [method for _, method, _ in network.told] == ["setPilot"]  # no search, no retry
 
 
+def test_the_app_finds_names_and_tries_lamps(tmp_path):
+    """Settings → Lamps, and the "Try" button of the lamp pickers in commands and modes."""
+    from abdoh.config import Config
+    from abdoh.events import Bus
+    from abdoh.ui.api import AppApi, UiState
+
+    network = Network({"aa": "10.0.0.1"}, modules={"aa": "ESP01_SHTW1C_31"})
+    api = AppApi(Bus(), UiState(), Config(app_dir=tmp_path), lamps=lamps_on(tmp_path, network))
+    found = api.find_lamps()
+    assert found["ok"] and found["lamps"][0]["kind"] == "white" and found["options"]["scenes"]
+    assert api.rename_lamp("aa", "Desk lamp")["lamps"][0]["name"] == "Desk lamp"
+    network.told.clear()
+    refused = api.try_lamp("Desk lamp", "scene party")  # no Party on a white-only lamp
+    assert refused["ok"] is False and "doesn't have that scene" in refused["error"]
+    assert api.try_lamp("Desk lamp", "candlelight 40%")["ok"] is True
+    assert network.told == [
+        ("10.0.0.1", "setPilot", {"dimming": 40, "sceneId": 29, "speed": 100, "state": True})
+    ]
+
+
 def test_a_lamp_goes_back_to_its_scene_white_or_colour():
     from abdoh.lights import _as_it_was
 
@@ -203,6 +331,18 @@ def test_no_lamps_yet(tmp_path):
 
 
 # ----- by voice, in commands and modes, and from Claude -----
+
+
+def test_a_sentence_that_mentions_the_lamp_is_left_for_claude(tmp_path):
+    computer = FakeComputer()
+    network = Network({"aa": "10.0.0.1"})
+    computer.lamps = lamps_on(tmp_path, network)
+    computer.lamps.find_new()
+    skills = LocalSkills(computer)
+    network.told.clear()
+    assert skills.handle("the lamp is too bright in the ocean film", "") is None
+    assert skills.handle("lamp party fast", "") == Done("Lamp: party fast.")
+    assert network.told == [("10.0.0.1", "setPilot", {"sceneId": 4, "speed": 160, "state": True})]
 
 
 @pytest.fixture

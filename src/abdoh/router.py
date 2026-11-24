@@ -577,6 +577,8 @@ class Router:
                 if said and not isinstance(said, Done):
                     problems.append(said)  # the mode's own words, or "Okay, I won't."
                 return
+            if kind == "lamp":
+                self._lamps_before_role()
             try:
                 self._act(kind, arg, self.computer)
                 turn.actions.append((kind, arg))  # only what worked can be remembered
@@ -699,6 +701,17 @@ class Router:
             request=offered.request, steps=_steps_text(_command_steps(offered)), offer=OFFER
         )
         return self._ask(note + self._with_context(original), original)
+
+    def _lamps_before_role(self) -> None:
+        """Claude sets the mood in a role: how the lamps were is noted first (once), and they
+        go back when the role ends (daemon._role_changed)."""
+        lamps = getattr(self.computer, "lamps", None)
+        if lamps is None or self.acting is None or self.acting.current is None:
+            return
+        try:
+            lamps.keep_for_later()
+        except Exception:
+            log.debug("Couldn't note how the lamps were", exc_info=True)
 
     def _abdoh_did_note(self) -> str:
         """Tell Claude (once) what Abdoh did by itself just before, so "keep that as chat time"

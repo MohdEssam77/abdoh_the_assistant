@@ -193,6 +193,11 @@ def _commands(cfg: Config, limit: int = 30) -> str:
 
 
 def _lamps(cfg: Config) -> str:
-    from abdoh.lights import Lamps
+    """ "Desk lamp (colours and whites), Lamp 2 (whites only)"."""
+    from abdoh.lights import KIND_NAMES, Lamps
 
-    return ", ".join(lamp.name for lamp in Lamps(cfg.app_dir / "lamps.json").all())
+    lamps = Lamps(cfg.app_dir / "lamps.json").all()
+    return ", ".join(
+        f"{lamp.name} ({KIND_NAMES[lamp.kind]})" if lamp.kind in KIND_NAMES else lamp.name
+        for lamp in lamps
+    )
