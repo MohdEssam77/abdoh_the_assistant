@@ -667,6 +667,22 @@ class AppApi:
 
         return {"lamps": [vars(lamp) for lamp in self._lamp_list().all()], "options": options()}
 
+    def lamp_states(self) -> dict:
+        """The Lamps page: each lamp and how it is right now."""
+        from abdoh.lights import options
+
+        return {"lamps": self._lamp_list().states(), "options": options()}
+
+    def set_lamp(self, which, how) -> dict:
+        """Change a lamp now, from the Lamps page ("Desk lamp", "40%")."""
+        from abdoh.commands.actions import ActionError
+
+        try:
+            self._lamp_list().set(str(which or "all"), str(how or ""))
+        except ActionError as e:
+            return {"ok": False, "error": str(e)}
+        return {"ok": True}
+
     def try_lamp(self, which, how) -> dict:
         """Show a lamp setting for a few seconds, from the lamp dialog ("Desk lamp", "party
         fast 60%"); then the lamps go back as they were."""

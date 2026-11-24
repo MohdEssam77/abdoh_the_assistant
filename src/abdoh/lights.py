@@ -198,6 +198,28 @@ def setting(text: str, strict: bool = False) -> dict:
     return params
 
 
+def describe(pilot: dict) -> str:
+    """How a lamp is now (getPilot's answer) in the words setting() reads: "off",
+    "scene party speed 160 80%", "warm white 60%", "3000k", "#ff8800 40%"."""
+    if not pilot.get("state"):
+        return "off"
+    level = f" {pilot['dimming']}%" if pilot.get("dimming") else ""
+    scene = pilot.get("sceneId")
+    if scene in SCENE_NAMES:
+        speed = pilot.get("speed")
+        fast = f" speed {speed}" if speed and speed != NORMAL_SPEED else ""
+        return f"scene {SCENE_NAMES[scene]}{fast}{level}"
+    temp = pilot.get("temp")
+    if temp:
+        named = {CANDLE: "candle white", WARM: "warm white", NEUTRAL: "neutral white"}
+        named[COOL] = "cool white"
+        return f"{named.get(temp) or f'{temp}k'}{level}"
+    rgb = [int(pilot.get(k) or 0) for k in ("r", "g", "b")]
+    if any(rgb):
+        return "#{:02x}{:02x}{:02x}".format(*rgb) + level
+    return f"on{level}"
+
+
 def lamp_kind(module: str) -> str:
     """What a lamp can do, from its WiZ module name (getSystemConfig's moduleName): the part
     after the first "_" says it, like pywizlight reads it. "" if it can't tell."""
@@ -453,12 +475,12 @@ class Lamps:
         if not lamps:
             raise ActionError("You have no lamps yet. Find them in Settings, under Lamps.")
         words = " ".join(which.lower().split())
-        if words in ALL or words in GENERIC:
-            return lamps
-        for lamp in lamps:
+        for lamp in lamps:  # a lamp's own name first: one called "Lamp" is that one
             name = lamp.name.lower()
             if words in (name, f"the {name}", f"my {name}"):
                 return [lamp]
+        if words in ALL or words in GENERIC:
+            return lamps
         for lamp in lamps:  # "desk" for "desk lamp"
             if re.search(rf"\b{re.escape(words)}\b", lamp.name.lower()):
                 return [lamp]
@@ -484,6 +506,20 @@ class Lamps:
             what = KIND_NAMES.get(cant[0].kind, "")
             raise ActionError(f"{cant[0].name} doesn't have that scene ({what}).")
         return done
+
+    def states(self) -> list[dict]:
+        """Each lamp and how it is now ("how", in setting()'s words), for the Lamps page.
+        A lamp that doesn't answer (switched off at the wall) has "answers": False; nobody
+        waits for a search on the network here."""
+        found = []
+        for lamp in self.all():
+            try:
+                how = describe(self.wiz.send(lamp.ip, "getPilot"))
+            except ActionError:
+                found.append({**asdict(lamp), "how": None, "answers": False})
+                continue
+            found.append({**asdict(lamp), "kind": self._kind(lamp), "how": how, "answers": True})
+        return found
 
     # ----- before and after: a role or a mode puts the lamps back as they were -----
 

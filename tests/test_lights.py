@@ -318,6 +318,48 @@ def test_the_app_finds_names_and_tries_lamps(tmp_path):
     ]
 
 
+@pytest.mark.parametrize(
+    "pilot, said",
+    [
+        ({"state": False, "sceneId": 4}, "off"),
+        ({"state": True, "sceneId": 4, "speed": 160, "dimming": 80}, "scene party speed 160 80%"),
+        ({"state": True, "sceneId": 11, "temp": 2700, "dimming": 100}, "scene warm white 100%"),
+        ({"state": True, "sceneId": 0, "temp": 2700, "dimming": 60}, "warm white 60%"),
+        ({"state": True, "sceneId": 0, "temp": 3000, "dimming": 100}, "3000k 100%"),
+        ({"state": True, "sceneId": 0, "r": 255, "g": 136, "b": 0, "dimming": 40}, "#ff8800 40%"),
+        ({"state": True, "sceneId": 18, "speed": 100, "dimming": 50}, "scene tv time 50%"),
+    ],
+)
+def test_how_a_lamp_is_now_in_words_abdoh_reads(pilot, said):
+    from abdoh.lights import describe
+
+    assert describe(pilot) == said
+    if pilot["state"]:  # read back, it's the same setting
+        again = setting(said)
+        assert all(again[k] == v for k, v in pilot.items() if k in again)
+
+
+def test_the_lamps_page_sees_each_lamp_now(tmp_path):
+    from abdoh.config import Config
+    from abdoh.events import Bus
+    from abdoh.ui.api import AppApi, UiState
+
+    network = Network({"aa": "10.0.0.1", "bb": "10.0.0.2"})
+    api = AppApi(Bus(), UiState(), Config(app_dir=tmp_path), lamps=lamps_on(tmp_path, network))
+    api.find_lamps()
+    network.state["aa"] = {"state": True, "sceneId": 4, "speed": 160, "dimming": 80}
+    network.silent.add("10.0.0.2")  # switched off at the wall
+    states = api.lamp_states()["lamps"]
+    assert [(s["name"], s["how"], s["answers"]) for s in states] == [
+        ("Lamp", "scene party speed 160 80%", True),
+        ("Lamp 2", None, False),
+    ]
+    network.told.clear()
+    assert api.set_lamp("Lamp", "40%") == {"ok": True}
+    assert network.told == [("10.0.0.1", "setPilot", {"dimming": 40, "state": True})]
+    assert api.set_lamp("Kitchen", "on")["ok"] is False
+
+
 def test_a_lamp_goes_back_to_its_scene_white_or_colour():
     from abdoh.lights import _as_it_was
 

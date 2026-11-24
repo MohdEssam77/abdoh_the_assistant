@@ -469,8 +469,9 @@ function lampLabel(which) {
 }
 
 /* The lamp dialog: which lamp (unless `fixed`), and how it should be. Resolves to
-   {which, how} on Save, or null. Try shows it on the lamps for 4 seconds. */
-function openLampDialog({ title = "Set a lamp", which = "all", how = "on", fixed = false }) {
+   {which, how} on Save, or null. Try shows it on the lamps for 4 seconds. With `live(how)`
+   (the Lamps page) every change goes to the lamp at once, and Done closes it. */
+function openLampDialog({ title = "Set a lamp", which = "all", how = "on", fixed = false, live = null }) {
   return new Promise((resolve) => {
     const options = Lamps.options;
     let look = lampLookFrom(how, options);
@@ -492,7 +493,14 @@ function openLampDialog({ title = "Set a lamp", which = "all", how = "on", fixed
       bulb.classList.toggle("moving", p.moving);
       said.replaceChildren(el("b", {}, lampLabel(which)), el("span", { class: "muted" }, lampSummary(text())));
     };
-    const changed = () => paint();
+    let sent = text();
+    let sending = null;
+    const changed = () => {
+      paint();
+      if (!live || text() === sent) return;
+      clearTimeout(sending); // a slider moves many times a second: the lamp gets the last one
+      sending = setTimeout(() => { sent = text(); live(sent); }, 150);
+    };
     const pick = (label, on, onclick, extra) => el("button", { type: "button", class: on ? "pick on" : "pick", onclick }, label, extra || null);
 
     const lampSection = () => {
@@ -578,7 +586,7 @@ function openLampDialog({ title = "Set a lamp", which = "all", how = "on", fixed
       else if (look.what === "scene") sections.push(el("div", { class: "field" }, el("label", {}, "Scene"), ...scenePanel(kind)));
       if ((written !== null || look.what !== "off") && kind !== "plug" && written === null) sections.push(levelSection());
       body.replaceChildren(...sections.filter(Boolean));
-      paint();
+      changed();
     }
     draw();
 
@@ -586,11 +594,11 @@ function openLampDialog({ title = "Set a lamp", which = "all", how = "on", fixed
       const result = await call("try_lamp", which, text());
       if (result && !result.ok) toast(result.error, true);
     } }, "Try it");
+    const save = el("button", { class: "btn primary", type: "button", onclick: () => { finish({ which, how: text() }); dialog.close(); } }, live ? "Done" : "Save");
     const dialog = openModal({
-      title, body, wide: true, onClose: () => finish(null),
-      actions: [tryIt, el("div", { class: "spacer" }),
-        el("button", { class: "btn", type: "button", onclick: () => dialog.close() }, "Cancel"),
-        el("button", { class: "btn primary", type: "button", onclick: () => { finish({ which, how: text() }); dialog.close(); } }, "Save")],
+      title, body, wide: true, onClose: () => finish(live ? { which, how: text() } : null),
+      actions: live ? [el("small", { class: "muted" }, "Changes go to the lamp at once."), el("div", { class: "spacer" }), save]
+        : [tryIt, el("div", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => dialog.close() }, "Cancel"), save],
     });
   });
 }

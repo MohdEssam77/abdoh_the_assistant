@@ -771,3 +771,20 @@ select.input.compact { width: 280px; max-width: 46vw; }
   background: linear-gradient(90deg, #ff8a1f, #ffc98f 25%, #fff3e3 50%, #e3edff 80%, #c4dbff); cursor: pointer; }
 .white-range::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid var(--accent); }
 .set-control input[type="range"].speed-range, .speed-range { flex: 0 0 260px; width: 260px; }
+
+/* The Lamps page */
+.lamp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.lamp-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 16px; border: 1px solid var(--border);
+  background: var(--panel); align-items: flex-start; }
+.lamp-card.all { grid-column: 1 / -1; }
+.lamp-card.is-off .lamp-card-now { color: var(--muted); }
+.lamp-card.off-line { opacity: .65; }
+.lamp-card-head { display: flex; align-items: center; gap: 14px; width: 100%; }
+.lamp-card-head .switch { margin-left: auto; }
+.lamp-card .lamp-bulb { width: 48px; height: 48px; box-shadow: 0 0 22px 4px var(--glow, transparent); }
+.lamp-bulbs { display: flex; margin-right: 14px; }
+.lamp-bulbs .lamp-bulb { margin-right: -14px; border: 2px solid var(--panel); }
+.lamp-card-name { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lamp-card-name b { font-size: 16px; }
+.lamp-card-now { font-weight: 560; }
+.lamp-level { width: 100%; }
