@@ -487,18 +487,42 @@ python -m abdoh test-command "good morning abdoh"
 
 Abdoh switches **WiZ** lamps and bulbs on your home Wi-Fi, without any cloud. Set them up in
 the WiZ app first (2.4 GHz Wi-Fi), then **Settings → Lamps → Find lamps**. Give each one a name
-("Desk lamp"); **Blink** shows which is which.
+("Desk lamp"); **Blink** shows which is which, and Settings shows what each can do (colours and
+whites, whites only, brightness only).
 
-- By voice: "turn on the lamp", "lights off", "desk lamp blue", "dim the lights to 30",
-  "make the light warm", "lamp 3000k". "The lamp" or "the lights" means all of them.
-- In commands and modes: the **Set a lamp** action, e.g. `lamp: "all | warm white 60%"` or
-  `lamp: "desk lamp | off"`.
-- Claude can switch them too (Permissions → Lamps).
+What a lamp can be:
+
+- **On, off, a brightness**: "lights off", "dim the lights to 30", "desk lamp 50 percent".
+- **A white**, warm to cool: "make the light warm", "lamp 3000k", "cool white".
+- **A colour**: red, crimson, rose, coral, salmon, peach, orange, amber, gold, yellow, lime,
+  green, mint, teal, turquoise, cyan, sky blue, blue, royal blue, indigo, purple, violet,
+  lavender, magenta, pink, hot pink, or any colour as `#rrggbb`.
+- **A WiZ scene**: ocean, romance, sunset, party (or disco), fireplace, cozy, forest, pastel
+  colors, wake up, bedtime, night light, focus, relax, true colors, TV time, plant growth,
+  spring, summer, fall, deep dive, jungle, mojito, club, christmas, halloween, candlelight,
+  golden white, pulse, steampunk, diwali, snowy sky, dim to warm. The moving ones take a speed:
+  "lights party fast", "scene ocean very slow".
+
+A white-only lamp turns a colour into the nearest white (red: candle-warm, blue: cool), and a
+scene it doesn't have leaves it as it is. "The lamp" or "the lights" means all of them; a lamp's
+name means just that one. By voice, Abdoh does it itself only when it understands the whole
+request; anything else ("make it feel like a rainy evening") goes to Claude.
+
+- **In commands**: the **Set a lamp** action picks a lamp (or all), then what it does, with
+  colour swatches, a warm-to-cool slider, the scenes that lamp has, a speed and a brightness.
+  **Try** shows it on the lamp. In `commands.yaml`: `lamp: "desk lamp | scene party fast 80%"`.
+- **In modes**: the **Lamps** setting gives each lamp its own look while the mode is on (all
+  lamps first, then one can differ), and puts them back as they were when the mode ends. In
+  `modes.yaml`: `lamps: {all: "warm white 30%", Desk lamp: "scene fireplace"}`.
+- **Claude** can switch them in any words (Permissions → Lamps), and knows which lamp does what.
+  While it plays a role it sets the mood when it fits (a therapist warm and dim, a DJ the party
+  scene), and Abdoh puts the lamps back when the role ends.
 
 Newer WiZ lamps only take commands from the WiZ app until you allow others: in the WiZ app,
 **Settings → Security → Allow all controls**. Then any device on your home Wi-Fi can switch
 them, as with most smart lamps. If **Find lamps** finds nothing, check that this computer is on
-the same Wi-Fi as the lamps (the 2.4 or 5 GHz band of the same router is fine).
+the same home network as the lamps. Some routers keep their 2.4 GHz and 5 GHz networks apart;
+then connect the computer to the 2.4 GHz one.
 
 ### Modes
 
