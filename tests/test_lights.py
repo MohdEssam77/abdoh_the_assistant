@@ -20,7 +20,7 @@ class Network:
         self.told: list[tuple[str, str, dict]] = []  # (ip, method, params)
         self.state = {}
 
-    def socket(self, broadcast=False):
+    def socket(self, broadcast=False, bind=""):
         return Socket(self)
 
 
@@ -106,6 +106,35 @@ def test_lamps_are_found_and_named(tmp_path):
     network.lamps["aa"] = "192.168.1.77"  # the router gave it a new address
     lamps.find_new()
     assert lamps.all()[0].ip == "192.168.1.77" and lamps.all()[0].name == "Desk lamp"
+
+
+def test_lamps_are_looked_for_from_each_address(tmp_path):
+    """Windows sends a plain broadcast out of one adapter (WSL's, say): ask from each."""
+    network = Network({"aa": "192.168.0.87"})
+    bound = []
+
+    def socket(broadcast=False, bind=""):
+        bound.append(bind)
+        if bind == "10.9.9.9":
+            raise OSError("that adapter is gone")
+        return Socket(network)
+
+    wiz = Wiz(socket, addresses=lambda: ["172.24.192.1", "10.9.9.9", "192.168.0.93"])
+    assert wiz.find(seconds=0.1) == [("192.168.0.87", "aa")]  # once, though asked twice
+    assert bound == ["172.24.192.1", "10.9.9.9", "192.168.0.93"]
+
+
+def test_a_lamp_goes_back_to_its_scene_white_or_colour():
+    from abdoh.lights import _as_it_was
+
+    # A real WiZ bulb in the app's "Warm white" preset reports the scene and a temp
+    real = {"mac": "444f8eaf098a", "state": True, "sceneId": 11, "temp": 2700, "dimming": 100}
+    assert _as_it_was(real) == {"state": True, "dimming": 100, "sceneId": 11}
+    white = {"state": True, "sceneId": 0, "temp": 4000, "dimming": 80}
+    assert _as_it_was(white) == {"state": True, "dimming": 80, "temp": 4000}
+    blue = {"state": True, "r": 0, "g": 0, "b": 255, "dimming": 50}
+    assert _as_it_was(blue) == {"state": True, "dimming": 50, "r": 0, "g": 0, "b": 255}
+    assert _as_it_was({"state": False}) == {"state": False}
 
 
 def test_setting_one_lamp_or_all(tmp_path):
