@@ -495,7 +495,10 @@ the WiZ app first (2.4 GHz Wi-Fi), then **Settings → Lamps → Find lamps**. G
   `lamp: "desk lamp | off"`.
 - Claude can switch them too (Permissions → Lamps).
 
-If **Find lamps** finds nothing, turn on **Allow local communication** in the WiZ app's settings.
+Newer WiZ lamps only take commands from the WiZ app until you allow others: in the WiZ app,
+**Settings → Security → Allow all controls**. Then any device on your home Wi-Fi can switch
+them, as with most smart lamps. If **Find lamps** finds nothing, check that this computer is on
+the same Wi-Fi as the lamps (the 2.4 or 5 GHz band of the same router is fine).
 
 ### Modes
 

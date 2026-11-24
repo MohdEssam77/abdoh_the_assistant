@@ -3,13 +3,17 @@
 WiZ lamps listen for small JSON messages on UDP port 38899 on the home network:
 `{"method": "getPilot", "params": {}}` answers with the lamp's state (and its MAC address), and
 `{"method": "setPilot", "params": {...}}` changes it: `state` (on/off), `dimming` (10-100),
-`r`/`g`/`b` (a colour) or `temp` (white, 2200-6500 K). Lamps are found by broadcasting; each is
+`r`/`g`/`b` (a colour) or `temp` (white, 2200-6500 K), or `sceneId` (one of the WiZ app's
+presets). Lamps are found by broadcasting from each of the computer's addresses (Windows would
+send a plain broadcast out of just one network adapter, maybe WSL's); each is
 remembered in <app_dir>/lamps.json by its MAC address, with the name you gave it ("desk lamp"),
-and found again if its IP address changes. If no lamp answers, turn on "Allow local
-communication" in the WiZ app's settings.
+and found again if its IP address changes.
 
-TODO(verify): the messages follow WiZ's local protocol as used by open-source projects
-(pywizlight); check them with a real lamp (story 51, step 1 of ABDOH_EPIC_6.md).
+Checked with a real WiZ bulb (2026-11-24, firmware 1.29.0): getPilot answers {"mac", "rssi",
+"state", "sceneId", "temp", "dimming", ...}; every setting here worked. Newer firmware answers
+with "env": "pro" and an "hmac", and refuses changes ("Invalid params", -32602) unless the
+WiZ app allows all controls (Settings, Security) or they are signed with the home's key, which
+Abdoh doesn't do yet.
 """
 
 import json
@@ -41,9 +45,19 @@ WHITES = {
     "white": NEUTRAL, "neutral white": NEUTRAL, "natural white": NEUTRAL,
     "cool white": COOL, "cool": COOL, "cold white": COOL, "daylight": COOL, "bright white": COOL,
 }  # fmt: skip
+# A lamp whose WiZ app only allows its own ("verified") controls refuses changes with these.
+REFUSED_CODES = {-32602, -32605}
+REFUSED = (
+    "The lamp only takes commands from the WiZ app. In the WiZ app, go to Settings, then "
+    "Security, and allow all controls."
+)
 ALL = {"all", "both", "every", "everything", "lamps", "lights", "the lamps", "the lights"}
 # Said for "the lamp" when you have one, or for all of them.
 GENERIC = {"lamp", "light", "the lamp", "the light", "my lamp", "my light", ""}
+
+
+class LampRefused(ActionError):
+    """The lamp answered, but said no: asking again (or elsewhere) won't help."""
 
 
 @dataclass
@@ -87,10 +101,12 @@ def setting(text: str) -> dict:
 
 
 class Wiz:
-    """Talks to WiZ lamps. `make_socket()` gives a UDP socket (a fake one in tests)."""
+    """Talks to WiZ lamps. `make_socket()` gives a UDP socket and `addresses()` this
+    computer's IPv4 addresses (fakes in tests)."""
 
-    def __init__(self, make_socket=None):
+    def __init__(self, make_socket=None, addresses=None):
         self._make_socket = make_socket or _udp_socket
+        self._addresses = addresses or (_local_addresses if make_socket is None else _anywhere)
 
     def send(self, ip: str, method: str, params: dict | None = None) -> dict:
         """Send one message to the lamp at `ip` and return its answer's "result"."""
@@ -104,44 +120,94 @@ class Wiz:
                 except (TimeoutError, OSError):
                     continue
                 answer = json.loads(data.decode("utf-8", "replace"))
-                if "error" in answer:
-                    raise ActionError(f"The lamp said no ({answer['error']}).")
+                error = answer.get("error")
+                if error:
+                    code = error.get("code") if isinstance(error, dict) else None
+                    log.info("The lamp at %s said no to %s: %s", ip, method, error)
+                    if method == "setPilot" and code in REFUSED_CODES:
+                        raise LampRefused(REFUSED)
+                    raise LampRefused(f"The lamp said no ({error}).")
                 return answer.get("result") or {}
         finally:
             sock.close()
         raise ActionError("The lamp didn't answer.")
 
     def find(self, seconds: float = FIND_SECONDS) -> list[tuple[str, str]]:
-        """The lamps on your network: [(ip, mac)]."""
-        sock = self._make_socket(broadcast=True)
+        """The lamps on your network: [(ip, mac)]. Asked from each of this computer's
+        addresses: the answers wait in each socket while the one before is read."""
+        message = json.dumps({"method": "getPilot", "params": {}}).encode()
+        sockets = []
         found: dict[str, str] = {}
         try:
-            message = json.dumps({"method": "getPilot", "params": {}}).encode()
-            for _ in range(2):
-                sock.sendto(message, (BROADCAST, PORT))
-            sock.settimeout(seconds)
-            while True:
+            for address in self._addresses():
                 try:
-                    data, (ip, _) = sock.recvfrom(4096)
-                except (TimeoutError, OSError):
-                    break
-                try:
-                    mac = (json.loads(data.decode()).get("result") or {}).get("mac")
-                except ValueError:
+                    sock = self._make_socket(broadcast=True, bind=address)
+                    for _ in range(2):
+                        sock.sendto(message, (BROADCAST, PORT))
+                except OSError:
+                    log.debug("Couldn't look for lamps from %s", address, exc_info=True)
                     continue
-                if mac:
-                    found[mac] = ip
+                sockets.append(sock)
+            for sock in sockets:
+                sock.settimeout(seconds / len(sockets))
+                while True:
+                    try:
+                        data, (ip, _) = sock.recvfrom(4096)
+                    except (TimeoutError, OSError):
+                        break
+                    try:
+                        mac = (json.loads(data.decode()).get("result") or {}).get("mac")
+                    except ValueError:
+                        continue
+                    if mac:
+                        found[mac] = ip
         finally:
-            sock.close()
+            for sock in sockets:
+                sock.close()
         return [(ip, mac) for mac, ip in found.items()]
 
 
-def _udp_socket(broadcast: bool = False):
+def _as_it_was(before: dict) -> dict:
+    """setPilot params for a lamp's earlier state (getPilot's answer): one of a scene (the
+    WiZ app's presets report a temp too), a white or a colour, never a mix."""
+    params: dict = {"state": bool(before.get("state", True))}
+    if before.get("dimming"):
+        params["dimming"] = before["dimming"]
+    if before.get("sceneId"):
+        params["sceneId"] = before["sceneId"]
+    elif before.get("temp"):
+        params["temp"] = before["temp"]
+    elif any(before.get(k) for k in ("r", "g", "b")):
+        params.update({k: int(before.get(k) or 0) for k in ("r", "g", "b")})
+    return params
+
+
+def _udp_socket(broadcast: bool = False, bind: str = ""):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    if broadcast:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+    try:
+        if broadcast:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        if bind:
+            sock.bind((bind, 0))  # the broadcast goes out of this address's network adapter
+    except OSError:
+        sock.close()
+        raise
     sock.settimeout(ANSWER_SECONDS)
     return sock
+
+
+def _local_addresses() -> list[str]:
+    """This computer's IPv4 addresses (Wi-Fi, Ethernet, WSL's adapter...), or [""] for any."""
+    try:
+        infos = socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+    except OSError:
+        return _anywhere()
+    ips = dict.fromkeys(str(info[4][0]) for info in infos)
+    return [ip for ip in ips if not ip.startswith(("127.", "169.254."))] or _anywhere()
+
+
+def _anywhere() -> list[str]:
+    return [""]
 
 
 class Lamps:
@@ -232,9 +298,7 @@ class Lamps:
         threading.Timer(1.5, self._restore, args=(lamp, before)).start()
 
     def _restore(self, lamp: Lamp, before: dict) -> None:
-        keys = ("state", "dimming", "temp", "r", "g", "b", "sceneId")
-        params = {k: before[k] for k in keys if k in before and before[k] not in (None, 0)}
-        params["state"] = bool(before.get("state", True))
+        params = _as_it_was(before)
         try:
             self._send(lamp, "setPilot", params)
         except ActionError:
@@ -243,6 +307,8 @@ class Lamps:
     def _send(self, lamp: Lamp, method: str, params: dict | None = None) -> dict:
         try:
             return self.wiz.send(lamp.ip, method, params)
+        except LampRefused:
+            raise
         except ActionError:
             # Its IP address may have changed (the router gave it another one): find it again.
             moved = {mac: ip for ip, mac in self.wiz.find()}

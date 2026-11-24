@@ -309,7 +309,7 @@
         const result = await call("find_lamps");
         if (result && result.ok) {
           draw(result.lamps);
-          if (!result.lamps.length) toast("No lamps answered. In the WiZ app, turn on “Allow local communication”.", true);
+          if (!result.lamps.length) toast("No lamps answered. Is this computer on the same Wi-Fi as the lamps? In the WiZ app, under Settings → Security, allow all controls.", true);
         } else {
           button.disabled = false;
           button.textContent = "Find lamps";
