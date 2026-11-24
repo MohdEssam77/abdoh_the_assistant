@@ -24,6 +24,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>
       <span>Modes</span>
     </button>
+    <button data-page="lamps" title="Lamps" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/></svg>
+      <span>Lamps</span>
+    </button>
     <button data-page="roles" title="Act as" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7.5" r="3.5"/><path d="M5 20.5a7 7 0 0 1 14 0"/><path d="M17.5 3.5l1.2 1.2M20 7h-1.5"/></svg>
       <span>Act as</span>
@@ -179,6 +183,26 @@
     </div>
   </section>
 
+  <section class="page" id="page-lamps" aria-label="Lamps">
+    <div class="scroll">
+      <div class="content">
+        <div class="page-head">
+          <h1>Lamps</h1>
+          <p>Your WiZ lamps, right now. Switch them, dim them, and pick a colour, a white or a scene: it happens at once. Name them in Settings → Lamps.</p>
+        </div>
+        <div class="toolbar">
+          <div class="spacer"></div>
+          <button class="btn" id="lamp-find">Find lamps</button>
+        </div>
+        <div class="lamp-cards" id="lamp-cards"></div>
+        <div class="empty-state" id="lamp-empty" hidden>
+          <h2>No lamps yet</h2>
+          <p>Set them up in the WiZ app on your Wi-Fi, then press Find lamps. With newer lamps, allow all controls in the WiZ app (Settings → Security).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <section class="page" id="page-roles" aria-label="Act as">
     <div class="scroll">
       <div class="content">
@@ -246,6 +270,7 @@
 <script src="app.js"></script>
 <script src="commands.js"></script>
 <script src="modes.js"></script>
+<script src="lamps.js"></script>
 <script src="vendor/katex/katex.min.js"></script>
 <script src="board.js"></script>
 <script src="roles.js"></script>

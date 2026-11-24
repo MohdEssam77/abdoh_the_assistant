@@ -519,6 +519,10 @@ request; anything else ("make it feel like a rainy evening") goes to Claude.
   dialog. Each lamp gets its own look while the mode is on (all lamps first, then one can
   differ), and they go back as they were when the mode ends. In
   `modes.yaml`: `lamps: {all: "warm white 30%", Desk lamp: "scene fireplace"}`.
+- **The Lamps page**, like the WiZ app: each lamp (and all of them) with an on/off switch, a
+  brightness slider and how it is right now; **Colour, white and scenes** opens the lamp
+  dialog, and every change goes to the lamp at once. It reads the lamps every few seconds while
+  it's open, so changes from the WiZ app or by voice show too.
 - **Claude** can switch them in any words (Permissions → Lamps), and knows which lamp does what
   (every message tells it, so a lamp found a minute ago counts).
   While it plays a role it sets the mood when it fits (a therapist warm and dim, a DJ the party
