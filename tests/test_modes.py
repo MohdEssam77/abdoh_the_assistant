@@ -339,6 +339,49 @@ def test_other_mode_words_are_left_alone(router):
 # ----- the real controls, with a fake computer -----
 
 
+def test_a_mode_sets_each_lamp_and_puts_them_back(tmp_path):
+    """ "Movie: desk lamp dim warm, the other off", and back as they were afterwards."""
+    from test_lights import Network, lamps_on
+
+    from abdoh.modes.controls import ModeControls
+
+    (mode,) = parse_modes(
+        yaml.safe_load(
+            "- name: Movie\n  settings:\n    lamps: {Desk lamp: warm white 20%, Lamp 2: off}\n"
+        )
+    )
+    assert mode.settings["lamps"] == {"Desk lamp": "warm white 20%", "Lamp 2": "off"}
+    network = Network({"aa": "10.0.0.1", "bb": "10.0.0.2"})
+
+    class Computer:
+        lamps = lamps_on(tmp_path, network)
+
+    Computer.lamps.find_new()
+    Computer.lamps.rename("aa", "Desk lamp")
+    network.state["aa"] = {"state": True, "sceneId": 4, "dimming": 100}  # a party going on
+    controls = ModeControls(Computer(), None)
+    before = controls.capture("lamps")
+    network.told.clear()
+    controls.apply("lamps", mode.settings["lamps"])
+    assert [(ip, p) for ip, _, p in network.told] == [
+        ("10.0.0.1", {"dimming": 20, "temp": 2700, "state": True}),
+        ("10.0.0.2", {"state": False}),
+    ]
+    network.told.clear()
+    controls.restore("lamps", json.loads(json.dumps(before)))  # as kept in mode_state.json
+    assert network.told[0] == (
+        "10.0.0.1",
+        "setPilot",
+        {"state": True, "dimming": 100, "sceneId": 4},
+    )
+
+
+@pytest.mark.parametrize("lamps", ["warm", {"Desk lamp": ""}, {"Desk lamp": "sparkly"}, {}])
+def test_a_modes_lamps_must_make_sense(lamps):
+    with pytest.raises(ModesFileError):
+        parse_modes([{"name": "Movie", "settings": {"lamps": lamps}}])
+
+
 def test_the_controls_reach_the_computer_and_abdoh(tmp_path):
     from test_displays import FakeBackend
 
