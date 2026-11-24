@@ -13,8 +13,12 @@ import logging
 import re
 from collections.abc import Callable, Iterable, Iterator
 
+from abdoh import lights as _lights
+
 log = logging.getLogger(__name__)
 
+# The WiZ scenes, by name (abdoh/lights.py), for the lamp action's help.
+_SCENES = ", ".join(n for n in _lights.SCENES if n not in _lights.WHITE_FIRST)
 # What Claude is allowed to do, with the help text shown to it in the system prompt.
 ACTION_HELP: dict[str, str] = {
     "open_url": "ACTION open_url: <url>   (a website, or a search such as "
@@ -39,8 +43,11 @@ ACTION_HELP: dict[str, str] = {
     "audio_output": "ACTION audio_output: <speakers>   (sends the sound to other speakers: "
     "headphones, speakers, or a name)",
     "dark_mode": "ACTION dark_mode: <on | off>   (Windows' dark theme)",
-    "lamp": "ACTION lamp: <a lamp's name, or all> | <on, off, 40%, red, warm white, blue 30%>   "
-    "(the user's smart lamps)",
+    "lamp": "ACTION lamp: <a lamp's name, or all> | <how>   (the user's smart lamps. How: on, "
+    "off, a brightness (40%), a white (warm white, cool white, 3000k), a colour (red, amber, "
+    "sky blue, lavender, hot pink... or #rrggbb), or a WiZ scene: " + _SCENES + "; slow or "
+    "fast for the moving ones. Combine them: party fast 80%. One line per lamp gives each its "
+    "own, like a two-tone look; a white-only lamp turns a colour into the nearest white)",
     "window": "ACTION window: <app> to <screen> [maximized, left, right or keep]   (moves an "
     "open app's window to one of the user's screens, by number or name, e.g. WhatsApp to 1 "
     "maximized or Chrome to the laptop left; this to <screen> moves the window in front; "

@@ -62,8 +62,12 @@ the usual answer length when they give one. When the user says in any words that
 (stop acting, no need to act anymore, you can stop being my teacher, be yourself again), write \
 the line
 ACTION role: off
-and answer as yourself.{names}
+and answer as yourself.{names}{lamps}
 """
+# While a role is on, Claude may set the mood with the lamps; Abdoh puts them back afterwards.
+ROLE_LAMPS = """ While you play a role, set the mood with the user's lamps (ACTION lamp) when \
+it fits and they haven't said otherwise: a therapist or a bedtime story warm and dim, a DJ the \
+party or club scene, a horror story dark red. Abdoh puts the lamps back when the role ends."""
 # Memory (abdoh/memory.py): what Claude knows about the user, and lessons, across conversations.
 MEMORY = """You remember things across conversations. When the user tells you something lasting \
 about themselves (the people in their life, what they like, their routines, where things are) or \
@@ -223,6 +227,15 @@ def _role_names(cfg: Config) -> str:
     return f" The user's roles: {', '.join(names)}." if names else ""
 
 
+def _role_lamps(cfg: Config) -> str:
+    """ROLE_LAMPS, when Claude may switch the lamps and there are some."""
+    if "lamp" not in cfg.claude.actions:
+        return ""
+    from abdoh.lights import Lamps
+
+    return ROLE_LAMPS if Lamps(cfg.app_dir / "lamps.json").all() else ""
+
+
 def _memory(cfg: Config) -> str:
     """The memory section (MEMORY), or "" with memory off."""
     if not cfg.memory:
@@ -340,7 +353,7 @@ def system_prompt(
         sentences=cfg.claude.voice_reply_max_sentences,
         actions=actions,
         look=LOOK if cfg.claude.allow_screen else "",
-        roles=ROLES.format(names=_role_names(cfg)),
+        roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
         save_steps=_save_steps(cfg),
         self_edit=_self_edit(cfg),
