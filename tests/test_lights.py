@@ -97,18 +97,18 @@ def test_what_you_say_becomes_a_setting(said, params):
 @pytest.mark.parametrize(
     "said, params",
     [
-        ("party", {"sceneId": 4, "state": True}),
-        ("disco", {"sceneId": 4, "state": True}),
+        ("party", {"sceneId": 4, "speed": 100, "state": True}),
+        ("disco", {"sceneId": 4, "speed": 100, "state": True}),
         ("scene ocean slow", {"sceneId": 1, "speed": 50, "state": True}),
-        ("fireplace 40%", {"dimming": 40, "sceneId": 5, "state": True}),
+        ("fireplace 40%", {"dimming": 40, "sceneId": 5, "speed": 100, "state": True}),
         ("club, very fast", {"sceneId": 26, "speed": 200, "state": True}),
         ("party speed 150", {"sceneId": 4, "speed": 150, "state": True}),
-        ("cozy", {"sceneId": 6, "state": True}),
-        ("golden white", {"sceneId": 30, "state": True}),  # a scene, not "white"
-        ("dim to warm", {"sceneId": 40, "state": True}),  # not "dim"
+        ("cozy", {"sceneId": 6, "speed": 100, "state": True}),
+        ("golden white", {"sceneId": 30, "speed": 100, "state": True}),  # a scene, not "white"
+        ("dim to warm", {"sceneId": 40, "speed": 100, "state": True}),  # not "dim"
         ("daylight", {"temp": 6500, "state": True}),  # alone: the white
-        ("scene daylight", {"sceneId": 12, "state": True}),
-        ("warm white scene", {"sceneId": 11, "state": True}),
+        ("scene daylight", {"sceneId": 12, "speed": 100, "state": True}),
+        ("warm white scene", {"sceneId": 11, "speed": 100, "state": True}),
         ("#ff8800 50%", {"dimming": 50, "r": 255, "g": 136, "b": 0, "state": True}),
         ("sky blue", {"r": 90, "g": 190, "b": 255, "state": True}),
         ("hot pink", {"r": 255, "g": 20, "b": 140, "state": True}),
@@ -148,7 +148,7 @@ def test_each_kind_of_lamp_gets_what_it_can_take():
     assert fit(DIMMABLE, red) == {"dimming": 40, "state": True}
     assert fit(PLUG, red) == {"state": True}
     assert fit(WHITE, setting("party")) is None  # no Party scene on a white-only lamp
-    assert fit(WHITE, setting("candlelight")) == {"sceneId": 29, "state": True}
+    assert fit(WHITE, setting("candlelight")) == {"sceneId": 29, "speed": 100, "state": True}
     assert fit(WHITE, setting("off")) == {"state": False}
 
 
@@ -273,7 +273,9 @@ def test_the_app_finds_names_and_tries_lamps(tmp_path):
     refused = api.try_lamp("Desk lamp", "scene party")  # no Party on a white-only lamp
     assert refused["ok"] is False and "doesn't have that scene" in refused["error"]
     assert api.try_lamp("Desk lamp", "candlelight 40%")["ok"] is True
-    assert network.told == [("10.0.0.1", "setPilot", {"dimming": 40, "sceneId": 29, "state": True})]
+    assert network.told == [
+        ("10.0.0.1", "setPilot", {"dimming": 40, "sceneId": 29, "speed": 100, "state": True})
+    ]
 
 
 def test_a_lamp_goes_back_to_its_scene_white_or_colour():

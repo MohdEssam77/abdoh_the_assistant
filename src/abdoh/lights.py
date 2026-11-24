@@ -74,6 +74,7 @@ WHITE_FIRST = {"warm white", "cool white", "daylight", "white"}
 # Which scenes a white-only lamp has (pywizlight's TW_SCENES, DW_SCENES; not Alarm).
 WHITE_SCENES = {6, 9, 10, 11, 12, 13, 14, 15, 16, 18, 29, 30, 31, 32, 33, 40}
 DIMMABLE_SCENES = {9, 10, 14, 29, 31, 32, 34}
+NORMAL_SPEED = 100
 SPEEDS = {"very slow": 20, "slowly": 50, "slow": 50, "fast": 160, "quick": 160, "very fast": 200}
 # What a lamp can do, from the WiZ module name ("ESP24_SHRGBC_01": colour).
 COLOUR, WHITE, DIMMABLE, PLUG = "colour", "white", "dimmable", "plug"
@@ -155,6 +156,8 @@ def setting(text: str, strict: bool = False) -> dict:
                 if found:
                     params["speed"] = SPEEDS[word]
                     break
+            else:  # a lamp keeps the last scene's speed: "fireplace" after "ocean slow"
+                params["speed"] = NORMAL_SPEED
     else:
         kelvin, rest = _take(r"\b(\d{4})\s*k\b", rest)
         hex_colour, rest = _take(r"#([0-9a-f]{6})\b", rest)
