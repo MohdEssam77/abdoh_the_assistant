@@ -245,6 +245,7 @@ const Bridge = (() => {
       pick_folder: async () => "C:\\Users\\you\\Documents\\Projects",
       open_folder: async () => true,
       open_sound_settings: async () => {},
+      open_mic_privacy: async () => {},
       restart: async () => {},
       claude_status: async () => ({
         installed: true, signed_in: true, plan: "pro", method: "claude.ai", has_api_key: false,

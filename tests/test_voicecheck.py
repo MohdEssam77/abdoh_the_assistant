@@ -194,6 +194,63 @@ def test_teaching_it_your_voice(tmp_path, monkeypatch):
     assert not (tmp_path / FILE).exists() and daemon.voice_status()["recorded"] == 0
 
 
+class NoSpeech:
+    def reset(self):
+        pass
+
+    def speech_prob(self, audio):
+        return 0.0
+
+    def is_speech(self, block):
+        return False
+
+
+class SteadyMic(FakeMic):
+    """The same level all the time: 0 is a muted mic (or one Windows won't let apps use)."""
+
+    def __init__(self, level):
+        super().__init__([])
+        self.level = level
+
+    def read(self, timeout=2.0):
+        return (np.ones(1600) * self.level).astype(np.int16).tobytes()
+
+
+@pytest.mark.parametrize("level, quiet", [(0, "silent"), (300, "low")])
+def test_a_silent_or_very_quiet_microphone_is_said_so(tmp_path, monkeypatch, level, quiet):
+    """A friend's training stayed on "1 of 10": the window now says why."""
+    import threading
+
+    monkeypatch.setattr("abdoh.audio.voicecheck.TALK_SECONDS", 2)
+    daemon = make_daemon(tmp_path)
+    daemon.mic = mic = SteadyMic(level)
+    daemon.vad = NoSpeech()  # nothing in it is taken for speech: how loud was it?
+    stop = threading.Event()
+
+    def main_loop():
+        while not stop.is_set():
+            if daemon._capture is not None:
+                daemon._record_capture(mic)
+
+    threading.Thread(target=main_loop, daemon=True).start()
+    try:
+        assert daemon.record_voice("phrase", 1) == {"ok": True, "heard": False, "quiet": quiet}
+        talk = daemon.record_voice("talk")
+    finally:
+        stop.set()
+    if quiet == "silent":  # 20 seconds of silence isn't you talking: nothing is kept
+        assert talk == {"ok": True, "heard": False, "quiet": "silent"}
+        assert daemon.voice_status()["talk"] is False
+
+
+def test_how_quiet():
+    from abdoh.daemon import how_quiet
+
+    assert [how_quiet(n) for n in (0, 99, 100, 499, 500, 20000)] == [
+        "silent", "silent", "low", "low", "", ""
+    ]  # fmt: skip
+
+
 def test_training_needs_recordings(tmp_path):
     daemon = make_daemon(tmp_path)
     assert daemon.train_voice()["ok"] is False
