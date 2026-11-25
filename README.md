@@ -688,6 +688,14 @@ keys, card numbers or health details unless you explicitly ask.
   command; after you told it something, it's remembered; when it could be either, it asks.
 - While memory is on, requests that took several actions are noted in `repeats.json`, so Abdoh
   can offer to make them a command when you ask again (see "Make it instant next time").
+- **Keep conversations for 7 days** (`keep_conversations`, under the memory switch): what you
+  say or type to Abdoh and what it answers (with the role, the mode and what went on the board)
+  are kept in `conversations/` in Abdoh's data folder, one file a day, and deleted after
+  `conversation_days` (7). Not what Abdoh says by itself (timers, reminders), nor what wasn't
+  meant for it. **Conversations since <the oldest day>** on the Memory page lists the days:
+  open one to read it (the board is drawn again), delete a day, or **Delete all**. Off, or
+  memory off: nothing new is kept. Claude sees a part only when you ask about an earlier
+  conversation.
 
 ## 6. Install it like an app
 
@@ -850,6 +858,8 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `voice_interrupt_sensitivity` | `medium` | `low`, `medium` or `high`: how easily your voice stops a reply |
 | `allow_power` | `true` | Abdoh may put the computer to sleep, shut it down or restart it when you ask |
 | `memory` | `true` | Abdoh remembers things about you (the Memory page, `memory.yaml`); `false` keeps and sends nothing |
+| `keep_conversations` | `true` | Keep your conversations (`conversations/`) to ask about them later; `false` keeps nothing new |
+| `conversation_days` | `7` | How many days conversations are kept (1 to 30) |
 | `duck_others` | `true` | Other apps go quieter while Abdoh listens and answers |
 | `duck_percent` | `30` | ... to this share of their own volume |
 | `tts_rate` | `175` | Speaking speed |
