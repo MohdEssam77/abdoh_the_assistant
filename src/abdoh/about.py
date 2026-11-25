@@ -154,6 +154,12 @@ def _thinking(cfg: Config, via: str) -> str:
             f"you run as the model {model} through OpenRouter with the user's own key (no "
             "files, web search or connectors there)"
         )
+    elif via == "chatgpt":
+        model = c.chatgpt_model or "the first model of the user's ChatGPT plan"
+        how = (
+            f"you run as the ChatGPT model {model}, paid by the user's own ChatGPT plan (no "
+            "files, web search or connectors there)"
+        )
     else:
         model = c.code_model or "the user's Claude Code default model"
         how = (

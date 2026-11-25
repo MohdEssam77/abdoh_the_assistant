@@ -32,7 +32,7 @@ def _default_app_dir() -> Path:
 DEFAULT_APP_DIR = _default_app_dir()
 
 
-CLAUDE_BACKENDS = ("auto", "code", "api", "openrouter", "off")
+CLAUDE_BACKENDS = ("auto", "code", "api", "openrouter", "chatgpt", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
 # 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
@@ -88,13 +88,15 @@ NEW_ACTIONS = {
 
 @dataclass
 class ClaudeConfig:
-    # auto: Claude Code if installed (subscription), else the API key, else OpenRouter
+    # auto: Claude Code if installed (subscription), else the API key, else OpenRouter, else
+    # your ChatGPT plan (once connected in Settings)
     backend: str = "auto"
     code_path: str = ""  # claude.exe; empty = find it
     code_model: str = ""  # empty = your Claude Code default
     model: str = "claude-opus-5-5"  # API key only
     max_tokens: int = 4000  # API key and OpenRouter only
     openrouter_model: str = "openrouter/auto"  # OpenRouter only: any model there
+    chatgpt_model: str = ""  # your ChatGPT plan only: one of its models; empty = its first
     # Pictures made by AI on the board (with an OpenRouter key): the model that makes them
     openrouter_image_model: str = "black-forest-labs/flux-3-image-klein"
     effort: str = "low"

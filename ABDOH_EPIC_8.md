@@ -468,6 +468,49 @@ Not done, and why: binding Piper's output to the loopback's endpoint. Both alrea
 Windows' default speakers (Piper plays through the default device's mapper, the tap captures
 the default endpoint); where they don't, point 3 keeps the echo from counting and says so.
 
+### Story 109: Your ChatGPT plan (`story/109-chatgpt`, issue #2)
+
+OpenAI's "Sign in with ChatGPT" lets open-source apps on the user's own computer use the user's
+ChatGPT plan (Plus or Pro), with no API key and no approval needed
+(developers.openai.com/siwc/token-sharing-open-source; the endpoints checked against
+auth.openai.com's discovery document; the DevKit is Node.js under a noncommercial licence, so
+Abdoh has its own small client in Python, `abdoh/claude/chatgpt.py`, no new dependency).
+
+1. **Sign-in** (Settings → Claude card → Continue with ChatGPT): OpenAI's page in the browser,
+   back to `http://127.0.0.1:1455/auth/callback` (another free port if taken) for ten minutes.
+   First time: client `dynamic_agent_client`, name Abdoh, a lasting `urn:uuid` for this
+   installation; OpenAI issues Abdoh's client id, kept for signing in again. Fresh state, nonce
+   and PKCE (S256) each time; the callback's state checked (a stranger's changes nothing), "no"
+   ends it without asking for tokens, a missing or different client id is refused; the ID
+   token's RS256 signature (OpenAI's JWKS, checked in plain Python), issuer, audience, expiry and
+   nonce checked. Plan usage only with the `chatgpt.tokens.use.direct` scope; without it the card
+   says to reconnect and allow it, and nothing is sent.
+2. **Tokens**: in `chatgpt/tokens.bin`, encrypted with Windows' DPAPI for this user, written at
+   once; account.json (no secrets) has the client id, email and whether the plan may be used.
+   Never in the settings, the log (the callback server logs nothing) or the window. Refreshed
+   two minutes before they run out, one refresh at a time, the rotating refresh token replaced
+   with the rest; a refused refresh means connecting again (the client id stays).
+3. **Answers**: the Responses API, `stream: true`, `store: false`, Abdoh's instructions, the
+   request (and a screenshot as an image), no fields the plan refuses. Text from
+   `response.output_text.delta`; only `response.completed` ends it well: failed, incomplete or
+   cut off says so. Usage limit, not eligible, busy, signed out, a model that can't see images:
+   each its own sentence. A 401 gets one fresh token and one more try. No listening for more
+   after any of them (story 107).
+4. **Settings**: the account, Test, Reconnect, Disconnect (revoked at OpenAI; if OpenAI doesn't
+   confirm, it says so), Manage usage (chatgpt.com/settings/usage), the ChatGPT model (the
+   plan's list, Automatic = its first), "Only my ChatGPT plan" under Use; Automatic uses it last.
+   The first time, OpenAI's "You're using your ChatGPT plan" note. Screenshots checked, dark and
+   light (and an old "null" under Use, and "Sign in with Claude" shown while signed in when
+   another way was chosen, fixed on the way).
+5. Checked for real without an account: the discovery document matches the endpoints, the keys
+   are RS256, and the authorize request is accepted (302 to OpenAI's log-in page).
+   `tests/test_chatgpt.py`: 44 tests, OpenAI faked, ID tokens signed with a test key.
+   **With the owner (or the friend)**: the whole sign-in with a real Plus or Pro account, Test,
+   a spoken question, Disconnect.
+
+Not done (as the issue says, separate): switching to ChatGPT by itself when Claude's limit is
+reached.
+
 ---
 
 ## 7. The owner's decisions (2026-11-25)

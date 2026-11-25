@@ -126,6 +126,8 @@ const Bridge = (() => {
     ];
     let voiceActive = false;
     let demoOpenRouter = false;
+    let demoChatGPT = params.has("chatgpt"); // ?chatgpt: already connected
+    let demoChatGPTAt = 0;
     let demoLamps = [{ name: "Desk lamp", mac: "a8bb5006f1e2", ip: "192.168.1.41", kind: "colour" }];
     const demoLampHow = { "Desk lamp": "scene party speed 160 80%", "Lamp 2": "warm white 60%" };
     // abdoh.lights.options(), as the app gets it
@@ -312,9 +314,24 @@ const Bridge = (() => {
       claude_status: async () => ({
         installed: true, signed_in: true, plan: "pro", method: "claude.ai", has_api_key: false,
         has_openrouter_key: demoOpenRouter, openrouter_model: settings.claude.openrouter_model || "openrouter/auto",
-        backend: settings.claude.backend, using: "code", connected: true,
-        summary: "Connected with your Pro plan.",
+        backend: settings.claude.backend, using: settings.claude.backend === "chatgpt" && demoChatGPT ? "chatgpt" : "code", connected: true,
+        chatgpt: { connected: demoChatGPT, email: demoChatGPT ? "you@example.com" : "", plan_usage: demoChatGPT, model: settings.claude.chatgpt_model || "" },
+        summary: settings.claude.backend === "chatgpt" && demoChatGPT ? "Using your ChatGPT plan." : "Connected with your Pro plan.",
       }),
+      chatgpt_connect: async () => { demoChatGPTAt = Date.now(); return { ok: true, url: "https://auth.openai.com/api/accounts/authorize?client_id=dynamic_agent_client" }; },
+      chatgpt_progress: async () => {
+        if (!demoChatGPTAt) return { state: "none" };
+        if (Date.now() - demoChatGPTAt < 3000) return { state: "waiting", error: "" };
+        const first = !demoChatGPT;
+        demoChatGPT = true;
+        return { state: "done", error: "", plan_usage: true, first };
+      },
+      chatgpt_models: async () => ({ ok: true, chosen: settings.claude.chatgpt_model || "", models: [
+        { id: "gpt-6.2-sol", name: "GPT-6.2 Sol" },
+        { id: "gpt-6.1-sol", name: "GPT-6.1 Sol" },
+        { id: "gpt-6-mini", name: "GPT-6 mini" },
+      ] }),
+      chatgpt_disconnect: async () => { demoChatGPT = false; demoChatGPTAt = 0; return { ok: true, revoked: true }; },
       install_claude: async () => ({ ok: true }),
       claude_sign_in: async () => ({ ok: true }),
       claude_sign_out: async () => ({ ok: true }),
@@ -332,7 +349,7 @@ const Bridge = (() => {
         { id: "google/gemini-3-pro", name: "Google: Gemini 3 Pro", images: true, price: "$2 / $12 per million tokens" },
         { id: "meta-llama/llama-4:free", name: "Meta: Llama 4 (free)", images: false, price: "free" },
       ] }),
-      claude_test: async () => ({ ok: true, reply: "OK", via: "Claude Code" }),
+      claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},
       check_update: async () => (params.get("update")
         ? { available: true, current: "0.3.0", version: "0.3.1", url: "https://github.com", download: "https://github.com" }

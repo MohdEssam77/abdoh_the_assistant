@@ -415,7 +415,8 @@ class Brain(ABC):
 
 
 def make_brain(cfg: Config, find_code=None) -> Brain | None:
-    """Claude Code if it's installed (paid by your subscription), else the API if a key is set."""
+    """Claude Code if it's installed (paid by your subscription), else the API if a key is set,
+    else OpenRouter, else your ChatGPT plan (or the one `claude.backend` names)."""
     from abdoh.claude.code import ClaudeCodeBrain, find_claude_code
 
     backend = cfg.claude.backend
@@ -436,4 +437,12 @@ def make_brain(cfg: Config, find_code=None) -> Brain | None:
         from abdoh.claude.openrouter import OpenRouterBrain
 
         return OpenRouterBrain(cfg)
+    if backend in ("auto", "chatgpt"):
+        from abdoh.claude.chatgpt import Account, ChatGPTBrain
+
+        account = Account.of(cfg)
+        # Chosen: even without the plan allowed (it then says how to allow it). Automatic:
+        # only once it is.
+        if account.plan_usage or (backend == "chatgpt" and account.connected):
+            return ChatGPTBrain(cfg)
     return None

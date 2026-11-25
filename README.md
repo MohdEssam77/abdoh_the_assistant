@@ -366,6 +366,27 @@ but Claude Code's own tools (your files, web search, Gmail and Calendar) don't, 
 exchange is remembered. Smaller models may follow Abdoh's actions less reliably than Claude. In
 `.env`: `OPENROUTER_API_KEY=...`; `claude.backend: openrouter` always uses it.
 
+**Or your ChatGPT plan** (ChatGPT Plus or Pro): Settings → Claude card → **Continue with ChatGPT**.
+OpenAI's page opens in your browser (OpenAI's own "Sign in with ChatGPT" for apps on your
+computer); choose your account and allow Abdoh to use your plan. The card then shows the
+account, a **ChatGPT model** to pick (the ones your plan allows here), **Test**, **Reconnect**,
+**Disconnect** and **Manage usage** (your ChatGPT settings). Choose **Only my ChatGPT plan**
+under **Use** to use it instead of Claude (`claude.backend: chatgpt`); Automatic uses it only when
+there's no Claude account, API key or OpenRouter key. Like an API key, Abdoh's actions and looking
+at the screen (with a model that sees images) work; Claude Code's own tools (your files, web
+search, Gmail and Calendar) don't, and only the last exchange is remembered.
+- Your plan's limits apply: for ChatGPT Plus the five-hour limit is shared with ChatGPT itself
+  and every other app using your plan. When it's reached Abdoh says so; see it under **Manage
+  usage** (https://chatgpt.com/settings/usage).
+- Abdoh never sees your password. The sign-in comes back to a page Abdoh serves on your own
+  computer (127.0.0.1, port 1455 or another free one) for ten minutes at most. The tokens stay in
+  `chatgpt/tokens.bin` in Abdoh's data folder, encrypted for your Windows user, never in the
+  settings or the log. **Disconnect** revokes them at OpenAI and deletes them.
+- **"Abdoh may not use your plan yet"**: you signed in but didn't allow plan usage. Press
+  **Reconnect** and allow it. **"ChatGPT signed Abdoh out"**: the session ended (you removed
+  Abdoh in your ChatGPT settings, or it wasn't used for 30 days): press **Reconnect**. **"Your
+  ChatGPT plan can't be used in other apps"**: it needs Plus or Pro.
+
 Without Claude, everything else still works and Abdoh tells you Claude isn't connected.
 
 ## 5. Your commands
@@ -910,11 +931,12 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `allow_run` | `false` | Allow `run:` actions |
 | `check_updates` | `true` | Look for a new version once a day |
 | `setup_done` | `false` | The first-start setup was finished or skipped |
-| `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key, else OpenRouter), `code`, `api`, `openrouter`, or `off` |
+| `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key, else OpenRouter, else your ChatGPT plan), `code`, `api`, `openrouter`, `chatgpt`, or `off` |
 | `claude.code_path` | `""` | Where `claude.exe` is; empty means find it automatically |
 | `claude.code_model` | `""` | Claude Code model: `haiku` (fastest), `sonnet`, `opus`; empty means your Claude Code default |
 | `claude.model` | `claude-opus-5-5` | Model when using an API key |
 | `claude.openrouter_model` | `openrouter/auto` | Model when using OpenRouter (any id from openrouter.ai/models) |
+| `claude.chatgpt_model` | (empty) | Model when using your ChatGPT plan (one it lists in Settings); empty = its first |
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
