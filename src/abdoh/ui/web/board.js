@@ -14,6 +14,8 @@ const Board = (() => {
   const ITEM = /^\s*(?:([-*•])|(\d+)[.)])\s+(.*)$/;
   const TABLE = /^\s*\|/;
   const RULE = /^:?-{2,}:?$/;
+  // A picture: [picture: margherita pizza] or [picture: https://...] (Abdoh finds and fetches it)
+  const PICTURE = /^\s*\[picture:\s*(.+?)\s*\]\s*$/i;
   // A formula on a line of its own: $$...$$ or \[...\], or opened on this line, closed later.
   const MATH_LINE = /^\s*(?:\$\$(.+)\$\$|\\\[(.+)\\\])\s*$/;
   const MATH_OPEN = /^\s*(\$\$|\\\[)(.*)$/;
@@ -49,7 +51,7 @@ const Board = (() => {
   }
 
   const special = (line) => FENCE.test(line) || HEADING.test(line) || ITEM.test(line) || TABLE.test(line)
-    || MATH_LINE.test(line) || opensMath(line) !== null;
+    || MATH_LINE.test(line) || opensMath(line) !== null || PICTURE.test(line);
 
   /* The board's text -> blocks: code, math, heading, list, table, or a paragraph (its line
      breaks kept: worked steps are often one per line). */
@@ -67,6 +69,9 @@ const Board = (() => {
         for (i += 1; i < lines.length && !FENCE_END.test(lines[i]); i += 1) body.push(lines[i]);
         i += 1; // past the closing fence
         blocks.push({ type: "code", lang: fence[1] || "", text: body.join("\n") });
+      } else if (PICTURE.test(line)) {
+        blocks.push({ type: "picture", what: PICTURE.exec(line)[1] });
+        i += 1;
       } else if (formula) {
         blocks.push({ type: "math", text: (formula[1] ?? formula[2]).trim() });
         i += 1;
@@ -155,8 +160,8 @@ const Board = (() => {
         if (!picture) cuts.push(end); // a drawing shows nothing until it's whole
       } else if (opensMath(line)) {
         mathClose = MATH_CLOSE[opensMath(line)];
-      } else if (TABLE.test(line) || MATH_LINE.test(line)) {
-        if (line.trim()) cuts.push(end);
+      } else if (TABLE.test(line) || MATH_LINE.test(line) || PICTURE.test(line)) {
+        if (line.trim()) cuts.push(end); // a table row, a formula or a picture: whole
       } else steps(STEP);
       offset = end + 1;
     }
@@ -419,7 +424,29 @@ const Board = (() => {
     return box;
   }
 
+  /* ---------- pictures: found by Abdoh, shown with their credit ---------- */
+
+  function picture(b) {
+    const figure = el("figure", { class: "board-picture" });
+    figure.dataset.what = b.what;
+    const link = /^https?:\/\//i.test(b.what);
+    figure.fill = (p) => {
+      if (!p) {
+        figure.replaceChildren(el("div", { class: "board-note" }, link ? "Getting the picture…" : `Finding a picture of ${b.what}…`));
+      } else if (p.ok) {
+        figure.replaceChildren(el("img", { src: p.src, alt: p.title || b.what }),
+          el("figcaption", {}, p.credit + (p.ai ? " · Made by AI" : "")));
+      } else {
+        figure.replaceChildren(el("div", { class: "board-note" }, p.error || "No picture."));
+      }
+    };
+    const known = typeof App !== "undefined" && App.boardPictures ? App.boardPictures[b.what] : null;
+    figure.fill(known || null);
+    return figure;
+  }
+
   function block(b) {
+    if (b.type === "picture") return picture(b);
     if (b.type === "code" && DRAWINGS[b.lang.toLowerCase()]) return drawing(b);
     if (b.type === "code") {
       const code = document.createElement("code");

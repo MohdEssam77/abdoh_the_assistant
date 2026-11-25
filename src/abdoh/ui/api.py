@@ -53,6 +53,7 @@ class UiState:
         # Abdoh listens without the wake word in lessons (on), and right now (now)
         self._listening = {"on": False, "now": False}
         self._board: deque[dict] = deque(maxlen=self.BOARD)  # cards {id, text}, oldest first
+        self._pictures: dict[str, dict] = {}  # the board's pictures: what -> {ok, src, credit...}
         self._voice = True
         self._gpu = ""  # how speech recognition on the graphics card is going (Settings)
         self._voice_download = None  # a natural voice downloading: {voice, language, percent}
@@ -87,10 +88,13 @@ class UiState:
             elif kind == "board":  # a card (new, or grown), or None: clear it
                 if value is None:
                     self._board.clear()
+                    self._pictures.clear()
                 elif self._board and self._board[-1]["id"] == value["id"]:
                     self._board[-1] = dict(value)
                 else:
                     self._board.append(dict(value))
+            elif kind == "board_picture":  # a picture the board asked for, found or not
+                self._pictures[str(value["what"])] = dict(value)
             elif kind == "voice":
                 self._voice = bool(value)
             elif kind == "gpu":
@@ -125,6 +129,7 @@ class UiState:
                 "role": self._role,
                 "listening": dict(self._listening),
                 "board": [dict(card) for card in self._board],
+                "pictures": {what: dict(p) for what, p in self._pictures.items()},
                 "voice": self._voice,
                 "gpu": self._gpu,
                 "voice_download": self._voice_download,
