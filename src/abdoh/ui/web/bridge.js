@@ -13,7 +13,7 @@ const Bridge = (() => {
       wake_words: ["abdoh", "hey abdoh", "ya abdoh"], wake_word_aliases: ["abdo", "abdul"],
       wake_word_model: "models/hey_abdoh.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
-      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, memory: true, use_gpu: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
+      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, memory: true, keep_conversations: true, conversation_days: 7, use_gpu: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.abdoh/abdoh.log",
       has_api_key: false,
       claude: {
@@ -70,6 +70,23 @@ const Bridge = (() => {
       { text: "They like to study with lo-fi music on Spotify.", kind: "fact", added: "2026-11-22" },
       { text: "WhatsApp: maximize its main window; the first window found is a hidden helper.", kind: "lesson", added: "2026-11-22" },
     ];
+    let demoTalks = {
+      "2026-11-25": { label: "Today", exchanges: [
+        { at: "09:12", you: "Hey Abdoh, what's the weather like in Saarbrücken?", abdoh: "It's 4 degrees and cloudy, with rain after 3 pm." },
+        { at: "14:03", you: "What does a proper carbonara look like?", abdoh: "Here's the classic from Rome: no cream, only eggs, pecorino and guanciale.", role: "Chef",
+          board: "## Carbonara\nThe classic, from Rome:\n| Ingredient | Why |\n|---|---|\n| Guanciale | The soul of the dish |\n| Pecorino | Salty, sharp |\n[picture: spaghetti carbonara]" },
+        { at: "14:05", you: "save the board", abdoh: "The board is saved as a PDF in your Documents, Abdoh, Boards.", role: "Chef", typed: true },
+      ] },
+      "2026-11-24": { label: "Yesterday", exchanges: [
+        { at: "20:41", you: "Show me a DFA for binary numbers divisible by 3", abdoh: "The state is the remainder so far: reading a bit doubles it and adds the bit.", role: "Theoretical CS professor",
+          board: "## Divisible by 3\n```dot\ndigraph { rankdir=LR; q0 [shape=doublecircle]; q0 -> q0 [label=0]; q0 -> q1 [label=1]; q1 -> q2 [label=0]; q1 -> q0 [label=1]; q2 -> q1 [label=0]; q2 -> q2 [label=1]; }\n```" },
+        { at: "21:10", you: "movie mode", abdoh: "Done.", mode: "Movie" },
+      ] },
+      "2026-11-21": { label: "Saturday 21 November", exchanges: [
+        { at: "11:00", you: "Remind me in 20 minutes to take the pizza out", abdoh: "I'll remind you at 11:20." },
+      ] },
+    };
+    const talkList = () => Object.entries(demoTalks).map(([date, d]) => ({ date, label: d.label, count: d.exchanges.length }));
     const memoryChanged = (result) => {
       if (result.ok) push("memory", null);
       return result;
@@ -165,6 +182,13 @@ const Bridge = (() => {
         memory = memory.map((e) => (e.text === old ? { ...e, text: text.trim(), kind } : e));
         return memoryChanged({ ok: true });
       },
+      conversations: async () => {
+        const days = talkList();
+        return { days, keep_days: settings.conversation_days || 7, since: days.length ? days[days.length - 1].label : "", since_date: days.length ? days[days.length - 1].date : "" };
+      },
+      conversation_day: async (date) => (demoTalks[date] ? { ok: true, label: demoTalks[date].label, exchanges: demoTalks[date].exchanges } : { ok: false, error: "That day isn't kept anymore." }),
+      delete_conversation_day: async (date) => { delete demoTalks[date]; return { ok: true }; },
+      forget_conversations: async () => { const n = Object.keys(demoTalks).length; demoTalks = {}; return { ok: true, days: n }; },
       forget_memory: async (text) => {
         memory = memory.filter((e) => e.text !== text);
         return memoryChanged({ ok: true });

@@ -40,6 +40,23 @@ def no_bundled_models(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_conversations(tmp_path_factory, monkeypatch):
+    """Tests never read, write or clean this computer's real conversations: Config() points at
+    the real Abdoh folder, so its conversations folder becomes a temporary one."""
+    from abdoh import conversations
+    from abdoh.config import DEFAULT_APP_DIR
+
+    real = (DEFAULT_APP_DIR / conversations.FOLDER).resolve()
+    spare = tmp_path_factory.mktemp("conversations")
+    original = conversations.Conversations.__init__
+
+    def init(self, folder, *args, **kwargs):
+        original(self, spare if Path(folder).resolve() == real else folder, *args, **kwargs)
+
+    monkeypatch.setattr(conversations.Conversations, "__init__", init)
+
+
+@pytest.fixture(autouse=True)
 def no_real_folder_moves(monkeypatch):
     """Tests that start the app never move this computer's real Abdoh folders to Abdoh's
     (tests/test_rename.py tests the real function on temporary folders)."""

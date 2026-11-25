@@ -19,6 +19,8 @@ max_record_seconds: 10
 confirm_actions: "sound"         # after "open Spotify": sound = a short sound, words = say what it did
 follow_up_seconds: 6             # after Claude answers, keep listening this long (no wake word); 0 = off
 memory: true                     # Abdoh remembers things about you (the Memory page); false = nothing is kept or sent
+keep_conversations: true         # keep your conversations on this computer, to ask about them later; false = nothing new is kept
+conversation_days: 7             # ... for this many days (1 to 30), then they are deleted
 lesson_listen_seconds: 120       # in a lesson (a role explaining on the board), no wake word until this long is quiet; 0 = off
 wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
 keep_unclear_clips: false        # keep what it heard but couldn't make out (one day, to check why)

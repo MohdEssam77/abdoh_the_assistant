@@ -31,3 +31,5 @@ roles.yaml
 memory.yaml
 repeats.json
 reminders.json
+/conversations/
+/board/

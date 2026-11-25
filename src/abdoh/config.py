@@ -143,6 +143,10 @@ class Config:
     duck_percent: int = 30  # ... to this share of their volume
     allow_power: bool = True  # Abdoh may put the computer to sleep, shut it down, restart it
     memory: bool = True  # Abdoh remembers things about you (memory.yaml); off: nothing is sent
+    # Your conversations are kept this many days (conversations/), for "what did we discuss
+    # yesterday?". Off, or memory off: nothing new is kept.
+    keep_conversations: bool = True
+    conversation_days: int = 7
     max_record_seconds: float = 10
     tts_engine: str = "piper"  # piper: natural voices; windows: the Windows voice
     piper_voice_en: str = "en_US-lessac-medium"  # Piper's voice for English ...

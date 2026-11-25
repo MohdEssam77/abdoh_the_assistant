@@ -322,6 +322,60 @@ class AppApi:
     def forget_memory(self, text) -> dict:
         return self._memory_change(lambda memory: memory.forget(str(text or "")))
 
+    # ----- the week's conversations (the Memory page) -----
+
+    def _conversations(self):
+        from abdoh.conversations import FOLDER, Conversations
+
+        cfg = self._config()
+        return Conversations(cfg.app_dir / FOLDER, cfg.conversation_days)
+
+    def conversations(self) -> dict:
+        """The days kept, newest first, with how many exchanges each has."""
+        from abdoh.conversations import day_label
+
+        kept = self._conversations()
+        today = kept.today()
+        days = [
+            {"date": d.isoformat(), "label": day_label(d, today), "count": n}
+            for d, n in kept.days_kept()
+        ]
+        since = days[-1] if days else None
+        return {
+            "days": days,
+            "keep_days": kept.days,
+            "since": since["label"] if since else "",
+            "since_date": since["date"] if since else "",
+        }
+
+    def conversation_day(self, day) -> dict:
+        from abdoh.conversations import day_label
+
+        try:
+            when = date.fromisoformat(str(day))
+        except ValueError:
+            return {"ok": False, "error": "That day isn't kept."}
+        kept = self._conversations()
+        exchanges = kept.day(when)
+        if not exchanges:
+            return {"ok": False, "error": "That day isn't kept anymore."}
+        return {
+            "ok": True,
+            "label": day_label(when, kept.today()),
+            "exchanges": [e.as_item() for e in exchanges],
+        }
+
+    def delete_conversation_day(self, day) -> dict:
+        try:
+            when = date.fromisoformat(str(day))
+        except ValueError:
+            return {"ok": False, "error": "That day isn't kept."}
+        self._conversations().delete_day(when)
+        return {"ok": True}
+
+    def forget_conversations(self) -> dict:
+        return {"ok": True, "days": self._conversations().forget_all()}
+
     def _roles_store(self):
         from abdoh.roles.store import RoleStore
 

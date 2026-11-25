@@ -46,6 +46,7 @@ _RANGES = {
     "silence_seconds": (0.2, 5),
     "follow_up_seconds": (0, 30),
     "lesson_listen_seconds": (0, 3600),
+    "conversation_days": (1, 30),
     "duck_percent": (0, 90),
     "max_record_seconds": (3, 60),
     "tts_rate": (80, 400),

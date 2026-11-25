@@ -112,6 +112,7 @@ class Daemon:
         self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
         self._board_card = 0  # the board card the window last came up for
         self._board_text = ""  # and what's on it
+        self._turn_board: dict[int, str] = {}  # what this reply put on the board (card: text)
         self._pictures_asked: set[str] = set()  # the board's pictures being found or found
         self._pictures = None  # abdoh.pictures.Pictures, made when first needed
         self._watching = False  # the voice watch is following a reply
@@ -546,12 +547,14 @@ class Daemon:
             self._watching = False
             self._spoke = self._answered = False
             self._request = text
+            self._turn_board = {}
             self._last_exchange = time.monotonic()  # you're talking with Abdoh
             log.info("You: %s", text)
             self.bus.emit("history", f"You: {text}")
             self.bus.emit("status", "Thinking...")
             started = time.perf_counter()
             watcher = self._watch_reply() if voice else None
+            kept = ""  # the answer, for the week's conversations
             try:
                 try:
                     maybe = {"aside": True} if aside else {"woken": woken} if woken else {}
@@ -562,6 +565,7 @@ class Daemon:
                 if isinstance(reply, str):
                     spent = time.perf_counter() - started
                     log.info("Timing: answered in %.2fs, without Claude", spent)
+                    kept = str(reply) or ("Done." if isinstance(reply, Done) else "")
                     if isinstance(reply, Done) and self.cfg.confirm_actions != "words":
                         self._done(reply)  # "open Spotify": done, no words needed
                     elif reply:
@@ -580,6 +584,9 @@ class Daemon:
                         filler.cancel()
                     turn = getattr(self.router, "last_turn", None)
                     acted = bool(turn is not None and turn.actions)
+                    kept = reply or (_what_was_done(turn.actions) if acted else "")
+                    if getattr(turn, "ignored", False):
+                        kept = ""  # not meant for Abdoh: not part of the conversation
                     if acted and not reply:
                         self._done(_what_was_done(turn.actions))  # Claude did it without a word
                     elif woken and not reply and getattr(turn, "ignored", False):
@@ -589,6 +596,7 @@ class Daemon:
             finally:
                 if watcher is not None:
                     watcher()
+            self._keep_exchange(text, kept, typed=not voice)
             self.earcons.stop_ticking()
             if not voice:
                 self._unduck_unless_listening()  # a typed request: its reply is over
@@ -599,6 +607,28 @@ class Daemon:
     def _sound(self, name: str) -> None:
         if self.voice_enabled:
             self.earcons.play(name)
+
+    # ----- the week's conversations (conversations.py) -----
+
+    def _conversations(self):
+        from abdoh.conversations import FOLDER, Conversations
+
+        return Conversations(self.cfg.app_dir / FOLDER, self.cfg.conversation_days)
+
+    def _keep_exchange(self, request: str, answer: str, typed: bool) -> None:
+        """Your request and Abdoh's answer go into today's conversation (with memory and
+        "Keep conversations" on). Never raises."""
+        if not (self.cfg.memory and self.cfg.keep_conversations) or not answer:
+            return
+        try:
+            mode = getattr(getattr(self.router, "modes", None), "current", None) or ""
+            acting = getattr(self.router, "acting", None)
+            role = acting.current.name if acting is not None and acting.current else ""
+            board = "\n\n".join(self._turn_board.values())
+            if self._conversations().add(request, answer, typed, mode, role, board):
+                self.bus.emit("conversations", None)  # the Memory page refreshes
+        except Exception:
+            log.exception("Couldn't keep the conversation")
 
     def _heard_unclear(self, audio: bytes) -> None:
         """You spoke after the wake word but no words came out. A soft sound, no words and no
@@ -689,6 +719,10 @@ class Daemon:
 
             if prune(self._clips_folder()):
                 log.info("Deleted unclear recordings older than a day")
+            try:
+                self._conversations().clean()  # older than a week (conversation_days)
+            except OSError:
+                log.warning("Couldn't delete old conversations", exc_info=True)
 
     def _done(self, text: str) -> None:
         """Something you asked for was done: it shows in the window, and a short sound says so
@@ -1089,6 +1123,7 @@ class Daemon:
             self.bus.emit("show")
             self.bus.emit("page", "roles")
         self._board_text = text
+        self._turn_board[card] = text
         self._board_shown = True
         self._find_pictures(text)
         self._pause(min(len(new) / self.BOARD_CHARS_PER_SECOND, self.BOARD_WAIT_MAX))

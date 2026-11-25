@@ -244,6 +244,13 @@ New dependencies: none in Python unless story 105 needs one (a one-line reason i
 4. Memory page: **Conversations since <the oldest day kept>** (days, open, delete, forget all).
 5. Tests: what's kept and what isn't (reminders, memory off), deleting after 7 days, sizes.
 
+Done: kept in the daemon when a reply ends (it has what was said, spoken or typed, and the
+board text of that reply); a turn Claude found wasn't meant for Abdoh isn't kept. A day is kept
+while it's at most `conversation_days` old (today and the 7 before it), cleaned an hour apart by
+the housekeeping thread (the first time 30 s after start) and when a new day's file starts.
+Tests never touch the real folder (`conftest.py` redirects it). From source the data folder is
+the checkout: `/conversations/` and `/board/` are in `.gitignore`.
+
 ### Story 102: Remembering earlier conversations (`story/102-recall`)
 
 1. `ACTION recall: <what> | <when>`: reading `<when>`, finding the best exchanges, the second
