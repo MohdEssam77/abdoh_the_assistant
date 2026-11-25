@@ -244,8 +244,15 @@ def test_talking_is_heard_and_abdohs_own_voice_is_not():
     echo_only = make_watch(tap_level=3000)  # the mic hears exactly what the speakers play
     assert feed_blocks(echo_only, [tone(0.1, 3000).tobytes()] * 20) is None
     talking = make_watch(tap_level=3000)
-    blocks = [tone(0.1, 3000).tobytes()] * 5 + [tone(0.1, 6000).tobytes()] * 5
-    assert feed_blocks(talking, blocks) == 5  # heard in the first block you speak in
+    blocks = [tone(0.1, 3000).tobytes()] * 12 + [tone(0.1, 6000).tobytes()] * 5
+    assert feed_blocks(talking, blocks) == 12  # once it knows the room: the first block
+
+
+def test_until_it_knows_the_room_only_talk_well_above_abdoh_counts():
+    """A first reply, or new speakers: the canceller may still let Abdoh's voice through."""
+    fresh = make_watch(tap_level=3000)
+    assert feed_blocks(fresh, [tone(0.1, 6000).tobytes()] * 5) is None  # 6 dB: maybe echo
+    assert feed_blocks(make_watch(tap_level=3000), [tone(0.1, 20000).tobytes()]) == 0
 
 
 def test_each_sensitivity_needs_its_own_number_of_frames():
@@ -375,3 +382,102 @@ def test_what_it_learned_about_the_room_outlasts_a_reply():
     feed_blocks(watch, [tone(0.1, 2).tobytes()] * 12)
     watch.idle()
     assert watch.echo_gain() < 0.01
+
+
+# ----- slow speakers, new speakers (GitHub issue #1: a laptop mic and a monitor's speakers) -----
+
+
+class TimedTap:
+    """Speakers that played `level` from `start` to `end` (perf_counter seconds), else nothing."""
+
+    available = True
+    generation = 0
+    device_name = "Monitor speakers"
+
+    def __init__(self, level=3000, start=0.0, end=1e9):
+        self.level_, self.start, self.end = level, start, end
+
+    def window(self, end_time, samples):
+        times = end_time - np.arange(samples)[::-1] / RATE
+        playing = (times >= self.start) & (times < self.end)
+        return (playing * self.level_).astype(np.int16).tobytes()
+
+
+def test_the_echo_of_a_reply_that_just_stopped_doesnt_count():
+    """Slow speakers keep playing Abdoh's voice for a few hundred ms after the reply ended, and
+    the next reply's watch starts meanwhile."""
+    tap = TimedTap(level=3000, end=10.0)  # Abdoh stopped at 10.0 s
+    watch = VoiceWatch(tap, Muffler(), FakeVad(), raw_vad=FakeVad())
+    feed_blocks(watch, [tone(0.1, 900).tobytes()] * 15)  # learns: the mic hears it at -10 dB
+    watch.idle()  # the next request
+    late = [tone(0.1, 900).tobytes()] * 4  # 10.0 to 10.4 s: the speakers' delayed voice
+    assert not any(watch.feed(b, 10.05 + i * 0.1) for i, b in enumerate(late))
+
+
+def test_new_speakers_mean_learning_the_room_again():
+    tap = TimedTap(level=3000)
+    watch = VoiceWatch(tap, Muffler(), FakeVad(), raw_vad=FakeVad())
+    feed_blocks(watch, [tone(0.1, 2).tobytes()] * 15)  # laptop speakers: the mic hears nothing
+    assert watch.echo_gain() < 0.01
+    tap.generation += 1  # now the monitor's speakers, which the mic hears well
+    loud_echo = [tone(0.1, 2500).tobytes()] * 5
+    assert feed_blocks(watch, loud_echo) is None  # not taken for you
+    assert watch.echo_gain() == 1.0 or watch.echo_gain() > 0.5
+
+
+def test_forgetting_the_room_resets_the_canceller():
+    class Canceller(PassThrough):
+        resets = 0
+
+        def reset(self):
+            self.resets += 1
+
+    canceller = Canceller()
+    watch = VoiceWatch(TimedTap(), canceller, FakeVad())
+    feed_blocks(watch, [tone(0.1, 3000).tobytes()] * 12)
+    watch.forget_room()
+    assert canceller.resets == 1 and watch.echo_gain() == 1.0 and watch.residual() == 1.0
+
+
+def test_what_the_canceller_leaves_is_learned():
+    class Leaky(PassThrough):
+        def clean(self, mic, speakers):
+            return (np.frombuffer(mic, np.int16) // 10).tobytes()  # leaves a tenth (-20 dB)
+
+    watch = VoiceWatch(StillTap(3000), Leaky(), FakeVad())
+    feed_blocks(watch, [tone(0.1, 3000).tobytes()] * 12)
+    assert abs(watch.residual() - 0.1) < 0.01
+
+
+def test_abdohs_voice_playing_on_other_speakers_never_counts(caplog):
+    """Abdoh plays, but the speakers it hears are silent: its own voice can't be told from yours."""
+    watch = VoiceWatch(TimedTap(level=0), PassThrough(), FakeVad(), raw_vad=FakeVad())
+    watch.speaking(True, 10.0)
+    loud = [tone(0.1, 9000).tobytes()] * 10
+    with caplog.at_level("WARNING"):
+        assert not any(watch.feed(b, 10.05 + i * 0.1) for i, b in enumerate(loud))
+    warnings = [r for r in caplog.records if "sound silent" in r.getMessage()]
+    assert len(warnings) == 1 and "Monitor speakers" in warnings[0].getMessage()
+    watch.speaking(False, 11.1)
+    assert feed_blocks(watch, [tone(0.1, 9000).tobytes()]) == 0  # Abdoh quiet: that's you
+
+
+def test_the_tap_counts_new_speakers(monkeypatch):
+    import time
+
+    monkeypatch.setattr("abdoh.audio.loopback.CHECK_DEVICE_SECONDS", 0.0)
+    devices = iter(["laptop", "monitor", "monitor"])
+
+    def factory():
+        capture = FakeCapture([], changed_after=0)
+        capture.device = next(devices, "monitor")
+        capture.name = f"{capture.device} speakers"
+        return capture
+
+    tap = SpeakerTap(capture_factory=factory, clock=time.perf_counter)
+    tap.start()
+    end = time.perf_counter() + 2
+    while tap.generation < 1 and time.perf_counter() < end:
+        time.sleep(0.01)
+    tap.stop()
+    assert tap.generation == 1 and tap.device_name == "monitor speakers"

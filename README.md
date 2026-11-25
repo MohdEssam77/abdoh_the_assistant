@@ -1008,6 +1008,15 @@ Developer scripts:
   never mistook its own voice for theirs. In a simulated loud room it heard normal speech in
   about 0.3 s; a quiet voice under a loud, distorting speaker took up to 3 s.
 
+- **Slow speakers (a monitor's, Bluetooth) take Abdoh a second to learn.** They play its voice a
+  few hundred milliseconds late. Until Abdoh has heard about a second of itself through them
+  (at the start, or after you switch speakers or microphones), talking over it only counts when
+  you're clearly louder than it; the wake word and the hotkey always work. If the log says
+  "Abdoh is speaking, but ... sound silent to it", it plays on other speakers than the ones it
+  listens to (Windows' default): talking over it waits until they match. Checked in a
+  simulation (a laptop mic with a monitor's speakers, 0.02 to 0.45 s late), not yet on a real
+  monitor.
+
 - **Memory while idle is about 870 MB**: the Parakeet speech model is big. On a graphics card
   with 4 GB or more it's about 360 MB less (see "On a graphics card"); the Lighter quality
   setting (Whisper) brings it down to about 350 MB.

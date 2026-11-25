@@ -308,3 +308,18 @@ def test_the_settings_choose_the_engine(tmp_path, monkeypatch):
     assert natural._find("en_US-lessac-medium") is None  # needs its .json too
     model.with_name(model.name + ".json").write_text("{}")
     assert natural._find("en_US-lessac-medium") == model
+
+
+def test_the_voice_watch_hears_when_abdoh_starts_and_stops_playing():
+    output = Output(slow=True)
+    voice = speaker(output=output)
+    heard = []
+    voice.on_playing = heard.append
+    talking = threading.Thread(target=voice.say, args=("Something to say. " * 10,))
+    talking.start()
+    assert wait_for(lambda: len(output.written) >= 5)
+    voice.pause()
+    assert wait_for(lambda: heard[-1:] == [False])  # paused: nothing comes out
+    voice.resume()
+    talking.join(5)
+    assert heard[0] is True and heard[-1] is False and heard.count(True) == 2

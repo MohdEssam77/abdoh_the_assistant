@@ -114,8 +114,11 @@ def main() -> int:
         print("Speaking (stay quiet)...")
         record_while(lambda: [speaker.say(s) for s in SENTENCES], tap, mic, recorder)
     tap.stop()
-    mic_audio = np.frombuffer(b"".join(m for m, _ in recorder.pairs), np.int16)
-    ref_audio = np.frombuffer(b"".join(r for _, r in recorder.pairs), np.int16)
+    # The watch reads the last second the speakers played for each block; this block's own
+    # part is the end of it.
+    pairs = [(m, r[-len(m) :]) for m, r in recorder.pairs if len(r) >= len(m)]
+    mic_audio = np.frombuffer(b"".join(m for m, _ in pairs), np.int16)
+    ref_audio = np.frombuffer(b"".join(r for _, r in pairs), np.int16)
     if not np.abs(ref_audio).max():
         print("Nothing was heard from the speakers. Is the volume up, and the voice working?")
         return 1
@@ -126,7 +129,7 @@ def main() -> int:
 
     canceller = EchoCanceller()
     cleaned = np.frombuffer(
-        b"".join(canceller.clean(m, r) for m, r in recorder.pairs if len(m) == len(r)), np.int16
+        b"".join(canceller.clean(m, r) for m, r in pairs if len(m) == len(r)), np.int16
     )
     per_second = []
     for s in range(len(cleaned) // 16000):

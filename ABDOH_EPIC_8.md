@@ -429,6 +429,45 @@ said the limit again to the room. While paused, a wake word set off by talk stil
 
 Done: `tests/test_stop_listening.py` (the friend's own words from the log); README.
 
+### Story 108: A laptop mic with a monitor's speakers (`story/108-monitor-speakers`, issue #1)
+
+The issue: with the laptop's mic and the monitor's speakers, Abdoh cut its own replies off
+(234 ms in, then 73 ms into the next one); with the laptop's speakers it didn't.
+
+Why, found in a simulation with the real echo canceller, Silero VAD and Piper's voice
+(`monitor_sim.py`, kept out of the repo; a laptop mic hearing the speakers 20 to 450 ms late,
+with reverb and room noise; 6 random rooms each):
+
+- The echo canceller was never reset, and what the watch had learned about the room (how loud
+  Abdoh is at the mic) outlived a change of speakers. Learned on laptop speakers (or on a mic
+  that its driver mutes while its own speakers play, like these Realtek arrays), the monitor's
+  echo then looked like someone talking: 7 to 11 false cut-offs per three replies.
+- The watch only looked 0.4 s back for what the speakers had played, and forgot it when the
+  next reply began: a slow monitor's echo of the reply just cut off came in after that, on the
+  raw mic, and cut off the next reply too (the chain in the friend's log). With 0.4 s of delay
+  every run cut itself off.
+
+Done:
+1. The watch judges by the loudest Abdoh played in the last second (read from the speaker tap,
+   so a new reply doesn't forget it), and learns how much of Abdoh the echo canceller leaves:
+   until it knows (about a second of Abdoh talking), talk counts only 12 dB above what Abdoh's
+   voice could be.
+2. New speakers (the tap notices) or a new microphone: the room is learned again, and the echo
+   canceller starts afresh. The log names the speakers it hears.
+3. Abdoh's voice playing (Piper tells the watch) while the speakers it hears are silent (other
+   speakers than Windows' default, or the capture failed): nothing counts as you; said once in
+   the log. The wake word and the hotkey still stop it.
+4. The log says which mic heard you (cleaned or raw) and how much echo is left.
+Result in the simulation: no false cut-offs in any case (before: 6 of 6 runs at 0.4 s, and every
+speaker switch); talking over it still heard at once in every run. On this laptop
+`scripts/echo_check.py` (updated for the second of speaker audio): 0 false cut-offs at every
+sensitivity (its mic hears nothing while the speakers play, so it can't test a monitor).
+**With the friend:** the same test on his monitor, and switching speakers while Abdoh runs.
+
+Not done, and why: binding Piper's output to the loopback's endpoint. Both already follow
+Windows' default speakers (Piper plays through the default device's mapper, the tap captures
+the default endpoint); where they don't, point 3 keeps the echo from counting and says so.
+
 ---
 
 ## 7. The owner's decisions (2026-11-25)
