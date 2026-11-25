@@ -71,11 +71,12 @@ class GpuSpeech:
     def start(self) -> None:
         """Check, download and move (in the background), as the setting says."""
         if not self.usable():
+            self._say("")  # a model that can't use the card (chosen in Settings → Advanced)
             return
         if not self.cfg.use_gpu:
             self._say(OFF)
             return
-        if self._thread is not None and self._thread.is_alive():
+        if self._thread is not None and self._thread.is_alive() and not self._stop.is_set():
             return
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="abdoh-gpu-speech", daemon=True)

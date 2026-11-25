@@ -13,7 +13,7 @@ const Bridge = (() => {
       wake_words: ["abdoh", "hey abdoh", "ya abdoh"], wake_word_aliases: ["abdo", "abdul"],
       wake_word_model: "models/hey_abdoh.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
-      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, memory: true, keep_conversations: true, conversation_days: 7, use_gpu: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
+      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, speech_model: "", memory: true, keep_conversations: true, conversation_days: 7, use_gpu: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.abdoh/abdoh.log",
       has_api_key: false,
       claude: {
@@ -85,6 +85,31 @@ const Bridge = (() => {
       "2026-11-21": { label: "Saturday 21 November", exchanges: [
         { at: "11:00", you: "Remind me in 20 minutes to take the pizza out", abdoh: "I'll remind you at 11:20." },
       ] },
+    };
+    /* Settings → Advanced: the speech models (abdoh/models.py) and a pretend download. */
+    const demoModels = [
+      { id: "parakeet-v3", name: "Parakeet v3", line: "English, German and 23 more European languages, and the most accurate for its speed. Inside the app. On a graphics card with 4 GB or more it runs there (downloads 2.4 GB once), otherwise on the processor.", size_mb: 0, gpu: true, ready: true },
+      { id: "parakeet-v2", name: "Parakeet v2", line: "English only. As accurate as v3 in English, a little better on clear speech, and as fast. Processor only. Downloads 630 MB.", size_mb: 630, gpu: false, ready: false },
+      { id: "whisper-base", name: "Whisper base", line: "Any language. Small and quick, but makes clearly more mistakes than Parakeet. Processor only. Downloads 150 MB.", size_mb: 150, gpu: false, ready: false },
+      { id: "whisper-small", name: "Whisper small", line: "Any language. Good accuracy, slower than Parakeet and less accurate in English and German. Processor only. Downloads 490 MB.", size_mb: 490, gpu: false, ready: false },
+      { id: "whisper-medium", name: "Whisper medium", line: "Any language, more accurate than small, but slow without a strong processor (a second or more for each request). Processor only. Downloads 1.5 GB.", size_mb: 1530, gpu: false, ready: false },
+    ];
+    let demoUsing = "parakeet-v3";
+    let demoStatus = {};
+    let demoTimer = null;
+    const demoSwitch = (id) => {
+      clearInterval(demoTimer);
+      const target = id || "parakeet-v3";
+      const model = demoModels.find((m) => m.id === target);
+      if (target === demoUsing) { demoStatus = { state: "ready", id: target }; push("speech_model", demoStatus); return; }
+      let percent = model.ready ? 100 : 0;
+      demoTimer = setInterval(() => {
+        percent = Math.min(100, percent + 4);
+        if (percent < 100) demoStatus = { state: "downloading", id: target, percent };
+        else if (demoStatus.state !== "switching") demoStatus = { state: "switching", id: target };
+        else { clearInterval(demoTimer); model.ready = true; demoUsing = target; demoStatus = { state: "ready", id: target }; }
+        push("speech_model", demoStatus);
+      }, window.DEMO_MODEL_TICK || 400);
     };
     const talkList = () => Object.entries(demoTalks).map(([date, d]) => ({ date, label: d.label, count: d.exchanges.length }));
     const memoryChanged = (result) => {
@@ -182,6 +207,13 @@ const Bridge = (() => {
         memory = memory.map((e) => (e.text === old ? { ...e, text: text.trim(), kind } : e));
         return memoryChanged({ ok: true });
       },
+      models: async () => {
+        const chosen = settings.speech_model || "";
+        return {
+          speech: demoModels.map((m) => ({ ...m, recommended: m.id === "parakeet-v3", chosen: m.id === chosen, using: m.id === demoUsing })),
+          speech_model: chosen, chosen_fits: true, using: demoUsing, status: demoStatus,
+        };
+      },
       conversations: async () => {
         const days = talkList();
         return { days, keep_days: settings.conversation_days || 7, since: days.length ? days[days.length - 1].label : "", since_date: days.length ? days[days.length - 1].date : "" };
@@ -216,7 +248,8 @@ const Bridge = (() => {
           if (key === "claude") Object.assign(settings.claude, value);
           else settings[key] = value;
         }
-        const restart = ["hotkey", "wake_words", "whisper_model", "languages", "speech_engine"].filter((k) => k in changes);
+        const restart = ["hotkey", "wake_words", "whisper_model", "languages", "speech_engine", "tts_engine"].filter((k) => k in changes);
+        if ("speech_model" in changes) demoSwitch(changes.speech_model);
         return { ok: true, settings, restart };
       },
       microphones: async () => ({

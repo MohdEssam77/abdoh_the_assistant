@@ -101,8 +101,15 @@ def _voice_check(cfg: Config) -> str:
 
 
 def _hearing(cfg: Config) -> str:
+    from abdoh import models
     from abdoh.audio.stt import choose_engine, parakeet_available
 
+    model = models.chosen(cfg)
+    if model is not None and models.is_ready(cfg, model) and not model.bundled:
+        return (
+            f"{model.name}, offline on this computer, chosen by the user in Settings → Advanced "
+            f"instead of the recommended model. {model.line}"
+        )
     parakeet = parakeet_available(cfg)
     if choose_engine(cfg, parakeet) == "parakeet":
         if parakeet.name.endswith("v2"):

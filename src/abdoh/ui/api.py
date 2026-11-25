@@ -584,6 +584,19 @@ class AppApi:
         self._bus.request("settings_changed")
         return {"ok": True, "settings": settings_view(cfg), "restart": self._restart_needed(cfg)}
 
+    def models(self) -> dict:
+        """Settings → Advanced: the speech models for your languages, the one in use, and how a
+        switch is going."""
+        from abdoh.models import listing
+
+        daemon = self._daemon
+        switch = getattr(daemon, "model_switch", None)
+        return listing(
+            self._config(),
+            getattr(daemon, "transcriber", None),
+            switch.status if switch is not None else None,
+        )
+
     def microphones(self) -> dict:
         """The microphones connected right now, and the chosen one ("" = the default). When the
         chosen one isn't connected, `using` names the one Abdoh listens with instead."""
