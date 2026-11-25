@@ -722,7 +722,11 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .board-code { margin: 0 0 8px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--panel); }
 .board-code-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 4px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
 .board-code pre { margin: 0; padding: 10px 12px; overflow: auto; }
-.board-code pre code { border: 0; padding: 0; background: none; font-size: 13.5px; line-height: 1.5; }
+.board-code pre code { border: 0; padding: 0; background: none; font-size: 13.5px; line-height: 1.5; font-variant-ligatures: none; }
+.board-drawing .board-paper { display: flex; justify-content: center; padding: 14px; background: #fff; color: #1a1a1a; overflow: auto; }
+.board-drawing .board-paper svg { max-width: 100%; max-height: 420px; height: auto; }
+.board-drawing .board-note { color: #6b7280; font-size: 13px; padding: 10px; }
+.board-drawing pre { border-top: 1px solid var(--border); }
 .board-table { overflow: auto; margin: 0 0 8px; }
 .board-table table { border-collapse: collapse; font-size: 14px; }
 .board-table th, .board-table td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }

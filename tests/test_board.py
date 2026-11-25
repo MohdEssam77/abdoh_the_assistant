@@ -353,6 +353,76 @@ def test_katex_is_bundled_and_loaded_before_the_board():
     assert page.index("vendor/katex/katex.min.js") < page.index('src="board.js"')
 
 
+# ----- drawings: Graphviz, Mermaid and Claude's SVG -----
+
+
+def test_drawings_are_fenced_blocks():
+    blocks = parse("```dot\ndigraph { a -> b }\n```\n```mermaid\nflowchart LR\n  A --> B\n```")
+    assert [(b["type"], b["lang"]) for b in blocks] == [("code", "dot"), ("code", "mermaid")]
+    kinds = node_board(
+        "done(['dot', 'graphviz', 'mermaid', 'svg', 'python'].map((l) => B.DRAWINGS[l] || null));"
+    )
+    assert kinds == ["graphviz", "graphviz", "mermaid", "svg", None]
+
+
+def test_a_drawing_appears_whole_and_code_word_by_word():
+    steps = written("Look:\n```dot\ndigraph {\n  a -> b\n}\n```\nThen")
+    assert steps[0] == "Look:"
+    assert all(s.count("```") % 2 == 0 for s in steps)  # never stops inside the drawing
+    assert "Look:\n```dot\ndigraph {\n  a -> b\n}\n```" in steps
+
+
+@pytest.mark.parametrize(
+    "tag, trusted, allowed",
+    [
+        ("svg", False, True), ("path", False, True), ("text", False, True), ("marker", False, True),
+        ("script", False, False), ("script", True, False), ("foreignObject", True, False),
+        ("image", False, False), ("a", False, False), ("iframe", True, False),
+        ("style", False, False), ("style", True, True),  # only Graphviz and Mermaid style theirs
+    ],
+)  # fmt: skip
+def test_what_a_drawing_may_contain(tag, trusted, allowed):
+    assert node_board(f"done(B.svgAllowed({json.dumps(tag)}, {json.dumps(trusted)}));") is allowed
+
+
+@pytest.mark.parametrize(
+    "name, value, allowed",
+    [
+        ("fill", "#f97316", True), ("d", "M0 0 L10 10", True), ("stroke-width", "2", True),
+        ("onclick", "alert(1)", False), ("onload", "x()", False), ("OnMouseOver", "x()", False),
+        ("href", "#arrow", True), ("href", "https://evil.example", False),
+        ("xlink:href", "javascript:alert(1)", False), ("fill", "url(#grad)", True),
+        ("fill", "url(https://evil.example/x)", False), ("style", "fill:url(http://x)", False),
+        ("style", "fill: red; stroke: blue", True), ("marker-end", "url(#arrow)", True),
+        ("aria-label", "A pan", True), ("srcdoc", "<b>", False), ("data-x", "1", False),
+    ],
+)  # fmt: skip
+def test_what_a_drawing_attribute_may_be(name, value, allowed):
+    js = f"done(B.attrAllowed({json.dumps(name)}, {json.dumps(value)}));"
+    assert node_board(js) is allowed
+
+
+def test_the_drawing_libraries_are_bundled_and_load_only_when_needed():
+    vendor = WEB / "vendor"
+    assert (vendor / "viz" / "viz-global.js").stat().st_size > 1_000_000
+    assert (vendor / "mermaid" / "mermaid.min.js").stat().st_size > 1_000_000
+    assert (vendor / "mermaid" / "LICENSE").exists() and (vendor / "viz" / "README.md").exists()
+    assert "Eclipse Public License" in (vendor / "viz" / "README.md").read_text(encoding="utf-8")
+    page = (WEB / "index.html").read_text(encoding="utf-8")
+    assert "viz-global.js" not in page and "mermaid.min.js" not in page  # loaded on first use
+    source = BOARD_JS.read_text(encoding="utf-8")
+    assert 'securityLevel: "strict"' in source and "htmlLabels: false" in source
+    assert page.index("vendor/katex/katex.min.js") < page.index("contrib/mhchem.min.js")
+    assert page.index("contrib/mhchem.min.js") < page.index('src="board.js"')
+
+
+def test_claude_hears_how_to_draw():
+    from abdoh.roles.acting import BOARD
+
+    for word in ("```dot", "doublecircle", "```mermaid", "```svg", "\\ce{", "never in ASCII"):
+        assert word in BOARD
+
+
 def test_katex_never_trusts_the_formula():
     source = BOARD_JS.read_text(encoding="utf-8")
     assert "trust: false" in source and "katex.render(" in source
