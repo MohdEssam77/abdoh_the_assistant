@@ -22,6 +22,7 @@ from abdoh.claude.reply import (
     LISTEN,
     LOOK,
     MEMORY_ACTIONS,
+    RECALL,
     ROLE,
     SAVE_ITEM,
     SAVE_STEPS,
@@ -55,6 +56,7 @@ Wake = bool | tuple[float, float | None]
 UNKNOWN = "Sorry, I don't know that one yet."
 SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 LOOKING = "Looking at your screen"
+REMEMBERING = "Remembering"
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -533,10 +535,14 @@ class Router:
         spoken: list[str] = []
 
         looks: list[str] = []  # Claude asked to see the screen
+        recalls: list[str] = []  # ... or what was said in an earlier conversation
 
         def act(kind: str, arg: str) -> None:
             if kind == LOOK:
                 looks.append(arg)
+                return
+            if kind == RECALL:
+                recalls.append(arg)
                 return
             if kind == IGNORE:
                 log.info("Not meant for Abdoh: staying quiet")
@@ -603,6 +609,8 @@ class Router:
             allowed.append(SAVE_STEPS)
         if self.cfg.memory:
             allowed.extend(MEMORY_ACTIONS)
+            if self.cfg.keep_conversations and not screen:
+                allowed.append(RECALL)  # once: the follow-up can't ask again
         if self.cfg.claude.allow_self_edit:
             allowed.extend(SELF_EDIT_ACTIONS)
         if self.acting is not None:
@@ -622,7 +630,16 @@ class Router:
                 spoken.append(sentence)
                 yield sentence
             yield from _drain(problems)
-            if looks and not turn.ignored:
+            if recalls and not turn.ignored:
+                chunks.close()
+                chunks = self._recall(brain, recalls[0], request)
+                allowed = [a for a in allowed if a not in (RECALL, LOOK)]
+                for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
+                    yield from _drain(problems)
+                    spoken.append(sentence)
+                    yield sentence
+                yield from _drain(problems)
+            elif looks and not turn.ignored:
                 log.info("Claude asked to look at the screen: %s", looks[0])
                 chunks.close()
                 self.on_activity(LOOKING)
@@ -655,6 +672,18 @@ class Router:
                 self.last_reply = turn.answer
             turn.finished_at = time.monotonic()
             self.last_turn = turn
+
+    def _recall(self, brain, arg: str, request: str):
+        """Claude asked what was said before (ACTION recall: what | when): it's asked again,
+        with the exchanges kept that match."""
+        from abdoh.conversations import FOLDER, Conversations
+        from abdoh.recall import follow_up, split
+
+        what, when = split(arg)
+        log.info("Claude asked to recall %r (%s)", what, when or "the whole week")
+        self.on_activity(REMEMBERING)
+        kept = Conversations(self.cfg.app_dir / FOLDER, self.cfg.conversation_days)
+        return brain.stream(follow_up(kept, what, when, request), None)
 
     # ----- what Abdoh did itself, and asking for the same again -----
 

@@ -62,6 +62,8 @@ ACTION_HELP: dict[str, str] = {
 
 # Not one of the user's switchable actions: Claude asks to see the screen (claude.allow_screen).
 LOOK = "look"
+# Claude asks what was said in an earlier conversation (abdoh/recall.py), while they're kept.
+RECALL = "recall"
 # Said after a reply, but meant for someone else in the room: Claude stays quiet.
 IGNORE = "ignore"
 # Yes or no to the question Abdoh just asked (a mode that needs screens that aren't there).
