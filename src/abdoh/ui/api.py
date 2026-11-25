@@ -385,6 +385,28 @@ class AppApi:
         """While a role is on: listen without the wake word (True), or only after it."""
         self._bus.request("keep_listening", bool(on))
 
+    def board_pdf(self, cards, title, spoken=False) -> dict:
+        """Save the board (the page's cards, as it shows them) as a PDF in
+        Documents\\Abdoh\\Boards and open it. `spoken`: Claude was asked ("save the board"):
+        Abdoh says where it is, or why not."""
+        from abdoh.board_pdf import BoardPdfError, save
+
+        try:
+            path = save([str(c) for c in cards or []], str(title or "Board"))
+        except BoardPdfError as e:
+            if spoken:
+                self._bus.request("say", str(e))
+            return {"ok": False, "error": str(e), "print": "Edge" in str(e)}
+        if spoken:
+            self._bus.request(
+                "say", "The board is saved as a PDF in your Documents, Abdoh, Boards."
+            )
+        try:
+            self._open_path(str(path))
+        except OSError:
+            log.debug("Couldn't open the PDF", exc_info=True)
+        return {"ok": True, "path": str(path), "folder": str(path.parent)}
+
     def clear_board(self) -> None:
         self._state.feed("board", None)
         self._bus.request("board_cleared")  # nothing on it: no lesson going on

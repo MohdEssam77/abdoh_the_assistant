@@ -629,7 +629,11 @@ teacher, Math teacher, Programming teacher). Each role has:
   shows what a picture costs (FLUX 3 Klein, the default, about $0.009) and the credit left.
   Abdoh checks the credit first and says so if it's too low; a picture is made once per
   description, so asking again costs nothing. Code has a **Copy**
-  button; **Clear** empties the board, and a new role starts with a clean one.
+  button; **Clear** empties the board, and a new role starts with a clean one. **Save as PDF**
+  (or "save the board" while the role is on) keeps everything the board showed, drawings,
+  math and pictures included, as a PDF in `Documents\Abdoh\Boards` and opens it. Edge makes it
+  in the background (it's on every Windows 11 PC); without Edge, the print dialog opens
+  instead ("Microsoft Print to PDF").
 - **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
   something and you're talking with it (less than 2 minutes since either of you last spoke),
   you don't need "Hey Abdoh": just talk, also to answer its questions, and take your time to

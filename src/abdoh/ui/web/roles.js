@@ -88,6 +88,7 @@
         el("button", { class: "btn small", onclick: stop }, "Stop")) : null,
       usesBoard ? el("div", { class: "board-wrap" },
         el("div", { class: "board-head" }, el("b", {}, "Board"), el("div", { class: "spacer" }),
+          items.length ? el("button", { class: "btn small", onclick: (e) => saveBoardPdf(false, e.currentTarget) }, "Save as PDF") : null,
           items.length ? el("button", { class: "btn small", onclick: () => call("clear_board") }, "Clear") : null),
         el("div", { class: "board", id: "board" }, items.length
           ? items.map((card) => Board.render(typist.shown(card)))

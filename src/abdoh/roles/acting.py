@@ -71,7 +71,9 @@ BOARD = (
     "detailed description in English]. It costs the user a little, so only when it helps; "
     "Abdoh checks their credit and says so if it's too low. When it says AI pictures are off, "
     "draw it yourself (SVG) or show a photo, and if they ask for an AI picture, say it needs an "
-    "OpenRouter key."
+    "OpenRouter key. When the user wants to keep the board (save it, as a PDF), write the line "
+    "ACTION board_pdf: now (Abdoh saves it and says where); at the end of a long lesson you may "
+    "offer it once."
 )
 
 
