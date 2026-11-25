@@ -23,6 +23,11 @@ from abdoh.config import (
 )
 from abdoh.speech.piper_voice import ENGLISH_VOICES, GERMAN_VOICES
 
+# The models of Settings → Advanced (abdoh/models.py; "" is the recommended one). Not imported
+# from there: it loads the speech recognition code.
+SPEECH_MODEL_IDS = ("", "parakeet-v3", "parakeet-v2", "whisper-base", "whisper-small",
+                    "whisper-medium")  # fmt: skip
+
 TEMPLATE = "config.example.yaml"
 # Config fields that aren't settings: where the files live, the API key (kept in .env), and the
 # claude group (handled as its own section).
@@ -56,6 +61,7 @@ _RANGES = {
     "claude.voice_reply_max_sentences": (1, 20),
 }
 _CHOICES = {
+    "speech_model": SPEECH_MODEL_IDS,
     "claude.backend": CLAUDE_BACKENDS,
     "speech_engine": SPEECH_ENGINES,
     "voice_interrupt_sensitivity": ("low", "medium", "high"),
@@ -84,6 +90,7 @@ LABELS = {
     "whisper_model": "Speech recognition model",
     "languages": "Languages",
     "speech_engine": "Speech recognition",
+    "speech_model": "Speech recognition model",
     "voice_interrupt_sensitivity": "How easily your voice stops Abdoh",
     "duck_percent": "Other sounds while Abdoh listens",
     "claude.actions": "Things Claude may do",

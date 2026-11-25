@@ -427,8 +427,10 @@
     return line;
   }
 
-  function speechCard() {
+  function speechCard(models) {
     const settings = App.settings;
+    const picked = models && models.speech_model && models.chosen_fits
+      ? (models.speech || []).find((m) => m.id === models.speech_model) : null;
     const chosen = new Set(settings.languages || ["en"]);
     /* Parakeet (fast, accurate) understands these; anything else is Whisper. */
     const FAST = ["bg", "hr", "cs", "da", "nl", "en", "et", "fi", "fr", "de", "el", "hu", "it", "lv", "lt", "mt", "pl", "pt", "ro", "sk", "sl", "es", "sv", "ru", "uk"];
@@ -448,13 +450,127 @@
         : "English and German work without choosing: Abdoh hears which one you spoke, with the fastest and most accurate model. Add any other language you speak here.";
     return card("Speech recognition", "How Abdoh turns what you say into text. Everything runs on this computer.",
       el("div", { class: "row stack" }, el("div", { class: "label" }, el("b", {}, "Languages you speak to Abdoh"), el("small", {}, how)), picks),
-      fast ? row("Quality", "Best accuracy uses about 700 MB more memory (less on a graphics card).",
+      picked ? row("Model", `${picked.name}, chosen in Advanced below.`,
+        el("button", { class: "btn small", onclick: openAdvanced }, "Change")) : null,
+      fast && !picked ? row("Quality", "Best accuracy uses about 700 MB more memory (less on a graphics card).",
         select([["auto", "Best accuracy (recommended)"], ["whisper", "Lighter"]], lighter ? "whisper" : "auto",
           (value) => saveSettings({ speech_engine: value }).then((ok) => ok && render()), "Speech quality")) : null,
-      fast && !lighter ? gpuRow(settings) : null,
-      !fast || lighter ? row("Whisper model", (MODELS.find(([v]) => v === settings.whisper_model) || ["", "", ""])[2],
+      fast && !lighter && (!picked || picked.gpu) ? gpuRow(settings) : null,
+      picked ? null : !fast || lighter ? row("Whisper model", (MODELS.find(([v]) => v === settings.whisper_model) || ["", "", ""])[2],
         select(MODELS.map(([v, label]) => [v, label]).concat(MODELS.some(([v]) => v === settings.whisper_model) ? [] : [[settings.whisper_model, settings.whisper_model]]),
           settings.whisper_model, (value) => saveSettings({ whisper_model: value }), "Whisper model")) : null);
+  }
+
+  /* ---------- advanced: choosing the models (abdoh/models.py) ---------- */
+
+  let advancedOpen = false; // stays open when the page draws itself again
+  const mb = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)} GB` : `${n} MB`);
+
+  function openAdvanced() {
+    advancedOpen = true;
+    const box = $("#advanced-card");
+    if (box) { box.open = true; box.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  }
+
+  function advancedCard(models) {
+    if (!models) return null;
+    const box = el("details", { class: "card advanced", id: "advanced-card" });
+    box.open = advancedOpen;
+    box.addEventListener("toggle", () => { advancedOpen = box.open; });
+    const languages = (App.settings.languages || ["en"]).map((c) => (LANGUAGES.find(([code]) => code === c) || [c, c])[1]);
+    const custom = !!App.settings.speech_model || (App.settings.tts_engine || "piper") !== "piper";
+    const unfit = App.settings.speech_model && !models.chosen_fits;
+    box.append(...[
+      el("summary", {},
+        el("div", { class: "label" }, el("h2", {}, "Advanced"),
+          el("small", {}, "For people who like to choose their models. The recommended ones work well for most people.")),
+        el("span", { class: "chev", html: svg("down") })),
+      el("div", { class: "advanced-group" }, "Speech recognition"),
+      el("p", { class: "advanced-lead" }, `The models that understand ${languages.join(" and ")}. Choosing one downloads it while Abdoh keeps listening, switches when it's ready, and deletes the one it replaced if that was downloaded.`),
+      unfit ? el("p", { class: "error-text" }, "The model you chose doesn't understand your languages, so Abdoh uses the recommended one.") : null,
+      el("div", { class: "model-list", id: "speech-models" }, (models.speech || []).map((m) => speechItem(m, models))),
+      el("div", { class: "advanced-group" }, "Voice"),
+      el("div", { class: "model-list" }, voiceItems()),
+      custom ? el("div", { class: "advanced-back" },
+        el("small", {}, "Parakeet and the natural voices, as Abdoh comes. Downloaded models you no longer use are deleted."),
+        el("button", { class: "btn small", onclick: backToRecommended }, "Back to recommended")) : null,
+    ].filter(Boolean)); // append() would write out a null
+    return box;
+  }
+
+  function speechItem(m, models) {
+    const status = models.status || {};
+    const mine = status.id === m.id;
+    const busy = mine && (status.state === "downloading" || status.state === "switching") && !m.using;
+    const failed = mine && status.state === "failed" && !m.using;
+    const current = (models.speech || []).find((x) => x.using);
+    let action = null;
+    if (busy) action = el("button", { class: "btn small", onclick: () => cancel(models) }, "Cancel");
+    else if (!m.using) action = el("button", { class: "btn small", onclick: () => choose(m, current) }, m.ready ? "Use" : "Download and use");
+    const item = el("div", { class: m.using ? "model-item using" : "model-item", "data-model": m.id },
+      el("div", { class: "model-text" },
+        el("div", { class: "model-name" }, el("b", {}, m.name),
+          m.recommended ? el("span", { class: "tag good" }, "Recommended") : null,
+          m.using ? el("span", { class: "tag on" }, "In use") : null),
+        el("small", {}, m.line)),
+      action);
+    if (busy) item.append(progressLine(status, m, current));
+    if (failed) item.append(el("p", { class: "error-text model-note" }, `${m.name} isn't ready: ${status.error} Abdoh keeps using ${current ? current.name : "the model it has"}. Try again later.`));
+    return item;
+  }
+
+  function progressLine(status, m, current) {
+    const downloading = status.state === "downloading";
+    const percent = downloading ? status.percent || 0 : 100;
+    const keeps = current ? ` Abdoh keeps using ${current.name} meanwhile.` : "";
+    return el("div", { class: "model-progress", id: "model-progress" },
+      el("div", { class: "meter download" }, el("i", { style: `width:${percent}%` })),
+      el("small", {}, downloading ? `Downloading: ${percent}% of ${mb(m.size_mb)}.${keeps}` : `Loading ${m.name}…${keeps}`));
+  }
+
+  async function choose(m, current) {
+    if (!m.ready && m.size_mb) {
+      const now = current ? ` Abdoh keeps using ${current.name} until it's ready.` : "";
+      if (!(await confirmBox(`${m.name} downloads ${mb(m.size_mb)}.${now}`, "Download"))) return;
+    }
+    if (await saveSettings({ speech_model: m.recommended ? "" : m.id }, true)) refreshModels();
+  }
+
+  async function cancel(models) {
+    const current = (models.speech || []).find((x) => x.using);
+    const back = !current || current.recommended ? "" : current.id;
+    if (await saveSettings({ speech_model: back }, true)) { toast("Cancelled."); refreshModels(); }
+  }
+
+  async function backToRecommended() {
+    if (await saveSettings({ speech_model: "", tts_engine: "piper" }, true)) { toast("Back to the recommended models."); render(); }
+  }
+
+  function voiceItems() {
+    const engine = App.settings.tts_engine || "piper";
+    const restart = (App.restart || []).includes("tts_engine");
+    const VOICES = [
+      ["piper", "Natural voices (Piper)", "English and German voices made on this computer. Another language's voice downloads once, about 60 MB.", true],
+      ["windows", "Windows voice", "The voices that come with Windows: nothing to download, but they sound flat, especially in German.", false],
+    ];
+    return VOICES.map(([id, name, line, recommended]) => el("div", { class: engine === id ? "model-item using" : "model-item" },
+      el("div", { class: "model-text" },
+        el("div", { class: "model-name" }, el("b", {}, name),
+          recommended ? el("span", { class: "tag good" }, "Recommended") : null,
+          engine === id ? el("span", { class: "tag on" }, restart ? "After a restart" : "In use") : null),
+        el("small", {}, line)),
+      engine === id
+        ? restart ? el("button", { class: "btn small", onclick: () => call("restart") }, "Restart now") : null
+        : el("button", { class: "btn small", onclick: () => saveSettings({ tts_engine: id }, true).then((ok) => ok && render()) }, "Use")));
+  }
+
+  /* The Advanced card again (a switch moved on), keeping the page where it is. */
+  async function refreshModels() {
+    const models = await call("models");
+    const old = $("#advanced-card");
+    if (models && old) old.replaceWith(advancedCard(models));
+    const speech = $("#speech-card");
+    if (models && speech) { const card = speechCard(models); card.id = "speech-card"; speech.replaceWith(card); }
   }
 
   /* ---------- general ---------- */
@@ -499,13 +615,16 @@
   /* ---------- the page ---------- */
 
   async function render() {
-    const [voices, mics, login] = await Promise.all([call("voices"), call("microphones"), call("login_item")]);
+    const [voices, mics, login, models] = await Promise.all([call("voices"), call("microphones"), call("login_item"), call("models")]);
+    const speech = speechCard(models);
+    speech.id = "speech-card";
     const extra = (window.SettingsExtras || []).map((make) => make()).filter(Boolean);
     $("#settings-content").replaceChildren(...[
       el("div", { class: "page-head" }, el("h1", {}, "Settings")),
       restartBanner(),
       ...extra,
-      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speechCard(), lampsCard(), generalCard(login),
+      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speech, lampsCard(), generalCard(login),
+      advancedCard(models),
       el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Abdoh ${App.version}`),
     ].filter(Boolean));
     startMeter();
@@ -519,6 +638,15 @@
       if (kind === "wake" && tag) tag.textContent = value;
       if (kind === "gpu" && $("#gpu-status")) $("#gpu-status").textContent = value || GPU_HINT;
       if (kind === "voice_download" && $("#voice-download")) $("#voice-download").update();
+      if (kind === "speech_model" && $("#advanced-card")) {  // a model downloading, loading, ready
+        const bar = $("#model-progress");
+        const item = bar && bar.closest(".model-item");
+        if (value && value.state === "downloading" && item && item.dataset.model === value.id) {
+          bar.querySelector("i").style.width = `${value.percent || 0}%`;
+          const text = bar.querySelector("small");
+          text.textContent = text.textContent.replace(/\d+%/, `${value.percent || 0}%`);
+        } else refreshModels();
+      }
       if (kind === "devices" && $("#mic-card")) {  // a microphone was plugged in or out
         const mics = await call("microphones");
         const old = $("#mic-card");

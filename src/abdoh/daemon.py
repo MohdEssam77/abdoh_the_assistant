@@ -108,6 +108,7 @@ class Daemon:
         self.ducker = ducker  # other apps go quieter while Abdoh listens (audio/ducking.py)
         # Speech recognition on the graphics card (audio/gpu_speech.py), set in create().
         self.gpu_speech = None
+        self.model_switch = None  # the model chosen in Settings → Advanced (abdoh/models.py)
         self.modes = None  # abdoh.modes.engine.ModeEngine (see use_modes)
         self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
         self._board_card = 0  # the board card the window last came up for
@@ -181,6 +182,8 @@ class Daemon:
         self.stop_event.set()
         if self.gpu_speech is not None:
             self.gpu_speech.stop()  # a download continues next time
+        if self.model_switch is not None:
+            self.model_switch.stop()
         self._unduck()
         tap = getattr(self.voice_watch, "tap", None)
         if tap is not None:
@@ -321,6 +324,7 @@ class Daemon:
         old_mic = self.cfg.mic_device
         kept_clips = self.cfg.keep_unclear_clips
         used_gpu = self.cfg.use_gpu
+        old_model = self.cfg.speech_model
         for f in fields(Config):
             if f.name not in ("app_dir", "claude"):
                 setattr(self.cfg, f.name, getattr(new, f.name))
@@ -345,12 +349,23 @@ class Daemon:
             self.reopen_mic()
         if self.cfg.use_gpu != used_gpu and self.gpu_speech is not None:
             self.gpu_speech.apply()
+        if self.cfg.speech_model != old_model and self.model_switch is not None:
+            self.model_switch.apply()  # downloads it if needed, then switches
         if kept_clips and not self.cfg.keep_unclear_clips:
             from abdoh.audio.unclear import delete_all
 
             if delete_all(self._clips_folder()):
                 log.info("Deleted the unclear recordings")
         log.info("Settings changed")
+
+    def use_transcriber(self, new) -> None:
+        """Another speech model takes over (chosen in Settings → Advanced, already loaded): the
+        next thing you say goes to it. On a graphics card it moves there as usual."""
+        self.transcriber = new
+        if self.gpu_speech is not None:
+            self.gpu_speech.stop()
+            self.gpu_speech.transcriber = new
+            self.gpu_speech.start()
 
     def _speak_sample(self, text: str) -> None:
         try:
@@ -1005,6 +1020,8 @@ class Daemon:
         threading.Thread(target=self._housekeeping, name="abdoh-housekeeping", daemon=True).start()
         if self.gpu_speech is not None:
             self.gpu_speech.start()
+        if self.model_switch is not None:
+            self.model_switch.start()  # a model chosen but not downloaded yet: now
         if self.listen_error:
             log.error("Voice input unavailable: %s", self.listen_error)
             self.stop_event.wait()
@@ -1645,8 +1662,15 @@ class Daemon:
         router.computer.lamps = Lamps(cfg.app_dir / "lamps.json")
         if transcriber is not None:
             from abdoh.audio.gpu_speech import GpuSpeech
+            from abdoh.models import ModelSwitch
 
             daemon.gpu_speech = GpuSpeech(cfg, transcriber, lambda t: daemon.bus.emit("gpu", t))
+            daemon.model_switch = ModelSwitch(
+                cfg,
+                transcriber,
+                daemon.use_transcriber,
+                lambda s: daemon.bus.emit("speech_model", s),
+            )
         daemon.device_watch = DeviceWatch(daemon.devices_changed)
         daemon.reload_devices = reload_portaudio
         router.computer.apps.load_in_background()

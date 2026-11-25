@@ -832,6 +832,17 @@ processor until it restarts. A download that was interrupted continues the next 
 Developers can measure this themselves without a microphone:
 `python scripts/measure_latency.py "Hey Abdoh, what time is it?"`.
 
+**Choosing the models yourself: Settings → Advanced** (collapsed, at the end). The speech
+recognition models that understand your languages, each with one line on what it's good at and
+what it needs (graphics card or processor, download size): Parakeet v3 (recommended, inside the
+app), Parakeet v2 (English only), Whisper base, small and medium. **Download and use** downloads
+it in the background with a progress bar (**Cancel** stops it) while Abdoh keeps listening with
+the model it has, switches as soon as it's ready (no restart), and deletes the model it replaced
+if Abdoh had downloaded it. Abdoh never deletes a model that's in use, what's inside the app, or a
+folder it didn't download itself (it marks its downloads with `.abdoh-download`). The same card
+switches between the natural voices and the Windows voice. **Back to recommended** undoes it
+all. A model that doesn't understand the languages you chose later isn't used.
+
 ## Configuration
 
 Most of these are on the window's **Settings** and **Permissions** pages, which save to
@@ -852,6 +863,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `speech_engine` | `auto` | `auto`, `parakeet` or `whisper` (lighter: about 700 MB less memory, more mistakes) |
 | `use_gpu` | `true` | Speech recognition on a graphics card with 4 GB or more of its own (downloads 2.4 GB once); faster, with less memory |
 | `whisper_model` | `small` | Whisper size for languages Parakeet doesn't have: `base` (fast), `small`, `medium` (slow) |
+| `speech_model` | `""` | Chosen in Settings → Advanced: `parakeet-v3`, `parakeet-v2`, `whisper-base`, `whisper-small`, `whisper-medium`; `""` is the recommended one |
 | `match_threshold` | `85` | How closely speech must match a trigger (0-100) |
 | `silence_seconds` | `0.6` | Pause that ends a request (detected by voice activity, not loudness) |
 | `max_record_seconds` | `10` | Longest request |

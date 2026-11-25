@@ -370,7 +370,13 @@ def gpu_model_dir(cfg, find_gpu=None) -> Path | None:
 
 
 def make_transcriber(cfg) -> Transcriber:
-    """The speech recognizer for these settings."""
+    """The speech recognizer for these settings: the model chosen in Settings → Advanced once
+    it's downloaded (abdoh/models.py), otherwise the recommended one."""
+    from abdoh import models
+
+    model = models.chosen(cfg)
+    if model is not None and models.is_ready(cfg, model):
+        return models.transcriber_for(cfg, model)
     parakeet = parakeet_available(cfg)
     if choose_engine(cfg, parakeet) == "parakeet":
         gpu = gpu_model_dir(cfg) if not Path(parakeet).name.endswith("v2") else None

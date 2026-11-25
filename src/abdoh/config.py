@@ -128,6 +128,7 @@ class Config:
     speech_engine: str = "auto"  # auto | parakeet (English, most accurate) | whisper
     use_gpu: bool = True  # speech recognition on a suitable graphics card (abdoh/gpu.py)
     whisper_model: str = "small"  # Whisper size, used for languages other than English
+    speech_model: str = ""  # chosen in Settings → Advanced (abdoh/models.py); "": recommended
     match_threshold: int = 85
     silence_seconds: float = 0.6
     confirm_actions: str = "sound"  # sound: a short sound after "open Spotify"; words: say it

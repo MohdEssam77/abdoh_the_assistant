@@ -282,6 +282,18 @@ API key or OpenRouter (none here); the router asks every brain the same way, as 
    app, back to recommended.
 6. **With the owner:** switch to Parakeet v2 and back.
 
+Done. The switch is live, without a restart: the new model loads while the old one keeps
+listening, then takes over (`Daemon.use_transcriber`; on a graphics card it moves there as
+usual). Downloads are pinned to a revision and checked (`abdoh/download.py`), and each folder
+Abdoh downloads gets a `.abdoh-download` marker: only such folders are ever deleted, never the one
+in use or chosen, never the app's own or the graphics card model. The voice is still
+`tts_engine` (Piper or Windows, a restart as before), so no `voice_model` key: story 105 adds its
+voices there. Checked for real in a temporary Abdoh folder: Whisper base (150 MB) downloaded and
+checksum-checked in 16 s while Parakeet v3 kept working, switched, transcribed a Piper recording
+("Hey Abdo, what is the weather like in Sarpurkan tomorrow?", 0.9 s), and back to recommended
+deleted it. A dev checkout's `models/` counts as inside the app: a Whisper or Parakeet v2 found
+there is used without downloading.
+
 ### Story 104: More speech recognition models (`story/104-speech-models`)
 
 1. **Check first:** with the `onnx-asr` Abdoh ships, load and time on the owner's laptop
