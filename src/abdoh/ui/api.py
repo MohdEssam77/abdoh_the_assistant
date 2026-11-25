@@ -778,6 +778,13 @@ class AppApi:
         """The models on OpenRouter (its public list), to pick one in Settings."""
         return self._claude().openrouter_models()
 
+    def openrouter_pictures(self) -> dict:
+        """The picture models, the chosen one's price, and the credit left."""
+        return self._claude().openrouter_pictures(self._config())
+
+    def picture_price(self, model) -> dict:
+        return self._claude().picture_price(str(model or ""))
+
     def claude_test(self) -> dict:
         """Ask Claude for one word, to check the connection."""
         return self._claude().check_connection(self._config())

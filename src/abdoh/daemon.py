@@ -221,6 +221,8 @@ class Daemon:
                 self.cfg.claude.voice_reply_max_sentences,
                 lessons=self.cfg.lesson_listen_seconds > 0,
             )
+        if role:
+            role = f"{self._ai_pictures_now()}; {role}"
         return state_line(
             mode, self.voice_enabled, self.paused, self._screens_now(), role, self._lamps_now()
         )
@@ -1045,9 +1047,19 @@ class Daemon:
         self.bus.emit("role", role.name if role is not None else "")
         self._board_shown = False
         self._show_listening()
+        if role is not None and self.cfg.openrouter_api_key:  # AI pictures: read the credit
+            threading.Thread(target=self._read_credit, name="abdoh-credit", daemon=True).start()
         lamps = getattr(self.router.computer, "lamps", None)
         if role is None and lamps is not None:  # the mood it set goes, in the background
             threading.Thread(target=self._lamps_back, args=(lamps,), daemon=True).start()
+
+    def _read_credit(self) -> None:
+        from abdoh.claude.openrouter import credit_left
+
+        try:
+            credit_left(self.cfg.openrouter_api_key, fresh=True)
+        except Exception:
+            log.debug("Couldn't read the OpenRouter credit", exc_info=True)
 
     @staticmethod
     def _lamps_back(lamps) -> None:
@@ -1314,7 +1326,7 @@ class Daemon:
         from abdoh.pictures import FOLDER, PictureError, Pictures
 
         if self._pictures is None:
-            self._pictures = Pictures(self.cfg.app_dir / FOLDER)
+            self._pictures = Pictures(self.cfg.app_dir / FOLDER, ai=self._ai_picture)
             try:
                 self._pictures.clean()
             except OSError:
@@ -1322,15 +1334,43 @@ class Daemon:
         try:
             found = self._pictures.find(what)
             shown = {"what": what, "ok": True, "src": found.data_url(), "credit": found.credit,
-                     "title": found.title}  # fmt: skip
+                     "title": found.title, "ai": found.ai}  # fmt: skip
             log.info("Board picture of %r: %s", what, found.credit)
         except PictureError as e:
             shown = {"what": what, "ok": False, "error": str(e)}
             log.info("No board picture of %r: %s", what, e)
+            if what.lower().startswith("draw:"):  # no credit, no key: say so, not only show it
+                self._say_aside(str(e))
         except Exception:
             log.exception("Couldn't get a picture for the board")
             shown = {"what": what, "ok": False, "error": "That picture didn't load."}
         self.bus.emit("board_picture", shown)
+
+    def _ai_picture(self, description: str) -> tuple[bytes, str, str]:
+        """A picture made by the OpenRouter picture model (the board's [picture: draw: ...])."""
+        from abdoh.claude.openrouter import PictureRefused, make_picture
+        from abdoh.pictures import PictureError
+
+        model = self.cfg.claude.openrouter_image_model
+        try:
+            data, mime, cost = make_picture(self.cfg.openrouter_api_key, model, description)
+        except PictureRefused as e:
+            raise PictureError(str(e)) from e
+        name = model.split("/")[-1].replace("-", " ")
+        log.info("Made a picture with %s for $%.4f", model, cost)
+        return data, mime, f"Made by AI ({name}), ${cost:.3f}"
+
+    def _ai_pictures_now(self) -> str:
+        """For Claude, while a role is on: can it ask for pictures made by AI?"""
+        from abdoh.claude.openrouter import known_credit
+
+        key = self.cfg.openrouter_api_key
+        if not key:
+            return "AI pictures: off (they need an OpenRouter key)"
+        left = known_credit(key)
+        credit = f", credit left ${left:.2f}" if left is not None else ""
+        model = self.cfg.claude.openrouter_image_model.split("/")[-1]
+        return f"AI pictures: on ({model}{credit})"
 
     def _voice_download(self, voice: str, percent: int | None) -> None:
         """A natural voice is downloading (the first time Abdoh speaks its language): the

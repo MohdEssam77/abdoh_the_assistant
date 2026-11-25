@@ -258,6 +258,12 @@ const Bridge = (() => {
       claude_sign_out: async () => ({ ok: true }),
       set_api_key: async () => ({ ok: true }),
       set_openrouter_key: async (key) => { demoOpenRouter = !!key; return { ok: true }; },
+      openrouter_pictures: async () => ({ ok: true, chosen: "black-forest-labs/flux-3-image-klein", price: 0.008, credit: 4.37, models: [
+        { id: "black-forest-labs/flux-3-image-klein", name: "Black Forest Labs: FLUX 3 Image Klein", free: false },
+        { id: "google/gemini-3.1-flash-lite-image", name: "Google: Nano Banana 2 Lite", free: false },
+        { id: "recraft/recraft-v4.1-flash-v2:free", name: "Recraft: Recraft V4.1 Flash V2 (free)", free: true },
+      ] }),
+      picture_price: async (model) => ({ price: model.endsWith(":free") ? 0 : 0.039 }),
       openrouter_models: async () => ({ ok: true, models: [
         { id: "openrouter/auto", name: "Auto Router", images: true, price: "" },
         { id: "anthropic/claude-sonnet-5.5", name: "Anthropic: Claude Sonnet 5.5", images: true, price: "$3 / $15 per million tokens" },

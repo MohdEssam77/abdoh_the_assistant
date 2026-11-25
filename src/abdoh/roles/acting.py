@@ -65,7 +65,13 @@ BOARD = (
     "line [picture: the thing, in two to four English words, like spaghetti carbonara] on the "
     "board, or "
     "[picture: https://...] for a picture you found with web search; Abdoh finds it and shows "
-    "it with its credit. Never ask for pictures of real private people."
+    "it with its credit. Never ask for pictures of real private people. When the first "
+    "line of a message says AI pictures are on, you can also ask for a picture made by AI "
+    "where no real photo would do (a scene, an idea, an illustration): [picture: draw: a "
+    "detailed description in English]. It costs the user a little, so only when it helps; "
+    "Abdoh checks their credit and says so if it's too low. When it says AI pictures are off, "
+    "draw it yourself (SVG) or show a photo, and if they ask for an AI picture, say it needs an "
+    "OpenRouter key."
 )
 
 

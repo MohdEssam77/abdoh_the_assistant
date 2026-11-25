@@ -264,6 +264,36 @@ def openrouter_models() -> dict:
         return {"ok": False, "error": str(e), "models": []}
 
 
+def openrouter_pictures(cfg: Config) -> dict:
+    """For the Claude card: the models that make pictures, the chosen one's price, and the
+    credit left (when OpenRouter tells a normal key)."""
+    from abdoh.claude import openrouter
+
+    try:
+        models = openrouter.image_models()
+    except Exception as e:
+        log.info("Couldn't list the picture models: %s", e)
+        return {"ok": False, "error": "Couldn't get OpenRouter's picture models.", "models": []}
+    chosen = cfg.claude.openrouter_image_model or openrouter.DEFAULT_IMAGE_MODEL
+    try:
+        left = openrouter.credit_left(cfg.openrouter_api_key) if cfg.openrouter_api_key else None
+    except Exception:
+        left = None
+    return {
+        "ok": True,
+        "models": models,
+        "chosen": chosen,
+        "price": openrouter.picture_price(chosen),
+        "credit": left,
+    }
+
+
+def picture_price(model: str) -> dict:
+    from abdoh.claude import openrouter
+
+    return {"price": openrouter.picture_price(str(model))}
+
+
 def check_connection(cfg: Config, make=make_brain) -> dict:
     """Ask Claude for one word. Uses a tiny bit of your plan or key."""
     brain = make(cfg)
