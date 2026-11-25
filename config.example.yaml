@@ -13,7 +13,7 @@ languages: ["en"]                # what you speak to Abdoh, e.g. ["en"] or ["en"
 speech_engine: "auto"            # auto | parakeet (English only, most accurate) | whisper
 use_gpu: true                    # on a graphics card with 4 GB+ of its own: faster speech recognition, less memory (downloads 2.4 GB once)
 whisper_model: "small"           # Whisper size for languages other than English: base | small | medium
-speech_model: ""                 # Settings → Advanced: parakeet-v3, parakeet-v2, whisper-base, whisper-small, whisper-medium; "" = recommended
+speech_model: ""                 # Settings → Advanced: parakeet-v3, parakeet-v2, canary-180m-flash, canary-1b-v2, whisper-base, -small, -medium, -large-v3-turbo, -large-v3; "" = recommended
 match_threshold: 85
 silence_seconds: 0.6              # pause that ends a request (speech is detected by a VAD)
 max_record_seconds: 10

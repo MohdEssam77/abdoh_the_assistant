@@ -90,9 +90,13 @@ const Bridge = (() => {
     const demoModels = [
       { id: "parakeet-v3", name: "Parakeet v3", line: "English, German and 23 more European languages, and the most accurate for its speed. Inside the app. On a graphics card with 4 GB or more it runs there (downloads 2.4 GB once), otherwise on the processor.", size_mb: 0, gpu: true, ready: true },
       { id: "parakeet-v2", name: "Parakeet v2", line: "English only. As accurate as v3 in English, a little better on clear speech, and as fast. Processor only. Downloads 630 MB.", size_mb: 630, gpu: false, ready: false },
+      { id: "canary-180m-flash", name: "Canary 180M Flash", line: "English, German, Spanish or French, one language at a time (it must be told which). Small and quick, but makes more mistakes than Parakeet. Processor only. Downloads 215 MB.", size_mb: 215, gpu: false, ready: false },
+      { id: "canary-1b-v2", name: "Canary 1B v2", line: "One of Parakeet's 25 languages at a time (it must be told which). About as accurate as Parakeet, but half as fast, and it needs about 1.2 GB of memory. Processor only. Downloads 1 GB.", size_mb: 1030, gpu: false, ready: false },
       { id: "whisper-base", name: "Whisper base", line: "Any language. Small and quick, but makes clearly more mistakes than Parakeet. Processor only. Downloads 150 MB.", size_mb: 150, gpu: false, ready: false },
       { id: "whisper-small", name: "Whisper small", line: "Any language. Good accuracy, slower than Parakeet and less accurate in English and German. Processor only. Downloads 490 MB.", size_mb: 490, gpu: false, ready: false },
       { id: "whisper-medium", name: "Whisper medium", line: "Any language, more accurate than small, but slow without a strong processor (a second or more for each request). Processor only. Downloads 1.5 GB.", size_mb: 1530, gpu: false, ready: false },
+      { id: "whisper-large-v3-turbo", name: "Whisper large-v3 turbo", line: "Any language, very accurate. Needs a strong computer: on a laptop processor each request takes 5 seconds or more. Processor only. Downloads 1.6 GB.", size_mb: 1620, gpu: false, ready: false },
+      { id: "whisper-large-v3", name: "Whisper large-v3", line: "Any language, the most accurate Whisper and the slowest: 6 seconds or more for each request on a laptop processor, and about 1.7 GB of memory. Processor only. Downloads 3.1 GB.", size_mb: 3090, gpu: false, ready: false },
     ];
     let demoUsing = "parakeet-v3";
     let demoStatus = {};

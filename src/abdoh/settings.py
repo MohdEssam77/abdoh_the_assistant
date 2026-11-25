@@ -25,8 +25,9 @@ from abdoh.speech.piper_voice import ENGLISH_VOICES, GERMAN_VOICES
 
 # The models of Settings → Advanced (abdoh/models.py; "" is the recommended one). Not imported
 # from there: it loads the speech recognition code.
-SPEECH_MODEL_IDS = ("", "parakeet-v3", "parakeet-v2", "whisper-base", "whisper-small",
-                    "whisper-medium")  # fmt: skip
+SPEECH_MODEL_IDS = ("", "parakeet-v3", "parakeet-v2", "canary-180m-flash", "canary-1b-v2",
+                    "whisper-base", "whisper-small", "whisper-medium", "whisper-large-v3-turbo",
+                    "whisper-large-v3")  # fmt: skip
 
 TEMPLATE = "config.example.yaml"
 # Config fields that aren't settings: where the files live, the API key (kept in .env), and the

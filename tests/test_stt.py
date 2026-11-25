@@ -173,7 +173,7 @@ def test_a_broken_whisper_model_is_an_error(tmp_path):
 def whisper(tmp_path, languages, **model):
     made = []
 
-    def make(source, device, compute_type):
+    def make(source, device, compute_type, cpu_threads):
         made.append(FakeWhisper(source, **model))
         return made[-1]
 

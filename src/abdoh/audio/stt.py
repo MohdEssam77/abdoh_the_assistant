@@ -61,6 +61,13 @@ TARGET_PEAK = 0.9
 MAX_GAIN = 100.0
 
 
+def whisper_threads(cores: int | None = None) -> int:
+    """Threads for Whisper: half the processor's, 4 to 8 (faster-whisper's default is 4; on the
+    owner's 20-thread laptop 10 made large-v3-turbo 27% faster, ABDOH_EPIC_8.md)."""
+    cores = cores if cores is not None else os.cpu_count() or 4
+    return max(4, min(8, cores // 2))
+
+
 def model_name(size: str, languages: list[str]) -> str:
     """'base' for English only -> 'base.en'; other languages keep the multilingual model."""
     return f"{size}.en" if languages == ["en"] and size in ENGLISH_ONLY else size
@@ -248,6 +255,47 @@ class ParakeetTranscriber(Transcriber):
         return self.languages[0] if len(self.languages) == 1 else "en"
 
 
+class CanaryTranscriber(Transcriber):
+    """NVIDIA Canary (through onnx-asr), chosen in Settings → Advanced. It must be told the
+    language, so it's offered for one language at a time."""
+
+    name = "Canary"
+
+    def __init__(
+        self,
+        model_dir: Path,
+        model_type: str,
+        languages: list[str] | None = None,
+        catalog_id: str = "",
+        make_model: Callable | None = None,
+    ):
+        super().__init__()
+        self.model_dir = Path(model_dir)
+        self.model_type = model_type  # "nemo-canary-1b-v2", or "nemo-conformer-aed" for others
+        self.languages = list(languages or ["en"])
+        self.catalog_id = catalog_id
+        self.last_language = self.languages[0]
+        self._make_model = make_model  # onnx_asr.load_model (a fake in tests)
+
+    def _load(self):
+        make = self._make_model
+        if make is None:
+            import onnx_asr
+
+            make = onnx_asr.load_model
+        log.info("Loading the Canary speech model from %s", self.model_dir)
+        return make(
+            self.model_type, self.model_dir, quantization="int8", providers=["CPUExecutionProvider"]
+        )  # its compact version fails on DirectML
+
+    def _recognize(self, model, samples: np.ndarray) -> str:
+        language = self.languages[0]
+        self.last_language = language
+        return str(
+            model.recognize(samples.astype(np.float32), sample_rate=16000, language=language)
+        )
+
+
 class WhisperTranscriber(Transcriber):
     name = "Whisper"
 
@@ -280,7 +328,7 @@ class WhisperTranscriber(Transcriber):
         else:
             log.info("Loading Whisper model %r (downloads on first use)...", self.model_size)
             source = self.model_size
-        return make(source, device="cpu", compute_type="int8")
+        return make(source, device="cpu", compute_type="int8", cpu_threads=whisper_threads())
 
     def _run(self, model, samples, language: str | None):
         segments, info = model.transcribe(

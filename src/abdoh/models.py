@@ -20,6 +20,7 @@ from abdoh.audio.stt import (
     PARAKEET_LANGUAGES,
     PARAKEET_MIXES,
     PARAKEET_V2_DIR,
+    CanaryTranscriber,
     ParakeetTranscriber,
     WhisperTranscriber,
     model_folder,
@@ -44,18 +45,33 @@ def _whisper(size: str, english: tuple, multi: tuple) -> dict[str, Download]:
     return {"en": made(f"{size}.en", *english), "any": made(size, *multi)}
 
 
+def _large(size: str, repo: str, revision: str, sizes: tuple, checksum: str) -> Download:
+    """Whisper large-v3 and its turbo: one multilingual model (128 mel bins, so the
+    preprocessor's settings come too)."""
+    config, model, preprocessor, tokenizer = sizes
+    files = (
+        ("config.json", config, ""),
+        ("preprocessor_config.json", preprocessor, ""),
+        ("tokenizer.json", tokenizer, ""),
+        ("vocabulary.json", 1068114, ""),
+        ("model.bin", model, checksum),
+    )
+    return Download(model_folder(size), repo, revision, files)
+
+
 @dataclass(frozen=True)
 class SpeechModel:
     id: str
     name: str
     line: str  # one line for the list: what it's good at, what it needs
-    kind: str  # "parakeet" or "whisper"
+    kind: str  # "parakeet", "canary" (onnx-asr) or "whisper" (faster-whisper)
     languages: frozenset[str] | None  # None: any language
     size_mb: int  # what it downloads (0: inside the app)
     gpu: bool = False  # can run on a graphics card
     bundled: bool = False  # inside the app: nothing to download, never deleted
     downloads: dict[str, Download] = field(default_factory=dict)  # "en" (English only), "any"
-    size: str = ""  # for Whisper: base, small, medium
+    size: str = ""  # for Whisper: base, small, medium, large-v3, large-v3-turbo
+    onnx_name: str = ""  # for Canary: what onnx-asr calls its kind of model
 
     def download_for(self, languages: list[str]) -> Download | None:
         if self.bundled:
@@ -71,6 +87,8 @@ class SpeechModel:
         chosen = set(languages)
         if not chosen <= self.languages:
             return False
+        if self.kind == "canary":
+            return len(chosen) == 1  # it must be told the language: it can't tell them apart
         return len(chosen) == 1 or self.kind != "parakeet" or chosen <= PARAKEET_MIXES
 
 
@@ -99,6 +117,36 @@ SPEECH_MODELS: tuple[SpeechModel, ...] = (
         "parakeet", frozenset({"en"}), 630,
         downloads={"any": Download(PARAKEET_V2_DIR, "istupakov/parakeet-tdt-0.6b-v2-onnx",
                                    "0bbb45a3365852604aef28b538a8f066f4ccaa85", PARAKEET_V2_FILES)},
+    ),
+    SpeechModel(
+        "canary-180m-flash", "Canary 180M Flash",
+        "English, German, Spanish or French, one language at a time (it must be told which). "
+        "Small and quick, but makes more mistakes than Parakeet. Processor only. Downloads "
+        "215 MB.",
+        "canary", frozenset({"en", "de", "es", "fr"}), 215, onnx_name="nemo-conformer-aed",
+        downloads={"any": Download(
+            "models/canary-180m-flash", "istupakov/canary-180m-flash-onnx",
+            "92c2231a4e2b2524277fea759be967d2e6edfc49",
+            (("config.json", 68, ""), ("vocab.txt", 53555, ""),
+             ("encoder-model.int8.onnx", 133710896,
+              "996d1c89e6cbc891a7c88bf410884c178ffa474f7b13084522ac74a5e144cc81"),
+             ("decoder-model.int8.onnx", 79520211,
+              "9dd9c447872088c912e916d73751f9621a54085d5bc46788454fe904db51a914")))},
+    ),
+    SpeechModel(
+        "canary-1b-v2", "Canary 1B v2",
+        "One of Parakeet's 25 languages at a time (it must be told which). About as accurate as "
+        "Parakeet, but half as fast, and it needs about 1.2 GB of memory. Processor only. "
+        "Downloads 1 GB.",
+        "canary", PARAKEET_LANGUAGES, 1030, onnx_name="nemo-canary-1b-v2",
+        downloads={"any": Download(
+            "models/canary-1b-v2", "istupakov/canary-1b-v2-onnx",
+            "5ebc1520cef7b6b318b3526ad17adbfe00bc1bfc",
+            (("config.json", 68, ""), ("vocab.txt", 208022, ""),
+             ("encoder-model.int8.onnx", 859078138,
+              "6d96e9945898e5ace48f4efecd459ca1df81859730be27b8af6b197639403ee1"),
+             ("decoder-model.int8.onnx", 170040374,
+              "52d83aa7aad41fbbe4f9dfcd341d784735a6eb4c6eb0d3290fc27a0d8ac39abf")))},
     ),
     SpeechModel(
         "whisper-base", "Whisper base",
@@ -138,6 +186,27 @@ SPEECH_MODELS: tuple[SpeechModel, ...] = (
             ("08e178d48790749d25932bbc082711ddcfdfbc4f", (2257, 1527906378, 2203239, 459861),
              "9b45e1009dcc4ab601eff815b61d80e60ce3fd8c74c1a14f4a282258286b51ae"),
         ),
+    ),
+    SpeechModel(
+        "whisper-large-v3-turbo", "Whisper large-v3 turbo",
+        "Any language, very accurate. Needs a strong computer: on a laptop processor each "
+        "request takes 5 seconds or more. Processor only. Downloads 1.6 GB.",
+        "whisper", None, 1620, size="large-v3-turbo",
+        downloads={"any": _large(
+            "large-v3-turbo", "deepdml/faster-whisper-large-v3-turbo-ct2",
+            "4df90f75321148c3a29a9e2351b7ddf8f5b115a8", (2263, 1617884929, 340, 2710337),
+            "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da")},
+    ),
+    SpeechModel(
+        "whisper-large-v3", "Whisper large-v3",
+        "Any language, the most accurate Whisper and the slowest: 6 seconds or more for each "
+        "request on a laptop processor, and about 1.7 GB of memory. Processor only. Downloads "
+        "3.1 GB.",
+        "whisper", None, 3090, size="large-v3",
+        downloads={"any": _large(
+            "large-v3", "Systran/faster-whisper-large-v3",
+            "edaa852ec7e145841d8ffdb056a99866b5f0a478", (2394, 3087284237, 340, 2480617),
+            "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1")},
     ),
 )  # fmt: skip
 BY_ID = {m.id: m for m in SPEECH_MODELS}
@@ -187,6 +256,8 @@ def in_use(transcriber) -> str:
     """The catalog id of a transcriber ("" if there's none)."""
     if isinstance(transcriber, ParakeetTranscriber):
         return "parakeet-v3" if transcriber.v3 else "parakeet-v2"
+    if isinstance(transcriber, CanaryTranscriber):
+        return transcriber.catalog_id
     if isinstance(transcriber, WhisperTranscriber):
         return "whisper-" + transcriber.model_size.removesuffix(".en")
     return ""
@@ -202,6 +273,8 @@ def transcriber_for(cfg, model: SpeechModel):
 
             gpu = gpu_model_dir(cfg)
         return ParakeetTranscriber(folder, languages=cfg.languages, gpu_dir=gpu)
+    if model.kind == "canary":
+        return CanaryTranscriber(folder, model.onnx_name, cfg.languages, catalog_id=model.id)
     return WhisperTranscriber(model.size, cfg.languages, model_dir=folder)
 
 
