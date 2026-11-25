@@ -225,8 +225,9 @@ back to its old, simple window.
 - **Other languages**: add the languages you speak in Settings. Abdoh answers in the language
   you used, with a natural voice for it: German's downloads on the first start, any other
   language's the first time you use it (about 60 MB each, into `models/piper` in the data
-  folder). Meanwhile the Windows voice speaks. Prefer the Windows voice? Settings → Voice →
-  **Kind of voice** → Windows voice (`tts_engine: windows`).
+  folder). Settings → Voice shows how far the download is, and meanwhile the **Backup voice**
+  (a Windows voice) speaks. Prefer the Windows voice? Settings → Voice → **Kind of voice** →
+  Windows voice (`tts_engine: windows`).
 
 Each of these can be turned off under **Settings → Conversation**.
 

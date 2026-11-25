@@ -55,6 +55,7 @@ class UiState:
         self._board: deque[dict] = deque(maxlen=self.BOARD)  # cards {id, text}, oldest first
         self._voice = True
         self._gpu = ""  # how speech recognition on the graphics card is going (Settings)
+        self._voice_download = None  # a natural voice downloading: {voice, language, percent}
         self._history: deque[str] = deque(maxlen=self.HISTORY)
 
     def _new_day(self) -> None:
@@ -94,6 +95,8 @@ class UiState:
                 self._voice = bool(value)
             elif kind == "gpu":
                 self._gpu = str(value or "")
+            elif kind == "voice_download":
+                self._voice_download = value or None
             elif kind == "history":
                 self._history.append(value)
             self._pending.append((kind, value))
@@ -124,6 +127,7 @@ class UiState:
                 "board": [dict(card) for card in self._board],
                 "voice": self._voice,
                 "gpu": self._gpu,
+                "voice_download": self._voice_download,
                 "history": list(self._history),
             }
 
