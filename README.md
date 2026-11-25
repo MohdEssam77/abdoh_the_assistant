@@ -344,6 +344,14 @@ instead: click **Set Claude key** in the window (or put `ANTHROPIC_API_KEY=...` 
 `.env.example`). Claude Code is used first when it's installed; set `claude.backend: api` to
 always use the key.
 
+**Or OpenRouter**: one key from https://openrouter.ai/keys for Claude, GPT, Gemini, Llama and
+hundreds more, paid from your OpenRouter credits. Paste it in the Claude card (Settings) and pick
+the model there (searchable, with prices and which ones see images; **Auto** lets OpenRouter
+choose). Like an API key, Abdoh's actions (lamps, apps, modes...) and looking at the screen work,
+but Claude Code's own tools (your files, web search, Gmail and Calendar) don't, and only the last
+exchange is remembered. Smaller models may follow Abdoh's actions less reliably than Claude. In
+`.env`: `OPENROUTER_API_KEY=...`; `claude.backend: openrouter` always uses it.
+
 Without Claude, everything else still works and Abdoh tells you Claude isn't connected.
 
 ## 5. Your commands
@@ -833,10 +841,11 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `allow_run` | `false` | Allow `run:` actions |
 | `check_updates` | `true` | Look for a new version once a day |
 | `setup_done` | `false` | The first-start setup was finished or skipped |
-| `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key), `code`, `api`, or `off` |
+| `claude.backend` | `auto` | `auto` (Claude Code if installed, else API key, else OpenRouter), `code`, `api`, `openrouter`, or `off` |
 | `claude.code_path` | `""` | Where `claude.exe` is; empty means find it automatically |
 | `claude.code_model` | `""` | Claude Code model: `haiku` (fastest), `sonnet`, `opus`; empty means your Claude Code default |
 | `claude.model` | `claude-opus-5-5` | Model when using an API key |
+| `claude.openrouter_model` | `openrouter/auto` | Model when using OpenRouter (any id from openrouter.ai/models) |
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |

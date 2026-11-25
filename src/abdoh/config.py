@@ -32,7 +32,7 @@ def _default_app_dir() -> Path:
 DEFAULT_APP_DIR = _default_app_dir()
 
 
-CLAUDE_BACKENDS = ("auto", "code", "api", "off")
+CLAUDE_BACKENDS = ("auto", "code", "api", "openrouter", "off")
 SPEECH_ENGINES = ("auto", "parakeet", "whisper")
 # 2: `languages` replaced `language`. 3: Claude got more actions. (Both Abdoh 0.4.)
 # 6: Abdoh became Xanthos (new wake words and wake word model). 7: Claude can switch lamps.
@@ -88,11 +88,13 @@ NEW_ACTIONS = {
 
 @dataclass
 class ClaudeConfig:
-    backend: str = "auto"  # auto: Claude Code if installed (subscription), else the API key
+    # auto: Claude Code if installed (subscription), else the API key, else OpenRouter
+    backend: str = "auto"
     code_path: str = ""  # claude.exe; empty = find it
     code_model: str = ""  # empty = your Claude Code default
     model: str = "claude-opus-5-5"  # API key only
-    max_tokens: int = 4000  # API key only
+    max_tokens: int = 4000  # API key and OpenRouter only
+    openrouter_model: str = "openrouter/auto"  # OpenRouter only: any model there
     effort: str = "low"
     allow_web: bool = True  # Claude Code may search the web
     allow_files: bool = True  # Claude Code may work with your files and run commands
@@ -154,10 +156,15 @@ class Config:
     # Not read from config.yaml:
     app_dir: Path = DEFAULT_APP_DIR
     anthropic_api_key: str | None = None
+    openrouter_api_key: str | None = None  # OpenRouter: Claude, GPT, Gemini... with one key
 
     @property
     def has_api_key(self) -> bool:
         return bool(self.anthropic_api_key)
+
+    @property
+    def has_openrouter_key(self) -> bool:
+        return bool(self.openrouter_api_key)
 
     @property
     def commands_path(self) -> Path:
@@ -201,19 +208,24 @@ def write_atomic(path: Path, text: str) -> None:
         raise
 
 
-def read_api_key(app_dir: Path) -> str | None:
-    """API key from .env in app_dir, falling back to the environment."""
+ANTHROPIC_KEY = "ANTHROPIC_API_KEY"
+OPENROUTER_KEY = "OPENROUTER_API_KEY"
+
+
+def read_api_key(app_dir: Path, name: str = ANTHROPIC_KEY) -> str | None:
+    """A key from .env in app_dir, falling back to the environment."""
     values = dotenv_values(app_dir / ".env") if (app_dir / ".env").exists() else {}
-    key = values.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    key = values.get(name) or os.environ.get(name)
     return key.strip() if key and key.strip() else None
 
 
-def save_api_key(env_path: Path, key: str) -> None:
-    """Write ANTHROPIC_API_KEY into the .env file, keeping any other lines."""
+def save_api_key(env_path: Path, key: str, name: str = ANTHROPIC_KEY) -> None:
+    """Write a key (ANTHROPIC_API_KEY, OPENROUTER_API_KEY) into the .env file, keeping any
+    other lines."""
     env_path = Path(env_path)
     lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
-    lines = [ln for ln in lines if not ln.strip().startswith("ANTHROPIC_API_KEY")]
-    lines.append(f"ANTHROPIC_API_KEY={key.strip()}")
+    lines = [ln for ln in lines if not ln.strip().startswith(name)]
+    lines.append(f"{name}={key.strip()}")
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -280,7 +292,9 @@ def load_config(app_dir: Path | None = None) -> Config:
         raw = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
 
     raw = upgrade(raw)
-    known = {f.name for f in fields(Config)} - {"app_dir", "anthropic_api_key", "claude"}
+    known = {f.name for f in fields(Config)} - {
+        "app_dir", "anthropic_api_key", "openrouter_api_key", "claude"
+    }  # fmt: skip
     kwargs = {k: v for k, v in raw.items() if k in known}
     for k in raw.keys() - known - {"claude"} - REMOVED_KEYS:
         log.warning("Unknown config key ignored: %s", k)
@@ -292,7 +306,13 @@ def load_config(app_dir: Path | None = None) -> Config:
         log.warning("Unknown claude.backend %r; using 'auto'", claude.backend)
         claude.backend = "auto"
 
-    cfg = Config(**kwargs, claude=claude, app_dir=app_dir, anthropic_api_key=read_api_key(app_dir))
+    cfg = Config(
+        **kwargs,
+        claude=claude,
+        app_dir=app_dir,
+        anthropic_api_key=read_api_key(app_dir),
+        openrouter_api_key=read_api_key(app_dir, OPENROUTER_KEY),
+    )
     if cfg.speech_engine not in SPEECH_ENGINES:
         log.warning("Unknown speech_engine %r; using 'auto'", cfg.speech_engine)
         cfg.speech_engine = "auto"

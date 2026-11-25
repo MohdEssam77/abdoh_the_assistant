@@ -38,12 +38,15 @@ class SetupError(RuntimeError):
 
 
 def using(cfg: Config, exe: Path | None) -> str | None:
-    """How Abdoh reaches Claude now: "code" (your account), "api" (your key), or None."""
+    """How Abdoh reaches Claude now: "code" (your account), "api" (your key), "openrouter"
+    (your OpenRouter key), or None."""
     backend = cfg.claude.backend
     if backend in ("auto", "code") and exe:
         return "code"
     if backend in ("auto", "api") and cfg.has_api_key:
         return "api"
+    if backend in ("auto", "openrouter") and cfg.has_openrouter_key:
+        return "openrouter"
     return None
 
 
@@ -66,6 +69,10 @@ def claude_state(cfg: Config, find=find_claude_code, status=auth_status) -> dict
         summary = "Claude Code is installed, but not signed in."
     elif via == "api":
         summary = "Connected with your API key."
+    elif via == "openrouter":
+        summary = (
+            f"Connected through OpenRouter ({cfg.claude.openrouter_model or 'openrouter/auto'})."
+        )
     else:
         summary = "Not connected."
     return {
@@ -74,9 +81,11 @@ def claude_state(cfg: Config, find=find_claude_code, status=auth_status) -> dict
         "plan": plan,
         "method": method,
         "has_api_key": cfg.has_api_key,
+        "has_openrouter_key": cfg.has_openrouter_key,
+        "openrouter_model": cfg.claude.openrouter_model,
         "backend": cfg.claude.backend,
         "using": via,
-        "connected": (via == "code" and signed_in) or via == "api",
+        "connected": (via == "code" and signed_in) or via in ("api", "openrouter"),
         "summary": summary,
     }
 
@@ -225,6 +234,34 @@ def set_api_key(cfg: Config, key: str) -> None:
             os.chmod(cfg.env_path, 0o600)  # only you (has little effect on Windows)
         except OSError:
             pass
+
+
+def set_openrouter_key(cfg: Config, key: str) -> None:
+    """Save your own OpenRouter key (or remove it with "") in Abdoh's .env file."""
+    from abdoh.claude.openrouter import KEY_PREFIX as OPENROUTER_PREFIX
+    from abdoh.config import OPENROUTER_KEY
+
+    key = (key or "").strip()
+    if key and not key.startswith(OPENROUTER_PREFIX):
+        raise SetupError(
+            f"That doesn't look like an OpenRouter key (they start with {OPENROUTER_PREFIX})."
+        )
+    save_api_key(cfg.env_path, key, OPENROUTER_KEY)
+    if key:
+        try:
+            os.chmod(cfg.env_path, 0o600)
+        except OSError:
+            pass
+
+
+def openrouter_models() -> dict:
+    """The models on OpenRouter, for picking one in Settings."""
+    from abdoh.claude.openrouter import models
+
+    try:
+        return {"ok": True, "models": models()}
+    except BrainError as e:
+        return {"ok": False, "error": str(e), "models": []}
 
 
 def check_connection(cfg: Config, make=make_brain) -> dict:

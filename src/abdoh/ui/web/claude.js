@@ -5,6 +5,7 @@
 (() => {
   const PLANS_URL = "https://claude.com/pricing";
   const CONSOLE_URL = "https://platform.claude.com/";
+  const OPENROUTER_URL = "https://openrouter.ai/keys";
   const POLL_MS = 3000;
   let waiting = null; // {kind: "install" | "sign_in", until: time, url: the sign-in page}
 
@@ -80,14 +81,65 @@
       el("div", { class: "btn-row" }, input, save));
   }
 
+  /* OpenRouter: Claude, GPT, Gemini and more with one key; the model is yours to pick. */
+  function openrouterPart(state, body) {
+    if (!state.has_openrouter_key) {
+      const input = el("input", { class: "input", type: "password", placeholder: "sk-or-…", autocomplete: "off", style: "width:220px", "aria-label": "OpenRouter key" });
+      const save = el("button", { class: "btn small", onclick: async (e) => {
+        if (!input.value.trim()) return;
+        if (await act(e.currentTarget, "set_openrouter_key", input.value)) { toast("OpenRouter key saved."); refresh(body); }
+      } }, "Save key");
+      input.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); });
+      return row("Or use OpenRouter", el("span", {}, "Claude, GPT, Gemini and more with one key, from ", link("OpenRouter", OPENROUTER_URL), ". Stays on this computer."),
+        el("div", { class: "btn-row" }, input, save));
+    }
+    const rows = [row("OpenRouter", "Your key is saved on this computer only. Used when there's no Claude account or API key (or if you choose it below).",
+      el("div", { class: "btn-row" },
+        state.using === "openrouter" ? el("button", { class: "btn small", onclick: (e) => runTest(e.currentTarget) }, "Test") : null,
+        el("button", { class: "btn small danger", onclick: async (e) => {
+          if (await act(e.currentTarget, "set_openrouter_key", "")) { toast("OpenRouter key removed."); refresh(body); }
+        } }, "Remove key")))];
+    rows.push(modelPart(state));
+    return el("div", {}, ...rows);
+  }
+
+  function modelPart(state) {
+    const current = state.openrouter_model || "openrouter/auto";
+    const select = el("select", { class: "input compact", "aria-label": "OpenRouter model", style: "width:340px;max-width:46vw" },
+      el("option", { value: current, selected: true }, current));
+    const filter = el("input", { class: "input compact", placeholder: "Search models", "aria-label": "Search models", style: "width:160px" });
+    const help = el("span", {}, "Any model on OpenRouter. Smaller models may follow Abdoh's actions less well; one that sees images can look at your screen.");
+    let all = [];
+    const fill = () => {
+      const words = filter.value.toLowerCase().split(/\s+/).filter(Boolean);
+      const shown = all.filter((m) => m.id === current || words.every((w) => `${m.name} ${m.id}`.toLowerCase().includes(w)));
+      select.replaceChildren(...shown.map((m) => el("option", { value: m.id, selected: m.id === select.value || (!select.value && m.id === current) },
+        `${m.name}${m.price ? ` · ${m.price}` : ""}${m.images ? " · sees images" : ""}`)));
+    };
+    filter.addEventListener("input", fill);
+    select.addEventListener("change", async () => {
+      if (await saveSettings({ claude: { openrouter_model: select.value } })) toast("Model saved.");
+    });
+    call("openrouter_models").then((result) => {
+      if (!result) return;
+      if (!result.ok) { help.textContent = result.error; return; }
+      all = result.models;
+      if (!all.some((m) => m.id === current)) all.unshift({ id: current, name: current, price: "", images: false });
+      fill();
+      select.value = current;
+    });
+    return row("OpenRouter model", help, el("div", { class: "btn-row" }, filter, select));
+  }
+
   function backendPart(state) {
-    const choices = [["auto", "Automatic (account first, then key)"], ["code", "Only my Claude account"], ["api", "Only my API key"], ["off", "Off (no Claude)"]];
+    const choices = [["auto", "Automatic"], ["code", "Only my Claude account"], ["api", "Only my API key"],
+      ["openrouter", "Only OpenRouter"], ["off", "Off (no Claude)"]];
     const select = el("select", { class: "input compact", "aria-label": "How Abdoh connects to Claude" },
       choices.map(([v, text]) => el("option", { value: v, selected: v === state.backend }, text)));
     select.addEventListener("change", async () => {
       if (await saveSettings({ claude: { backend: select.value } })) refresh(select.closest(".claude-body"));
     });
-    return row("Use", null, select);
+    return row("Use", "Automatic: your Claude account, then your API key, then OpenRouter.", select);
   }
 
   function speedPart(state) {
@@ -146,6 +198,7 @@
       el("p", { class: "claude-summary" }, state.summary),
       accountPart(state, body),
       keyPart(state, body),
+      openrouterPart(state, body),
       backendPart(state),
       speedPart(state),
       el("p", { class: "fine" },

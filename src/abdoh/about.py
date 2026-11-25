@@ -136,6 +136,12 @@ def _thinking(cfg: Config, via: str) -> str:
     c = cfg.claude
     if via == "api":
         how = f"you are Claude through the Anthropic API with the user's own key, model {c.model}"
+    elif via == "openrouter":
+        model = c.openrouter_model or "openrouter/auto"
+        how = (
+            f"you run as the model {model} through OpenRouter with the user's own key (no "
+            "files, web search or connectors there)"
+        )
     else:
         model = c.code_model or "the user's Claude Code default model"
         how = (
