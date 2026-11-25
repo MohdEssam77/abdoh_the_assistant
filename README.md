@@ -696,6 +696,12 @@ keys, card numbers or health details unless you explicitly ask.
   open one to read it (the board is drawn again), delete a day, or **Delete all**. Off, or
   memory off: nothing new is kept. Claude sees a part only when you ask about an earlier
   conversation.
+- **Ask about earlier conversations**: "yesterday you explained an automaton, how many states
+  did it have?", "what name did we pick for my cat on Monday?". Claude asks Abdoh
+  (`ACTION recall: <what> | <when>`); Abdoh finds the exchanges that match (each with the one
+  before and after it, at most about 4,000 characters; the latest of those days when none uses
+  the same words) and Claude answers from them, in about 3 to 4 seconds. Only what was found goes
+  to Claude.
 
 ## 6. Install it like an app
 

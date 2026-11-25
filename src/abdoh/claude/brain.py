@@ -25,8 +25,8 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{roles}{memory}{save_steps}{self_edit}{files}{web}{tools}If you need more information, \
-ask one short question. Don't end with a question otherwise.
+{look}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}If you need more \
+information, ask one short question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
@@ -83,6 +83,15 @@ ACTION forget: <the entry, as written below>
 Use what you know naturally, without saying where you got it. When asked what you know about \
 them, tell them.{full}
 {entries}
+"""
+# Earlier conversations (abdoh/recall.py), kept for a week while memory and the switch are on.
+RECALL = """The user's conversations with you of the last {days} days are kept on this \
+computer. When they refer to an earlier one that isn't in this conversation ("yesterday we \
+talked about...", "what did I ask you on Monday?", "what was that recipe you showed me?"), \
+don't guess: write only the line
+ACTION recall: <what it was about, in a few words> | <when, as the user said it, in English: \
+yesterday, on Monday, this morning, last week, 3 days ago; nothing for any day>
+with no words before or after it. Abdoh then sends you what was said, and you answer.
 """
 MEMORY_FULL = """ Your memory is nearly full: before remembering something new, forget something \
 or merge two entries (forget both, then remember the merged one)."""
@@ -352,6 +361,9 @@ def system_prompt(
         look=LOOK if cfg.claude.allow_screen else "",
         roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
+        recall=RECALL.format(days=cfg.conversation_days)
+        if cfg.memory and cfg.keep_conversations
+        else "",
         save_steps=_save_steps(cfg),
         self_edit=_self_edit(cfg),
         files=files,

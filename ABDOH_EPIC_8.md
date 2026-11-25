@@ -260,6 +260,15 @@ the checkout: `/conversations/` and `/board/` are in `.gitignore`.
    API key and OpenRouter.
 4. **With the owner:** talk about something, ask about it the next day.
 
+Done, checked with real Claude (Claude Code) through the real router on seeded conversations:
+"yesterday you explained an automaton, how many states?" (the lesson said DFA, never
+automaton), "what name did we pick for my cat on Monday?", "did we talk about carbonara this
+week?": all three right, 3 to 4 s each. Two things the first try showed: Claude worked out the
+date aloud ("Monday was 2026-11-23."), so `<when>` is now the user's own words (yesterday, on
+Monday, 3 days ago, German too) and Abdoh reads them; and matching words alone missed synonyms,
+so when none match, Claude gets the latest exchanges of those days and judges. Not tried with an
+API key or OpenRouter (none here); the router asks every brain the same way, as for `look`.
+
 ### Story 103: Settings → Advanced: the model catalog (`story/103-model-catalog`)
 
 1. `abdoh/models.py`: the catalog with today's models (Parakeet v3 processor and graphics card,
