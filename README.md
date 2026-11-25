@@ -87,7 +87,9 @@ word only counts when it sounds like you (`wake_word_voice_threshold`, default 0
 stricter). The recordings stay on this computer (`voice/` in the data folder);
 **Forget my voice** deletes them. A new wake word model needs the voice taught again. With your
 voice taught, a lower **Sensitivity** (e.g. 0.3) catches you from further away without other
-voices waking it.
+voices waking it. If the number doesn't move on, Abdoh says why: it hears only silence (the
+microphone is muted, or Windows doesn't let apps use it: **Microphone privacy** opens that
+page), or it was very quiet (**Sound settings**), or it just didn't catch that one.
 
 **Your own wake word.** Train an openWakeWord model in Google Colab (free, a couple of hours):
 

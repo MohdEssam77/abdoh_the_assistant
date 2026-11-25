@@ -629,6 +629,11 @@ class AppApi:
         """Windows' sound settings, where a muted microphone can be turned on."""
         self._open_path("ms-settings:sound")
 
+    def open_mic_privacy(self) -> None:
+        """Windows' microphone privacy page: with "Let desktop apps access your microphone"
+        off, Abdoh gets only silence."""
+        self._open_path("ms-settings:privacy-microphone")
+
     # ----- Claude: your own account or API key -----
 
     def _claude(self):

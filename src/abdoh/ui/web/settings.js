@@ -230,12 +230,22 @@
     return box;
   }
 
+  /* Why a recording wasn't taken, from how loud the microphone was meanwhile. */
+  const MISSED = {
+    silent: "Abdoh hears only silence. Is the microphone muted, or not allowed for apps in Windows? Fix it, then say it again.",
+    low: "That was very quiet. Speak up or come closer, or turn the microphone up in Windows.",
+    "": "I didn't hear that one. Once more, please.",
+  };
+
   async function teachVoice(box, done) {
     let cancelled = false;
     const title = el("b", {});
     const hint = el("small", {});
     const bar = el("i", {});
-    box.replaceChildren(el("div", { class: "voice-teach" }, title, hint,
+    const fix = el("div", { class: "btn-row", hidden: true },
+      el("button", { class: "btn small", onclick: () => call("open_mic_privacy") }, "Microphone privacy"),
+      el("button", { class: "btn small", onclick: () => call("open_sound_settings") }, "Sound settings"));
+    box.replaceChildren(el("div", { class: "voice-teach" }, title, hint, fix,
       el("div", { class: "meter" }, bar),
       el("div", { class: "btn-row" }, el("button", { class: "btn small", onclick: () => { cancelled = true; title.textContent = "Stopping..."; } }, "Cancel"))));
     const say = (text, help) => { title.textContent = text; hint.textContent = help; };
@@ -246,16 +256,18 @@
       bar.style.width = `${Math.max(0, Math.min(100, ((db + 60) / 60) * 100))}%`;
     }, 120);
     const record = async (from, to) => {
-      let missed = false;
+      let missed = null; // why the last one wasn't taken (MISSED), or null
       for (let n = from; n <= to && !cancelled;) {
-        say(`Say “Hey Abdoh” (${n} of ${to})`, missed ? "I didn't hear that one. Once more, please."
+        say(`Say “Hey Abdoh” (${n} of ${to})`, missed !== null ? MISSED[missed] || MISSED[""]
           : n <= 5 ? "Close to the laptop, the way you normally talk. Wait for the number to change after each one."
             : "Now from where you usually are: across the room, or a few steps away. Wait for the number to change.");
+        fix.hidden = missed !== "silent" && missed !== "low";
         const result = await call("record_voice", "phrase", n);
         if (!result || !result.ok) { if (result) toast(result.error, true); return false; }
-        missed = !result.heard;
+        missed = result.heard ? null : result.quiet || "";
         if (result.heard) n++;
       }
+      fix.hidden = true;
       return !cancelled;
     };
     try {
@@ -263,7 +275,9 @@
       say("Now read this aloud in your normal voice (20 seconds)", READ_ALOUD);
       const talk = await call("record_voice", "talk");
       if (cancelled || !talk) return;
-      if (!talk.ok || !talk.heard) return toast(talk.error || "I couldn't hear you talking. Try again.", true);
+      if (!talk.ok || !talk.heard) {
+        return toast(talk.error || (talk.quiet === "silent" ? MISSED.silent : "I couldn't hear you talking. Try again."), true);
+      }
       say("Learning your voice...", "This takes a few seconds.");
       let result = await call("train_voice");
       if (result && result.ok && result.total && result.passed < result.total - 2) {

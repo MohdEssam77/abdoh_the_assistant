@@ -36,6 +36,17 @@ SORRY = "Sorry, something went wrong."
 # After the hotkey, nothing louder than this came from the mic (of 32768): it's muted or
 # turned right down. Speech is usually in the thousands.
 QUIET_MIC_PEAK = 100
+# Teaching it your voice: louder than QUIET_MIC_PEAK but below this, the mic works but was too
+# quiet to be taken for speech (far away, or turned down in Windows).
+LOW_MIC_PEAK = 500
+
+
+def how_quiet(loudest: int) -> str:
+    """ "silent" (muted, or Windows doesn't let apps use the mic), "low", or "" (loud enough:
+    it just wasn't speech)."""
+    return "silent" if loudest < QUIET_MIC_PEAK else "low" if loudest < LOW_MIC_PEAK else ""
+
+
 MIC_TOO_QUIET = "I didn't hear anything. Your microphone may be muted or turned down."
 SAMPLE = "Hi, I'm Abdoh. This is how I sound."
 # When Claude hasn't said anything after this long, Abdoh says it's still on it.
@@ -1310,15 +1321,21 @@ class Daemon:
         if not request["done"].wait(TALK_SECONDS + 30):
             self._capture = None
             return {"ok": False, "error": "Abdoh is busy. Try again in a moment."}
+        from abdoh.audio.recorder import peak
+
         audio = request["audio"]
         recordings, _ = self._voice_files()
         if kind == "talk":
-            if len(audio) < BYTES_PER_SECOND * TALK_SECONDS / 2:
-                return {"ok": True, "heard": False}
+            loudest = peak(audio)
+            if len(audio) < BYTES_PER_SECOND * TALK_SECONDS / 2 or how_quiet(loudest) == "silent":
+                log.info("Voice check: no talk heard (loudest sound %d of 32768)", loudest)
+                return {"ok": True, "heard": False, "quiet": how_quiet(loudest)}
             write_wav(recordings.talk_path, audio)
             return {"ok": True, "heard": True}
-        if not audio:
-            return {"ok": True, "heard": False}
+        if not audio:  # nothing taken for speech: was the microphone silent, or just quiet?
+            loudest = request.get("loudest", 0)
+            log.info("Voice check: the wake word wasn't heard (loudest sound %d of 32768)", loudest)
+            return {"ok": True, "heard": False, "quiet": how_quiet(loudest)}
         if number <= 1:
             for path in recordings.folder.glob("phrase-*.wav"):
                 path.unlink(missing_ok=True)
@@ -1327,9 +1344,17 @@ class Daemon:
 
     def _record_capture(self, mic) -> None:
         """Record what record_voice() asked for, then go back to listening."""
+        from abdoh.audio.recorder import peak
         from abdoh.audio.voicecheck import TALK_SECONDS
 
         request, audio = self._capture, b""
+        request["loudest"] = 0
+
+        def read():  # notes the loudest sound, to tell a silent mic from a quiet word
+            block = mic.read()
+            request["loudest"] = max(request["loudest"], peak(block))
+            return block
+
         self.bus.emit("status", "Learning your voice...")
         try:
             mic.clear()
@@ -1342,7 +1367,7 @@ class Daemon:
                 audio = b"".join(chunks)
             else:
                 audio = record_until_silence(
-                    mic.read,
+                    read,
                     speech_detector(self.vad, b""),
                     silence_seconds=0.6,
                     max_seconds=4.0,
