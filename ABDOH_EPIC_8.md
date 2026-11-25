@@ -354,6 +354,31 @@ Abdoh and Saarbrücken not counted):
 4. Tests with fake models.
 5. **With the owner:** listen to each in English and German, and pick.
 
+Done for Kokoro; Pocket TTS not added. Checked on the owner's laptop:
+
+| | Kokoro 82M (`onnx-community/Kokoro-82M-v1.0-ONNX`) | Pocket TTS (`KevinAHM/pocket-tts-onnx`) |
+|---|---|---|
+| License | Apache 2.0 | CC-BY-4.0 (voices from `kyutai/pocket-tts-without-voice-cloning`, not gated) |
+| Languages | English (American, British); no German | English, German, French, Italian, Portuguese, Spanish |
+| Runs with | onnxruntime, phonemes from Piper's espeak-ng: nothing new installed | its own runner (`pocket_tts_onnx.py`, ~700 lines) plus `sentencepiece` and `safetensors` |
+| Speed (4 s of speech) | full model 0.7 s on the processor; quantized 2.4 s; DirectML fails (ConvTranspose) | not measured (below) |
+| Heard back by Parakeet | every word of three sentences, three voices | |
+
+- **Kokoro is in.** `speech/kokoro_voice.py`; its voices (`kokoro:af_heart`, ...: Heart, Bella,
+  Michael, Fenrir American; Emma, George British) are English voice choices of the natural voice,
+  so the Piper speaker plays them (blocks, pause, stop, speed) and the Windows voice speaks while
+  the 330 MB download runs, with its progress bar. Settings → Advanced → Voice: **Kokoro for
+  English**. Real check through `make_voice` in a temporary folder: the backup voice spoke
+  first, Kokoro downloaded in 33 s (progress 0 to 99%), then said "Your twelve minute timer is
+  done, and the desk lamp is blue now." (4.1 s of speech in 1.7 s with the first load), heard back
+  word for word. Samples to compare with Piper's lessac: `%TEMP%\abdoh-voices\listen`.
+- **Pocket TTS is not in.** Its ONNX export needs the code from the model repository to run, and
+  running code downloaded from a model repository was stopped by the permission check, rightly:
+  it isn't Abdoh's code and wasn't reviewed. Adding it means writing Abdoh's own runner (the flow
+  model's state handling, the Mimi decoder, the voice state files), reviewed and tested like the
+  rest, and two new packages (or reading `tokenizer.json` with `tokenizers` and safetensors with
+  numpy). A story of its own, if the owner wants German beyond Piper's.
+
 ### Story 106: Release 0.13.0 (`story/106-release`)
 
 1. Version `0.13.0`; README (the board's drawings and pictures, PDFs, conversations, Advanced

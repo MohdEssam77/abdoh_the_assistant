@@ -103,6 +103,7 @@ def fetch(
 
 def _fetch(download, name, size, checksum, folder, done, on_progress, stop, open_url) -> int:
     part = folder / f"{name}.part"
+    part.parent.mkdir(parents=True, exist_ok=True)  # names like onnx/model.onnx
     start = max(_size(part), 0)
     if start > size:
         part.unlink()
