@@ -112,6 +112,8 @@ class Daemon:
         self.acting = None  # abdoh.roles.acting.Acting (see use_roles)
         self._board_card = 0  # the board card the window last came up for
         self._board_text = ""  # and what's on it
+        self._pictures_asked: set[str] = set()  # the board's pictures being found or found
+        self._pictures = None  # abdoh.pictures.Pictures, made when first needed
         self._watching = False  # the voice watch is following a reply
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
@@ -1039,6 +1041,7 @@ class Daemon:
             except Exception:
                 log.exception("Couldn't change the voice speed")
         self.bus.emit("board", None)  # a new role (or none): a clean board
+        self._pictures_asked.clear()
         self.bus.emit("role", role.name if role is not None else "")
         self._board_shown = False
         self._show_listening()
@@ -1072,6 +1075,7 @@ class Daemon:
             self.bus.emit("page", "roles")
         self._board_text = text
         self._board_shown = True
+        self._find_pictures(text)
         self._pause(min(len(new) / self.BOARD_CHARS_PER_SECOND, self.BOARD_WAIT_MAX))
 
     def _pause(self, seconds: float) -> None:
@@ -1293,6 +1297,40 @@ class Daemon:
         self.engine.reset()
 
     # ----- your voice check (audio/voicecheck.py) -----
+
+    def _find_pictures(self, text: str) -> None:
+        """The board asks for pictures ([picture: ...]): each is found in the background, and
+        the page shows it when it's there."""
+        from abdoh.pictures import picture_lines
+
+        for what in picture_lines(text):
+            if what not in self._pictures_asked:
+                self._pictures_asked.add(what)
+                threading.Thread(
+                    target=self._get_picture, args=(what,), name="abdoh-picture", daemon=True
+                ).start()
+
+    def _get_picture(self, what: str) -> None:
+        from abdoh.pictures import FOLDER, PictureError, Pictures
+
+        if self._pictures is None:
+            self._pictures = Pictures(self.cfg.app_dir / FOLDER)
+            try:
+                self._pictures.clean()
+            except OSError:
+                log.debug("Couldn't clean the board's old pictures", exc_info=True)
+        try:
+            found = self._pictures.find(what)
+            shown = {"what": what, "ok": True, "src": found.data_url(), "credit": found.credit,
+                     "title": found.title}  # fmt: skip
+            log.info("Board picture of %r: %s", what, found.credit)
+        except PictureError as e:
+            shown = {"what": what, "ok": False, "error": str(e)}
+            log.info("No board picture of %r: %s", what, e)
+        except Exception:
+            log.exception("Couldn't get a picture for the board")
+            shown = {"what": what, "ok": False, "error": "That picture didn't load."}
+        self.bus.emit("board_picture", shown)
 
     def _voice_download(self, voice: str, percent: int | None) -> None:
         """A natural voice is downloading (the first time Abdoh speaks its language): the

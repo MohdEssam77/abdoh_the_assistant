@@ -61,7 +61,11 @@ BOARD = (
     "Mermaid (```mermaid), anything else (geometry, a sketch, a function's graph) as SVG "
     "(```svg with a viewBox; shapes, paths and text only), and chemistry in LaTeX with "
     "\\ce{...}. A drawing goes in one piece of its own, opened and closed there, then you "
-    "explain it."
+    "explain it. To show a real photo (a dish, a plant, an animal, a place, a tool), write a "
+    "line [picture: the thing, in two to four English words, like spaghetti carbonara] on the "
+    "board, or "
+    "[picture: https://...] for a picture you found with web search; Abdoh finds it and shows "
+    "it with its credit. Never ask for pictures of real private people."
 )
 
 

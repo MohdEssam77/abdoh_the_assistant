@@ -867,7 +867,7 @@ function setMode(name) {
    the newest grows while Claude writes it (same id: replaced). null clears it. */
 function addToBoard(card) {
   const board = App.board || [];
-  if (card == null) App.board = [];
+  if (card == null) { App.board = []; App.boardPictures = {}; }
   else if (board.length && board[board.length - 1].id === card.id) App.board = [...board.slice(0, -1), card];
   else App.board = [...board, card].slice(-30);
   if (window.Roles) window.Roles.board(card);
@@ -906,6 +906,12 @@ const HANDLERS = {
   role: setRole,
   listening: setListening,
   board: addToBoard,
+  board_picture: (picture) => {
+    App.boardPictures = { ...(App.boardPictures || {}), [picture.what]: picture };
+    for (const figure of document.querySelectorAll(".board-picture")) {
+      if (figure.dataset.what === picture.what && figure.fill) figure.fill(picture);
+    }
+  },
   voice: setVoice,
   gpu: (text) => { App.gpu = text || ""; },
   voice_download: (value) => { App.voiceDownload = value || null; },
@@ -1016,6 +1022,7 @@ async function start() {
   setRole(state.role);
   App.listening = state.listening || { on: false, now: false };
   App.board = state.board || [];
+  App.boardPictures = state.pictures || {};
   App.gpu = state.gpu || ""; // speech recognition on the graphics card: how it's going
   App.voiceDownload = state.voice_download || null; // a natural voice downloading
   setVoice(state.voice !== false);

@@ -619,7 +619,11 @@ teacher, Math teacher, Programming teacher). Each role has:
   diagrams, timelines and simple charts (Mermaid), and anything else as a drawing of its own
   (SVG): "show me a DFA for binary numbers divisible by 3". Each drawing has **Show the code**;
   one that can't be drawn shows its code instead. The drawing libraries come with Abdoh and work
-  offline; nothing a drawing contains can run or load from the internet. Code has a **Copy**
+  offline; nothing a drawing contains can run or load from the internet. It **shows photos**
+  too: acting as a chef, "what does a proper carbonara look like?" puts a photo on the board
+  with its credit (who took it, its license). Abdoh finds it on Wikimedia Commons (Openverse if
+  Commons has nothing) or opens a picture Claude found on the web, keeps it for a week in
+  `board/` in its data folder, and the page never loads anything from the internet. Code has a **Copy**
   button; **Clear** empties the board, and a new role starts with a clean one.
 - **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
   something and you're talking with it (less than 2 minutes since either of you last spoke),

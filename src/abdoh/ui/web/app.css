@@ -727,6 +727,10 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .board-drawing .board-paper svg { max-width: 100%; max-height: 420px; height: auto; }
 .board-drawing .board-note { color: #6b7280; font-size: 13px; padding: 10px; }
 .board-drawing pre { border-top: 1px solid var(--border); }
+.board-picture { margin: 0 0 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.board-picture img { max-width: 100%; max-height: 420px; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
+.board-picture figcaption { font-size: 12px; color: var(--muted); text-align: center; }
+.board-picture .board-note { color: var(--muted); font-size: 13px; padding: 18px; border: 1px dashed var(--border-strong); border-radius: 10px; width: 100%; text-align: center; }
 .board-table { overflow: auto; margin: 0 0 8px; }
 .board-table table { border-collapse: collapse; font-size: 14px; }
 .board-table th, .board-table td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
