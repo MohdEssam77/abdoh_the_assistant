@@ -306,6 +306,44 @@ there is used without downloading.
 3. Tests with fake models.
 4. **Tell the owner** which ones run well on his laptop, to try.
 
+Done. Measured on the owner's laptop (Intel Core i7-13650HX, 20 threads, 16 GB, RTX 3050 6 GB;
+`onnx-asr` 0.12.0, `onnxruntime-directml` 1.24.4, `faster-whisper` 1.2.1). Four English and four
+German sentences said by Piper (lessac, thorsten), each recognized twice; per request, memory
+after loading, and word mistakes on that clear speech (numbers as words or digits and the names
+Abdoh and Saarbrücken not counted):
+
+| Model | Per request | Memory | Mistakes EN / DE | Added |
+|---|---|---|---|---|
+| Parakeet v3 int8, as Abdoh runs it now (onnx-asr's default providers: DirectML first) | 0.54 s | 0.4 GB | 2.6 / 2.6 % | (recommended) |
+| Parakeet v3 int8 on the processor only | 0.31 s | 0.8 GB | 0 / 0 % | not changed, see below |
+| Canary 180M Flash int8 (processor) | 0.6 to 0.7 s | 0.4 GB | 7.7 / 5.3 % | yes |
+| Canary 180M Flash full, on the RTX 3050 (DirectML) | fails (a Reshape node) | | | no |
+| Canary 1B v2 int8 (processor) | 1.0 to 1.1 s | 1.2 GB | 2.6 / 2.6 % | yes |
+| Whisper large-v3 turbo (CTranslate2 int8, 4 threads / 10 threads) | 7.2 s / 5.3 s | 0.95 GB | 0 / 0 % | yes, "needs a strong computer" |
+| Whisper large-v3 (4 / 10 threads) | 6.2 to 7.4 s / 6.4 s | 1.7 GB | 2.6 / 0 % | yes, "needs a strong computer" |
+
+- Canary must be told the language (it has no detection), so it's offered only when one language
+  is chosen; its compact version fails on DirectML, so Abdoh runs it on the processor explicitly.
+- Whisper large models process 30 seconds of audio for every request on the processor:
+  accurate, but 5 to 7 seconds a request on this laptop. Whisper now uses half the processor's
+  threads (4 to 8) instead of faster-whisper's 4. The turbo comes from
+  `deepdml/faster-whisper-large-v3-turbo-ct2` (faster-whisper's own name for it points at a repo
+  that's gone).
+- **Not added:** Qwen3-ASR (only a community ONNX export, `Daumee/Qwen3-ASR-0.6B-ONNX-CPU`,
+  that needs its own runner code; not `onnx-asr`), Moonshine (not in `onnx-asr`, needs its own
+  package, and its open models are English-first and less accurate than Parakeet). Both stay
+  later ideas.
+- **Found on the way, not changed:** with `onnxruntime-directml`, the compact Parakeet that
+  should run "on the processor" runs through DirectML first; on this laptop the processor alone
+  is faster (0.31 s against 0.54 s) but holds 0.4 GB more RAM. Here the graphics card model is
+  used anyway (`use_gpu`), so it only matters with that switched off; worth a decision later.
+- Checked for real through Abdoh's own code: German only, Canary 180M Flash chosen, downloaded
+  and switched in 22 s, "Stell einen Timer auf zwölf Minuten und mach die Lampe blau.", and back
+  to recommended deleted it.
+- **For the owner to try:** Canary 1B v2 and Canary 180M Flash run well (about a second or less)
+  with one language chosen; Parakeet v2 for English only; Whisper base and small run, slower;
+  the large Whispers work but are too slow on this laptop for talking.
+
 ### Story 105: More voices (`story/105-voices`)
 
 1. **Check first:** Pocket TTS and Kokoro ONNX exports on the owner's laptop: speed on the

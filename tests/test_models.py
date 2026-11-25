@@ -278,17 +278,34 @@ def test_a_chosen_model_that_doesnt_fit_the_languages_is_not_used(tmp_path):
 def test_the_listing_for_the_window(tmp_path):
     cfg = Config(app_dir=tmp_path, speech_model="parakeet-v2", languages=["en"])
     listed = models.listing(cfg, parakeet(tmp_path), {"state": "downloading", "id": "parakeet-v2"})
+    whispers = ["whisper-base", "whisper-small", "whisper-medium", "whisper-large-v3-turbo",
+                "whisper-large-v3"]  # fmt: skip
     ids = [m["id"] for m in listed["speech"]]
-    assert ids == ["parakeet-v3", "parakeet-v2", "whisper-base", "whisper-small", "whisper-medium"]
+    assert ids == ["parakeet-v3", "parakeet-v2", "canary-180m-flash", "canary-1b-v2", *whispers]
     v2 = listed["speech"][1]
     assert v2["chosen"] and not v2["using"] and not v2["ready"]
     assert listed["using"] == "parakeet-v3" and listed["status"]["state"] == "downloading"
     arabic = models.listing(Config(app_dir=tmp_path, languages=["ar"]), None)
-    assert [m["id"] for m in arabic["speech"]] == [
-        "whisper-base",
-        "whisper-small",
-        "whisper-medium",
-    ]
+    assert [m["id"] for m in arabic["speech"]] == whispers
+    both = models.listing(Config(app_dir=tmp_path, languages=["en", "de"]), None)
+    assert [m["id"] for m in both["speech"]] == ["parakeet-v3", *whispers]  # Canary: one only
+
+
+@pytest.mark.parametrize(
+    "cores, threads", [(None, None), (4, 4), (8, 4), (12, 6), (20, 8), (64, 8)]
+)
+def test_whisper_uses_half_the_processor(cores, threads):
+    from abdoh.audio.stt import whisper_threads
+
+    assert 4 <= whisper_threads(cores) <= 8
+    if threads is not None:
+        assert whisper_threads(cores) == threads
+
+
+def test_large_whisper_downloads_its_preprocessor_settings():
+    for name in ("whisper-large-v3", "whisper-large-v3-turbo"):
+        files = [f for f, _, _ in models.find(name).download_for(["en"]).files]
+        assert "preprocessor_config.json" in files and "vocabulary.json" in files
 
 
 def test_the_daemon_swaps_the_recognizer(tmp_path):
@@ -298,3 +315,38 @@ def test_the_daemon_swaps_the_recognizer(tmp_path):
     new = parakeet(tmp_path)
     daemon.use_transcriber(new)
     assert daemon.transcriber is new
+
+
+# ----- Canary: told the language, one at a time -----
+
+
+class FakeCanaryModel:
+    def __init__(self):
+        self.asked = []
+
+    def recognize(self, samples, sample_rate=16000, language=None):
+        self.asked.append(language)
+        return "Wie wird das Wetter morgen?"
+
+
+def test_canary_is_told_your_language(tmp_path):
+    from abdoh.audio.stt import CanaryTranscriber
+
+    model = FakeCanaryModel()
+    made = []
+    canary = CanaryTranscriber(tmp_path, "nemo-conformer-aed", ["de"], "canary-180m-flash",
+                               make_model=lambda *a, **k: made.append((a, k)) or model)  # fmt: skip
+    assert canary.transcribe(b"\x01\x00" * 1600) == "Wie wird das Wetter morgen?"
+    assert model.asked == ["de"] and canary.last_language == "de"
+    assert made[0][1] == {"quantization": "int8", "providers": ["CPUExecutionProvider"]}
+    assert made[0][0][0] == "nemo-conformer-aed"
+    assert models.in_use(canary) == "canary-180m-flash"
+
+
+def test_canary_only_for_one_language_it_has():
+    canaries = [m for m in models.SPEECH_MODELS if m.kind == "canary"]
+    assert canaries
+    for canary in canaries:
+        assert canary.fits(["en"]) and canary.fits(["de"])
+        assert not canary.fits(["en", "de"])  # it can't tell them apart: Parakeet v3 can
+        assert not canary.fits(["ar"])
