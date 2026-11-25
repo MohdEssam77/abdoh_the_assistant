@@ -163,6 +163,9 @@ class Daemon:
             speaker.on_missing_voice = self._missing_voice
         if hasattr(speaker, "on_download"):
             speaker.on_download = self._voice_download
+        if hasattr(speaker, "on_playing"):
+            speaker.on_playing = self._voice_playing
+        self._mic_name: str | None = None  # the microphone the voice watch knows the room by
         self._recording = False
         self._you_stopped = False  # the window, tray or hotkey stopped the current reply
         self._quiet_wake = False  # woken while paused: listen without a sound, for "start"
@@ -830,6 +833,21 @@ class Daemon:
 
     # ----- hearing you over Abdoh's own voice -----
 
+    def _voice_playing(self, on: bool) -> None:
+        """Abdoh's voice started or stopped coming out of the speakers (PiperSpeaker)."""
+        speaking = getattr(self.voice_watch, "speaking", None)
+        if speaking is not None:
+            speaking(on, time.perf_counter())
+
+    def _new_mic(self, mic) -> None:
+        """Another microphone than before: Abdoh's voice reaches it differently."""
+        name = getattr(mic, "name", "")
+        if self._mic_name is not None and name != self._mic_name:
+            forget = getattr(self.voice_watch, "forget_room", None)
+            if forget is not None:
+                forget()
+        self._mic_name = name
+
     def _can_hear_over_itself(self) -> bool:
         watch = self.voice_watch
         return bool(self.cfg.voice_interrupts and watch is not None and watch.available)
@@ -1069,6 +1087,7 @@ class Daemon:
                 self._mic_problem(e)
                 continue
             self.mic = mic
+            self._new_mic(mic)
             name = getattr(mic, "name", "")
             log.info("Listening for the wake word%s.", f" ({name})" if name else "")
             self._status_idle()

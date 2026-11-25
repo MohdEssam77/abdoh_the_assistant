@@ -40,6 +40,9 @@ class SpeakerTap:
         self._stop = threading.Event()
         self._thread = None
         self.available = sys.platform == "win32" or capture_factory is not None
+        self.generation = 0  # goes up when other speakers are heard (the echo is new)
+        self.device_name = ""  # the speakers it hears (for the log)
+        self._device = None
 
     # ----- the timeline -----
 
@@ -128,12 +131,23 @@ class SpeakerTap:
             if failures:
                 log.info("Hearing what the speakers play again")
             failures = 0
+            self._heard(capture)
             try:
                 self._capture(capture)
             except Exception as e:
                 log.info("Speaker capture stopped (%s); starting it again", e)
             finally:
                 capture.close()
+
+    def _heard(self, capture) -> None:
+        """A capture started: other speakers than before mean another echo to learn."""
+        device = getattr(capture, "device", None)
+        self.device_name = getattr(capture, "name", "") or self.device_name
+        if device != self._device:
+            if self._device is not None:
+                self.generation += 1
+            self._device = device
+            log.info("Hearing what the speakers play: %s", self.device_name or device or "?")
 
     def _capture(self, capture) -> None:
         """Read packets until stopped, or until the default speakers change."""
@@ -166,6 +180,7 @@ class LoopbackCapture:
         com = _com()
         device = winaudio.default_device()
         self.device = winaudio.device_id(device)
+        self.name = winaudio._friendly_name(device)
         client = device.Activate(com["client"]._iid_, comtypes.CLSCTX_ALL, None)
         self._client = client.QueryInterface(com["client"])
         wanted = com["format"](1, 1, SAMPLE_RATE, SAMPLE_RATE * 2, 2, 16, 0)  # PCM mono 16-bit

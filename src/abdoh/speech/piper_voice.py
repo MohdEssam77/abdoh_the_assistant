@@ -189,6 +189,8 @@ class PiperSpeaker(Speaker):
         self._tried: dict[str, float] = {}  # when each voice download was last started
         # Hears how a voice download goes: (voice name, percent), and (name, None) when done.
         self.on_download: Callable[[str, int | None], None] | None = None
+        # Hears when Abdoh's voice starts (True) and stops (False) coming out of the speakers.
+        self.on_playing: Callable[[bool], None] | None = None
         self._stop = threading.Event()
         self._pause = threading.Event()
         self._resume = threading.Event()
@@ -309,6 +311,15 @@ class PiperSpeaker(Speaker):
         self._pause.clear()
         self._resume.set()
 
+    def _playing(self, on: bool) -> None:
+        """Tell `on_playing` (the voice watch) that Abdoh's voice started or stopped coming out."""
+        hook = self.on_playing
+        if hook is not None:
+            try:
+                hook(on)
+            except Exception:
+                log.debug("on_playing failed", exc_info=True)
+
     def _length_scale(self) -> float:
         return max(0.5, min(2.0, NORMAL_RATE / max(1, self.rate)))
 
@@ -318,6 +329,7 @@ class PiperSpeaker(Speaker):
         stream = None
         try:
             stream = self._output.open(rate)
+            self._playing(True)
             position = 0
             while position < len(audio):
                 if self._stop.is_set():
@@ -325,6 +337,7 @@ class PiperSpeaker(Speaker):
                     return
                 if self._pause.is_set():
                     stream.abort()  # quiet at once, without what was still queued
+                    self._playing(False)
                     while not (self._resume.wait(0.05) or self._stop.is_set()):
                         pass
                     self._pause.clear()
@@ -333,12 +346,14 @@ class PiperSpeaker(Speaker):
                         return
                     position = max(0, position - int(rate * RESUME_BACK_SECONDS))
                     stream.start()
+                    self._playing(True)
                 stream.write(audio[position : position + block])
                 position += block
             stream.stop()  # lets the last blocks play out
         except Exception:
             log.exception("Couldn't play Piper's speech")
         finally:
+            self._playing(False)
             self._speaking = False
             self._pause.clear()
             if stream is not None:

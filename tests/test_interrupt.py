@@ -313,3 +313,39 @@ def test_the_page_is_told_whether_abdoh_can_hear_you_over_itself():
 
     daemon.voice_watch = NoTap()
     assert daemon._hearing_problem() == NO_SPEAKER_TAP
+
+
+# ----- slow or new speakers, a new microphone (GitHub issue #1) -----
+
+
+class LearningWatch(FakeWatch):
+    def __init__(self):
+        super().__init__()
+        self.forgotten = 0
+        self.playing = []
+
+    def forget_room(self):
+        self.forgotten += 1
+
+    def speaking(self, on, at):
+        self.playing.append(on)
+
+
+def test_the_watch_knows_when_abdohs_voice_plays():
+    watch = LearningWatch()
+    daemon = make_daemon(Router(), [], watch)
+    daemon._voice_playing(True)
+    daemon._voice_playing(False)
+    assert watch.playing == [True, False]
+
+
+def test_a_new_microphone_means_learning_the_room_again():
+    from types import SimpleNamespace
+
+    watch = LearningWatch()
+    daemon = make_daemon(Router(), [], watch)
+    daemon._new_mic(SimpleNamespace(name="Microphone Array"))
+    daemon._new_mic(SimpleNamespace(name="Microphone Array"))  # opened again: the same one
+    assert watch.forgotten == 0
+    daemon._new_mic(SimpleNamespace(name="Headset"))
+    assert watch.forgotten == 1
