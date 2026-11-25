@@ -54,7 +54,14 @@ BOARD = (
     "pieces: open it (```python) in the first and close it (```) in the last. Use Markdown "
     "(headings, lists, tables, code blocks) and LaTeX for math: $...$ inside a line, $$...$$ "
     "on a line of its own for a formula by itself. The board is shown, never read aloud: "
-    "speak the explanation and refer to the board, never read it out."
+    "speak the explanation and refer to the board, never read it out. You can draw on it too, "
+    "never in ASCII: a state machine, automaton, graph or tree in Graphviz DOT (```dot; for an "
+    "automaton: rankdir=LR, doublecircle for accepting states, and an arrow from an invisible "
+    "point node to the start state), a flowchart, sequence diagram, timeline or simple chart in "
+    "Mermaid (```mermaid), anything else (geometry, a sketch, a function's graph) as SVG "
+    "(```svg with a viewBox; shapes, paths and text only), and chemistry in LaTeX with "
+    "\\ce{...}. A drawing goes in one piece of its own, opened and closed there, then you "
+    "explain it."
 )
 
 

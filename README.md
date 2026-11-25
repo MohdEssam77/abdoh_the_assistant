@@ -614,8 +614,13 @@ teacher, Math teacher, Programming teacher). Each role has:
   something new is on it. It's written like a teacher at a whiteboard: a line at a time, word by
   word, and Abdoh explains each line once it's written before going on to the next. One answer
   is one card. It's never read aloud: Abdoh explains and refers to it. Math is shown properly
-  (LaTeX, drawn by KaTeX, which comes with Abdoh). Code has a **Copy** button; **Clear** empties
-  the board, and a new role starts with a clean one.
+  (LaTeX, drawn by KaTeX, which comes with Abdoh; chemistry too, `\ce{2H2O -> 2H2 + O2}`). It
+  also **draws**: automata, state machines, graphs and trees (Graphviz), flowcharts, sequence
+  diagrams, timelines and simple charts (Mermaid), and anything else as a drawing of its own
+  (SVG): "show me a DFA for binary numbers divisible by 3". Each drawing has **Show the code**;
+  one that can't be drawn shows its code instead. The drawing libraries come with Abdoh and work
+  offline; nothing a drawing contains can run or load from the internet. Code has a **Copy**
+  button; **Clear** empties the board, and a new role starts with a clean one.
 - **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
   something and you're talking with it (less than 2 minutes since either of you last spoke),
   you don't need "Hey Abdoh": just talk, also to answer its questions, and take your time to
