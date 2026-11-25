@@ -48,6 +48,14 @@
   const ENGLISH_VOICES = ["en_US-lessac-medium", "en_US-amy-medium", "en_US-ryan-medium", "en_US-joe-medium",
     "en_US-kristin-medium", "en_GB-alan-medium", "en_GB-cori-medium", "en_GB-jenny_dioco-medium"];
   const GERMAN_VOICES = ["de_DE-thorsten-medium", "de_DE-kerstin-medium"];
+  /* Kokoro's English voices (speech/kokoro_voice.py): one download of about 330 MB for all. */
+  const KOKORO = {
+    "kokoro:af_heart": "Heart (American, Kokoro)", "kokoro:af_bella": "Bella (American, Kokoro)",
+    "kokoro:am_michael": "Michael (American, Kokoro)", "kokoro:am_fenrir": "Fenrir (American, Kokoro)",
+    "kokoro:bf_emma": "Emma (British, Kokoro)", "kokoro:bm_george": "George (British, Kokoro)",
+  };
+  ENGLISH_VOICES.push(...Object.keys(KOKORO));
+  const isKokoro = (name) => typeof name === "string" && name.startsWith("kokoro:");
 
   function voiceCard(voices) {
     const settings = App.settings;
@@ -64,6 +72,7 @@
     const voiceOptions = [["", "Windows default voice"], ...list.map((v) => [v, v.replace(/ - .*$/, "")])];
     const natural = (settings.tts_engine || "piper") === "piper";
     const pretty = (name) => {  // "en_GB-jenny_dioco-medium" -> "Jenny Dioco (British)"
+      if (isKokoro(name)) return KOKORO[name] || name;
       const [code, who] = name.split("-");
       const accent = { en_US: "American", en_GB: "British", de_DE: "German" }[code] || code;
       return `${who.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())} (${accent})`;
@@ -77,7 +86,8 @@
         : "The Windows voice. Natural voices sound much better, especially in German.",
         select([["piper", "Natural (recommended)"], ["windows", "Windows voice"]], natural ? "piper" : "windows",
           (value) => saveSettings({ tts_engine: value }).then(() => render()), "Kind of voice")),
-      natural ? row("English voice", null, voicePick("piper_voice_en", ENGLISH_VOICES, "English voice")) : null,
+      natural ? row("English voice", isKokoro(settings.piper_voice_en) ? "A Kokoro voice: more natural. The first time, about 330 MB download while the backup voice speaks." : null,
+        voicePick("piper_voice_en", ENGLISH_VOICES, "English voice")) : null,
       natural ? row("German voice", null, voicePick("piper_voice_de", GERMAN_VOICES, "German voice")) : null,
       natural ? downloadRow() : null,
       row(natural ? "Backup voice" : "Voice", natural
@@ -478,7 +488,7 @@
     box.open = advancedOpen;
     box.addEventListener("toggle", () => { advancedOpen = box.open; });
     const languages = (App.settings.languages || ["en"]).map((c) => (LANGUAGES.find(([code]) => code === c) || [c, c])[1]);
-    const custom = !!App.settings.speech_model || (App.settings.tts_engine || "piper") !== "piper";
+    const custom = !!App.settings.speech_model || (App.settings.tts_engine || "piper") !== "piper" || isKokoro(App.settings.piper_voice_en);
     const unfit = App.settings.speech_model && !models.chosen_fits;
     box.append(...[
       el("summary", {},
@@ -543,25 +553,38 @@
   }
 
   async function backToRecommended() {
-    if (await saveSettings({ speech_model: "", tts_engine: "piper" }, true)) { toast("Back to the recommended models."); render(); }
+    const changes = { speech_model: "", tts_engine: "piper" };
+    if (isKokoro(App.settings.piper_voice_en)) changes.piper_voice_en = "en_US-lessac-medium";
+    if (await saveSettings(changes, true)) { toast("Back to the recommended models."); render(); }
   }
 
+  /* Piper (recommended), Kokoro for English (with Piper for German), or the Windows voice. */
   function voiceItems() {
     const engine = App.settings.tts_engine || "piper";
     const restart = (App.restart || []).includes("tts_engine");
+    const kokoro = engine === "piper" && isKokoro(App.settings.piper_voice_en);
+    const now = engine === "windows" ? "windows" : kokoro ? "kokoro" : "piper";
     const VOICES = [
-      ["piper", "Natural voices (Piper)", "English and German voices made on this computer. Another language's voice downloads once, about 60 MB.", true],
-      ["windows", "Windows voice", "The voices that come with Windows: nothing to download, but they sound flat, especially in German.", false],
+      ["piper", "Natural voices (Piper)", "English and German voices made on this computer. Another language's voice downloads once, about 60 MB.", true,
+        { tts_engine: "piper", piper_voice_en: "en_US-lessac-medium" }],
+      ["kokoro", "Kokoro for English", "More natural English voices, American and British (choose one under Voice above); German stays with Piper. Processor only, about as quick as Piper. Downloads 330 MB once.", false,
+        { tts_engine: "piper", piper_voice_en: "kokoro:af_heart" }],
+      ["windows", "Windows voice", "The voices that come with Windows: nothing to download, but they sound flat, especially in German.", false,
+        { tts_engine: "windows" }],
     ];
-    return VOICES.map(([id, name, line, recommended]) => el("div", { class: engine === id ? "model-item using" : "model-item" },
-      el("div", { class: "model-text" },
-        el("div", { class: "model-name" }, el("b", {}, name),
-          recommended ? el("span", { class: "tag good" }, "Recommended") : null,
-          engine === id ? el("span", { class: "tag on" }, restart ? "After a restart" : "In use") : null),
-        el("small", {}, line)),
-      engine === id
-        ? restart ? el("button", { class: "btn small", onclick: () => call("restart") }, "Restart now") : null
-        : el("button", { class: "btn small", onclick: () => saveSettings({ tts_engine: id }, true).then((ok) => ok && render()) }, "Use")));
+    return VOICES.map(([id, name, line, recommended, changes]) => {
+      const mine = now === id;
+      const later = mine && restart && id !== "kokoro";
+      return el("div", { class: mine ? "model-item using" : "model-item" },
+        el("div", { class: "model-text" },
+          el("div", { class: "model-name" }, el("b", {}, name),
+            recommended ? el("span", { class: "tag good" }, "Recommended") : null,
+            mine ? el("span", { class: "tag on" }, later ? "After a restart" : "In use") : null),
+          el("small", {}, line)),
+        mine
+          ? later ? el("button", { class: "btn small", onclick: () => call("restart") }, "Restart now") : null
+          : el("button", { class: "btn small", onclick: () => saveSettings(changes, true).then((ok) => ok && render()) }, "Use"));
+    });
   }
 
   /* The Advanced card again (a switch moved on), keeping the page where it is. */

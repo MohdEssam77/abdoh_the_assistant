@@ -1435,7 +1435,7 @@ class Daemon:
         if percent is None:
             self.bus.emit("voice_download", None)
             return
-        code = voice.split("_", 1)[0]
+        code = "en" if voice.startswith("kokoro:") else voice.split("_", 1)[0]
         language = LANGUAGE_NAMES.get(code, voice)
         self.bus.emit("voice_download", {"voice": voice, "language": language, "percent": percent})
 

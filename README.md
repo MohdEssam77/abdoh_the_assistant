@@ -842,7 +842,9 @@ it in the background with a progress bar (**Cancel** stops it) while Abdoh keeps
 the model it has, switches as soon as it's ready (no restart), and deletes the model it replaced
 if Abdoh had downloaded it. Abdoh never deletes a model that's in use, what's inside the app, or a
 folder it didn't download itself (it marks its downloads with `.abdoh-download`). The same card
-switches between the natural voices and the Windows voice. **Back to recommended** undoes it
+switches between the natural voices (Piper), **Kokoro for English** (more natural American and
+British voices, 330 MB once, about as quick as Piper; German stays with Piper; pick the voice
+under Voice → English voice) and the Windows voice. **Back to recommended** undoes it
 all. A model that doesn't understand the languages you chose later isn't used.
 
 How they ran on a laptop with an Intel Core i7-13650HX and 16 GB (per request, a 3 to 5 second
@@ -1027,3 +1029,14 @@ Developer scripts:
 Abdoh is free software under the GNU General Public License, version 3 or later (see
 `LICENSE`), because it includes Piper (piper-tts, GPL-3.0) for its natural voices. Each Piper
 voice has its own license, listed on its model card at huggingface.co/rhasspy/piper-voices.
+
+What comes with Abdoh or is downloaded when you choose it, and whose it is:
+
+- **Board:** KaTeX and its mhchem extension (MIT), Graphviz through `@viz-js/viz` (MIT; Graphviz
+  EPL 1.0, Expat MIT), Mermaid (MIT): see `src/abdoh/ui/web/vendor/*/README.md`. Photos keep
+  their own credit and license (Wikimedia Commons, Openverse), shown under each one.
+- **Speech recognition:** NVIDIA Parakeet TDT 0.6B v3 and v2, Canary 180M Flash and 1B v2
+  (CC-BY-4.0, NVIDIA; ONNX exports by istupakov, run by `onnx-asr`, MIT); OpenAI Whisper (MIT;
+  CTranslate2 conversions by Systran and deepdml, run by `faster-whisper`, MIT).
+- **Voices:** Piper (GPL-3.0, with espeak-ng) and its voices; Kokoro 82M by hexgrad (Apache 2.0;
+  ONNX export by onnx-community), phonemized with Piper's espeak-ng.

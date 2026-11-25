@@ -130,8 +130,13 @@ def _speaking(cfg: Config) -> str:
 
     windows = cfg.tts_voice or "the default Windows voice"
     if cfg.tts_engine == "piper" and piper_available():
+        from abdoh.speech import kokoro_voice
+
+        english = cfg.piper_voice_en
+        if kokoro_voice.is_kokoro(english):
+            english = f"Kokoro's voice {kokoro_voice.label(english)} (82M, offline)"
         return (
-            f"Piper natural voices made offline on this computer: {cfg.piper_voice_en} for "
+            f"Piper natural voices made offline on this computer: {english} for "
             f"English, {cfg.piper_voice_de} for German, others downloaded the first time a "
             f"language is spoken; {windows} speaks while one downloads. Each sentence is read "
             "by the voice for its language."

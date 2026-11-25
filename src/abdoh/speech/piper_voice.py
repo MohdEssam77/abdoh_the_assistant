@@ -7,7 +7,7 @@ A sentence is made in about a twentieth of the time it takes to say, then played
 blocks, so `stop()` cuts it off at once and `pause()`/`resume()` go on from about where it was.
 
 Piper is GPL-3.0 licensed (it includes espeak-ng); each voice has its own license on its model
-card.
+card. Kokoro's English voices ("kokoro:af_heart", speech/kokoro_voice.py) are played here too.
 """
 
 import gc
@@ -54,6 +54,15 @@ ENGLISH_VOICES = (
     "en_GB-alan-medium",
     "en_GB-cori-medium",
     "en_GB-jenny_dioco-medium",
+)
+# Your English voice can also be one of Kokoro's (speech/kokoro_voice.py).
+ENGLISH_VOICES += (
+    "kokoro:af_heart",
+    "kokoro:af_bella",
+    "kokoro:am_michael",
+    "kokoro:am_fenrir",
+    "kokoro:bf_emma",
+    "kokoro:bm_george",
 )
 GERMAN_VOICES = ("de_DE-thorsten-medium", "de_DE-kerstin-medium")
 URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/{path}{ext}?download=true"
@@ -267,7 +276,9 @@ class PiperSpeaker(Speaker):
         voice = self._voice_for(text_language(text, self.language))
         if voice is not None:
             try:
-                audio, rate = self._synthesize(voice, text, self._length_scale())
+                own = getattr(voice, "synthesize_audio", None)  # a Kokoro voice makes its own
+                scale = self._length_scale()
+                audio, rate = own(text, scale) if own else self._synthesize(voice, text, scale)
             except Exception:
                 log.exception("Piper couldn't say that; using the Windows voice")
             else:
@@ -383,7 +394,7 @@ class PiperSpeaker(Speaker):
 
         def run() -> None:
             try:
-                log.info("Downloading the voice %s (about 60 MB)", name)
+                log.info("Downloading the voice %s", name)
                 if tell is not None:
                     tell(name, 0)
                     self._download(name, self._folder, progress=progress)
@@ -398,6 +409,15 @@ class PiperSpeaker(Speaker):
                     tell(name, None)
 
         threading.Thread(target=run, name="abdoh-voice-download", daemon=True).start()
+
+
+def load_voice(path: Path):
+    """A Piper voice (.onnx), or a Kokoro one (its style file, .bin)."""
+    if Path(path).suffix == ".bin":
+        from abdoh.speech.kokoro_voice import KokoroVoice
+
+        return KokoroVoice.load(path)
+    return _load_piper(path)
 
 
 def piper_available() -> bool:
@@ -417,9 +437,24 @@ def make_voice(cfg) -> Speaker:
     if cfg.tts_engine != "piper" or not piper_available():
         return windows
 
+    from abdoh.speech import kokoro_voice as kokoro
+
     def find(name: str) -> Path | None:
+        if kokoro.is_kokoro(name):
+            folder = cfg.resolve(kokoro.FOLDER)
+            return kokoro.voice_file(folder, name) if kokoro.ready(folder) else None
         path = cfg.resolve(f"{VOICES_DIR}/{name}.onnx")  # downloaded, or bundled with the app
         return path if path.exists() and path.with_name(path.name + ".json").exists() else None
+
+    def download(name: str, folder: Path, progress=None) -> Path:
+        if kokoro.is_kokoro(name):  # the model and all its voices, about 330 MB
+            from abdoh.download import fetch
+
+            target = cfg.app_dir / kokoro.FOLDER
+            fetch(kokoro.DOWNLOAD, target, on_progress=progress or (lambda done, total: None))
+            return kokoro.voice_file(target, name)
+        extra = {"progress": progress} if progress is not None else {}
+        return download_voice(name, folder, **extra)
 
     speaker = PiperSpeaker(
         find,
@@ -427,6 +462,8 @@ def make_voice(cfg) -> Speaker:
         cfg.tts_rate,
         voices=your_voices(cfg),
         fallback=windows,
+        load=load_voice,
+        download=download,
     )
     speaker.warm_languages = tuple(dict.fromkeys(["en", "de", *cfg.languages]))
     return speaker
