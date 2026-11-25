@@ -75,8 +75,10 @@ WOKEN = (
     "(Said right after your wake word{heard}. A video, music or people talking nearby sometimes "
     "set it off by mistake. If this clearly isn't said to you as the user's assistant (a line "
     "from a video or a song, or the user talking to someone else), write only the line "
-    "ACTION ignore: not for me, and nothing else. If it could be a request or a question for "
-    "you, answer it: when the user called you clearly in their own voice, it is meant for you.)\n"
+    "ACTION ignore: not for me, and nothing else. A lone word or a scrap that asks nothing (a "
+    'name, "yeah", half a sentence) isn\'t for you either, unless your name was heard clearly. '
+    "If it could be a request or a question for you, answer it: when the user called you "
+    "clearly in their own voice, it is meant for you.)\n"
 )
 # How the wake word's score reads to Claude: at least CLEAR_WAKE is "clearly", at least
 # FAIR_WAKE "fairly clearly", below that "faintly".
@@ -174,6 +176,7 @@ class ClaudeTurn:
     finished_at: float = 0.0
     ignored: bool = False  # it wasn't meant for Abdoh (ACTION ignore)
     by_abdoh: bool = False  # Abdoh did it by itself, without Claude
+    failed: bool = False  # Claude couldn't answer (a usage limit, no connection)
 
 
 class Router:
@@ -274,6 +277,9 @@ class Router:
         request = strip_wake_words(text, self.wake_words)
         if not request:
             return prefix
+        told = self._told_to_stop(text, request, loose=bool(aside))
+        if told is not None:
+            return told
         original = remove_wake_words(text, self.wake_words) or request
         self._done.clear()
         offered = self._answering = self._open_offer()
@@ -295,6 +301,27 @@ class Router:
             reply = f"{prefix} {reply}".strip()
             return Question(reply) if asks else reply
         return _prepend(prefix, reply) if prefix else reply
+
+    def _told_to_stop(self, text: str, request: str, loose: bool) -> str | None:
+        """ "Stop listening", "shut up", "start listening", in any words: done at once, without
+        Claude (None for anything else). Stopping says nothing. `loose`: said right after a
+        reply without the wake word, so a "shut up" anywhere in it counts."""
+        from abdoh.local_skills import start_request, stop_request
+
+        told = stop_request(remove_wake_words(text, self.wake_words) or request, loose=loose)
+        acting = self.acting
+        if told == "stop_listening" and acting is not None and acting.keeps_listening:
+            acting.set_listening(False)  # in a lesson: the wake word again; the role stays
+            return ""
+        if told == "stop_listening" and "stop_listening" in self._builtins:
+            log.info("Told to stop listening")
+            return self._builtins["stop_listening"]()
+        if told:
+            log.info("Told to be quiet: back to waiting for the wake word")
+            return ""
+        if start_request(request) and "start_listening" in self._builtins:
+            return self._builtins["start_listening"]()
+        return None
 
     def _route(
         self, request: str, original: str, aside: bool = False, woken: Wake = False
@@ -662,6 +689,7 @@ class Router:
                 if not turn.ignored and not turn.actions:  # "What should I call it?"
                     self._offer, self._offer_at = self._answering, time.monotonic()
         except (BrainError, ScreenCaptureError) as e:
+            turn.failed = isinstance(e, BrainError)
             yield str(e)
         finally:
             close = getattr(chunks, "close", None)

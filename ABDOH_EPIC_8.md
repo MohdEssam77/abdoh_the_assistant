@@ -395,6 +395,40 @@ and the new pages, and the new modules (`conversations`, `recall`, `models`, `do
 `list-commands` work (exit code 0). Left for the release: the version `0.13.0` (one line,
 `src/abdoh/__init__.py`, as for 0.12.0), the download page (`docs/index.html`), the tag.
 
+### After a friend's test (2026-11-25): stories 107 to 109
+
+A friend ran 0.12.0 on his laptop (the same Realtek mic array, an RTX GPU, people in the room)
+and sent his logs; he also opened GitHub issues #1 and #2.
+
+### Story 107: "Stop listening", and people talking nearby (`story/107-stop-listening`)
+
+What the logs showed: every word or two heard over a reply ("Well.", "pain", "LinkedIn.", from
+people in the room or Abdoh's own echo) stopped it and went to Claude, whose answer was cut off
+by the next scrap: a chain of half replies. "Uh okay you can stop now", "yeah, just shut up,
+shut up" and "um you can stop listening" weren't understood as stopping, so Claude answered
+them. Stopping with the window or the hotkey didn't drop what was being heard at that moment,
+and neither did pausing; after "you've reached your usage limit" Abdoh listened for more and
+said the limit again to the room. While paused, a wake word set off by talk still chimed.
+
+1. Stopping in any words (`local_skills.stop_request`): "stop listening" (pauses) and "stop" /
+   "shut up" (ends the conversation), with the "uh okay", "please", "now" and the name around
+   them. Over a reply, or right after one without the wake word, it's enough that one sentence
+   says only that, or that "stop listening" / "shut up" is anywhere in it; after the wake word
+   all of it must be (so "how do I make my laptop stop listening" is still a question).
+2. "Stop listening" says nothing: Abdoh pauses at once; the window shows how to get it back
+   ("Abdoh, start listening", "you can listen again", "wake up"). In a lesson it ends the
+   lesson's listening only, the role stays (as Claude's `ACTION listen: off` did).
+3. While paused, a wake word makes no chime, no "unclear" sound and lowers nothing.
+4. A word or two over a reply that asks nothing ("well", "do you") lets Abdoh carry on, unless
+   it comes within 3 s of your request, before any of the answer (the end of your sentence).
+5. Stop (window, tray, hotkey) or pause while Abdoh hears you over a reply: what it heard is
+   dropped, and nothing queued is answered once paused.
+6. No listening for more after Claude couldn't answer (a usage limit, no connection).
+7. After a faint or fair wake word, Claude is told a lone word or scrap that asks nothing isn't
+   for it ("Tracy." got "Hi Tracy, I'm Abdoh.").
+
+Done: `tests/test_stop_listening.py` (the friend's own words from the log); README.
+
 ---
 
 ## 7. The owner's decisions (2026-11-25)

@@ -109,7 +109,7 @@ _DONE = re.compile(
     rf"(?: (?:thanks|thank you))?(?: {_NAME})?"
 )
 # What you might say while Abdoh is talking: sounds, "I'm listening", and "be quiet".
-_FILLER = re.compile(r"(?:(?:uh|um|umm|hmm|hm|mm|mmm|ah|er|erm|oh)\s*)+")
+_FILLER = re.compile(r"(?:(?:uh|um|umm|hmm|hm|mm|mmm|ah|er|erm|oh|heh|hehe|ha|haha|hah)\s*)+")
 _BACKCHANNEL = re.compile(
     r"(?:okay|ok|yeah|yes|yep|right|i see|got it|sure|uh huh|mm hmm|mhm|wow|nice|cool|really"
     r"|oh|alright|all right|go on|continue|keep going|and|so)(?: (?:okay|ok|yeah|right|sure))?"
@@ -131,6 +131,50 @@ _DISMISS = re.compile(
     r"|not (?:you|for you|to you|now)|(?:nobody|no one) (?:asked|was talking to) you"
     r"|i didnt ask you|go away|leave me alone|forget it|ignore (?:that|me|it|this))"
     rf"(?: (?:please|now|ok|okay|thanks|bro|dude|man|{_NAME}))*"
+)
+# Words around a "stop" that change nothing: "uh okay you can stop now", "yeah just shut up".
+_AROUND = (
+    r"uh|um|umm|hmm|oh|ah|er|so|and|but|yeah|yes|no|nope|okay|ok|alright|all right|well|hey"
+    r"|dude|bro|man|please|just|now|then|sorry|actually|look|seriously|guys|i said|i told you"
+    r"|thanks|thank you"
+)
+_LEAD = rf"(?:(?:{_AROUND}|{_NAME}) )*"
+_ASK = r"(?:(?:you can|you could|can you|could you|would you|will you|i want you to|you should|you need to|you have to) )?"  # noqa: E501
+_TAIL = (
+    r"(?: (?:now|for now|for a (?:bit|while|second|moment|minute)|please|thanks|thank you"
+    rf"|anymore|any more|then|ok|okay|already|right now|man|bro|dude|{_NAME}))*"
+)
+# "Stop listening", in any words: Abdoh goes quiet at once, says nothing, and hears nothing
+# but "Abdoh, start listening" until then.
+_STOP_LISTENING = re.compile(
+    rf"{_LEAD}{_ASK}(?:(?:stop|quit|pause) listening(?: to (?:me|us|everything|anything|this|that|them))?"  # noqa: E501
+    r"|(?:dont|do not) listen(?: to (?:me|us|this|that|anything))?"
+    r"|(?:turn|switch) (?:off )?your (?:mic|microphone|listening)(?: off)?"
+    r"|(?:ill|i will|well|we will) (?:call|wake) you (?:when|if) (?:i|we) need you)"
+    rf"{_TAIL}"
+)
+_STOP_LISTENING_IN = re.compile(r"\b(?:stop|quit) listening\b|\bdont listen to (?:me|us)\b")
+# ... and back: "Abdoh, start listening", "you can listen again", "wake up".
+_START_LISTENING = re.compile(
+    rf"{_LEAD}{_ASK}(?:start listening|listen again|resume listening|listen to me(?: again)?"
+    r"|you can listen|wake up|im back|i need you)(?: again)?" + _TAIL
+)
+# Being told to be quiet, in more words than _DISMISS knows: "you can stop now", "stop stop",
+# "shut up, shut up". The conversation is over, without a word.
+_STOP_WORDS = (
+    r"stop|stop it|stop that|enough|thats enough|shut up|shut it|shut the (?:fuck|hell|heck) up"
+    r"|be quiet|keep quiet|quiet|stop talking|hush|shh+|silence"
+)
+_STOP = re.compile(rf"{_LEAD}{_ASK}(?:{_STOP_WORDS})(?: (?:{_STOP_WORDS}))*{_TAIL}")
+_STOP_IN = re.compile(
+    r"\b(?:shut (?:the (?:fuck|hell|heck) )?up|shut it|stop talking|be quiet|keep quiet"
+    r"|stop stop)\b"
+)
+# The first word of a short request ("open notepad", "what time"): not a stray fragment.
+_REQUEST_START = re.compile(
+    r"(?:open|close|play|pause|set|turn|call|search|show|start|go|take|make|tell|find|read"
+    r"|send|put|remind|mute|unmute|skip|next|lower|raise|repeat|say|type|add|cancel|what"
+    r"|who|where|when|why|how|which|louder|quieter)\b"
 )
 _LOCK = re.compile(r"lock (?:my |the )?(?:computer|pc|laptop|screen|workstation)")
 # One app's volume in the mixer: "lower the browser", "set spotify to 20 percent".
@@ -162,17 +206,70 @@ HELP = (
 )
 
 
+def stop_request(text: str, loose: bool = False) -> str:
+    """Being told to stop: "stop_listening" ("you can stop listening now"), "stop" ("shut up",
+    "you can stop now": the conversation is over) or "" for anything else.
+
+    All of what was said must be that, give or take an "uh okay", "please" or the name. With
+    `loose` (said over a reply, or right after one without the wake word, where people in the
+    room talk too) it's enough that one sentence of it is, or that it says "stop listening" or
+    "shut up" anywhere: "Yeah, just shut up, shut up, I told you to shut up."
+    """
+    words = normalize(text)
+    if not words:
+        return ""
+    if _STOP_LISTENING.fullmatch(words) or (loose and _STOP_LISTENING_IN.search(words)):
+        return "stop_listening"
+    if _told_to_stop(words):
+        return "stop"
+    if loose:
+        if _STOP_IN.search(words):
+            return "stop"
+        parts = [p for p in (normalize(part) for part in re.split(r"[.,!?;:]+", text)) if p]
+        # "Okay. Thank you. Stop.": but not "Stop, what about tomorrow?" (that asks something)
+        if any(_told_to_stop(p) for p in parts) and all(_says_nothing_more(p) for p in parts):
+            return "stop"
+    return ""
+
+
+def start_request(text: str) -> bool:
+    """ "Start listening" (after "stop listening"), in any words."""
+    return bool(_START_LISTENING.fullmatch(normalize(text)))
+
+
+def _told_to_stop(words: str) -> bool:
+    return bool(_STOP.fullmatch(words) or _DISMISS.fullmatch(words))
+
+
+def _says_nothing_more(words: str) -> bool:
+    """A sentence that asks for nothing: "stop", "okay", "thanks", "um"."""
+    return bool(
+        _told_to_stop(words)
+        or _FILLER.fullmatch(words)
+        or _BACKCHANNEL.fullmatch(words)
+        or _DONE.fullmatch(words)
+        or _HUSH.fullmatch(words)
+    )
+
+
 def interruption_kind(text: str) -> str:
-    """What you said while Abdoh was talking: "nothing" (no words, or "um"), "backchannel"
-    ("okay", "right": Abdoh goes on), "stop" ("wait", "thanks", "stop": it goes quiet) or
-    "request" (anything else: it stops and does that instead)."""
+    """What you said while Abdoh was talking: "nothing" (no words, "um", a laugh),
+    "backchannel" ("okay", "right": Abdoh goes on), "stop" ("wait", "thanks", "shut up": it
+    goes quiet), "stop_listening" (it goes quiet and stops listening), "fragment" (a word or
+    two that ask nothing: "well", "do you", most likely someone else in the room or Abdoh's
+    own echo) or "request" (anything else: it stops and does that instead)."""
     words = normalize(text)
     if not words or _FILLER.fullmatch(words):
         return "nothing"
+    told = stop_request(text, loose=True)
+    if told == "stop_listening":
+        return told
     if _BACKCHANNEL.fullmatch(words):
         return "backchannel"
-    if _DONE.fullmatch(words) or _HUSH.fullmatch(words) or _DISMISS.fullmatch(words):
+    if told or _DONE.fullmatch(words) or _HUSH.fullmatch(words):
         return "stop"
+    if len(words.split()) <= 2 and not _REQUEST_START.match(words):
+        return "fragment"
     return "request"
 
 

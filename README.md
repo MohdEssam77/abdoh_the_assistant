@@ -179,8 +179,18 @@ back to its old, simple window.
   isn't meant for it (a line from a video, you talking to a friend), Claude notices and Abdoh
   says nothing. Your own commands ("open my mail") always run.
 - **"Shut up" or "I'm not talking to you" ends it**: also "not you", "be quiet", "go away", "I'm
-  talking to my friend". Abdoh stops talking and stops listening at once, without a word or a
-  sound, and waits for its wake word again. Works while it talks, too.
+  talking to my friend", "you can stop now", "stop, stop". Abdoh stops talking and stops
+  listening at once, without a word or a sound, and waits for its wake word again. Works while
+  it talks too, and then it's enough that you say it somewhere ("yeah, just shut up, shut up").
+- **"Stop listening" pauses it, without a word**: in any words ("you can stop listening now",
+  "I'll call you when I need you"). Abdoh goes quiet at once and hears nothing more: a wake word
+  set off by people talking makes no sound, and only "Abdoh, start listening" (or "you can listen
+  again", or the switch in the window) brings it back. In a lesson (Act as) it just goes back to
+  the wake word, and the role stays.
+- **People talking nearby don't keep cutting it off**: a stray word or two heard over a reply
+  ("well", "sorry") lets Abdoh carry on. When you stop it with the window's Stop button or the
+  hotkey, whatever it was hearing at that moment is dropped too. After "you've reached your
+  usage limit" it doesn't listen for more.
 - **Things you ask it to do are just done**: "open Spotify", "volume 30", "play some jazz",
   "work mode". Abdoh does it and plays a short falling sound instead of talking (the window
   shows what it did), and it doesn't listen for more afterwards. It only asks when it can't tell
@@ -233,7 +243,8 @@ Each of these can be turned off under **Settings → Conversation**.
 
 ### Voice controls
 
-- "Abdoh, stop listening": Abdoh ignores everything until "Abdoh, start listening" (or the hotkey)
+- "Abdoh, stop listening": Abdoh goes quiet without a word and ignores everything until "Abdoh,
+  start listening" (or the hotkey)
 - "Abdoh, reload commands": re-reads `commands.yaml` (it also reloads automatically on change)
 - "Abdoh, show window": brings the window back
 
