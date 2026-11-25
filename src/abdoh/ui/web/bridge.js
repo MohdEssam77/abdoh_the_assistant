@@ -79,6 +79,7 @@ const Bridge = (() => {
       { name: "Programming teacher", description: "Explains ideas simply, and shows the code on the board.", phrases: ["coding lesson"], instructions: "You are my programming teacher.", speed: "normal", answers: "long", board: true },
     ];
     let voiceActive = false;
+    let demoOpenRouter = false;
     let demoLamps = [{ name: "Desk lamp", mac: "a8bb5006f1e2", ip: "192.168.1.41", kind: "colour" }];
     const demoLampHow = { "Desk lamp": "scene party speed 160 80%", "Lamp 2": "warm white 60%" };
     // abdoh.lights.options(), as the app gets it
@@ -247,6 +248,7 @@ const Bridge = (() => {
       restart: async () => {},
       claude_status: async () => ({
         installed: true, signed_in: true, plan: "pro", method: "claude.ai", has_api_key: false,
+        has_openrouter_key: demoOpenRouter, openrouter_model: settings.claude.openrouter_model || "openrouter/auto",
         backend: settings.claude.backend, using: "code", connected: true,
         summary: "Connected with your Pro plan.",
       }),
@@ -254,6 +256,13 @@ const Bridge = (() => {
       claude_sign_in: async () => ({ ok: true }),
       claude_sign_out: async () => ({ ok: true }),
       set_api_key: async () => ({ ok: true }),
+      set_openrouter_key: async (key) => { demoOpenRouter = !!key; return { ok: true }; },
+      openrouter_models: async () => ({ ok: true, models: [
+        { id: "openrouter/auto", name: "Auto Router", images: true, price: "" },
+        { id: "anthropic/claude-sonnet-5.5", name: "Anthropic: Claude Sonnet 5.5", images: true, price: "$3 / $15 per million tokens" },
+        { id: "google/gemini-3-pro", name: "Google: Gemini 3 Pro", images: true, price: "$2 / $12 per million tokens" },
+        { id: "meta-llama/llama-4:free", name: "Meta: Llama 4 (free)", images: false, price: "free" },
+      ] }),
       claude_test: async () => ({ ok: true, reply: "OK", via: "Claude Code" }),
       refresh_claude: async () => {},
       check_update: async () => (params.get("update")

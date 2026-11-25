@@ -37,12 +37,13 @@ allow_run: false                 # let your commands run programs (the "run" act
 check_updates: true              # look for a new version of Abdoh once a day
 setup_done: false                # the first-start setup was finished or skipped
 claude:
-  backend: "auto"                # auto: Claude Code if installed (your subscription), else API key
+  backend: "auto"                # auto: Claude Code if installed (your subscription), else API key, else OpenRouter
                                  # code | api | off
   code_path: ""                  # path to claude.exe; empty = find it automatically
   code_model: ""                 # Claude Code model, e.g. "sonnet"; empty = your default
   model: "claude-opus-5-5"       # API key only: any current Claude model id
-  max_tokens: 4000               # API key only
+  max_tokens: 4000               # API key and OpenRouter only
+  openrouter_model: "openrouter/auto"   # OpenRouter only: any model there, e.g. "google/gemini-3-pro"
   effort: "low"                  # low = quickest answers
   allow_web: true                # let Claude search the web (Claude Code)
   allow_files: true              # let Claude work with your files and run PowerShell (Claude Code);
