@@ -95,6 +95,8 @@ class ClaudeConfig:
     model: str = "claude-opus-5-5"  # API key only
     max_tokens: int = 4000  # API key and OpenRouter only
     openrouter_model: str = "openrouter/auto"  # OpenRouter only: any model there
+    # Pictures made by AI on the board (with an OpenRouter key): the model that makes them
+    openrouter_image_model: str = "black-forest-labs/flux-3-image-klein"
     effort: str = "low"
     allow_web: bool = True  # Claude Code may search the web
     allow_files: bool = True  # Claude Code may work with your files and run commands

@@ -143,7 +143,7 @@
         el("button", { class: "btn small danger", onclick: async (e) => {
           if (await act(e.currentTarget, "set_openrouter_key", "")) { toast("OpenRouter key removed."); refresh(body); }
         } }, "Remove key")))];
-    rows.push(modelPart(state));
+    rows.push(modelPart(state), picturePart());
     return el("div", {}, ...rows);
   }
 
@@ -173,6 +173,33 @@
       select.value = current;
     });
     return row("OpenRouter model", help, el("div", { class: "btn-row" }, filter, select));
+  }
+
+  /* The model that makes pictures on the board ([picture: draw: ...]), its price, the credit. */
+  function picturePart() {
+    const select = el("select", { class: "input compact", "aria-label": "Picture model", style: "width:340px;max-width:46vw" },
+      el("option", {}, "Loading…"));
+    const facts = el("small", { class: "muted", style: "display:block;margin-top:2px" });
+    const help = el("span", {}, "Makes a picture on the board when a role asks for one made by AI. It's paid from your OpenRouter credit, and Abdoh checks the credit first.", facts);
+    const money = (n) => `$${n < 0.1 ? n.toFixed(3) : n.toFixed(2)}`;
+    const show = (price, credit) => {
+      facts.textContent = [price == null ? "" : price === 0 ? "This model is free." : `About ${money(price)} a picture.`,
+        credit == null ? "" : `Credit left: ${money(credit)}.`].filter(Boolean).join(" ");
+    };
+    call("openrouter_pictures").then((result) => {
+      if (!result) return;
+      if (!result.ok) { facts.textContent = result.error; return; }
+      select.replaceChildren(...result.models.map((m) => el("option", { value: m.id, selected: m.id === result.chosen }, m.name + (m.free && !/free/i.test(m.name) ? " (free)" : ""))));
+      select.value = result.chosen;
+      show(result.price, result.credit);
+    });
+    select.addEventListener("change", async () => {
+      if (!(await saveSettings({ claude: { openrouter_image_model: select.value } }))) return;
+      const result = await call("picture_price", select.value);
+      show(result && result.price, null);
+      toast("Picture model saved.");
+    });
+    return row("Picture model", help, select);
   }
 
   function backendPart(state) {

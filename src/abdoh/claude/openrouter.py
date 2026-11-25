@@ -204,3 +204,158 @@ def _fetch_models() -> dict:
         return r.json()
     except (httpx.HTTPError, ValueError) as e:
         raise BrainError("Couldn't get OpenRouter's list of models.") from e
+
+
+# ----- pictures made by AI (the board's [picture: draw: ...]) -----
+
+DEFAULT_IMAGE_MODEL = "black-forest-labs/flux-3-image-klein"  # about $0.01 a picture
+TOKENS_PER_PICTURE = 1290  # models priced per token (Gemini): about this many for a 1K picture
+IMAGE_TIMEOUT_SECONDS = 120.0
+CREDIT_CACHE_SECONDS = 300.0
+
+
+class PictureRefused(RuntimeError):
+    """No AI picture: the message says why (credit, key, model) and is safe to say."""
+
+
+def _get(http, path: str, key: str | None = None) -> dict:
+    headers = dict(APP_HEADERS)
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    r = http.get(f"{API}{path}", headers=headers, timeout=20.0)
+    if r.status_code != 200:
+        raise PictureRefused(f"OpenRouter said {r.status_code}")
+    return r.json()
+
+
+def image_models(http=None) -> list[dict]:
+    """The models that make pictures: [{"id", "name", "free"}], by name (public list)."""
+    http = http or _client()
+    data = _get(http, "/images/models").get("data") or []
+    found = [{"id": m["id"], "name": m.get("name") or m["id"], "free": m["id"].endswith(":free")}
+             for m in data if m.get("id")]  # fmt: skip
+    return sorted(found, key=lambda m: m["name"].lower())
+
+
+_prices: dict[str, float | None] = {}
+_one_k: set[str] = set()  # models that take resolution "1K" (Abdoh asks for that size)
+
+
+def picture_price(model: str, http=None) -> float | None:
+    """About what one picture costs in USD (the 1K size where there are sizes: FLUX 3 Klein
+    lists 768 at $0.008 and 1k at $0.009), from the model's pricing; None if OpenRouter
+    doesn't say. Kept once asked."""
+    if model in _prices:
+        return _prices[model]
+    http = http or _client()
+    price = None
+    try:
+        endpoints = _get(http, f"/images/models/{model}/endpoints").get("endpoints") or []
+        first = endpoints[0] if endpoints else {}
+        sizes = ((first.get("supported_parameters") or {}).get("resolution") or {}).get("values")
+        if any(str(v).lower() == "1k" for v in sizes or []):
+            _one_k.add(model)
+        for row in first.get("pricing") or []:
+            if row.get("billable") != "output_image":
+                continue
+            cost = float(row.get("cost_usd") or 0)
+            if row.get("unit") == "token":
+                cost *= TOKENS_PER_PICTURE
+            if price is None or str(row.get("variant", "")).lower() == "1k":
+                price = cost
+        if endpoints and not first.get("pricing"):
+            price = 0.0  # a free model
+    except (PictureRefused, ValueError, KeyError, IndexError) as e:
+        log.info("No price for %s: %s", model, e)
+    _prices[model] = price
+    return price
+
+
+_credit: dict = {"at": -1e9, "left": None, "key": None}
+
+
+def credit_left(key: str, http=None, fresh: bool = False) -> float | None:
+    """What the key can still spend, in USD, as far as OpenRouter tells a normal key: the
+    account's balance (a management key only) and the key's own spending limit. None if
+    neither is known (no limit set): then only trying tells. Kept for a few minutes."""
+    fresh = fresh or _credit["key"] != key
+    if not fresh and time.monotonic() - _credit["at"] < CREDIT_CACHE_SECONDS:
+        return _credit["left"]
+    http = http or _client()
+    known = []
+    try:
+        limit = (_get(http, "/key", key).get("data") or {}).get("limit_remaining")
+        if limit is not None:
+            known.append(float(limit))
+    except (PictureRefused, ValueError) as e:
+        log.info("Couldn't read the key's limit: %s", e)
+    try:  # needs a management key; a normal key gets 403
+        data = _get(http, "/credits", key).get("data") or {}
+        known.append(float(data["total_credits"]) - float(data["total_usage"]))
+    except (PictureRefused, ValueError, KeyError):
+        pass
+    left = min(known) if known else None
+    _credit.update(at=time.monotonic(), left=left, key=key)
+    return left
+
+
+def known_credit(key: str | None) -> float | None:
+    """The credit last read for this key (no network): for Claude's status line."""
+    if key and _credit["key"] == key and time.monotonic() - _credit["at"] < CREDIT_CACHE_SECONDS:
+        return _credit["left"]
+    return None
+
+
+def make_picture(key: str | None, model: str, prompt: str, http=None) -> tuple[bytes, str, float]:
+    """A picture made by `model` from `prompt`: (bytes, mime type, cost in USD). Checks the
+    credit first. Raises PictureRefused with what to tell the user."""
+    import base64
+
+    if not key:
+        raise PictureRefused(
+            "I can't make pictures with AI: that needs an OpenRouter key (Settings, Claude card)."
+        )
+    model = model or DEFAULT_IMAGE_MODEL
+    http = http or _client()
+    price = picture_price(model, http)
+    left = credit_left(key, http)
+    if price and left is not None and left < price:
+        raise PictureRefused(
+            f"Your OpenRouter credit is too low for a picture: about ${price:.2f} is needed and "
+            f"${max(left, 0):.2f} is left. Add credit at openrouter.ai."
+        )
+    body = {"model": model, "prompt": prompt, "n": 1, "response_format": "b64_json"}
+    if model in _one_k:
+        body["resolution"] = "1K"  # the size the price shown is for
+    headers = {"Authorization": f"Bearer {key}", **APP_HEADERS}
+    try:
+        r = http.post(f"{API}/images", json=body, headers=headers, timeout=IMAGE_TIMEOUT_SECONDS)
+    except Exception as e:
+        log.info("The picture request failed: %s", e)
+        raise PictureRefused("I couldn't reach OpenRouter to make the picture.") from e
+    if r.status_code == 402:
+        _credit.update(at=time.monotonic(), left=0.0)
+        raise PictureRefused(
+            "Your OpenRouter credit has run out, so I can't make the picture. Add credit at "
+            "openrouter.ai."
+        )
+    if r.status_code == 403:
+        raise PictureRefused("Your OpenRouter key's spending limit is used up.")
+    if r.status_code == 401:
+        raise PictureRefused("OpenRouter rejected your key. Please set a new one in Settings.")
+    if r.status_code != 200:
+        log.info("OpenRouter said %s to a picture: %s", r.status_code, r.text[:300])
+        raise PictureRefused("The picture couldn't be made this time. Nothing was charged.")
+    answer = r.json()
+    item = (answer.get("data") or [{}])[0]
+    if not item.get("b64_json"):
+        raise PictureRefused("The picture couldn't be made this time.")
+    cost = float((answer.get("usage") or {}).get("cost") or price or 0)
+    _credit["at"] = -1e9  # spent: read it again next time
+    return base64.b64decode(item["b64_json"]), item.get("media_type") or "image/png", cost
+
+
+def _client():
+    import httpx
+
+    return httpx.Client(timeout=20.0)

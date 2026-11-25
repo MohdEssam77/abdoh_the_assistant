@@ -435,7 +435,7 @@ const Board = (() => {
         figure.replaceChildren(el("div", { class: "board-note" }, link ? "Getting the picture…" : `Finding a picture of ${b.what}…`));
       } else if (p.ok) {
         figure.replaceChildren(el("img", { src: p.src, alt: p.title || b.what }),
-          el("figcaption", {}, p.credit + (p.ai ? " · Made by AI" : "")));
+          el("figcaption", {}, p.credit)); // an AI picture's credit says "Made by AI"
       } else {
         figure.replaceChildren(el("div", { class: "board-note" }, p.error || "No picture."));
       }

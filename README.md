@@ -623,7 +623,12 @@ teacher, Math teacher, Programming teacher). Each role has:
   too: acting as a chef, "what does a proper carbonara look like?" puts a photo on the board
   with its credit (who took it, its license). Abdoh finds it on Wikimedia Commons (Openverse if
   Commons has nothing) or opens a picture Claude found on the web, keeps it for a week in
-  `board/` in its data folder, and the page never loads anything from the internet. Code has a **Copy**
+  `board/` in its data folder, and the page never loads anything from the internet. With an
+  **OpenRouter key**, a role can also have a picture **made by AI** where no photo would do ("draw
+  me the kitchen of my dreams"): Settings → Claude card → **Picture model** chooses the model and
+  shows what a picture costs (FLUX 3 Klein, the default, about $0.009) and the credit left.
+  Abdoh checks the credit first and says so if it's too low; a picture is made once per
+  description, so asking again costs nothing. Code has a **Copy**
   button; **Clear** empties the board, and a new role starts with a clean one.
 - **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
   something and you're talking with it (less than 2 minutes since either of you last spoke),

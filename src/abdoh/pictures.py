@@ -51,6 +51,7 @@ class Picture:
     mime: str
     credit: str  # "Photo: Shisma, CC BY 4.0, Wikimedia Commons"
     title: str = ""
+    ai: bool = False  # made by AI ([picture: draw: ...])
 
     def data_url(self) -> str:
         data = base64.b64encode(self.path.read_bytes()).decode("ascii")
@@ -92,9 +93,12 @@ def _plain(markup: str) -> str:
 class Pictures:
     """Finds and keeps pictures. `http` is an httpx.Client (a fake one in tests)."""
 
-    def __init__(self, folder: Path, http=None):
+    def __init__(self, folder: Path, http=None, ai=None):
         self.folder = Path(folder)
         self._http = http
+        # ai(description) -> (bytes, mime, credit): a picture made by AI (OpenRouter); raises
+        # PictureError when it can't (no key, too little credit)
+        self._ai = ai
 
     def _client(self):
         if self._http is None:
@@ -108,6 +112,8 @@ class Pictures:
         what = " ".join(str(what or "").split())
         if not what:
             raise PictureError("There's nothing to look for.")
+        if what.lower().startswith("draw:"):
+            return self._draw(what[5:].strip())
         if what.lower().startswith("http://"):
             raise PictureError("I only open pictures from secure (https) links.")
         if what.lower().startswith("https://"):
@@ -129,6 +135,28 @@ class Pictures:
                 except PictureError as e:
                     log.info("Skipped a picture of %r: %s", what, e)
         raise PictureError(f"I couldn't find a picture of {what}.")
+
+    def _draw(self, description: str) -> Picture:
+        """A picture made by AI, once per description (asked again, it's the same one: no
+        second charge)."""
+        if not description:
+            raise PictureError("There's nothing to draw.")
+        name = "ai-" + hashlib.sha1(description.encode("utf-8")).hexdigest()[:20]
+        credit_file = self.folder / f"{name}.txt"
+        for mime, ext in TYPES.items():
+            kept = self.folder / f"{name}{ext}"
+            if kept.exists():
+                credit = credit_file.read_text(encoding="utf-8") if credit_file.exists() else ""
+                return Picture(kept, mime, credit or "Made by AI", description, ai=True)
+        if self._ai is None:
+            raise PictureError("I can't make pictures with AI here.")
+        data, mime, credit = self._ai(description)
+        mime = mime if mime in TYPES else "image/png"
+        self.folder.mkdir(parents=True, exist_ok=True)
+        kept = self.folder / f"{name}{TYPES[mime]}"
+        kept.write_bytes(data)
+        credit_file.write_text(credit, encoding="utf-8")
+        return Picture(kept, mime, credit, description, ai=True)
 
     def _commons(self, what: str) -> list[tuple[str, str, str]]:
         r = self._client().get(COMMONS, params={
