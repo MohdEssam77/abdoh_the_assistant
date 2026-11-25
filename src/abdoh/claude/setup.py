@@ -39,7 +39,7 @@ class SetupError(RuntimeError):
 
 def using(cfg: Config, exe: Path | None) -> str | None:
     """How Abdoh reaches Claude now: "code" (your account), "api" (your key), "openrouter"
-    (your OpenRouter key), or None."""
+    (your OpenRouter key), "chatgpt" (your ChatGPT plan), or None."""
     backend = cfg.claude.backend
     if backend in ("auto", "code") and exe:
         return "code"
@@ -47,6 +47,11 @@ def using(cfg: Config, exe: Path | None) -> str | None:
         return "api"
     if backend in ("auto", "openrouter") and cfg.has_openrouter_key:
         return "openrouter"
+    from abdoh.claude.chatgpt import Account
+
+    account = Account.of(cfg)
+    if (backend == "chatgpt" and account.connected) or (backend == "auto" and account.plan_usage):
+        return "chatgpt"
     return None
 
 
@@ -73,8 +78,18 @@ def claude_state(cfg: Config, find=find_claude_code, status=auth_status) -> dict
         summary = (
             f"Connected through OpenRouter ({cfg.claude.openrouter_model or 'openrouter/auto'})."
         )
+    elif via == "chatgpt":
+        from abdoh.claude.chatgpt import Account
+
+        if Account.of(cfg).plan_usage:
+            model = cfg.claude.chatgpt_model
+            summary = f"Using your ChatGPT plan{f' ({model})' if model else ''}."
+        else:
+            summary = "ChatGPT is connected, but Abdoh may not use your plan yet."
     else:
         summary = "Not connected."
+    from abdoh.claude import chatgpt
+
     return {
         "installed": bool(exe),
         "signed_in": signed_in,
@@ -85,7 +100,10 @@ def claude_state(cfg: Config, find=find_claude_code, status=auth_status) -> dict
         "openrouter_model": cfg.claude.openrouter_model,
         "backend": cfg.claude.backend,
         "using": via,
-        "connected": (via == "code" and signed_in) or via in ("api", "openrouter"),
+        "connected": (via == "code" and signed_in)
+        or via in ("api", "openrouter")
+        or (via == "chatgpt" and chatgpt.connected(cfg)),
+        "chatgpt": chatgpt.state(cfg),
         "summary": summary,
     }
 

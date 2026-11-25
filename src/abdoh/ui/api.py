@@ -878,6 +878,35 @@ class AppApi:
         """Ask Claude for one word, to check the connection."""
         return self._claude().check_connection(self._config())
 
+    # ----- your ChatGPT plan (Sign in with ChatGPT) -----
+
+    def chatgpt_connect(self) -> dict:
+        """Start "Continue with ChatGPT": OpenAI's page opens in your browser. The link comes
+        back too, in case the browser didn't open."""
+        from abdoh.claude import chatgpt
+
+        return chatgpt.connect(self._config(), open_browser=self._open_url)
+
+    def chatgpt_progress(self) -> dict:
+        """How the sign-in goes; once it's done, Abdoh reconnects."""
+        from abdoh.claude import chatgpt
+
+        return chatgpt.progress()
+
+    def chatgpt_models(self) -> dict:
+        """The models your ChatGPT plan may use here."""
+        from abdoh.claude import chatgpt
+
+        return chatgpt.models(self._config())
+
+    def chatgpt_disconnect(self) -> dict:
+        """Sign Abdoh out of ChatGPT: revoked at OpenAI, the tokens deleted here."""
+        from abdoh.claude import chatgpt
+
+        result = chatgpt.disconnect(self._config())
+        self.refresh_claude()
+        return result
+
     def refresh_claude(self) -> None:
         """The connection changed (signed in, installed, key): Abdoh reconnects."""
         self._bus.request("settings_changed")
