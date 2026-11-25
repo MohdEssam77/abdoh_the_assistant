@@ -789,3 +789,13 @@ select.input.compact { width: 280px; max-width: 46vw; }
 .lamp-card-name b { font-size: 16px; }
 .lamp-card-now { font-weight: 560; }
 .lamp-level { width: 100%; }
+
+/* "How do I get a key?" */
+.how-to { font-weight: 600; white-space: nowrap; }
+.key-help p { margin: 0 0 14px; }
+.key-steps { list-style: none; counter-reset: step; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.key-steps li { counter-increment: step; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 4px 12px; align-items: start; }
+.key-steps li::before { content: counter(step); grid-row: span 2; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent-text); font-weight: 700; font-size: 13px; }
+.key-steps li span { padding-top: 4px; }
+.key-steps li .btn { justify-self: start; }

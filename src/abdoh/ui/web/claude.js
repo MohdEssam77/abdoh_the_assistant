@@ -62,6 +62,50 @@
     return row("Your Claude account", help, buttons);
   }
 
+  /* "How do I get a key?": a few short steps, with the pages to open. */
+  const KEY_HELP = {
+    anthropic: {
+      title: "Get an Anthropic API key",
+      intro: "You pay Anthropic for what Abdoh uses, from credit you add. It takes about five minutes.",
+      steps: [
+        ["Open the Claude Console and sign in, or make a free account.", ["Open the Claude Console", CONSOLE_URL]],
+        ["Go to Billing and add some credit, for example $5."],
+        ["Go to API keys and press Create key. Call it “Abdoh”."],
+        ["Copy the key. It starts with sk-ant- and is shown only once."],
+        ["Paste it into the box here and press Save key. Done!"],
+      ],
+      outro: "Keep your key to yourself, like a password. You can delete it in the Console any time, and Abdoh keeps it only on this computer.",
+    },
+    openrouter: {
+      title: "Get an OpenRouter key",
+      intro: "OpenRouter gives you Claude, GPT, Gemini and many more models with one key. You pay for what Abdoh uses, from credit you add.",
+      steps: [
+        ["Open OpenRouter and sign in, with Google or an email address.", ["Open OpenRouter", "https://openrouter.ai/"]],
+        ["Open Credits (in the menu at the top right) and add some, for example $5. A few models are free, but most need credit."],
+        ["Open Keys and press Create key. Call it “Abdoh”. You can give it a credit limit too.", ["Open Keys", OPENROUTER_URL]],
+        ["Copy the key. It starts with sk-or- and is shown only once."],
+        ["Paste it into the box here and press Save key, then pick a model. Done!"],
+      ],
+      outro: "Keep your key to yourself, like a password. You can delete it on OpenRouter any time, and Abdoh keeps it only on this computer.",
+    },
+  };
+
+  function keyHelp(kind) {
+    const help = KEY_HELP[kind];
+    const steps = el("ol", { class: "key-steps" }, help.steps.map(([text, page]) => el("li", {},
+      el("span", {}, text),
+      page ? el("button", { class: "btn small", type: "button", onclick: () => call("open_link", page[1]) }, page[0]) : null)));
+    const dialog = openModal({
+      title: help.title,
+      body: el("div", { class: "key-help" }, el("p", { class: "muted" }, help.intro), steps, el("p", { class: "fine" }, help.outro)),
+      actions: [el("div", { class: "spacer" }), el("button", { class: "btn primary", type: "button", onclick: () => dialog.close() }, "Got it")],
+    });
+  }
+
+  function howTo(kind) {
+    return el("a", { href: "#", class: "how-to", onclick: (e) => { e.preventDefault(); keyHelp(kind); } }, "How do I get a key?");
+  }
+
   function keyPart(state, body) {
     if (state.has_api_key) {
       return row("Your API key", "Saved on this computer only. Used when Claude Code isn't signed in (or if you choose it below).",
@@ -77,7 +121,7 @@
       if (await act(e.currentTarget, "set_api_key", input.value)) { toast("API key saved."); refresh(body); }
     } }, "Save key");
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); });
-    return row("Or use an API key", el("span", {}, "Pay as you go, from the ", link("Claude Console", CONSOLE_URL), ". Stays on this computer."),
+    return row("Or use an API key", el("span", {}, "Pay as you go, from the ", link("Claude Console", CONSOLE_URL), ". Stays on this computer. ", howTo("anthropic")),
       el("div", { class: "btn-row" }, input, save));
   }
 
@@ -90,7 +134,7 @@
         if (await act(e.currentTarget, "set_openrouter_key", input.value)) { toast("OpenRouter key saved."); refresh(body); }
       } }, "Save key");
       input.addEventListener("keydown", (e) => { if (e.key === "Enter") save.click(); });
-      return row("Or use OpenRouter", el("span", {}, "Claude, GPT, Gemini and more with one key, from ", link("OpenRouter", OPENROUTER_URL), ". Stays on this computer."),
+      return row("Or use OpenRouter", el("span", {}, "Claude, GPT, Gemini and more with one key, from ", link("OpenRouter", OPENROUTER_URL), ". Stays on this computer. ", howTo("openrouter")),
         el("div", { class: "btn-row" }, input, save));
     }
     const rows = [row("OpenRouter", "Your key is saved on this computer only. Used when there's no Claude account or API key (or if you choose it below).",
