@@ -908,6 +908,7 @@ const HANDLERS = {
   board: addToBoard,
   voice: setVoice,
   gpu: (text) => { App.gpu = text || ""; },
+  voice_download: (value) => { App.voiceDownload = value || null; },
   page: showPage,
 };
 
@@ -1016,6 +1017,7 @@ async function start() {
   App.listening = state.listening || { on: false, now: false };
   App.board = state.board || [];
   App.gpu = state.gpu || ""; // speech recognition on the graphics card: how it's going
+  App.voiceDownload = state.voice_download || null; // a natural voice downloading
   setVoice(state.voice !== false);
   setStatus(state.status || "Starting...");
   renderHowToTalk();

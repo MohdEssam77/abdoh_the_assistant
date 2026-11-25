@@ -70,24 +70,31 @@ def voice_path(name: str) -> str:
     return f"{code.split('_')[0]}/{code}/{speaker}/{quality}/{name}"
 
 
-def download_voice(name: str, folder: Path, fetch=None) -> Path:
-    """Download a voice (its .onnx model and .onnx.json settings) into `folder`."""
+def download_voice(name: str, folder: Path, fetch=None, progress=None) -> Path:
+    """Download a voice (its .onnx model and .onnx.json settings) into `folder`.
+    `progress(done, total)` hears how the model (about 60 MB) is coming along."""
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     fetch = fetch or _fetch
     for ext in (".onnx.json", ".onnx"):  # the model last: its presence means "ready"
         target = folder / f"{name}{ext}"
         partial = target.with_name(target.name + ".part")
-        fetch(URL.format(path=voice_path(name), ext=ext), partial)
+        extra = {"progress": progress} if progress is not None and ext == ".onnx" else {}
+        fetch(URL.format(path=voice_path(name), ext=ext), partial, **extra)
         partial.replace(target)
     return folder / f"{name}.onnx"
 
 
-def _fetch(url: str, target: Path) -> None:
+def _fetch(url: str, target: Path, progress=None) -> None:
     request = urllib.request.Request(url, headers={"User-Agent": "Abdoh-voice-download"})
     with urllib.request.urlopen(request, timeout=60) as response, open(target, "wb") as f:
+        total = int(response.headers.get("Content-Length") or 0)
+        done = 0
         while chunk := response.read(1 << 20):
             f.write(chunk)
+            done += len(chunk)
+            if progress is not None:
+                progress(done, total)
 
 
 def _load_piper(path: Path):
@@ -171,6 +178,8 @@ class PiperSpeaker(Speaker):
         self._lock = threading.Lock()  # loading a voice
         self._downloading: set[str] = set()
         self._tried: dict[str, float] = {}  # when each voice download was last started
+        # Hears how a voice download goes: (voice name, percent), and (name, None) when done.
+        self.on_download: Callable[[str, int | None], None] | None = None
         self._stop = threading.Event()
         self._pause = threading.Event()
         self._resume = threading.Event()
@@ -363,15 +372,30 @@ class PiperSpeaker(Speaker):
         self._tried[name] = time.monotonic()
         self._downloading.add(name)
 
+        tell = self.on_download
+        shown = {"percent": 0}  # 0 is said when it starts
+
+        def progress(done: int, total: int) -> None:
+            percent = min(99, done * 100 // total) if total else 0
+            if tell is not None and percent != shown["percent"]:
+                shown["percent"] = percent
+                tell(name, percent)
+
         def run() -> None:
             try:
                 log.info("Downloading the voice %s (about 60 MB)", name)
-                self._download(name, self._folder)
+                if tell is not None:
+                    tell(name, 0)
+                    self._download(name, self._folder, progress=progress)
+                else:
+                    self._download(name, self._folder)
                 log.info("Voice %s is ready", name)
             except Exception as e:
                 log.warning("Couldn't download the voice %s: %s", name, e)
             finally:
                 self._downloading.discard(name)
+                if tell is not None:
+                    tell(name, None)
 
         threading.Thread(target=run, name="abdoh-voice-download", daemon=True).start()
 

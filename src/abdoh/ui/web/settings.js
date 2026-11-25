@@ -73,19 +73,38 @@
       row("Voice replies", "Speak answers out loud. Turn off to only see them here.",
         toggle($("#voice-toggle").checked, (on) => call("set_voice", on), "Voice replies")),
       row("Kind of voice", natural
-        ? "Natural voices for English, German and other languages, made on this computer. A new language's voice downloads the first time (about 60 MB); the Windows voice speaks meanwhile."
+        ? "Natural voices, made on this computer. The first time Abdoh speaks a new language, its voice downloads (about 60 MB)."
         : "The Windows voice. Natural voices sound much better, especially in German.",
         select([["piper", "Natural (recommended)"], ["windows", "Windows voice"]], natural ? "piper" : "windows",
           (value) => saveSettings({ tts_engine: value }).then(() => render()), "Kind of voice")),
       natural ? row("English voice", null, voicePick("piper_voice_en", ENGLISH_VOICES, "English voice")) : null,
       natural ? row("German voice", null, voicePick("piper_voice_de", GERMAN_VOICES, "German voice")) : null,
-      row(natural ? "Windows voice" : "Voice", natural
-        ? "Speaks while a natural voice is still downloading."
+      natural ? downloadRow() : null,
+      row(natural ? "Backup voice" : "Voice", natural
+        ? "Speaks only until a natural voice is ready."
         : list.length ? "For English. Replies in other languages use a voice for that language, if Windows has one (add voices in Windows Settings → Time & language → Speech)." : "No voices found.",
         select(voiceOptions, settings.tts_voice || "", (value) => saveSettings({ tts_voice: value }), "Voice")),
       row("Speed", speedText, speed),
       row("Hear it", "Play a short sample with this voice and speed.",
         el("button", { class: "btn small", onclick: () => call("test_voice") }, el("span", { html: svg("play") }), "Test voice")));
+  }
+
+  /* A natural voice downloading: how far along it is (hidden when nothing downloads). */
+  function downloadRow() {
+    const bar = el("i", {});
+    const text = el("small", {});
+    const line = el("div", { class: "row", id: "voice-download" },
+      el("div", { class: "label" }, el("b", {}, "Getting a voice ready"), text),
+      el("div", { class: "meter download" }, bar));
+    line.update = () => {
+      const d = App.voiceDownload;
+      line.hidden = !d;
+      if (!d) return;
+      text.textContent = `The natural ${d.language} voice is downloading: ${d.percent}%. The backup voice speaks meanwhile.`;
+      bar.style.width = `${d.percent}%`;
+    };
+    line.update();
+    return line;
   }
 
   /* ---------- microphone ---------- */
@@ -499,6 +518,7 @@
       const tag = $("#wake-engine");
       if (kind === "wake" && tag) tag.textContent = value;
       if (kind === "gpu" && $("#gpu-status")) $("#gpu-status").textContent = value || GPU_HINT;
+      if (kind === "voice_download" && $("#voice-download")) $("#voice-download").update();
       if (kind === "devices" && $("#mic-card")) {  // a microphone was plugged in or out
         const mics = await call("microphones");
         const old = $("#mic-card");

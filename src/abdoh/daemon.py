@@ -152,6 +152,8 @@ class Daemon:
         self._spoke = False  # something was said aloud for the current request
         if hasattr(speaker, "on_missing_voice"):
             speaker.on_missing_voice = self._missing_voice
+        if hasattr(speaker, "on_download"):
+            speaker.on_download = self._voice_download
         self._recording = False
         self.paused = False
         self.voice_enabled = True
@@ -1291,6 +1293,18 @@ class Daemon:
         self.engine.reset()
 
     # ----- your voice check (audio/voicecheck.py) -----
+
+    def _voice_download(self, voice: str, percent: int | None) -> None:
+        """A natural voice is downloading (the first time Abdoh speaks its language): the
+        Settings page shows how far along it is."""
+        from abdoh.speech.tts import LANGUAGE_NAMES
+
+        if percent is None:
+            self.bus.emit("voice_download", None)
+            return
+        code = voice.split("_", 1)[0]
+        language = LANGUAGE_NAMES.get(code, voice)
+        self.bus.emit("voice_download", {"voice": voice, "language": language, "percent": percent})
 
     def _voice_files(self):
         from abdoh.audio.voicecheck import FILE, VOICE_DIR, Recordings

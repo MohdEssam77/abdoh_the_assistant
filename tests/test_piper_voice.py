@@ -236,6 +236,60 @@ def test_where_a_voice_is_downloaded_from(tmp_path):
     assert not list(tmp_path.glob("*.part"))
 
 
+def test_the_model_download_reports_how_far_along_it_is(tmp_path):
+    told = []
+
+    def fetch(url, target, progress=None):
+        if progress is not None:  # only the model (about 60 MB), not its small settings file
+            for done in (20, 40, 60):
+                progress(done, 60)
+        target.write_bytes(b"x")
+
+    download_voice("fr_FR-siwis-medium", tmp_path, fetch, progress=lambda d, t: told.append(d))
+    assert told == [20, 40, 60]
+
+
+def test_the_window_hears_how_a_voice_download_goes():
+    told = []
+
+    def download(name, folder, progress=None):
+        for done in (0, 30, 30, 60):  # the same percent twice is told once
+            progress(done, 60)
+
+    voice = speaker()
+    voice._download = download
+    voice.on_download = lambda name, percent: told.append((name, percent))
+    voice._voice_for("fr")  # its voice isn't here: it downloads
+    assert wait_for(lambda: told and told[-1][1] is None)
+    assert told == [
+        ("fr_FR-siwis-medium", 0),
+        ("fr_FR-siwis-medium", 50),
+        ("fr_FR-siwis-medium", 99),
+        ("fr_FR-siwis-medium", None),
+    ]  # fmt: skip  (each percent once; 99 until the file is in place, then done)
+
+
+def test_the_daemon_shows_it_in_settings():
+    from abdoh.daemon import Daemon
+    from abdoh.events import Bus
+    from abdoh.ui.api import UiState
+
+    bus = Bus()
+    daemon = Daemon.__new__(Daemon)
+    daemon.bus = bus
+    daemon._voice_download("fr_FR-siwis-medium", 45)
+    state = UiState()
+    for kind, value in bus.pending_events():
+        state.feed(kind, value)
+    assert state.snapshot()["voice_download"] == {
+        "voice": "fr_FR-siwis-medium", "language": "French", "percent": 45
+    }  # fmt: skip
+    daemon._voice_download("fr_FR-siwis-medium", None)
+    for kind, value in bus.pending_events():
+        state.feed(kind, value)
+    assert state.snapshot()["voice_download"] is None
+
+
 def test_every_language_has_a_voice_name_that_parses():
     for language, name in DEFAULT_VOICES.items():
         assert name.startswith(language) and voice_path(name).count("/") == 4
