@@ -58,6 +58,11 @@ NO_VOICE = (
 )
 # After Abdoh heard you talk over it: how long to wait for the words to start.
 INTERRUPTION_WAIT_SECONDS = 1.0
+# A word or two said this soon after your request, before any of the answer: you were still
+# saying what you wanted ("... in Berlin"), not someone else in the room.
+CONTINUE_SECONDS = 3.0
+# Shown (never said) after "stop listening".
+STOPPED_LISTENING = "Stopped listening. Say “Abdoh, start listening” when you need me."
 # Why Abdoh can't hear you over its own voice (shown in the settings).
 NO_ECHO_CANCELLER = "the echo canceller couldn't be loaded"
 NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
@@ -159,6 +164,8 @@ class Daemon:
         if hasattr(speaker, "on_download"):
             speaker.on_download = self._voice_download
         self._recording = False
+        self._you_stopped = False  # the window, tray or hotkey stopped the current reply
+        self._quiet_wake = False  # woken while paused: listen without a sound, for "start"
         self.paused = False
         self.voice_enabled = True
         self._woke = time.perf_counter()
@@ -397,8 +404,10 @@ class Daemon:
         return ""
 
     def _stop_listening(self) -> str:
+        """ "Stop listening": quiet at once, not a word (the window says how to get it back)."""
         self.set_paused(True)
-        return "Okay, I'll stop listening. Say Abdoh, start listening, when you need me."
+        self.bus.emit("history", f"Abdoh: {STOPPED_LISTENING}")
+        return ""
 
     def _start_listening(self) -> str:
         self.set_paused(False)
@@ -480,7 +489,7 @@ class Daemon:
     def push_to_talk(self) -> None:
         """The hotkey: stop a reply that's being spoken, otherwise listen for one request."""
         if self._handle_lock.locked():
-            self.stop_speaking()
+            self._stopped_by_you()
         elif self._recording:
             return  # already listening to you
         elif self.listen_error:
@@ -519,6 +528,9 @@ class Daemon:
             self._unduck()
 
     def _on_listen(self) -> None:
+        if self._quiet_wake:  # paused: no sound, nothing lowered, only "start listening" counts
+            self._recording = True
+            return
         self._duck()
         self._recording = True
         self._interrupted.clear()
@@ -533,11 +545,17 @@ class Daemon:
             self.say(MIC_TOO_QUIET)
 
     def stop_speaking(self) -> None:
-        """Interrupt the current reply (from the window, tray or hotkey)."""
+        """Interrupt the current reply."""
         log.info("Stop speaking")
         self._interrupted.set()
         self.earcons.stop_ticking()
         self.speaker.stop()
+
+    def _stopped_by_you(self) -> None:
+        """The window's Stop, the tray or the hotkey: the reply ends, and whatever Abdoh is
+        hearing over it right now (someone in the room, say) isn't taken as a request."""
+        self._you_stopped = True
+        self.stop_speaking()
 
     def _thinking(self) -> None:
         """A slow request (Claude) started: show it and tick until the answer comes."""
@@ -556,6 +574,7 @@ class Daemon:
         """
         with self._handle_lock:
             self._interrupted.clear()
+            self._you_stopped = False
             self._floor.set()
             # A new reply: the voice watch starts afresh. It fired for the one you just talked
             # over, and the next reply can follow straight on, with no idle moment to reset it.
@@ -606,7 +625,7 @@ class Daemon:
                         self._done(_what_was_done(turn.actions))  # Claude did it without a word
                     elif woken and not reply and getattr(turn, "ignored", False):
                         self._sound("unclear")  # not for it: say it again if it was
-                    if voice:
+                    if voice and not getattr(turn, "failed", False):  # not after "the limit"
                         self._listen_for_more(reply, acted)
             finally:
                 if watcher is not None:
@@ -670,7 +689,8 @@ class Daemon:
         heard = getattr(self.router, "heard_unclear", None)
         if heard:
             heard()
-        self._sound("unclear")
+        if not self._quiet_wake:
+            self._sound("unclear")
 
     def _missed_after_wake(self, audio: bytes) -> None:
         """After the wake word nothing was taken for speech, but there was some sound: maybe
@@ -834,6 +854,7 @@ class Daemon:
         from abdoh.local_skills import interruption_kind
 
         watch = self.voice_watch
+        began = time.monotonic()
         self._duck()
         self._floor.clear()  # nothing more is said until this is decided
         self.earcons.stop_ticking()
@@ -858,8 +879,16 @@ class Daemon:
         finally:
             self._recording = False
         kind = interruption_kind(text)
+        if (
+            kind == "fragment"
+            and not self._answered
+            and began - self._last_exchange < (CONTINUE_SECONDS)
+        ):
+            kind = "request"  # the end of what you were asking ("... in Berlin")
+        if kind != "stop_listening" and (self._you_stopped or self.paused):
+            kind = "stop"  # you stopped it (or paused it) meanwhile: nothing more to do
         log.info("Heard %r over the reply (%s)", text, kind)
-        if kind in ("nothing", "backchannel"):
+        if kind in ("nothing", "backchannel", "fragment"):
             if paused:
                 self.speaker.resume()
             watch.rearm()
@@ -873,6 +902,9 @@ class Daemon:
         earlier = "" if self._answered else self._request
         self.stop_speaking()
         self._floor.set()
+        if kind == "stop_listening":
+            self._stop_listening()  # not a word, and only "start listening" from now on
+            return ""
         if kind == "stop":
             return ""
         self._via_voice = True
@@ -933,7 +965,7 @@ class Daemon:
             if self.acting is not None:
                 self.acting.set_listening(bool(value))
         elif kind == "stop_speaking":
-            self.stop_speaking()
+            self._stopped_by_you()
         elif kind == "listen":
             self.push_to_talk()  # the window's Talk button
         elif kind == "voice":
@@ -1284,6 +1316,10 @@ class Daemon:
     def _on_wake(self) -> None:
         self._warm_speech()  # back in memory by the time you've finished talking
         self._wake_heard = getattr(self.engine, "last_wake", None)
+        self._quiet_wake = self.paused
+        if self._quiet_wake:
+            self._recording = True
+            return
         self._duck()
         if self._handle_lock.locked() and self.cfg.wake_word_interrupts:
             self.stop_speaking()  # a typed request is being answered: you get the floor
@@ -1339,6 +1375,7 @@ class Daemon:
             return
         finally:
             self._recording = False
+            self._quiet_wake = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
         via_voice, self._via_voice = self._via_voice, False
         via_speech, self._via_speech = self._via_speech, False
@@ -1350,8 +1387,8 @@ class Daemon:
         elif text and via_speech:
             self._handle_spoken(text, aside=True)  # no wake word: it may be for someone else
         elif text and self.paused:
-            # While paused, only the built-in "start listening" command is honored.
-            if self.router.builtin_name(text) == "start_listening":
+            # While paused, only "start listening" (in any words) is honored.
+            if self._wants_listening(text):
                 self._handle_spoken(text)
             else:
                 log.info("Paused; ignoring %r", text)
@@ -1594,8 +1631,20 @@ class Daemon:
             self.handle_text(text, voice=True, aside=aside, woken=woken)
             aside = woken = False
             text, self._next_request = self._next_request, None
+            if text and self.paused and not self._wants_listening(text):
+                log.info("Paused; ignoring %r", text)  # "stop listening" came first
+                return
             if text:
                 self.speaker.language = getattr(self.transcriber, "last_language", "")
+
+    def _wants_listening(self, text: str) -> bool:
+        """ "Abdoh, start listening" (in any words), while paused."""
+        from abdoh.commands.matcher import strip_wake_words
+        from abdoh.local_skills import start_request
+
+        if self.router.builtin_name(text) == "start_listening":
+            return True
+        return start_request(strip_wake_words(text, getattr(self.router, "wake_words", [])))
 
     @classmethod
     def create(

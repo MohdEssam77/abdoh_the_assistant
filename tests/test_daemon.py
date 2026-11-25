@@ -6,7 +6,7 @@ from abdoh.audio.mic import MicrophoneError
 from abdoh.audio.wakeword import NoWakeWord
 from abdoh.commands.registry import CommandRegistry
 from abdoh.config import ClaudeConfig, Config
-from abdoh.daemon import MIC_TOO_QUIET, SORRY, Daemon
+from abdoh.daemon import MIC_TOO_QUIET, SORRY, STOPPED_LISTENING, Daemon
 from abdoh.events import Bus
 from abdoh.router import Router
 from abdoh.speech.tts import FakeSpeaker
@@ -197,9 +197,11 @@ def test_show_window_by_voice(tmp_path):
 
 def test_stop_and_start_listening_by_voice(tmp_path):
     cfg, router = real_router(tmp_path)
-    daemon = make_daemon(router, cfg=cfg)
-    assert "stop listening" in daemon.handle_text("Abdoh, stop listening")
-    assert daemon.paused
+    bus = Bus()
+    daemon = make_daemon(router, cfg=cfg, bus=bus)
+    assert daemon.handle_text("Abdoh, stop listening") == ""  # not a word
+    assert daemon.paused and daemon.speaker.said == []
+    assert ("history", "Abdoh: " + STOPPED_LISTENING) in bus.pending_events()  # only shown
     assert router.builtin_name("Hey Abdoh, start listening") == "start_listening"
     assert router.builtin_name("Abdoh, good morning") is None
     assert daemon.handle_text("Abdoh, start listening") == "I'm listening again."

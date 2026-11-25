@@ -293,9 +293,20 @@ def test_claude_stops_the_listening_and_the_role_stays(tmp_path):
     assert router.acting.current is None and not router.acting.listening
     router.acting.start("Math teacher")
     router.brain = FakeBrain(("Sure, call me when you need me.\nACTION listen: off",))
-    assert " ".join(router.handle("you can stop listening now")) == (
+    assert " ".join(router.handle("let me think on my own for a bit")) == (
         "Sure, call me when you need me."
     )
+    assert router.acting.current is not None and not router.acting.listening
+
+
+def test_stop_listening_in_a_lesson_is_quiet_and_the_role_stays(tmp_path):
+    path = tmp_path / "commands.yaml"
+    path.write_text("[]", encoding="utf-8")
+    router = Router(Config(app_dir=tmp_path), CommandRegistry(path), act=FakeAct())
+    router.acting = Acting(lambda: parse_roles([TEACHER]))
+    router.acting.start("Math teacher")
+    router.brain = FakeBrain(("This isn't asked.",))
+    assert router.handle("you can stop listening now") == ""  # at once, without Claude
     assert router.acting.current is not None and not router.acting.listening
 
 
