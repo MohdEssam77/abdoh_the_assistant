@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 NOT_CONNECTED = (
     "Claude isn't connected. Install Claude Code and sign in with your Claude account, "
-    "or add an Anthropic API key in Abdoh's window."
+    "or add an Anthropic or OpenRouter key in Abdoh's window."
 )
 
 SYSTEM_PROMPT = """You are Abdoh, a voice assistant on the user's {platform} computer. \
@@ -420,4 +420,8 @@ def make_brain(cfg: Config, find_code=None) -> Brain | None:
         from abdoh.claude.api import ApiBrain
 
         return ApiBrain(cfg)
+    if backend in ("auto", "openrouter") and cfg.openrouter_api_key:
+        from abdoh.claude.openrouter import OpenRouterBrain
+
+        return OpenRouterBrain(cfg)
     return None

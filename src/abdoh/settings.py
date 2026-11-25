@@ -26,7 +26,7 @@ from abdoh.speech.piper_voice import ENGLISH_VOICES, GERMAN_VOICES
 TEMPLATE = "config.example.yaml"
 # Config fields that aren't settings: where the files live, the API key (kept in .env), and the
 # claude group (handled as its own section).
-_NOT_SETTINGS = {"app_dir", "anthropic_api_key", "claude"}
+_NOT_SETTINGS = {"app_dir", "anthropic_api_key", "openrouter_api_key", "claude"}
 # Settings that only take effect after Abdoh restarts.
 RESTART_KEYS = (
     "hotkey",

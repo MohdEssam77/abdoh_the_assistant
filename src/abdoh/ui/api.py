@@ -754,6 +754,16 @@ class AppApi:
             self._claude().set_api_key, self._config(), str(key or ""), refresh=True
         )
 
+    def set_openrouter_key(self, key) -> dict:
+        """Save your own OpenRouter key on this computer ("" removes it)."""
+        return self._claude_action(
+            self._claude().set_openrouter_key, self._config(), str(key or ""), refresh=True
+        )
+
+    def openrouter_models(self) -> dict:
+        """The models on OpenRouter (its public list), to pick one in Settings."""
+        return self._claude().openrouter_models()
+
     def claude_test(self) -> dict:
         """Ask Claude for one word, to check the connection."""
         return self._claude().check_connection(self._config())
