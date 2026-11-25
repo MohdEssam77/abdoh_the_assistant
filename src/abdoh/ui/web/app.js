@@ -295,6 +295,34 @@ function actionRows(actions, canBeEmpty = false) {
   return { box: el("div", {}, box, el("div", { style: "margin-top:10px" }, addButton)), values: () => rows.map((r) => ({ ...r })) };
 }
 
+/* ---------- the board as a PDF ---------- */
+
+/* The board as the page shows it (drawings drawn, pictures in) -> a PDF in
+   Documents\Abdoh\Boards (Abdoh prints it with Edge, in the background). `spoken`: asked by
+   voice, so Abdoh says where it went. Without Edge, the print dialog. */
+async function saveBoardPdf(spoken = false, button = null) {
+  const items = App.board || [];
+  if (!items.length) return;
+  const cards = items.map((card) => {
+    const node = Board.render(card.text); // all of it, also a card still being written out
+    node.querySelectorAll("button").forEach((b) => b.remove());
+    return node;
+  });
+  // drawings and pictures fill in a moment later: wait for them (at most a few seconds)
+  const host = el("div", { style: "position:fixed;left:-10000px;top:0;width:900px" }, cards);
+  document.body.append(host);
+  for (let i = 0; i < 40 && host.querySelector(".board-note"); i += 1) await new Promise((r) => setTimeout(r, 150));
+  const html = cards.map((node) => new XMLSerializer().serializeToString(node));
+  host.remove();
+  if (button) { button.disabled = true; button.textContent = "Saving…"; }
+  const result = await call("board_pdf", html, App.role ? `${App.role} board` : "Board", spoken);
+  if (button) { button.disabled = false; button.textContent = "Save as PDF"; }
+  if (!result) return;
+  if (result.ok) toast("Saved as a PDF in Documents → Abdoh → Boards.");
+  else if (result.print) window.print();
+  else toast(result.error, true);
+}
+
 /* ---------- smart lamps: a dialog of their own, for commands and modes ---------- */
 
 /* Your lamps (with what each can do) and the colours, whites and scenes there are (lights.py). */
@@ -906,6 +934,7 @@ const HANDLERS = {
   role: setRole,
   listening: setListening,
   board: addToBoard,
+  save_board: () => saveBoardPdf(true),
   board_picture: (picture) => {
     App.boardPictures = { ...(App.boardPictures || {}), [picture.what]: picture };
     for (const figure of document.querySelectorAll(".board-picture")) {

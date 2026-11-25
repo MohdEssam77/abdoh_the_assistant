@@ -166,6 +166,7 @@ class Daemon:
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
+        router.on_board_pdf = lambda: self.bus.emit("save_board", None)  # the page prints it
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
@@ -875,6 +876,8 @@ class Daemon:
             self._switch_role(str(value or ""))
         elif kind == "window_open":  # the window was shown, or hidden (or minimized)
             self._window_open = bool(value)
+        elif kind == "say":  # the window: a few words to say (where the PDF went)
+            self._say_aside(str(value))
         elif kind == "board_cleared":  # the Act as page's Clear button
             self._board_shown = False
         elif kind == "keep_listening":  # the Act as page: listen without the wake word or not

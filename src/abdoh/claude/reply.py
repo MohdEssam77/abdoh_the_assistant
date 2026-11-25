@@ -68,6 +68,8 @@ IGNORE = "ignore"
 ANSWER = "answer"
 # Start a role ("act as my German teacher"), or end it (off). Not one of the switchable actions.
 ROLE = "role"
+# While a role is on: save the board as a PDF ("save the board").
+BOARD_PDF = "board_pdf"
 # While a role is on: keep listening without the wake word (on), or only after it (off).
 LISTEN = "listen"
 # Memory (abdoh/memory.py), while it's on: a fact about the user, a lesson (what works on this

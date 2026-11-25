@@ -15,6 +15,7 @@ from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
 from abdoh.claude.reply import (
     ANSWER,
+    BOARD_PDF,
     FORGET,
     IGNORE,
     LESSON,
@@ -198,6 +199,8 @@ class Router:
         self._editor = None  # abdoh.self_edit.SelfEditor, made when first needed
         # Shows what a role puts on the board: (card, text so far), one card per reply.
         self.on_board: Callable[[int, str], None] | None = None
+        # "Save the board": the page sends the board to be printed (it has the drawings).
+        self.on_board_pdf: Callable[[], None] = lambda: None
         self._cards = itertools.count(1)
         self._last_turn: ClaudeTurn | None = None
         self._turn_before: ClaudeTurn | None = None
@@ -539,6 +542,10 @@ class Router:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
+            if kind == BOARD_PDF:
+                self.on_board_pdf()
+                turn.actions.append((BOARD_PDF, arg))
+                return
             if kind == ROLE:
                 if self.acting is not None:
                     self.acting.switch(arg)
@@ -602,6 +609,8 @@ class Router:
             allowed.append(ROLE)
             if self.acting.current is not None and self.cfg.lesson_listen_seconds > 0:
                 allowed.append(LISTEN)
+            if self.acting.current is not None:
+                allowed.append(BOARD_PDF)
         chunks = None
         try:
             image = self._capture() if screen else None

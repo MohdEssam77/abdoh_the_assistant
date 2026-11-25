@@ -211,6 +211,7 @@ const Bridge = (() => {
       }),
       test_voice: async () => {},
       lamps: async () => ({ lamps: demoLamps, options: demoLampOptions }),
+      board_pdf: async () => ({ ok: true, path: "C:\\Users\\you\\Documents\\Abdoh\\Boards\\Board.pdf" }),
       try_lamp: async () => ({ ok: true, lamps: demoLamps, options: demoLampOptions }),
       lamp_states: async () => ({ options: demoLampOptions,
         lamps: demoLamps.map((l) => ({ ...l, how: demoLampHow[l.name] || "warm white 80%", answers: true })) }),
