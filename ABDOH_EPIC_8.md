@@ -387,6 +387,14 @@ Done for Kokoro; Pocket TTS not added. Checked on the owner's laptop:
 3. **Ask the owner** before tagging. Then merge, tag, watch the build, check the release and
    the download link.
 
+Prepared, not released (the owner asked to finish the epic without releasing, 2026-11-25). The
+README was updated story by story. Step 2 done: `scripts/build_app.py` builds (PyInstaller
+6.22.3, `dist/Abdoh` 1.08 GB); inside are Graphviz (`viz-global.js`), Mermaid, KaTeX with mhchem
+and the new pages, and the new modules (`conversations`, `recall`, `models`, `download`,
+`board_pdf`, `pictures`, `speech.kokoro_voice`); run in a temporary `ABDOH_HOME`, `--version` and
+`list-commands` work (exit code 0). Left for the release: the version `0.13.0` (one line,
+`src/abdoh/__init__.py`, as for 0.12.0), the download page (`docs/index.html`), the tag.
+
 ---
 
 ## 7. The owner's decisions (2026-11-25)
