@@ -76,6 +76,9 @@ ANSWER = "answer"
 ROLE = "role"
 # While a role is on: save the board as a PDF ("save the board").
 BOARD_PDF = "board_pdf"
+# Codoh, the coding page, by voice: a chat in a folder, a message for it, an answer
+# (abdoh/codoh/voice.py).
+CODOH = "codoh"
 # While a role is on: keep listening without the wake word (on), or only after it (off).
 LISTEN = "listen"
 # Memory (abdoh/memory.py), while it's on: a fact about the user, a lesson (what works on this

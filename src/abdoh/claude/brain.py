@@ -25,8 +25,8 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{logs}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}If you need more \
-information, ask one short question. Don't end with a question otherwise.
+{look}{logs}{codoh}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}\
+If you need more information, ask one short question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
 CLOCK = "Today is {date}, and the time is {time}."
@@ -177,6 +177,27 @@ to stop or start suggesting ("stop suggesting for now", "you can suggest things 
 ACTION watch again with the same goal and the other kind, and say so in a few words: the watch \
 goes on. When they say they're done or want you to stop watching, write ACTION watch: off and \
 say so in a few words.
+"""
+# Claude has Codoh, the coding page, work for the user (abdoh/codoh/voice.py).
+CODOH = """Codoh is Abdoh's coding assistant (its own page): it works on the user's code in a \
+folder, with Claude Code or their ChatGPT plan. When the user wants Codoh to do something \
+("make a chat in my portfolio folder and tell it to add a dark mode", "open the abdoh folder in \
+Codoh", "tell Codoh to run the tests too", "allow it", "switch Codoh to Opus"), don't do the \
+coding yourself: write one of these lines
+ACTION codoh: new | <folder> | <what Codoh should do>
+ACTION codoh: send | <the message for the chat open in Codoh>
+ACTION codoh: open | <folder>
+ACTION codoh: create | <the full path of a new folder> | <what Codoh should do>
+ACTION codoh: set | <a model (opus, sonnet, haiku, chatgpt), a mode (ask first, auto-edit, plan \
+only, full access) or an effort (low to max)>
+ACTION codoh: allow (or always, or deny: what Codoh waits for them to allow)
+ACTION codoh: answer | <their answer to Codoh's question>
+ACTION codoh: stop
+<folder> is its full path if you know it (you may look it up), else its name as they said it. \
+Write the message for Codoh as the user means it, clear and complete, in their language. new \
+starts a new chat; send goes on with the open one. Then say in a few words what you asked Codoh \
+to do. Abdoh opens Codoh, says if it couldn't, and tells the user out loud when Codoh needs them \
+and when it's done.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \
@@ -384,6 +405,7 @@ def system_prompt(
         actions=actions,
         look=LOOK if cfg.claude.allow_screen else "",
         logs=LOGS if cfg.claude.allow_logs else "",
+        codoh=CODOH,
         roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
         recall=RECALL.format(days=cfg.conversation_days)

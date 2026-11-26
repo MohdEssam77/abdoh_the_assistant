@@ -765,12 +765,9 @@ class AppApi:
 
     def _codoh_manager(self):
         if self._codoh is None:
-            import atexit
+            from abdoh.codoh.manager import shared
 
-            from abdoh.codoh.manager import Codoh
-
-            self._codoh = Codoh(self._cfg)
-            atexit.register(self._codoh.close_all)  # no Claude Code left running
+            self._codoh = shared(self._cfg)  # the same Codoh Abdoh's voice uses
         return self._codoh
 
     def codoh_state(self) -> dict:

@@ -48,8 +48,8 @@ MODE_NAMES = {"ask": "Ask first", "auto_edit": "Auto-edit", "plan": "Plan only",
 # What Abdoh's Claude is told about Codoh while its page is open (ABDOH_EPIC_9.md, story 122).
 BRIEF = """(Codoh, Abdoh's coding page, is open in Abdoh's window. Here is what it's doing, so \
 answer questions about Codoh from this and don't ask to look at the screen for it: Abdoh's \
-pictures of the screen never show Abdoh's own window. Codoh is a separate coding assistant: you \
-can't control it, but you can tell the user what it's doing and what it changed.
+pictures of the screen never show Abdoh's own window. What the user tells you for Codoh ("tell \
+it to also run the tests", "allow it", "switch it to Opus") goes to it with ACTION codoh.
 {lines}
 )
 """
@@ -119,6 +119,7 @@ class Chat:
         self.writing: str | None = None  # the answer being written (its item's id)
         self.tools: dict[str, str] = {}  # the engine's tool id -> the card's item id
         self.lock = threading.RLock()
+        self.voice = False  # the latest message came from Abdoh: it says what happens next
 
     def bump(self, item: dict | None = None) -> None:
         self.rev += 1
@@ -138,6 +139,19 @@ class Chat:
 
 
 _ACTIVE = None  # the app's Codoh (the latest made)
+
+
+def shared(cfg: Config) -> "Codoh":
+    """The app's one Codoh (the window and Abdoh's voice use the same), made when first
+    needed."""
+    global _ACTIVE
+    codoh = _ACTIVE
+    if codoh is None or Path(codoh.cfg.app_dir) != Path(cfg.app_dir):
+        import atexit
+
+        codoh = Codoh(cfg)
+        atexit.register(codoh.close_all)  # no Claude Code left running
+    return codoh
 
 
 def brief_for_abdoh() -> str:
@@ -191,6 +205,8 @@ class Codoh:
         self.limited_until = 0.0  # Claude's limit is used up until then (0: it isn't)
         self.page_open = False  # the Codoh page is the one showing in Abdoh's window
         self.viewing = ""  # the chat the page shows
+        # Abdoh says this out loud: a chat the voice started needs the user, or is done.
+        self.on_notice = None
         global _ACTIVE
         _ACTIVE = self
 
@@ -456,7 +472,9 @@ class Codoh:
             )
         return chat.engine
 
-    def send(self, chat_id: str, text: str) -> dict:
+    def send(self, chat_id: str, text: str, by_voice: bool = False) -> dict:
+        """A message for the chat: typed on the page, or told to Abdoh (`by_voice`: Abdoh then
+        says when the chat needs the user and when it's done)."""
         text = str(text or "").strip()
         chat = self._chat(chat_id)
         if chat is None or not text:
@@ -464,6 +482,7 @@ class Codoh:
         with chat.lock:
             if chat.running:
                 return {"ok": False, "error": BUSY}
+            chat.voice = by_voice
             if not Path(chat.data["folder"]).is_dir():
                 return {"ok": False, "error": "The chat's folder doesn't exist anymore."}
             if chat.data["engine"] == "claude" and self.claude_limited() and self._fallback():
@@ -688,6 +707,7 @@ class Codoh:
         kind = event.get("type")
         resend = None
         allowed = None  # an approval the chat's mode answers: (request id, input)
+        said = ""  # what Abdoh says about a chat the voice started
         with chat.lock:
             if kind == "ready":
                 if event.get("models"):
@@ -775,11 +795,21 @@ class Codoh:
                     chat.bump(tool)
                 chat.status = "Waiting for you"
                 chat.bump(item)
+                if chat.voice:
+                    from abdoh.codoh.voice import notice
+
+                    question = item.get("tool") == QUESTION
+                    said = notice("question" if question else "approval", "", item)
+                    self._tell(said)
                 return
             if kind == "done":
                 resend = self._done(chat, event)
+                if chat.voice and resend is None and not event.get("stopped"):
+                    said = self._done_notice(chat, event)
         if allowed is not None and chat.engine is not None:
             chat.engine.answer(allowed[0], True, data=allowed[1])
+        if said and kind == "done":
+            self._tell(said)
         if resend is not None:
             with chat.lock:
                 self._run(chat, resend)
@@ -815,6 +845,22 @@ class Codoh:
         chat.bump()
         self._save(chat)
         return None
+
+    def _done_notice(self, chat: Chat, event: dict) -> str:
+        from abdoh.codoh.voice import notice
+
+        if event.get("error"):
+            return notice("error", "", text=event["error"])
+        last = next((i for i in reversed(chat.items) if i.get("kind") == "assistant"), None)
+        return notice("done", chat.data.get("title", ""), text=(last or {}).get("text", ""))
+
+    def _tell(self, text: str) -> None:
+        """Abdoh says it (on a thread of its own: never in the way of the chat)."""
+        hook = self.on_notice
+        if hook is None or not text:
+            return
+        log.info("Codoh: telling the user: %s", text)
+        threading.Thread(target=hook, args=(text,), name="abdoh-codoh-notice", daemon=True).start()
 
     # ----- housekeeping -----
 
