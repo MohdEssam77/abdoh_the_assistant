@@ -1,0 +1,136 @@
+/* The Catalog page: everything Abdoh can do. Uses the app's colours (app.css). */
+
+.ct { min-height: 100%; }
+.ct-ico { display: inline-grid; place-items: center; flex: none; }
+.ct-ico svg { width: 16px; height: 16px; }
+.ct-hero {
+  position: relative; overflow: hidden; padding: 44px 32px 34px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(13, 150, 104, 0.16), rgba(79, 139, 255, 0.12) 55%, rgba(167, 139, 250, 0.16));
+}
+.ct-hero-glow {
+  position: absolute; inset: -40% -10% auto auto; width: 520px; height: 520px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.28), transparent 65%); filter: blur(10px); pointer-events: none;
+  animation: ct-drift 14s ease-in-out infinite alternate;
+}
+@keyframes ct-drift { to { transform: translate(-120px, 60px) scale(1.1); } }
+.ct-hero-inner { position: relative; max-width: 900px; margin: 0 auto; }
+.ct-hero-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: var(--panel); color: var(--accent-text); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+}
+.ct-hero-badge .ct-ico svg { width: 14px; height: 14px; }
+.ct-hero h1 { margin: 14px 0 6px; font-size: 34px; font-weight: 780; letter-spacing: -0.02em; }
+.ct-hero p { margin: 0 0 18px; color: var(--muted); font-size: 15px; }
+.ct-search {
+  display: flex; align-items: center; gap: 10px; max-width: 640px; height: 52px; padding: 0 14px 0 18px; border-radius: 16px;
+  background: var(--panel); border: 1px solid var(--border-strong); box-shadow: var(--shadow); color: var(--faint);
+}
+.ct-search:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft), var(--shadow); }
+.ct-search .ct-ico svg { width: 19px; height: 19px; }
+.ct-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 15.5px; }
+.ct-search kbd { font: 600 11px "Segoe UI", sans-serif; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--border); color: var(--faint); }
+.ct-body { max-width: 960px; margin: 0 auto; padding: 26px 32px 60px; }
+.ct-h2 { margin: 0; font-size: 18px; font-weight: 720; letter-spacing: -0.01em; }
+.ct-start { margin-bottom: 26px; }
+.ct-start .ct-h2 { margin-bottom: 12px; }
+.ct-start-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.ct-step {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 12px; padding: 16px; border-radius: 16px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; text-align: left; cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+}
+.ct-step:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--accent); }
+.ct-step-n {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; font-weight: 800; color: var(--on-accent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.ct-step b { display: block; font-weight: 680; }
+.ct-step p { margin: 3px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.ct-step > .ct-ico { color: var(--faint); margin-top: 6px; }
+.ct-pills {
+  position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 0 12px; margin-bottom: 8px;
+  background: linear-gradient(180deg, var(--bg) 75%, transparent);
+}
+.ct-pill {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ct-pill .ct-ico { color: var(--c); }
+.ct-pill .ct-ico svg { width: 14px; height: 14px; }
+.ct-pill:hover { color: var(--text); border-color: var(--border-strong); }
+.ct-pill.on { color: var(--text); border-color: var(--c); box-shadow: inset 0 0 0 1px var(--c); background: color-mix(in srgb, var(--c) 10%, var(--panel)); }
+.ct-section { margin-top: 22px; }
+.ct-section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.ct-section-head small { display: block; color: var(--muted); font-size: 13px; }
+.ct-bubble {
+  display: grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; flex: none;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.ct-bubble .ct-ico svg { width: 18px; height: 18px; }
+.ct-bubble.big { width: 48px; height: 48px; border-radius: 14px; }
+.ct-bubble.big .ct-ico svg { width: 24px; height: 24px; }
+.ct-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.ct-card {
+  position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 16px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; overflow: hidden;
+  transition: transform 0.14s, box-shadow 0.14s, border-color 0.14s;
+}
+.ct-card::before {
+  content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--c); opacity: 0.85;
+}
+.ct-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); border-color: color-mix(in srgb, var(--c) 55%, var(--border)); }
+.ct-card:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.ct-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.ct-card-title { font-size: 15px; font-weight: 680; }
+.ct-card-line { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.ct-card-say { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; }
+.ct-card-say span {
+  align-self: flex-start; max-width: 100%; padding: 3px 9px; border-radius: 8px; font-size: 12px; color: var(--text);
+  background: var(--panel-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ct-status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.ct-status.on { background: var(--accent-soft); color: var(--accent-text); }
+.ct-status.off { background: var(--panel-2); color: var(--muted); }
+.ct-status.needs { background: var(--warn-soft); color: var(--warn); }
+.ct-card.off, .ct-card.needs { background: color-mix(in srgb, var(--panel) 92%, var(--bg)); }
+.ct-none { padding: 48px 16px; text-align: center; }
+.ct-none b { display: block; font-size: 17px; }
+.ct-none p { color: var(--muted); margin: 6px 0 16px; }
+.ct-none .btn { gap: 8px; }
+
+/* ----- a feature, opened ----- */
+.ct-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.ct-detail-head > div { flex: 1; min-width: 0; }
+.ct-detail-head h2 { margin: 0; font-size: 21px; font-weight: 740; }
+.ct-detail-what { margin: 0 0 14px; font-size: 14.5px; line-height: 1.6; }
+.ct-detail-note { margin: -4px 0 14px; padding: 9px 12px; border-radius: 10px; font-size: 13px; }
+.ct-detail-note.off { background: var(--panel-2); color: var(--muted); }
+.ct-detail-note.needs { background: var(--warn-soft); color: var(--warn); }
+.ct-block { margin-top: 16px; }
+.ct-block h3 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.ct-says { display: flex; flex-wrap: wrap; gap: 8px; }
+.ct-say {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 12px; border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--c) 8%, var(--panel)); color: var(--text); font: inherit; font-size: 13px; cursor: copy;
+}
+.ct-say .ct-ico { color: var(--c); }
+.ct-say .ct-ico svg { width: 14px; height: 14px; }
+.ct-say:hover { border-color: var(--c); }
+.ct-steps { margin: 0; padding: 0; list-style: none; counter-reset: ct; }
+.ct-steps li { counter-increment: ct; position: relative; padding: 6px 0 6px 38px; line-height: 1.5; }
+.ct-steps li::before {
+  content: counter(ct); position: absolute; left: 0; top: 4px; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center;
+  font-weight: 750; font-size: 12.5px; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.ct-tips { margin: 0; padding: 0; list-style: none; }
+.ct-tips li { display: flex; gap: 9px; padding: 5px 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.ct-tips .ct-ico { color: var(--warn); margin-top: 2px; }
+.modal-foot .btn .ct-ico svg { width: 15px; height: 15px; }
+.modal-foot .btn { gap: 7px; }
+
+@media (max-width: 860px) {
+  .ct-start-grid { grid-template-columns: 1fr; }
+  .ct-hero { padding: 32px 20px 26px; }
+  .ct-body { padding: 20px 20px 48px; }
+}
+@media (prefers-reduced-motion: reduce) { .ct-hero-glow { animation: none; } }

@@ -842,8 +842,12 @@ class Router:
         return brain.stream(logs.follow_up(self.cfg, arg, request, works=works), None)
 
     def _how_it_works(self, arg: str) -> str:
-        """How Abdoh is meant to work, for the log's follow-up ("" for the general text)."""
-        return ""
+        """How Abdoh is meant to work, for the log's follow-up: the general text, and the
+        Catalog's features the question is about."""
+        from abdoh import catalog, logs
+
+        found = catalog.for_log(logs.search_words(arg))
+        return logs.HOW_IT_WORKS + (f"\n{found}" if found else "")
 
     # ----- what Abdoh did itself, and asking for the same again -----
 

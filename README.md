@@ -407,6 +407,17 @@ search, Gmail and Calendar) don't, and only the last exchange is remembered.
 
 Without Claude, everything else still works and Abdoh tells you Claude isn't connected.
 
+### The Catalog
+
+**Catalog** (the last page in the window) explains everything Abdoh can do: a search box ("what
+do you want to do?"), the three steps to start, and a card for each feature by section
+(Talking, Getting things done, Claude, Your screen, Act as, Modes and lamps, Memory, Codoh, Abdoh
+itself). Each card says whether it's on right now (or what it needs, like "Connect ChatGPT"), and
+opens to what it does, what to say (click a phrase to copy it), the steps, tips, and a button to
+the page or setting it's on; harmless ones have **Try it**, which asks Abdoh for you. Nothing
+found? **Ask Abdoh** sends your words as a question. Abdoh points you there too ("what can you
+do?"), and when it reads its own log it uses the same descriptions to tell what went wrong.
+
 ### Codoh, the coding assistant
 
 **Codoh** (the `</>` page in the window, or "Abdoh, open Codoh") is a coding assistant like
