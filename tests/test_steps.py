@@ -169,3 +169,12 @@ def test_claude_is_told_to_do_every_step_it_gets():
     from abdoh.claude.brain import ACTIONS
 
     assert "several things, do every one, in the order they asked" in ACTIONS
+
+
+def test_tell_me_if_belongs_to_what_it_watches():
+    assert split_steps("watch me fill this in and tell me if I get it wrong") == []
+    assert split_steps("run the tests and let me know when they pass") == []
+    assert split_steps("open spotify and tell me if it's raining") == [
+        "open spotify",
+        "tell me if it's raining",
+    ]

@@ -29,6 +29,7 @@ from abdoh.claude.reply import (
     SAVE_STEPS,
     SELF_EDIT_ACTIONS,
     UNDO_CHANGE,
+    WATCH,
     speakable,
 )
 from abdoh.claude.screen import ScreenCaptureError, capture_screen, front_window
@@ -59,6 +60,24 @@ SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 LOOKING = "Looking at your screen"
 REMEMBERING = "Remembering"
 READING_LOG = "Reading my log"
+# Watching the screen (abdoh/watch.py)
+STOPPED_WATCHING = "Okay, I stopped watching your screen."
+WATCH_OFF = ("off", "stop", "end", "done", "no", "none", "finished")
+# What the user says while Abdoh watches: it comes with a picture of their screen.
+WATCHING = (
+    "(You're watching the user's screen: {goal}. The picture is their screen now. They said "
+    "this without your name: usually to you, about what they're doing. If it's clearly meant "
+    "for someone else in the room, write only the line ACTION ignore: not for me.)\n"
+)
+# A picture of the screen during a watch, nobody having said anything.
+WATCH_FRAME = (
+    "(Watching the user's screen: {goal}. Here is their screen now{window}, {minutes} into the "
+    "watch.{notes} Nobody asked anything: decide whether to speak up.) If they're doing fine, or "
+    "nothing new that matters happened, write only the line ACTION ignore: fine. If they made a "
+    "mistake, are about to, or seem stuck, say so in one or two short spoken sentences, and how "
+    "to fix it. Don't repeat what you already said. When the task is clearly done, say so in one "
+    "sentence and write ACTION watch: off."
+)
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -193,6 +212,7 @@ class Router:
         on_thinking: Callable[[], None] = lambda: None,
         computer=None,
         window=front_window,
+        grab=None,
     ):
         self.cfg = cfg
         self.registry = registry
@@ -223,11 +243,16 @@ class Router:
         self._act = act
         self._capture = capture
         self._window = window
+        self._grab = grab  # the screen as a picture, for watching it (None: the real screen)
         self.modes = None  # abdoh.modes.engine.ModeEngine, or None
         self.acting = None  # abdoh.roles.acting.Acting, or None
         self._builtins: dict[str, Callable[[], str]] = {}
         self._builtin_commands: list[Command] = []
         self._unclear_at: float | None = None  # when Abdoh last heard you but got no words
+        self.watch = None  # abdoh.watch.Watch, made when Claude first watches the screen
+        # A watch began (True) or ended (False): the daemon looks and listens, the window shows
+        # it.
+        self.on_watch: Callable[[bool], None] = lambda on: None
 
     @property
     def computer(self):
@@ -279,6 +304,14 @@ class Router:
         request = strip_wake_words(text, self.wake_words)
         if not request:
             return prefix
+        if self.watching:
+            from abdoh.local_skills import stop_watching
+
+            self.watch.heard_user()
+            if stop_watching(request):
+                log.info("Told to stop watching the screen")
+                self.end_watch()
+                return STOPPED_WATCHING
         told = self._told_to_stop(text, request, loose=bool(aside))
         if told is not None:
             return told
@@ -349,6 +382,11 @@ class Router:
         # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
+            if self.watching and self.cfg.claude.allow_screen:
+                # Watching the screen: what they say comes with a picture of it
+                note = WATCHING.format(goal=self.watch.goal) if aside else ""
+                prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
+                return self._ask(prompt, original, screen=True, aside=True)
             note = ASIDE if aside else woken_note(woken) if woken else ""
             prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
             return self._ask(prompt, original, aside=bool(aside or woken))
@@ -577,6 +615,10 @@ class Router:
             if kind == LOGS:
                 logs.append(arg)
                 return
+            if kind == WATCH:
+                if self._watch_action(arg):
+                    turn.actions.append((WATCH, arg))
+                return
             if kind == IGNORE:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
@@ -646,6 +688,8 @@ class Router:
                 allowed.append(RECALL)  # once: the follow-up can't ask again
         if self.cfg.claude.allow_logs and not screen:
             allowed.append(LOGS)  # once, like recall
+        if self.cfg.claude.allow_screen:
+            allowed.append(WATCH)
         if self.cfg.claude.allow_self_edit:
             allowed.extend(SELF_EDIT_ACTIONS)
         if self.acting is not None:
@@ -723,6 +767,69 @@ class Router:
         self.on_activity(REMEMBERING)
         kept = Conversations(self.cfg.app_dir / FOLDER, self.cfg.conversation_days)
         return brain.stream(follow_up(kept, what, when, request), None)
+
+    # ----- watching the screen (abdoh/watch.py) -----
+
+    @property
+    def watching(self) -> bool:
+        return self.watch is not None and self.watch.active
+
+    def _watch_action(self, arg: str) -> bool:
+        """ACTION watch: <goal> starts a watch; ACTION watch: off ends it."""
+        if arg.strip().lower().rstrip(".") in WATCH_OFF:
+            return self.end_watch()
+        if not self.cfg.claude.allow_screen:
+            return False
+        if self.watch is None:
+            from abdoh.watch import Watch
+
+            self.watch = Watch(grab=self._grab, window=self._window)
+        self.watch.start(arg)
+        self.on_watch(True)
+        return True
+
+    def end_watch(self) -> bool:
+        """Stop watching the screen (said, a button, or "stop listening"). False if no watch was
+        on."""
+        if self.watch is None or not self.watch.stop():
+            return False
+        self.on_watch(False)
+        return True
+
+    def watch_frame(self, image: bytes, title: str = "", program: str = "") -> Iterator[str]:
+        """A picture of the screen during a watch: what Claude says about it (nothing when the
+        user is doing fine). Doesn't count as a request ("remember that" doesn't see it)."""
+        watch = self.watch
+        if self.brain is None or watch is None or not watch.active:
+            return
+        window = ""
+        if title:
+            window = f' (the window in front: "{title}"' + (f", {program})" if program else ")")
+        said = "; ".join(f'"{n}"' for n in watch.notes)
+        prompt = WATCH_FRAME.format(
+            goal=watch.goal,
+            window=window,
+            minutes=watch.minutes(),
+            notes=f" What you said during the watch so far: {said}." if said else "",
+        )
+        quiet = []
+
+        def act(kind: str, arg: str) -> None:
+            if kind == IGNORE:
+                quiet.append(True)
+            elif kind == WATCH:
+                self._watch_action(arg)
+
+        chunks = self.brain.stream(prompt, image)
+        try:
+            for sentence in speakable(chunks, act, allowed=[IGNORE, WATCH]):
+                if quiet:
+                    break
+                yield sentence
+        except BrainError as e:
+            log.warning("Couldn't ask about the screen during the watch: %s", e)
+        finally:
+            chunks.close()
 
     def _read_log(self, brain, arg: str, request: str):
         """Claude asked to read Abdoh's log (ACTION logs: what | when): it's asked again, with

@@ -879,3 +879,11 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
   .log-row { grid-template-columns: 58px minmax(0, 1fr); }
   .log-level, .log-part { display: none; }
 }
+
+/* ----- watching the screen: the chip ----- */
+.watch-chip { background: var(--danger-soft); color: var(--danger); }
+.watch-chip .mode-chip-name { padding-left: 6px; cursor: default; }
+.watch-chip .mode-chip-end:hover { background: var(--danger-soft); }
+.watch-dot { width: 8px; height: 8px; margin-left: 11px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 0 var(--danger); animation: watch-pulse 1.8s ease-out infinite; flex: none; }
+@keyframes watch-pulse { 0% { box-shadow: 0 0 0 0 rgba(210, 59, 59, .45); } 70% { box-shadow: 0 0 0 8px rgba(210, 59, 59, 0); } 100% { box-shadow: 0 0 0 0 rgba(210, 59, 59, 0); } }
+@media (prefers-reduced-motion: reduce) { .watch-dot { animation: none; } }

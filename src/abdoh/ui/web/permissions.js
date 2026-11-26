@@ -129,7 +129,7 @@
       card("What Claude may see and use", null, [
         row("Search the web", "For news, weather, prices and anything recent.", claudeSwitch("allow_web")),
         row("Look at your screen when you ask",
-          "When what you say is about something on your screen (“what does this error mean?”, “read this to me”), Claude asks to see it, and Abdoh sends a picture of the screen you're using. Abdoh always says when it looks.",
+          "When what you say is about something on your screen (“what does this error mean?”, “read this to me”), Claude asks to see it, and Abdoh sends a picture of the screen you're using. Abdoh always says when it looks. When you ask it to watch you work (“tell me if I get this wrong”), it looks whenever the screen changes until you say “stop watching”.",
           claudeSwitch("allow_screen")),
         row("Work with your files and run PowerShell",
           "Create, read, change and sort files. Claude asks before deleting or overwriting anything, and deletes to the Recycle Bin.",

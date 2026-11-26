@@ -64,6 +64,8 @@ ACTION_HELP: dict[str, str] = {
 LOOK = "look"
 # Claude asks what was said in an earlier conversation (abdoh/recall.py), while they're kept.
 RECALL = "recall"
+# Claude watches the screen while the user does something (abdoh/watch.py), or stops (off).
+WATCH = "watch"
 # Claude reads Abdoh's own log to explain what happened (abdoh/logs.py; claude.allow_logs).
 LOGS = "logs"
 # Said after a reply, but meant for someone else in the room: Claude stays quiet.

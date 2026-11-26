@@ -293,6 +293,19 @@ Then you can say:
   pick?", "read this to me", "what am I looking at?". Claude decides when it needs to see it;
   Abdoh then says "Looking at your screen" and sends a picture of the screen you're using (the
   one with the window in front, not Abdoh's own window) with your question.
+- **Watching your screen while you work**: "Abdoh, watch me fill in this form and tell me if I
+  get anything wrong", "look at my screen while I set this up". Claude starts a watch and says
+  so ("I'm watching your screen now, go ahead"). Abdoh then looks at your screen whenever it
+  changes (at most every 5 seconds, Settings → Conversation → **Watching your screen**) and
+  shows it to Claude, which stays quiet while you do fine and speaks up when you make a mistake,
+  are about to, or get stuck. Meanwhile you just talk, no "Hey Abdoh" needed; what you say goes
+  to Claude with a fresh picture. "Okay, you can stop looking at the screen", "stop watching" or
+  "end the session" (in any words) ends it all: no more looking and the wake word again. The ✕
+  on the red **Watching your screen** chip does the same, "stop listening" ends it and pauses
+  Abdoh, Claude ends it when you're done, and it ends by itself after 20 minutes without a word
+  from you (`watch_minutes`). Each look uses a little of your plan; a still screen costs nothing.
+  Tried with real Claude Code on a drawn form: it caught "31/02/1990" and an email without
+  ".com", and said nothing once they were fixed.
 - "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"
@@ -948,7 +961,9 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |
 | `claude.folders` | `[]` | Only these folders for Claude's file work; empty means your whole user folder |
-| `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it |
+| `claude.allow_screen` | `true` | Let Claude look at the screen you're using when you ask about it, and watch it while you work |
+| `watch_seconds` | `5` | Watching your screen: a look when it changed, at most this often (2 to 60) |
+| `watch_minutes` | `20` | ... and the watch ends after this many minutes without a word from you (0 = never) |
 | `claude.allow_self_edit` | `true` | Let Claude make, change and delete your commands, modes and roles when you ask ("undo that" puts it back) |
 | `claude.actions` | all seventeen | What Claude may do: `open_url`, `open_app`, `play_youtube`, `media`, `timer`, `volume`, `brightness`, `app_volume`, `remind`, `note`, `mode`, `displays`, `audio_output`, `dark_mode`, `lamp`, `window`, `power` (lock the computer or turn the screens off; sleep and shutdown only when you say so to Abdoh, which asks first) |
 | `claude.instructions` | `""` | Your own instructions, sent to Claude with every request |

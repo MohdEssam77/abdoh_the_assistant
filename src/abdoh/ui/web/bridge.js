@@ -13,7 +13,7 @@ const Bridge = (() => {
       wake_words: ["abdoh", "hey abdoh", "ya abdoh"], wake_word_aliases: ["abdo", "abdul"],
       wake_word_model: "models/hey_abdoh.onnx", wake_word_threshold: 0.5, wake_word_voice_threshold: 0.5, hotkey: "ctrl+alt+space",
       whisper_model: "small", languages: ["en"], speech_engine: "auto", match_threshold: 85,
-      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, speech_model: "", memory: true, keep_conversations: true, conversation_days: 7, use_gpu: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
+      silence_seconds: 0.6, max_record_seconds: 10, follow_up_seconds: 6, lesson_listen_seconds: 120, watch_seconds: 5, watch_minutes: 20, speech_model: "", memory: true, keep_conversations: true, conversation_days: 7, use_gpu: true, confirm_actions: "sound", wake_word_interrupts: true, keep_unclear_clips: false, voice_interrupts: true, voice_interrupt_sensitivity: "medium", duck_others: true, duck_percent: 30, tts_engine: "piper", piper_voice_en: "en_US-lessac-medium", piper_voice_de: "de_DE-thorsten-medium", tts_rate: 175, tts_voice: "", mic_device: "",
       allow_run: false, allow_power: true, check_updates: true, setup_done: true, log_file: "~/.abdoh/abdoh.log",
       has_api_key: false,
       claude: {
@@ -36,6 +36,7 @@ const Bridge = (() => {
       push("claude", "Pro subscription (Claude Code)");
       push("wake", "openWakeWord (hey_abdoh)");
       push("status", "Listening");
+      if (params.has("watch")) push("watch", { goal: "filling in the tax form; tell them when a field is wrong" });
     }, 250);
     let commands = [
       { name: "Good morning", triggers: ["good morning"], actions: [
@@ -369,6 +370,7 @@ const Bridge = (() => {
         return { ok: true, entries: all, total: demoLog().length, problems: demoLog().filter((e) => e.level !== "INFO").length, path: "C:\\Users\\you\\.abdoh\\abdoh.log" };
       },
       open_log: async () => true,
+      stop_watching: async () => { push("watch", null); return null; },
       claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},
       check_update: async () => (params.get("update")

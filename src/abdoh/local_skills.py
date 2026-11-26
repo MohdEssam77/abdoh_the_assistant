@@ -232,6 +232,31 @@ def stop_request(text: str, loose: bool = False) -> str:
     return ""
 
 
+# While Abdoh watches the screen: "stop looking at the screen", "you can stop watching me",
+# "end the session", "that's enough watching", "I'm done, no need to keep checking".
+_WATCH_TARGET = (
+    r"(?:look(?:ing)?|watch(?:ing)?|check(?:ing)?|monitor(?:ing)?|observ(?:e|ing)|the session"
+    r"|this session|the screen|my screen|screen ?shar(?:e|ing))"
+)
+_STOP_WATCHING = re.compile(
+    r"\b(?:stop|end|quit|finish|cancel|close|enough|no more|no need to|dont need to|done)\b"
+    rf"(?: \w+){{0,3}} {_WATCH_TARGET}\b"
+)
+_ASKS = re.compile(
+    r"^(?:how|what|whats|why|where|which|when|who|is|are|does|do|did|can i|should i|could i)\b"
+)
+
+
+def stop_watching(text: str) -> bool:
+    """While Abdoh watches the screen: told to stop the whole watch, in any words ("okay, you
+    can stop looking at the screen", "end the session"). Not a question about stopping
+    something on the screen ("how do I stop the screen from dimming?")."""
+    words = normalize(text)
+    if not words or len(words.split()) > 14 or _ASKS.match(words):
+        return False
+    return bool(_STOP_WATCHING.search(words))
+
+
 def start_request(text: str) -> bool:
     """ "Start listening" (after "stop listening"), in any words."""
     return bool(_START_LISTENING.fullmatch(normalize(text)))

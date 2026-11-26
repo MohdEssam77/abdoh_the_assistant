@@ -50,6 +50,7 @@ class UiState:
         self._hearing = ""
         self._mode = ""
         self._role = ""
+        self._watch = None  # watching the screen: {goal}, or None
         # Abdoh listens without the wake word in lessons (on), and right now (now)
         self._listening = {"on": False, "now": False}
         self._board: deque[dict] = deque(maxlen=self.BOARD)  # cards {id, text}, oldest first
@@ -83,6 +84,8 @@ class UiState:
                 self._mode = value or ""
             elif kind == "role":
                 self._role = value or ""
+            elif kind == "watch":
+                self._watch = dict(value) if value else None
             elif kind == "listening":
                 self._listening = {"on": bool(value["on"]), "now": bool(value["now"])}
             elif kind == "board":  # a card (new, or grown), or None: clear it
@@ -127,6 +130,7 @@ class UiState:
                 "hearing": self._hearing,
                 "mode": self._mode,
                 "role": self._role,
+                "watch": dict(self._watch) if self._watch else None,
                 "listening": dict(self._listening),
                 "board": [dict(card) for card in self._board],
                 "pictures": {what: dict(p) for what, p in self._pictures.items()},
@@ -434,6 +438,10 @@ class AppApi:
 
     def stop_role(self) -> None:
         self._bus.request("role", "")
+
+    def stop_watching(self) -> None:
+        """Stop watching the screen (the chip's stop button)."""
+        self._bus.request("stop_watching")
 
     def keep_listening(self, on) -> None:
         """While a role is on: listen without the wake word (True), or only after it."""
