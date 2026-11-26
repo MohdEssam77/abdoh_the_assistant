@@ -7,6 +7,12 @@ in one printable page with KaTeX's CSS (its fonts load from the app's own folder
 anything that could run (scripts, event attributes) once more, and lets Edge print it. No Edge:
 the page opens the print dialog instead ("Microsoft Print to PDF"), and when Edge makes no PDF
 (twice: a second try after a moment), too. What Edge said goes to the log.
+
+Edge can return before it has written the PDF: in the owner's running Abdoh it handed the print
+to a process of its own and exited at once (2026-11-27), so the PDF came a second later and
+Abdoh, cleaning up the page and Edge's profile meanwhile, failed. So Abdoh waits for a finished
+PDF (it ends with %%EOF) and keeps Edge's files until then; what Edge can't let go of yet is
+left in Temp and tidied the next time.
 """
 
 import logging
@@ -26,6 +32,12 @@ FOLDER_NAME = ("Abdoh", "Boards")
 EDGE_SECONDS = 60
 TRIES = 2  # Edge made no PDF: once more (it may have been updating, or busy starting)
 RETRY_SECONDS = 1.0
+# Edge returned: wait this long for the PDF to be there and finished (it may still be writing).
+WAIT_SECONDS = 15.0
+FAILED_WAIT_SECONDS = 3.0  # ... and this long when Edge said it failed (an exit code)
+POLL_SECONDS = 0.2
+TEMP_PREFIX = "abdoh-board-"
+LEFTOVER_SECONDS = 3600.0  # Edge's files left in Temp are tidied after an hour
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 EDGE_PATHS = (
     r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe",
@@ -131,9 +143,10 @@ def save(cards: list[str], title: str, folder: Path | None = None, edge: Path | 
         log.warning("Couldn't make the folder for the board's PDF (%s): %s", folder, e)
         raise BoardPdfError("The folder for the PDF couldn't be made.") from e
     target = folder / file_name(title, when)
+    _tidy_leftovers()
     started = time.monotonic()
     # Edge's helpers may still hold files in its profile for a moment: never fail on cleanup.
-    with tempfile.TemporaryDirectory(prefix="abdoh-board-", ignore_cleanup_errors=True) as work:
+    with tempfile.TemporaryDirectory(prefix=TEMP_PREFIX, ignore_cleanup_errors=True) as work:
         html = Path(work) / "board.html"
         html.write_text(page(cards, title, when), encoding="utf-8")
         for attempt in range(1, TRIES + 1):
@@ -143,12 +156,22 @@ def save(cards: list[str], title: str, folder: Path | None = None, edge: Path | 
                 "--no-first-run", "--disable-extensions", f"--user-data-dir={profile}",
                 f"--print-to-pdf={target}", html.as_uri(),
             ]  # fmt: skip
+            began = time.monotonic()
             try:
                 done = run(args, capture_output=True, timeout=EDGE_SECONDS, creationflags=NO_WINDOW)
             except (OSError, subprocess.SubprocessError) as e:
                 log.warning("Edge couldn't print the board (try %d): %s", attempt, e)
                 done = None
-            if target.exists() and target.stat().st_size > 0:
+            code = getattr(done, "returncode", None)
+            if not finished(target):
+                log.info(
+                    "Edge returned after %.1fs (exit code %s) before the PDF was written: "
+                    "waiting for it",
+                    time.monotonic() - began,
+                    code,
+                )
+            wait = WAIT_SECONDS if done is not None and not code else FAILED_WAIT_SECONDS
+            if wait_for(target, wait):
                 break
             log.warning(
                 "Edge made no PDF of the board (try %d, exit code %s): %s",
@@ -162,6 +185,43 @@ def save(cards: list[str], title: str, folder: Path | None = None, edge: Path | 
             raise BoardPdfError("The PDF couldn't be made.")
     log.info("Saved the board as %s in %.1fs", target, time.monotonic() - started)
     return target
+
+
+def finished(pdf: Path) -> bool:
+    """A whole PDF is there: it ends with %%EOF (Edge writes it last)."""
+    try:
+        with open(pdf, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - 1024))
+            return size > 0 and b"%%EOF" in f.read()
+    except OSError:
+        return False
+
+
+def wait_for(pdf: Path, seconds: float, sleep=time.sleep, clock=time.monotonic) -> bool:
+    """Wait until the PDF is finished (True), or `seconds` passed (False)."""
+    end = clock() + seconds
+    while True:
+        if finished(pdf):
+            return True
+        if clock() >= end:
+            return False
+        sleep(POLL_SECONDS)
+
+
+def _tidy_leftovers(temp: Path | None = None, now: float | None = None) -> None:
+    """Edge's files from earlier PDFs that Edge still held then (Temp\\abdoh-board-*), once
+    they're an hour old."""
+    temp = Path(temp or tempfile.gettempdir())
+    now = time.time() if now is None else now
+    try:
+        old = [p for p in temp.glob(TEMP_PREFIX + "*") if p.is_dir()
+               and now - p.stat().st_mtime > LEFTOVER_SECONDS]  # fmt: skip
+    except OSError:
+        return
+    for path in old:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _tail(output, chars: int = 400) -> str:

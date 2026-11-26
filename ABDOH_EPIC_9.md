@@ -349,6 +349,16 @@ doesn't answer within 45 s is said, Claude says it's saving (never that it's sav
 "Done: board pdf now." reads "Done: saving the board as a PDF." The file name lost its double
 space.
 
+### Story 124: Edge returning before the PDF is written (`story/124-edge-returns-early`)
+The owner tried again (2026-11-27 00:31) on 0.13.0: "save the board" failed, the Save as PDF button
+right after worked. The log (pywebview's traceback) showed why: Edge returned in under a quarter
+second, before writing the PDF, and cleaning up its temporary profile failed ("directory is not
+empty: ...\Crashpad") because Edge was still using it. The PDF appeared a second later, so the
+button found it in 0.0 s. Edge blocks until done when started from a terminal; in the running
+app it hands off. Now Abdoh waits for a finished PDF (ending with %%EOF, up to 15 s), keeps the
+page and profile until then, never fails on cleanup (story 123), and tidies leftovers an hour
+later. Checked with real Edge started without waiting: the PDF in 0.7 s.
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and
