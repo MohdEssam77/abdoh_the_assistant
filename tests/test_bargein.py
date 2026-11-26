@@ -363,11 +363,37 @@ def test_where_abdoh_barely_reaches_the_mic_your_voice_counts_at_once():
 
 def test_where_abdoh_is_loud_at_the_mic_its_echo_never_counts():
     watch = raw_watch()
-    echo = [tone(0.1, 3000).tobytes()] * 30  # the mic hears Abdoh as loudly as it plays
+    echo = [tone(0.1, 3000).tobytes()] * 100  # the mic hears Abdoh as loudly as it plays
     assert feed_blocks(watch, echo) is None
     assert 0.9 < watch.echo_gain() < 1.1
-    assert feed_blocks(watch, [tone(0.1, 6000).tobytes()] * 5) is None  # not 12 dB above it
+    assert feed_blocks(watch, [tone(0.1, 6000).tobytes()] * 3) is None  # not 12 dB above it
     assert feed_blocks(watch, [tone(0.1, 20000).tobytes()]) == 0  # far louder: that's you
+
+
+def speech_like_echo(blocks=100, quiet=200, loud=1500):
+    """Abdoh's voice as a microphone on other speakers hears it: mostly soft, now and then a
+    loud word (a webcam's mic, a laptop's mic with a monitor's speakers)."""
+    return [tone(0.1, loud if i % 4 == 0 else quiet).tobytes() for i in range(blocks)]
+
+
+def test_the_loud_words_of_abdohs_echo_dont_count_as_you():
+    """Abdoh stopped itself for its own louder words: their level was judged by the echo's
+    median, some 15 dB below them (the owner's webcam mic, GitHub issue #1)."""
+    watch = raw_watch()
+    assert feed_blocks(watch, speech_like_echo()) is None
+    assert feed_blocks(watch, speech_like_echo(40)) is None  # still not, after learning
+    assert 1400 / 3000 < watch.echo_gain() < 1600 / 3000  # the loud end, not the median
+    assert feed_blocks(watch, [tone(0.1, 8000).tobytes()] * 2) in (0, 1)  # that's you
+
+
+def test_your_voice_isnt_learned_as_abdohs_echo():
+    watch = raw_watch()
+    feed_blocks(watch, [tone(0.1, 200).tobytes()] * 20)
+    gain = watch.echo_gain()
+    assert feed_blocks(watch, [tone(0.1, 3000).tobytes()]) == 0  # you, judged before learned
+    for _ in range(20):  # recording what you say: Abdoh's voice may still be coming out
+        watch.clean(tone(0.1, 3000).tobytes(), 20.0)
+    assert watch.echo_gain() == gain
 
 
 def test_until_it_knows_the_room_the_raw_mic_only_counts_when_nothing_plays():

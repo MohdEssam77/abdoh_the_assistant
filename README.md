@@ -442,7 +442,14 @@ each command with its output.
 - **How it may act** (the second menu): **Ask first** (reading just happens; every change and
   command shows an approval card: Allow, Allow for this chat, Deny), **Auto-edit** (changes just
   happen, commands ask), **Plan only** (changes nothing, proposes a plan), **Full access**
-  (nothing asks). **Effort** sets how hard it thinks.
+  (nothing asks, also when you switch to it mid-chat). **Effort** sets how hard it thinks.
+- **When the model asks you something** (which project, which approach), a question card shows
+  its options: pick one (or several), or write your own answer, then **Send answer** (or
+  **Skip**).
+- **Abdoh knows what Codoh is doing** while the Codoh page is open in its window: "Abdoh, what
+  is Codoh doing?", "what did it change?" are answered from the chat (what it's working on, what
+  it's waiting for you to allow, its last steps, git's changed files), without looking at the
+  screen. Minimized or on another page, and Abdoh doesn't know, like the board in a lesson.
 - **Separate from Abdoh**: a Claude chat is plain Claude Code started in your folder (its own
   coding prompt and tools, your CLAUDE.md and Claude Code settings), and a ChatGPT chat uses
   Codoh's own tools (list, read, search, write, edit, run a command), which work only inside the
@@ -1130,6 +1137,14 @@ Developer scripts:
   listens to (Windows' default): talking over it waits until they match. Checked in a
   simulation (a laptop mic with a monitor's speakers, 0.02 to 0.45 s late), not yet on a real
   monitor.
+
+- **A microphone on another device than the speakers** (a webcam's mic, a laptop's mic with a
+  monitor's speakers) made Abdoh stop itself for its own louder words: "If I", "Okay", "Mm"
+  heard over its reply were its own voice (GitHub issue #1). Abdoh now learns its echo's loud
+  end, not its middle. Checked with real recordings of Abdoh's voice on the owner's laptop
+  speakers: through the webcam mic, 4 and 6 false stops in 20 s before, none after; a voice
+  talking over it is still heard within 0.2 to 0.3 s (also on the laptop mic, unchanged).
+  Not yet checked on a monitor's speakers.
 
 - **Memory while idle is about 870 MB**: the Parakeet speech model is big. On a graphics card
   with 4 GB or more it's about 360 MB less (see "On a graphics card"); the Lighter quality

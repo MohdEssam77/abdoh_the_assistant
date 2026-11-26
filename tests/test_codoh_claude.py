@@ -86,6 +86,9 @@ def test_it_starts_in_the_folder_as_plain_claude_code(tmp_path):
     assert proc.kwargs["cwd"] == tmp_path
     args = proc.args
     assert args[args.index("--permission-mode") + 1] == "acceptEdits"
+    # Full access can be picked mid-chat (Claude Code refused it without this, 2026-11-26)
+    assert "--allow-dangerously-skip-permissions" in args
+    assert "--dangerously-skip-permissions" not in args
     assert args[args.index("--model") + 1] == "sonnet"
     assert args[args.index("--effort") + 1] == "high"
     assert "--permission-prompt-tool" in args and "--resume" not in args

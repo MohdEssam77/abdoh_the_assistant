@@ -784,8 +784,17 @@ class AppApi:
     def codoh_stop(self, chat_id) -> dict:
         return self._codoh_manager().stop(str(chat_id))
 
-    def codoh_answer(self, chat_id, item_id, decision) -> dict:
-        return self._codoh_manager().answer(str(chat_id), str(item_id), str(decision))
+    def codoh_answer(self, chat_id, item_id, decision, answers=None) -> dict:
+        return self._codoh_manager().answer(
+            str(chat_id), str(item_id), str(decision), dict(answers or {})
+        )
+
+    def page_shown(self, name) -> None:
+        """The page the window shows now: while it's Codoh, Abdoh knows what Codoh does."""
+        if str(name) == "codoh":
+            self._codoh_manager().page_open = True
+        elif self._codoh is not None:
+            self._codoh.page_open = False
 
     def codoh_configure(self, chat_id, changes) -> dict:
         return self._codoh_manager().configure(str(chat_id), dict(changes or {}))

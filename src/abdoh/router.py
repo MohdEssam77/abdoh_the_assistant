@@ -268,6 +268,9 @@ class Router:
         # A watch began (True) or ended (False): the daemon looks and listens, the window shows
         # it.
         self.on_watch: Callable[[bool], None] = lambda on: None
+        # What Codoh is doing, while its page shows in Abdoh's window ("" otherwise): Claude
+        # answers about it without looking at the screen (abdoh/codoh/manager.py, brief).
+        self.codoh_note: Callable[[], str] = lambda: ""
 
     @property
     def computer(self):
@@ -397,6 +400,7 @@ class Router:
         # 5. Ask Claude (with the previous exchange, if this may be a follow-up)
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
+            prompt = self._codoh() + prompt
             if self.watching and self.cfg.claude.allow_screen:
                 # Watching the screen: what they say comes with a picture of it
                 note = self._watching_note() if aside else ""
@@ -952,6 +956,13 @@ class Router:
             return ""
         self._told = turn
         return ABDOH_DID.format(request=turn.request, steps=_steps_text(turn.actions))
+
+    def _codoh(self) -> str:
+        try:
+            return self.codoh_note() or ""
+        except Exception:  # never in the way of an answer
+            log.debug("Couldn't read what Codoh is doing", exc_info=True)
+            return ""
 
     def _clipboard(self, request: str) -> str:
         """Your clipboard, for Claude, when you talk about it ("translate what I copied")."""
