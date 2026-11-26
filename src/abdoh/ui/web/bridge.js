@@ -187,6 +187,36 @@ const Bridge = (() => {
       setTimeout(step, 400);
     }
 
+    // The Catalog: a few of each section (the real list is abdoh/catalog.py).
+    const demoCatalog = () => {
+      const S = (id, title, icon, line) => ({ id, title, icon, line });
+      const F = (id, section, title, icon, line, say, state = "on", extra = {}) => ({ id, section, title, icon, line, say,
+        what: `${line} Everything about it, in a few sentences, with what to say and where its settings are.`,
+        steps: ["Open the page it's on.", "Say one of the phrases.", "It happens."], tips: ["A tip that saves time."],
+        where: { page: "settings", label: "Settings" }, status: { state, text: state === "needs" ? "Connect ChatGPT" : state === "off" ? "Off" : "On" }, ...extra });
+      return {
+        sections: [S("talk", "Talking", "mic", "Waking it, talking, interrupting, quiet"), S("do", "Getting things done", "bolt", "Timers, apps, music, volume, windows"),
+          S("claude", "Claude, your AI", "sparkles", "Answers, the web, files, your plans"), S("screen", "Your screen", "eye", "Looking at it, and watching you work"),
+          S("codoh", "Codoh", "code", "Your coding assistant"), S("abdoh", "Abdoh itself", "settings", "Settings, logs, updates, privacy")],
+        start: [{ title: "Say “Hey Abdoh”", line: "Then ask anything: “what's the weather tomorrow?” Or press Ctrl+Alt+Space, or type on Home.", page: "home" },
+          { title: "Connect Claude", line: "With your Claude plan (Claude Code), an API key, OpenRouter or your ChatGPT plan, Abdoh answers everything else.", page: "settings" },
+          { title: "Make it yours", line: "Your own commands, modes for movie night or work, roles like a German teacher, and lamps.", page: "commands" }],
+        features: [
+          F("wake-word", "talk", "Wake word and hotkey", "mic", "Say “Hey Abdoh”, or press Ctrl+Alt+Space, and talk.", ["Hey Abdoh, what time is it?"], "on", { try: "What time is it?" }),
+          F("interrupt", "talk", "Talk over a reply", "wave", "Just start talking: Abdoh goes quiet and listens.", ["Wait", "Go on"]),
+          F("quiet", "talk", "Shut up, stop listening", "pause", "“Shut up” ends the conversation; “stop listening” pauses Abdoh.", ["Shut up", "You can stop listening now"]),
+          F("skills", "do", "Everyday things, instantly", "bolt", "Timers, reminders, volume, apps, music, notes: done at once, without Claude.", ["Set a timer for 10 minutes", "Volume 30"], "on", { try: "What's 15 percent of 80?" }),
+          F("power", "do", "Sleep, shut down, restart", "power", "“Shut down in 30 minutes”: Abdoh asks first when it's now.", ["Shut down in 30 minutes"], "off"),
+          F("claude", "claude", "Ask anything", "sparkles", "Everything your commands don't cover goes to Claude, with your own plan.", ["What's the weather in Cairo tomorrow?"]),
+          F("fallback", "claude", "ChatGPT when Claude's limit runs out", "swap", "With both connected, your ChatGPT plan takes over until Claude's limit resets.", [], "needs"),
+          F("look", "screen", "Look at my screen", "eye", "“What does this error mean?”: Claude looks at the screen you're using.", ["What does this error mean?", "Read this to me"]),
+          F("watch", "screen", "Watch me while I work", "eye", "Abdoh watches your screen as you work and speaks up when you get it wrong.", ["Watch me fill in this form and tell me if I get anything wrong"]),
+          F("codoh", "codoh", "Codoh, your coding assistant", "code", "Open a folder and let Claude or ChatGPT read, change and run your code.", ["Abdoh, open Codoh"], "on", { where: { page: "codoh", label: "Codoh" } }),
+          F("logs", "abdoh", "Abdoh reads its own log", "log", "“Why did you stop talking?”: Abdoh checks its log and explains.", ["Why did you stop talking just now?"]),
+          F("models", "abdoh", "Choose the models", "chip", "Other speech recognition models and voices, under Settings → Advanced.", []),
+        ],
+      };
+    };
     // Settings → Advanced → Log, newest first.
     const demoLog = () => [
       { time: "09:41:12", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh: It is 9:41 AM.", details: "" },
@@ -429,6 +459,7 @@ const Bridge = (() => {
         return { ok: true, entries: all, total: demoLog().length, problems: demoLog().filter((e) => e.level !== "INFO").length, path: "C:\\Users\\you\\.abdoh\\abdoh.log" };
       },
       open_log: async () => true,
+      catalog: async () => demoCatalog(),
       codoh_state: async () => ({
         folders: codoh.folders,
         chats: Object.values(codoh.chats).map(summaryOf).sort((a, b) => b.updated - a.updated),

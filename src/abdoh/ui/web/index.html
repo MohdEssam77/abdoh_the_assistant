@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="app.css">
 <link rel="stylesheet" href="codoh.css">
+<link rel="stylesheet" href="catalog.css">
 </head>
 <body>
 <aside class="sidebar">
@@ -52,6 +53,10 @@
     <button data-page="settings" title="Settings" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="18" r="2"/></svg>
       <span>Settings</span>
+    </button>
+    <button data-page="catalog" title="Catalog: everything Abdoh can do" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6a2 2 0 0 1 2 2v14a2 2 0 0 0-2-2H4zM20 4h-6a2 2 0 0 0-2 2v14a2 2 0 0 1 2-2h6z"/></svg>
+      <span>Catalog</span>
     </button>
   </nav>
   <div class="side-foot">
@@ -284,6 +289,10 @@
     <div class="scroll"><div class="content" id="perm-content"></div></div>
   </section>
 
+  <section class="page" id="page-catalog" aria-label="Catalog">
+    <div class="scroll"><div class="ct" id="catalog"></div></div>
+  </section>
+
   <section class="page" id="page-settings" aria-label="Settings">
     <div class="scroll"><div class="content" id="settings-content"></div></div>
   </section>
@@ -305,5 +314,6 @@
 <script src="settings.js"></script>
 <script src="setup.js"></script>
 <script src="codoh.js"></script>
+<script src="catalog.js"></script>
 </body>
 </html>

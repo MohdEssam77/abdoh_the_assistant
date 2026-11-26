@@ -733,6 +733,13 @@ class AppApi:
         self._open_path(folders[which])
         return True
 
+    # ----- the Catalog: everything Abdoh can do (abdoh/catalog.py) -----
+
+    def catalog(self) -> dict:
+        from abdoh import catalog
+
+        return catalog.catalog(self._config())
+
     # ----- Codoh: the coding assistant page (abdoh/codoh) -----
 
     def _codoh_manager(self):
