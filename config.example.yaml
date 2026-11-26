@@ -55,6 +55,7 @@ claude:
                                  # it asks before deleting or overwriting anything
   folders: []                    # where Claude may work with files; [] = your home folder
   allow_screen: true             # let Claude look at your screen when you ask about it
+  allow_logs: true               # let Claude read Abdoh's log to explain what happened
   # What Claude may do on the computer (turn them on and off on the Permissions page):
   actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp", "window", "power"]
   instructions: ""               # your own instructions for Claude, sent with every request

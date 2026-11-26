@@ -486,7 +486,10 @@
     if (!models) return null;
     const box = el("details", { class: "card advanced", id: "advanced-card" });
     box.open = advancedOpen;
-    box.addEventListener("toggle", () => { advancedOpen = box.open; });
+    box.addEventListener("toggle", () => {
+      advancedOpen = box.open;
+      if (box.open) loadLog();
+    });
     const languages = (App.settings.languages || ["en"]).map((c) => (LANGUAGES.find(([code]) => code === c) || [c, c])[1]);
     const custom = !!App.settings.speech_model || (App.settings.tts_engine || "piper") !== "piper" || isKokoro(App.settings.piper_voice_en);
     const unfit = App.settings.speech_model && !models.chosen_fits;
@@ -504,8 +507,103 @@
       custom ? el("div", { class: "advanced-back" },
         el("small", {}, "Parakeet and the natural voices, as Abdoh comes. Downloaded models you no longer use are deleted."),
         el("button", { class: "btn small", onclick: backToRecommended }, "Back to recommended")) : null,
+      ...logPart(),
     ].filter(Boolean)); // append() would write out a null
+    if (box.open) setTimeout(loadLog, 0);
     return box;
+  }
+
+  /* ---------- Advanced → Log: what Abdoh heard, did and why ---------- */
+
+  const logView = { problems: false, search: "", entries: [], timer: null };
+  const LEVELS = { DEBUG: "Debug", INFO: "Info", WARNING: "Warning", ERROR: "Error", CRITICAL: "Error" };
+
+  function logPart() {
+    const search = el("input", { placeholder: "Search the log", "aria-label": "Search the log", value: logView.search });
+    search.addEventListener("input", () => {
+      logView.search = search.value;
+      clearTimeout(logView.timer);
+      logView.timer = setTimeout(loadLog, 250);
+    });
+    const choice = (problems, text) => el("button", {
+      class: logView.problems === problems ? "seg-btn on" : "seg-btn", type: "button",
+      onclick: (e) => {
+        logView.problems = problems;
+        e.currentTarget.parentNode.querySelectorAll(".seg-btn").forEach((b) => b.classList.toggle("on", b === e.currentTarget));
+        loadLog();
+      },
+    }, text);
+    return [
+      el("div", { class: "advanced-group" }, "Log"),
+      el("p", { class: "advanced-lead" }, "What Abdoh heard, did and why, today and yesterday (older days are deleted). Abdoh can read it too: ask “why did you stop talking?” or “check your logs”."),
+      el("div", { class: "log-view" },
+        el("div", { class: "log-tools" },
+          el("div", { class: "seg", role: "group", "aria-label": "Which entries" },
+            choice(false, "Everything"), choice(true, el("span", {}, "Problems ", el("span", { class: "seg-count", id: "log-problems" })))),
+          el("label", { class: "search log-search", html: svg("search") }, search),
+          el("button", { class: "btn small", type: "button", title: "Read the log again", onclick: loadLog }, "Refresh"),
+          el("button", { class: "btn small", type: "button", onclick: copyLog }, "Copy"),
+          el("button", { class: "btn small", type: "button", onclick: async () => {
+            if (!(await call("open_log"))) toast("There's no log file yet.", true);
+          } }, "Open file")),
+        el("div", { class: "log-list", id: "log-list", role: "log", "aria-live": "off" }, el("p", { class: "log-empty" }, "Reading the log…")),
+        el("div", { class: "log-foot" },
+          el("small", { id: "log-count" }),
+          el("button", { class: "btn small", type: "button", onclick: askAbout }, "Ask Abdoh what happened"))),
+    ];
+  }
+
+  async function loadLog() {
+    const list = $("#log-list");
+    if (!list) return;
+    const result = await call("logs", logView.problems, logView.search, 400);
+    if (!result || !$("#log-list")) return;
+    if (!result.ok) { list.replaceChildren(el("p", { class: "log-empty" }, result.error)); return; }
+    logView.entries = result.entries;
+    const problems = $("#log-problems");
+    if (problems) problems.textContent = result.problems ? String(result.problems) : "";
+    $("#log-count").textContent = result.entries.length
+      ? (logView.problems || logView.search
+        ? `${result.entries.length} of ${result.total} entries, newest first`
+        : `${result.entries.length === result.total ? "All" : `The latest ${result.entries.length} of`} ${result.total} entries, newest first`)
+      : "";
+    if (!result.entries.length) {
+      const why = logView.search ? "Nothing matches your search." : logView.problems ? "No problems today or yesterday." : "Nothing in the log yet.";
+      list.replaceChildren(el("p", { class: "log-empty" }, why));
+      return;
+    }
+    let day = "";
+    const rows = [];
+    for (const e of result.entries) {
+      if (e.day !== day) {
+        day = e.day;
+        rows.push(el("div", { class: "log-day" }, day === "today" ? "Today" : day === "yesterday" ? "Yesterday" : day));
+      }
+      const text = el("div", { class: "log-text" }, e.text);
+      if (e.details) text.append(el("details", {}, el("summary", {}, "Details"), el("pre", {}, e.details)));
+      rows.push(el("div", { class: "log-row", "data-level": e.level },
+        el("span", { class: "log-time" }, e.time),
+        el("span", { class: "log-level" }, LEVELS[e.level] || e.level),
+        el("span", { class: "log-part" }, e.part),
+        text));
+    }
+    list.replaceChildren(...rows);
+  }
+
+  async function copyLog() {
+    const lines = logView.entries.slice().reverse().map((e) => `${e.day} ${e.time} ${e.level} ${e.part}: ${e.text}${e.details ? `\n${e.details}` : ""}`);
+    if (!lines.length) { toast("Nothing to copy.", true); return; }
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      toast(`Copied ${lines.length} entries.`);
+    } catch (e) {
+      toast("Couldn't copy. Use Open file instead.", true);
+    }
+  }
+
+  async function askAbout() {
+    const asked = logView.problems || !logView.search ? "Check your log: did anything go wrong recently, and why?" : `Check your log about “${logView.search}”: what happened?`;
+    if (await call("send", asked)) showPage("home");
   }
 
   function speechItem(m, models) {

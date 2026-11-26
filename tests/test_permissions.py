@@ -75,6 +75,7 @@ def test_prompt_without_any_actions():
         "ACTION recall:",
     )
     kept += ("ACTION recall:", "ACTION save_item:", "ACTION delete_item:", "ACTION undo_change:")
+    kept += ("ACTION logs:",)  # reading its own log isn't done on the computer either
     assert all(line.startswith(kept) for line in lines)
     assert NO_ACTIONS.split(":")[0] in text  # roles aren't things done on the computer
 

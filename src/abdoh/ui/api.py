@@ -723,6 +723,38 @@ class AppApi:
         self._open_path(folders[which])
         return True
 
+    # ----- Abdoh's log (Settings → Advanced → Log) -----
+
+    def logs(self, problems=False, search="", limit=400) -> dict:
+        """The log's latest entries, newest first: today's and yesterday's."""
+        from abdoh import logs
+
+        path = logs.log_path(self._cfg)  # the file Abdoh writes now (changing it needs a restart)
+        try:
+            entries = logs.read_entries(path)
+        except Exception as e:
+            log.exception("Couldn't read the log")
+            return {"ok": False, "error": f"Couldn't read the log: {e}", "entries": []}
+        found = logs.pick(entries, problems=bool(problems), search=str(search or ""))
+        found = found[-max(1, min(int(limit or 400), 2000)) :]
+        return {
+            "ok": True,
+            "entries": [logs.for_page(e) for e in reversed(found)],
+            "total": len(entries),
+            "problems": sum(1 for e in entries if e.problem),
+            "path": str(path),
+        }
+
+    def open_log(self) -> bool:
+        """Open today's log file in the editor Windows picks for it."""
+        from abdoh import logs
+
+        path = logs.log_path(self._cfg)
+        if not path.exists():
+            return False
+        self._open_path(path)
+        return True
+
     def open_sound_settings(self) -> None:
         """Windows' sound settings, where a muted microphone can be turned on."""
         self._open_path("ms-settings:sound")

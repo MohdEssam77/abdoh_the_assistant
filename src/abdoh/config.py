@@ -107,6 +107,7 @@ class ClaudeConfig:
     allow_files: bool = True  # Claude Code may work with your files and run commands
     allow_screen: bool = True  # Claude may look at the screen you're using when you ask about it
     allow_self_edit: bool = True  # Claude may change your commands, modes and roles when you ask
+    allow_logs: bool = True  # Claude may read Abdoh's log to explain what happened (ACTION logs)
     actions: list[str] = field(default_factory=lambda: list(CLAUDE_ACTIONS))  # it may do these
     folders: list[str] = field(default_factory=list)  # where it may work with files; [] = home
     instructions: str = ""  # your own instructions, sent with every request
