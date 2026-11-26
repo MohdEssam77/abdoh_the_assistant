@@ -230,7 +230,7 @@ const Bridge = (() => {
       { time: "09:37:58", day: "today", level: "INFO", part: "Claude", text: "Claude is using WebSearch", details: "" },
       { time: "09:37:55", day: "today", level: "INFO", part: "Abdoh", text: "You: What's the weather like tomorrow?", details: "" },
       { time: "09:12:40", day: "today", level: "ERROR", part: "Abdoh", text: "Error handling 'turn on the desk lamp'", details: "Traceback (most recent call last):\n  File \"lights.py\", line 212, in send\nTimeoutError: the lamp didn't answer" },
-      { time: "09:02:11", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh 0.12.0 started", details: "" },
+      { time: "09:02:11", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh 0.13.0 started", details: "" },
       { time: "20:27:04", day: "yesterday", level: "WARNING", part: "Claude", text: "Claude Code reported an error: You've hit your usage limit. It resets at 8:50 PM.", details: "" },
       { time: "20:27:03", day: "yesterday", level: "INFO", part: "Abdoh", text: "You: Uh okay you can stop now", details: "" },
     ];
@@ -262,7 +262,7 @@ const Bridge = (() => {
     return {
       demo: true,
       boot: async () => ({
-        version: "0.12.0", platform: "win32", demo: true, settings,
+        version: "0.13.0", platform: "win32", demo: true, settings,
         state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, listening: { on: !!currentRole, now: !!currentRole }, voice: true, history, board: currentRole ? demoBoard : [], gpu: "Speech recognition runs on your NVIDIA GeForce RTX 3050 6GB Laptop GPU (6 GB): about twice as fast, with less memory." },
       }),
       events: async () => queue.splice(0),

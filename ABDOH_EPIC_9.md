@@ -318,7 +318,8 @@ Claude agreed an on/off switch would add almost nothing, since what you say deci
 
 ## 6b. Results (2026-11-26)
 
-All stories are merged on `main` (not released: the version is still 0.12.0).
+All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and
+stories 107 to 109).
 
 | Story | What was checked |
 |---|---|

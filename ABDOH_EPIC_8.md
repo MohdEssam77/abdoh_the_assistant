@@ -395,6 +395,9 @@ and the new pages, and the new modules (`conversations`, `recall`, `models`, `do
 `list-commands` work (exit code 0). Left for the release: the version `0.13.0` (one line,
 `src/abdoh/__init__.py`, as for 0.12.0), the download page (`docs/index.html`), the tag.
 
+Released as **0.13.0** on 2026-11-26 (the owner's go), together with stories 107 to 109 and
+epic 9 (stories 110 to 120); the build was checked again first (see `story/121-release`).
+
 ### After a friend's test (2026-11-25): stories 107 to 109
 
 A friend ran 0.12.0 on his laptop (the same Realtek mic array, an RTX GPU, people in the room)
