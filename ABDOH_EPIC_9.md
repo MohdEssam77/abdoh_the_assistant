@@ -301,6 +301,21 @@ list, the memory notes. No release.
 
 ---
 
+## 6b. Results (2026-11-26)
+
+All stories are merged on `main` (not released: the version is still 0.12.0).
+
+| Story | What was checked |
+|---|---|
+| 110 ChatGPT when Claude's limit runs out | Fake brains: the switch, the one sentence, until the reset, back to Claude, no switch after words or other errors. Not with a real ChatGPT account |
+| 111 Logs | The viewer in light and dark; real Claude Code asked `ACTION logs` by itself for "why did you stop talking a minute ago?" and explained the "shut up" in the log |
+| 112 Watching the screen | Real Claude Code on drawn forms: started the watch, caught "31/02/1990" and an email without ".com", stayed quiet once fixed; "stop looking at the screen" ended it locally. Found and fixed: "watch me … and tell me if I get it wrong" was split into two requests |
+| 113 Codoh, Claude chats | Real Claude Code: the approval came to Codoh, was allowed, the bug was fixed |
+| 114 Codoh, ChatGPT chats | Fake Responses API (tools, approvals per mode, items, errors). Not with a real account |
+| 115 Codoh, chats and folders | Fakes, plus real git in a temporary repository. Found and fixed: a repository without commits wasn't recognized |
+| 116 Codoh, the page | Demo screenshots (light, dark, a small window, menus, approvals, the Changes panel) and a real run through the page with real Claude Code in a temporary git project |
+| 117 The Catalog | 29 features in 9 sections; tests check every page and setting it names; screenshots with the real content |
+
 ## 7. The owner's decisions (2026-11-26)
 - Codoh is its own page, with its own sessions; Abdoh's context never goes to the coding models.
 - Switching to ChatGPT when Claude's limit runs out is wanted (Abdoh and Codoh).

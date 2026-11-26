@@ -1099,6 +1099,15 @@ Developer scripts:
 
 ## Known issues
 
+- **Codoh and the switch to ChatGPT are not tried with a real ChatGPT account yet.** Codoh's
+  ChatGPT chats (OpenAI's Responses API with Codoh's own tools) and ChatGPT taking over when
+  Claude's limit runs out are tested with a fake OpenAI only. Codoh's Claude chats and watching
+  the screen were checked with real Claude Code.
+
+- **Watching the screen uses your plan as you work.** Each time the screen changes, a picture
+  goes to Claude (at most every 5 seconds, `watch_seconds`); a long watch of a busy screen adds
+  up. A still screen costs nothing, and the watch ends after 20 quiet minutes.
+
 - **Talking over Abdoh is weaker under loud sound.** With music or a film playing loudly on the
   speakers, Abdoh may not notice you start talking; the wake word and the hotkey still work.
   Measured on a laptop with its own speakers and microphone: it heard the user within 0.3 s and
