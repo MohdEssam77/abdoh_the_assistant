@@ -178,6 +178,7 @@ class AppApi:
         audio=None,
         displays=None,
         lamps=None,
+        codoh=None,
     ):
         self._bus = bus
         self._state = state
@@ -194,6 +195,7 @@ class AppApi:
         self._audio = audio  # abdoh.winaudio (a fake in tests)
         self._displays = displays  # abdoh.displays.Displays (a fake backend in tests)
         self._lamps = lamps  # abdoh.lights.Lamps (a fake network in tests)
+        self._codoh = codoh  # abdoh.codoh.manager.Codoh, made when the page first asks
         # What Abdoh started with, to tell which saved changes still need a restart. (The
         # daemon updates the shared Config in place when settings change.)
         self._started = {key: copy.deepcopy(getattr(cfg, key)) for key in RESTART_KEYS}
@@ -730,6 +732,98 @@ class AppApi:
             return False
         self._open_path(folders[which])
         return True
+
+    # ----- Codoh: the coding assistant page (abdoh/codoh) -----
+
+    def _codoh_manager(self):
+        if self._codoh is None:
+            import atexit
+
+            from abdoh.codoh.manager import Codoh
+
+            self._codoh = Codoh(self._cfg)
+            atexit.register(self._codoh.close_all)  # no Claude Code left running
+        return self._codoh
+
+    def codoh_state(self) -> dict:
+        return self._codoh_manager().state()
+
+    def codoh_models(self, refresh=False) -> dict:
+        return self._codoh_manager().models(bool(refresh))
+
+    def codoh_open_folder(self, path=None) -> dict:
+        """Open a project folder: the one given, or one picked in the folder dialog."""
+        if not path:
+            path = self.pick_folder()
+            if not path:
+                return {"ok": False, "cancelled": True}
+        return self._codoh_manager().open_folder(str(path))
+
+    def codoh_folder(self, path) -> dict:
+        return self._codoh_manager().folder_info(str(path))
+
+    def codoh_forget_folder(self, path) -> dict:
+        return self._codoh_manager().forget_folder(str(path))
+
+    def codoh_new_chat(self, folder, engine="", model="", mode="") -> dict:
+        return self._codoh_manager().new_chat(str(folder), str(engine), str(model), str(mode))
+
+    def codoh_chat(self, chat_id, since=0) -> dict:
+        return self._codoh_manager().chat(str(chat_id), int(since or 0))
+
+    def codoh_send(self, chat_id, text) -> dict:
+        return self._codoh_manager().send(str(chat_id), str(text or ""))
+
+    def codoh_stop(self, chat_id) -> dict:
+        return self._codoh_manager().stop(str(chat_id))
+
+    def codoh_answer(self, chat_id, item_id, decision) -> dict:
+        return self._codoh_manager().answer(str(chat_id), str(item_id), str(decision))
+
+    def codoh_configure(self, chat_id, changes) -> dict:
+        return self._codoh_manager().configure(str(chat_id), dict(changes or {}))
+
+    def codoh_rename(self, chat_id, title) -> dict:
+        return self._codoh_manager().rename(str(chat_id), str(title or ""))
+
+    def codoh_delete(self, chat_id) -> dict:
+        return self._codoh_manager().delete(str(chat_id))
+
+    def codoh_changes(self, folder) -> dict:
+        return self._codoh_manager().changes(str(folder))
+
+    def codoh_diff(self, folder, path) -> dict:
+        return self._codoh_manager().diff(str(folder), str(path))
+
+    def codoh_reveal(self, path) -> bool:
+        """Show a project folder (or a file in it) in Explorer."""
+        target = Path(str(path or ""))
+        if not target.exists():
+            return False
+        self._open_path(target if target.is_dir() else target.parent)
+        return True
+
+    def codoh_open_editor(self, folder) -> dict:
+        """Open the project in VS Code (or Cursor) when installed, else in Explorer."""
+        import shutil
+        import subprocess
+
+        target = Path(str(folder or ""))
+        if not target.is_dir():
+            return {"ok": False, "error": "That folder doesn't exist."}
+        for name in ("code", "cursor"):
+            exe = shutil.which(name)
+            if exe:
+                try:
+                    subprocess.Popen(  # noqa: S603 - the user's own editor, their own folder
+                        [exe, str(target)],
+                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    )
+                    return {"ok": True, "editor": "VS Code" if name == "code" else "Cursor"}
+                except OSError:
+                    continue
+        self._open_path(target)
+        return {"ok": True, "editor": "Explorer"}
 
     # ----- Abdoh's log (Settings → Advanced → Log) -----
 
