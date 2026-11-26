@@ -446,6 +446,16 @@ each command with its output.
 - **When the model asks you something** (which project, which approach), a question card shows
   its options: pick one (or several), or write your own answer, then **Send answer** (or
   **Skip**).
+- **Tell Abdoh what Codoh should do**: "make a new chat in my portfolio folder and tell it to
+  add a dark mode", "open the weather app folder in Codoh", "make a folder called space game in
+  my code folder and have Codoh start a canvas game", "tell Codoh to run the tests too", "switch
+  Codoh to Opus" or "to full access", "stop Codoh". Abdoh finds the folder by its name (Codoh's
+  folders, then your home folder, Documents, Desktop and the usual code folders), opens the Codoh
+  page with the chat, and passes on what you said. For chats started this way it tells you out
+  loud when Codoh needs you ("Codoh wants to change calc.py. Allow it?": say "yes, allow it",
+  "no" or the answer to its question) and when it's done ("Codoh is done: Fixed add in
+  calc.py."). Checked with real Claude Code both sides: a chat made by voice in a folder named by
+  voice, the change allowed by voice, the bug fixed.
 - **Abdoh knows what Codoh is doing** while the Codoh page is open in its window: "Abdoh, what
   is Codoh doing?", "what did it change?" are answered from the chat (what it's working on, what
   it's waiting for you to allow, its last steps, git's changed files), without looking at the

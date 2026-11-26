@@ -359,6 +359,20 @@ app it hands off. Now Abdoh waits for a finished PDF (ending with %%EOF, up to 1
 page and profile until then, never fails on cleanup (story 123), and tidies leftovers an hour
 later. Checked with real Edge started without waiting: the PDF in 0.7 s.
 
+### Story 125: Codoh by voice (`story/125-codoh-by-voice`)
+The owner (2026-11-27): "can I ask Abdoh to make a chat in x folder, or open a folder, and tell it
+what to write to Codoh? That is needed and important." `ACTION codoh: <verb> | ...`
+(abdoh/codoh/voice.py): new / create (a new folder first) / open a folder, send to the open chat,
+set a model, mode or effort, allow / always / deny, answer its question, stop. Folders are found
+by their spoken name (normalized, fuzzy, Codoh's folders first, then next to them, home,
+Documents, Desktop, the usual code folders), or a full path Claude looked up. The window and
+the voice share one Codoh (`manager.shared`); the page opens the chat (`codoh_open`). Chats the
+voice sent to say out loud when they need the user (an approval, a question with its options)
+and when they're done (its first sentence), on a thread of their own. Checked with real Claude
+Code on both sides: "make a new chat in the pocket calculator folder and tell Codoh to fix the
+add function", "Codoh wants to change calc.py. Allow it?", "yes, allow it", "Codoh is done:
+Fixed add in calc.py.", and Abdoh explaining the change; the page in the real window.
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and
