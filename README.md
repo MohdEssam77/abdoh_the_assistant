@@ -942,6 +942,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.model` | `claude-opus-5-5` | Model when using an API key |
 | `claude.openrouter_model` | `openrouter/auto` | Model when using OpenRouter (any id from openrouter.ai/models) |
 | `claude.chatgpt_model` | (empty) | Model when using your ChatGPT plan (one it lists in Settings); empty = its first |
+| `claude.allow_logs` | `true` | Claude may read Abdoh's log when you ask what happened |
 | `claude.fallback` | `true` | When Claude Code reaches your plan's usage limit, your ChatGPT plan answers until it resets |
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
@@ -959,6 +960,14 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `log_file` | `~/.abdoh/abdoh.log` | Log file (today's and yesterday's) |
 
 ## Troubleshooting
+
+**The log.** Settings → Advanced → **Log** shows what Abdoh heard, did and why, today and
+yesterday (older days are deleted), newest first: **Problems** shows only warnings and errors,
+the search box finds words, **Copy** copies what's shown, **Open file** opens `abdoh.log`. Keys
+and tokens are hidden. Abdoh can read it too: ask "why did you stop talking just now?", "did you
+hear me?" or "check your logs, did anything go wrong today?", and Claude reads the log of that
+time, with how Abdoh is meant to work, and explains it (Permissions → **Read its own log**,
+`claude.allow_logs`). **Ask Abdoh what happened** under the log asks it for you.
 
 **Abdoh doesn't wake up.** The window's `Wake word:` line shows which engine is used. With your
 openWakeWord model, lower `wake_word_threshold`. If it says **Hotkey only**, the model couldn't

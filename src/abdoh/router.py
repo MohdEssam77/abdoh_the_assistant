@@ -20,6 +20,7 @@ from abdoh.claude.reply import (
     IGNORE,
     LESSON,
     LISTEN,
+    LOGS,
     LOOK,
     MEMORY_ACTIONS,
     RECALL,
@@ -57,6 +58,7 @@ UNKNOWN = "Sorry, I don't know that one yet."
 SCREEN_OFF = "Looking at your screen is turned off in Abdoh's permissions."
 LOOKING = "Looking at your screen"
 REMEMBERING = "Remembering"
+READING_LOG = "Reading my log"
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -563,6 +565,7 @@ class Router:
 
         looks: list[str] = []  # Claude asked to see the screen
         recalls: list[str] = []  # ... or what was said in an earlier conversation
+        logs: list[str] = []  # ... or Abdoh's own log
 
         def act(kind: str, arg: str) -> None:
             if kind == LOOK:
@@ -570,6 +573,9 @@ class Router:
                 return
             if kind == RECALL:
                 recalls.append(arg)
+                return
+            if kind == LOGS:
+                logs.append(arg)
                 return
             if kind == IGNORE:
                 log.info("Not meant for Abdoh: staying quiet")
@@ -638,6 +644,8 @@ class Router:
             allowed.extend(MEMORY_ACTIONS)
             if self.cfg.keep_conversations and not screen:
                 allowed.append(RECALL)  # once: the follow-up can't ask again
+        if self.cfg.claude.allow_logs and not screen:
+            allowed.append(LOGS)  # once, like recall
         if self.cfg.claude.allow_self_edit:
             allowed.extend(SELF_EDIT_ACTIONS)
         if self.acting is not None:
@@ -657,10 +665,13 @@ class Router:
                 spoken.append(sentence)
                 yield sentence
             yield from _drain(problems)
-            if recalls and not turn.ignored:
+            if (recalls or logs) and not turn.ignored:
                 chunks.close()
-                chunks = self._recall(brain, recalls[0], request)
-                allowed = [a for a in allowed if a not in (RECALL, LOOK)]
+                if recalls:
+                    chunks = self._recall(brain, recalls[0], request)
+                else:
+                    chunks = self._read_log(brain, logs[0], request)
+                allowed = [a for a in allowed if a not in (RECALL, LOOK, LOGS)]
                 for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
                     yield from _drain(problems)
                     spoken.append(sentence)
@@ -712,6 +723,20 @@ class Router:
         self.on_activity(REMEMBERING)
         kept = Conversations(self.cfg.app_dir / FOLDER, self.cfg.conversation_days)
         return brain.stream(follow_up(kept, what, when, request), None)
+
+    def _read_log(self, brain, arg: str, request: str):
+        """Claude asked to read Abdoh's log (ACTION logs: what | when): it's asked again, with
+        the log of that time and how Abdoh is meant to work."""
+        from abdoh import logs
+
+        log.info("Claude asked to read the log: %s", arg)
+        self.on_activity(READING_LOG)
+        works = self._how_it_works(arg)
+        return brain.stream(logs.follow_up(self.cfg, arg, request, works=works), None)
+
+    def _how_it_works(self, arg: str) -> str:
+        """How Abdoh is meant to work, for the log's follow-up ("" for the general text)."""
+        return ""
 
     # ----- what Abdoh did itself, and asking for the same again -----
 

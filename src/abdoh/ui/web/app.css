@@ -843,3 +843,39 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
   background: var(--accent-soft); color: var(--accent-text); font-weight: 700; font-size: 13px; }
 .key-steps li span { padding-top: 4px; }
 .key-steps li .btn { justify-self: start; }
+
+/* ----- segmented choice (two or three buttons, one on) ----- */
+.seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 10px; background: var(--panel-2); border: 1px solid var(--border); flex: none; }
+.seg-btn { border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 550; padding: 5px 11px; border-radius: 7px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.seg-btn:hover { color: var(--text); }
+.seg-btn.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow-sm); }
+.seg-count:not(:empty) { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 11.5px; font-weight: 700; }
+
+/* ----- Settings → Advanced → Log ----- */
+.log-view { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--panel); }
+.log-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; border-bottom: 1px solid var(--border); background: var(--panel-2); }
+.log-search { flex: 1 1 180px; min-width: 150px; }
+.log-search input { padding: 6px 0; font-size: 13px; }
+.log-list { max-height: 440px; overflow: auto; font-size: 12.5px; }
+.log-empty { margin: 0; padding: 28px 16px; text-align: center; color: var(--muted); }
+.log-day { position: sticky; top: 0; z-index: 1; padding: 6px 12px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); border-bottom: 1px solid var(--border); }
+.log-row { display: grid; grid-template-columns: 62px 64px 78px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.log-row:last-child { border-bottom: 0; }
+.log-row:hover { background: var(--hover); }
+.log-time { font-variant-numeric: tabular-nums; color: var(--faint); font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 12px; }
+.log-level { justify-self: start; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; color: var(--muted); background: var(--panel-2); }
+.log-row[data-level="WARNING"] { background: linear-gradient(90deg, var(--warn-soft), transparent 40%); }
+.log-row[data-level="WARNING"] .log-level { color: var(--warn); background: var(--warn-soft); }
+.log-row[data-level="ERROR"], .log-row[data-level="CRITICAL"] { background: linear-gradient(90deg, var(--danger-soft), transparent 40%); }
+.log-row[data-level="ERROR"] .log-level, .log-row[data-level="CRITICAL"] .log-level { color: var(--danger); background: var(--danger-soft); }
+.log-part { color: var(--accent-text); font-weight: 600; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-text { color: var(--text); line-height: 1.45; overflow-wrap: anywhere; }
+.log-text details { margin-top: 4px; }
+.log-text summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.log-text pre { margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); color: var(--muted); font-size: 11.5px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.log-foot { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px; border-top: 1px solid var(--border); background: var(--panel-2); }
+.log-foot small { flex: 1; color: var(--muted); font-size: 12px; }
+@media (max-width: 720px) {
+  .log-row { grid-template-columns: 58px minmax(0, 1fr); }
+  .log-level, .log-part { display: none; }
+}

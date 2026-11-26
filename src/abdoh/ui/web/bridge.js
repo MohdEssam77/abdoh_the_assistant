@@ -18,7 +18,7 @@ const Bridge = (() => {
       has_api_key: false,
       claude: {
         backend: "auto", code_path: "", code_model: "", model: "claude-opus-5-5", max_tokens: 4000,
-        effort: "low", allow_web: true, allow_files: true, allow_screen: true, allow_self_edit: true,
+        effort: "low", allow_web: true, allow_files: true, allow_screen: true, allow_self_edit: true, allow_logs: true,
         actions: ["open_url", "open_app", "play_youtube", "media", "timer", "volume", "brightness", "app_volume", "remind", "note", "mode", "displays", "audio_output", "dark_mode", "lamp", "window"], folders: [], connectors: ["Gmail", "Google Calendar"],
         instructions: "", timeout_seconds: 120, followup_seconds: 60, listen_after_question: true,
         translate_target: "English", voice_reply_max_sentences: 4, chatgpt_model: "", fallback: true,
@@ -127,6 +127,21 @@ const Bridge = (() => {
     let voiceActive = false;
     let demoOpenRouter = false;
     let demoChatGPT = params.has("chatgpt"); // ?chatgpt: already connected
+    // Settings → Advanced → Log, newest first.
+    const demoLog = () => [
+      { time: "09:41:12", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh: It is 9:41 AM.", details: "" },
+      { time: "09:41:10", day: "today", level: "INFO", part: "Requests", text: "Local skill: time", details: "" },
+      { time: "09:41:09", day: "today", level: "INFO", part: "Abdoh", text: "You: What time is it?", details: "" },
+      { time: "09:41:08", day: "today", level: "INFO", part: "Wake word", text: "Wake word (0.93, voice 0.99)", details: "" },
+      { time: "09:40:51", day: "today", level: "WARNING", part: "Speech", text: "Slow transcription: 1.84s for 3.2s of speech", details: "" },
+      { time: "09:38:02", day: "today", level: "INFO", part: "Hearing", text: "You started talking (medium sensitivity, on the Microphone Array mic; Abdoh's voice reaches the mic at -31 dB, -58 dB of it left once cleaned)", details: "" },
+      { time: "09:37:58", day: "today", level: "INFO", part: "Claude", text: "Claude is using WebSearch", details: "" },
+      { time: "09:37:55", day: "today", level: "INFO", part: "Abdoh", text: "You: What's the weather like tomorrow?", details: "" },
+      { time: "09:12:40", day: "today", level: "ERROR", part: "Abdoh", text: "Error handling 'turn on the desk lamp'", details: "Traceback (most recent call last):\n  File \"lights.py\", line 212, in send\nTimeoutError: the lamp didn't answer" },
+      { time: "09:02:11", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh 0.12.0 started", details: "" },
+      { time: "20:27:04", day: "yesterday", level: "WARNING", part: "Claude", text: "Claude Code reported an error: You've hit your usage limit. It resets at 8:50 PM.", details: "" },
+      { time: "20:27:03", day: "yesterday", level: "INFO", part: "Abdoh", text: "You: Uh okay you can stop now", details: "" },
+    ];
     let demoChatGPTAt = 0;
     let demoLamps = [{ name: "Desk lamp", mac: "a8bb5006f1e2", ip: "192.168.1.41", kind: "colour" }];
     const demoLampHow = { "Desk lamp": "scene party speed 160 80%", "Lamp 2": "warm white 60%" };
@@ -349,6 +364,11 @@ const Bridge = (() => {
         { id: "google/gemini-3-pro", name: "Google: Gemini 3 Pro", images: true, price: "$2 / $12 per million tokens" },
         { id: "meta-llama/llama-4:free", name: "Meta: Llama 4 (free)", images: false, price: "free" },
       ] }),
+      logs: async (problems, search) => {
+        const all = demoLog().filter((e) => (!problems || e.level !== "INFO") && (!search || `${e.text} ${e.part}`.toLowerCase().includes(String(search).toLowerCase())));
+        return { ok: true, entries: all, total: demoLog().length, problems: demoLog().filter((e) => e.level !== "INFO").length, path: "C:\\Users\\you\\.abdoh\\abdoh.log" };
+      },
+      open_log: async () => true,
       claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},
       check_update: async () => (params.get("update")

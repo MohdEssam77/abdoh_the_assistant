@@ -25,7 +25,7 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}If you need more \
+{look}{logs}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}If you need more \
 information, ask one short question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
@@ -163,6 +163,16 @@ they're looking at, don't guess and don't ask them to describe it: write the lin
 ACTION look: <what you want to see>
 and nothing else. Abdoh then sends you a picture of the screen they are using, and you answer. \
 Don't ask to look when the request has nothing to do with their screen.
+"""
+# Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
+LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \
+asks why you did or didn't do something, whether something went wrong, or to check your logs \
+("why did you stop talking?", "did you hear me just now?", "check your logs"), don't guess: write \
+only the line
+ACTION logs: <what to look for, in a few words> | <when, as the user said it, in English: just \
+now, the last 10 minutes, an hour ago, today, yesterday; nothing for the last 30 minutes>
+with no words before or after it. Abdoh then sends you the log and how it's meant to work, and \
+you answer.
 """
 FILES = """When the user asks, you can also work with their files and run {shell} commands \
 with your tools. {where} Before deleting files or overwriting existing ones, say in one short \
@@ -359,6 +369,7 @@ def system_prompt(
         sentences=cfg.claude.voice_reply_max_sentences,
         actions=actions,
         look=LOOK if cfg.claude.allow_screen else "",
+        logs=LOGS if cfg.claude.allow_logs else "",
         roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
         recall=RECALL.format(days=cfg.conversation_days)
