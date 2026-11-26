@@ -68,6 +68,29 @@ def plan_name(init: dict) -> str:
     return str(account.get("subscriptionType") or "")
 
 
+def probe(exe: Path, folder: Path, popen=subprocess.Popen, seconds: float = 20.0) -> dict | None:
+    """Ask Claude Code which models the plan has, without asking Claude anything: start it,
+    send `initialize`, read the answer, stop it. {models, plan}, or None."""
+    found: dict = {}
+    ready = threading.Event()
+
+    def on_event(event: dict) -> None:
+        if event.get("type") == "ready":
+            found.update(models=event.get("models") or [], plan=event.get("plan") or "")
+            ready.set()
+
+    chat = ClaudeChat(exe, folder, on_event, popen=popen)
+    try:
+        with chat._lock:
+            chat._start()
+        ready.wait(seconds)
+    except RuntimeError:
+        return None
+    finally:
+        chat.close()
+    return found or None
+
+
 class ClaudeChat:
     """One chat's Claude Code process (started when the first message is sent)."""
 
