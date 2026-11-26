@@ -146,7 +146,9 @@ def finish(item: dict, ok: bool, output: str = "", result=None, folder: Path | N
     if isinstance(result, dict):
         name = item.get("title") or ""
         patch = result.get("structuredPatch")
-        if patch:
+        if result.get("diff"):  # Codoh's own tools: the whole change, before and after
+            item["diff"] = str(result["diff"])
+        elif patch:
             item["diff"] = from_patch(patch, name) or item.get("diff", "")
         elif result.get("type") == "create" and "content" in result:
             item["diff"] = unified("", str(result.get("content", "")), name)
