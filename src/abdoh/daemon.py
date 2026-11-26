@@ -123,6 +123,7 @@ class Daemon:
         self._pictures_asked: set[str] = set()  # the board's pictures being found or found
         self._pictures = None  # abdoh.pictures.Pictures, made when first needed
         self._watching = False  # the voice watch is following a reply
+        self._watch_looks = None  # the watch (its generation) a look loop runs for
         self._floor = threading.Event()  # set: Abdoh may speak; clear: you have the floor
         self._floor.set()
         self._request = ""  # the request being answered
@@ -1306,11 +1307,14 @@ class Daemon:
         return bool(getattr(self.router, "watching", False)) and not self.paused
 
     def _watch_changed(self, on: bool) -> None:
-        """A watch began (Claude: ACTION watch) or ended: look every few seconds while it's on,
-        and show it in the window."""
+        """A watch began (Claude: ACTION watch), changed or ended: look every few seconds while
+        it's on (one loop per watch), and show it in the window."""
         watch = getattr(self.router, "watch", None)
         if on and watch is not None:
-            self.bus.emit("watch", {"goal": watch.goal})
+            self.bus.emit("watch", {"goal": watch.goal, "suggest": watch.suggest})
+            if self._watch_looks == watch.generation:
+                return  # the same watch, changed: its loop goes on
+            self._watch_looks = watch.generation
             threading.Thread(
                 target=self._watch_loop,
                 args=(watch.generation,),

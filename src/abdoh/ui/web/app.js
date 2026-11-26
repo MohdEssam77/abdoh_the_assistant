@@ -909,13 +909,17 @@ function setListening(listening) {
   if (App.status === "Listening") setStatus(App.status);
 }
 
-/* Abdoh is watching the screen ({goal}), or not (null). */
+/* Abdoh is watching the screen ({goal, suggest}), or not (null). */
 function setWatch(watch) {
   App.watch = watch || null;
   const chip = $("#watch-chip");
   if (!chip) return;
   chip.hidden = !App.watch;
-  chip.title = App.watch ? `Watching: ${App.watch.goal}. Say “stop watching” or press ✕.` : "";
+  const tips = Boolean(App.watch && App.watch.suggest);
+  $("#watch-chip-name").textContent = tips ? "Watching · suggestions on" : "Watching your screen";
+  chip.title = App.watch
+    ? `Watching: ${App.watch.goal}. ${tips ? "Mistakes and suggestions (say “stop suggesting” to stop them)" : "Only mistakes (say “you can suggest things too” for tips)"}. Say “stop watching” or press ✕.`
+    : "";
   if (App.status === "Listening") setStatus(App.status);
 }
 

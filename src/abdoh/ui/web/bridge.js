@@ -36,7 +36,9 @@ const Bridge = (() => {
       push("claude", "Pro subscription (Claude Code)");
       push("wake", "openWakeWord (hey_abdoh)");
       push("status", "Listening");
-      if (params.has("watch")) push("watch", { goal: "filling in the tax form; tell them when a field is wrong" });
+      if (params.has("watch")) push("watch", params.get("watch") === "tips"
+        ? { goal: "shopping for headphones on Amazon", suggest: true }
+        : { goal: "filling in the tax form; tell them when a field is wrong", suggest: false });
     }, 250);
     let commands = [
       { name: "Good morning", triggers: ["good morning"], actions: [
@@ -210,7 +212,7 @@ const Bridge = (() => {
           F("claude", "claude", "Ask anything", "sparkles", "Everything your commands don't cover goes to Claude, with your own plan.", ["What's the weather in Cairo tomorrow?"]),
           F("fallback", "claude", "ChatGPT when Claude's limit runs out", "swap", "With both connected, your ChatGPT plan takes over until Claude's limit resets.", [], "needs"),
           F("look", "screen", "Look at my screen", "eye", "“What does this error mean?”: Claude looks at the screen you're using.", ["What does this error mean?", "Read this to me"]),
-          F("watch", "screen", "Watch me while I work", "eye", "Abdoh watches your screen as you work and speaks up when you get it wrong.", ["Watch me fill in this form and tell me if I get anything wrong"]),
+          F("watch", "screen", "Watch me while I work", "eye", "Abdoh watches your screen as you work: it tells you about mistakes, and gives tips if you want.", ["Watch me fill in this form and tell me if I get anything wrong", "Watch while I shop and give me suggestions"]),
           F("codoh", "codoh", "Codoh, your coding assistant", "code", "Open a folder and let Claude or ChatGPT read, change and run your code.", ["Abdoh, open Codoh"], "on", { where: { page: "codoh", label: "Codoh" } }),
           F("logs", "abdoh", "Abdoh reads its own log", "log", "“Why did you stop talking?”: Abdoh checks its log and explains.", ["Why did you stop talking just now?"]),
           F("models", "abdoh", "Choose the models", "chip", "Other speech recognition models and voices, under Settings → Advanced.", []),

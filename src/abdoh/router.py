@@ -65,19 +65,34 @@ STOPPED_WATCHING = "Okay, I stopped watching your screen."
 WATCH_OFF = ("off", "stop", "end", "done", "no", "none", "finished")
 # What the user says while Abdoh watches: it comes with a picture of their screen.
 WATCHING = (
-    "(You're watching the user's screen: {goal}. The picture is their screen now. They said "
-    "this without your name: usually to you, about what they're doing. If it's clearly meant "
-    "for someone else in the room, write only the line ACTION ignore: not for me.)\n"
+    "(You're watching the user's screen: {goal}. {kind} The picture is their screen now. They "
+    "said this without your name: usually to you, about what they're doing. If it's clearly "
+    "meant for someone else in the room, write only the line ACTION ignore: not for me.)\n"
 )
+# What Claude speaks up about, and how the user changes it ("stop suggesting for now").
+WATCH_KIND = {
+    False: "You speak up about mistakes only. If they want suggestions too, write the line "
+    "ACTION watch: {goal} | suggestions",
+    True: "You speak up about mistakes and with suggestions. If they want no more suggestions, "
+    "write the line ACTION watch: {goal} | mistakes",
+}
 # A picture of the screen during a watch, nobody having said anything.
 WATCH_FRAME = (
     "(Watching the user's screen: {goal}. Here is their screen now{window}, {minutes} into the "
-    "watch.{notes} Nobody asked anything: decide whether to speak up.) If they're doing fine, or "
-    "nothing new that matters happened, write only the line ACTION ignore: fine. If they made a "
-    "mistake, are about to, or seem stuck, say so in one or two short spoken sentences, and how "
-    "to fix it. Don't repeat what you already said. When the task is clearly done, say so in one "
-    "sentence and write ACTION watch: off."
+    "watch.{notes} Nobody asked anything: decide whether to speak up.) {when} Don't repeat what "
+    "you already said. When the task is clearly done, say so in one sentence and write "
+    "ACTION watch: off."
 )
+WATCH_WHEN = {
+    False: "If they're doing fine, or nothing new that matters happened, write only the line "
+    "ACTION ignore: fine. If they made a mistake, are about to, or seem stuck, say so in one or "
+    "two short spoken sentences, and how to fix it.",
+    True: "They want suggestions too. If they made a mistake, are about to, or seem stuck, say "
+    "so in one or two short spoken sentences, and how to fix it. If you see something really "
+    "worth mentioning for what they're doing (a better or cheaper choice, a warning, a useful "
+    "tip), say it in one or two short spoken sentences. Otherwise, and that's most of the time, "
+    "write only the line ACTION ignore: fine.",
+}
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -384,7 +399,7 @@ class Router:
             prompt = self._with_context(original) + self._clipboard(request)
             if self.watching and self.cfg.claude.allow_screen:
                 # Watching the screen: what they say comes with a picture of it
-                note = WATCHING.format(goal=self.watch.goal) if aside else ""
+                note = self._watching_note() if aside else ""
                 prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
                 return self._ask(prompt, original, screen=True, aside=True)
             note = ASIDE if aside else woken_note(woken) if woken else ""
@@ -775,18 +790,29 @@ class Router:
         return self.watch is not None and self.watch.active
 
     def _watch_action(self, arg: str) -> bool:
-        """ACTION watch: <goal> starts a watch; ACTION watch: off ends it."""
+        """ACTION watch: <goal> | <mistakes or suggestions> starts a watch, or changes the one
+        that's on (it goes on); ACTION watch: off ends it."""
         if arg.strip().lower().rstrip(".") in WATCH_OFF:
             return self.end_watch()
         if not self.cfg.claude.allow_screen:
             return False
-        if self.watch is None:
-            from abdoh.watch import Watch
+        from abdoh.watch import Watch, parse
 
+        goal, suggest = parse(arg)
+        if self.watch is None:
             self.watch = Watch(grab=self._grab, window=self._window)
-        self.watch.start(arg)
+        if self.watch.active:
+            self.watch.change(goal, suggest)
+        else:
+            self.watch.start(goal, bool(suggest))
         self.on_watch(True)
         return True
+
+    def _watching_note(self) -> str:
+        """Said during a watch: what Claude is watching, and for what."""
+        watch = self.watch
+        kind = WATCH_KIND[watch.suggest].format(goal=watch.goal)
+        return WATCHING.format(goal=watch.goal, kind=kind)
 
     def end_watch(self) -> bool:
         """Stop watching the screen (said, a button, or "stop listening"). False if no watch was
@@ -811,6 +837,7 @@ class Router:
             window=window,
             minutes=watch.minutes(),
             notes=f" What you said during the watch so far: {said}." if said else "",
+            when=WATCH_WHEN[watch.suggest],
         )
         quiet = []
 
