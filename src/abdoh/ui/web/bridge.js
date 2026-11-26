@@ -128,6 +128,65 @@ const Bridge = (() => {
     let voiceActive = false;
     let demoOpenRouter = false;
     let demoChatGPT = params.has("chatgpt"); // ?chatgpt: already connected
+    // ----- Codoh (?demo): a weather app project with one finished chat and live replies -----
+    const now = Date.now() / 1000;
+    const WEATHER = "C:\\Users\\you\\code\\weather-app";
+    const codoh = {
+      folders: [
+        { path: WEATHER, name: "weather-app", opened: now - 60, exists: true },
+        { path: "C:\\Users\\you\\code\\portfolio", name: "portfolio", opened: now - 86400 * 2, exists: true },
+      ],
+      chats: {},
+      rev: 0,
+      limited: params.has("limit"),
+    };
+    const PATCH = "--- a/src/forecast.ts\n+++ b/src/forecast.ts\n@@ -18,9 +18,12 @@ export function dailySummary(hours: Hour[]): Day {\n   const temps = hours.map((h) => h.temperature);\n-  const high = Math.max(temps);\n-  const low = Math.min(temps);\n+  if (!temps.length) {\n+    return { high: null, low: null, rain: 0 };\n+  }\n+  const high = Math.max(...temps);\n+  const low = Math.min(...temps);\n   const rain = hours.filter((h) => h.rain > 0.2).length;\n   return { high, low, rain };\n }";
+    const TEST_OUT = " PASS  src/forecast.test.ts\n  dailySummary\n    \u2713 finds the highest and lowest temperature (3 ms)\n    \u2713 counts the rainy hours (1 ms)\n    \u2713 copes with a day without data (1 ms)\n\nTest Suites: 1 passed, 1 total\nTests:       3 passed, 3 total\nTime:        1.84 s";
+    const item = (kind, fields) => ({ id: `d${++codoh.rev}`, kind, rev: codoh.rev, at: now, ...fields });
+    const tool = (kind_of, title, fields = {}) => item("tool", { kind_of, title, detail: "", diff: "", output: "", ok: true, status: "done", tool: kind_of, ...fields });
+    const first = {
+      id: "demo-1", title: "Fix NaN in the daily forecast", folder: WEATHER, engine: "claude", model: "opus", mode: "ask", effort: "", created: now - 3600, updated: now - 300,
+      items: [
+        item("user", { text: "The daily forecast shows NaN for the high and low temperature. Can you find out why and fix it?" }),
+        item("assistant", { engine: "claude", model: "opus", text: "Let me look at how the daily summary is computed." }),
+        tool("search", "dailySummary", { detail: "in src" }),
+        tool("read", "src/forecast.ts"),
+        tool("read", "src/forecast.test.ts"),
+        item("assistant", { engine: "claude", model: "opus", text: "Found it: `Math.max(temps)` gets the **whole array** as one argument, so it returns `NaN`. It needs the spread operator, and a day without hourly data should return `null` instead of crashing:" }),
+        tool("edit", "src/forecast.ts", { diff: PATCH }),
+        tool("command", "npm test -- forecast", { detail: "Run the forecast tests", output: TEST_OUT }),
+        item("assistant", { engine: "claude", model: "opus", text: "Fixed. The three forecast tests pass now.\n\n### What changed\n- `dailySummary` spreads the temperatures into `Math.max` and `Math.min`\n- An empty day returns `{ high: null, low: null }`, which the card shows as **\u2013**\n\n```ts\nconst high = Math.max(...temps);\n```" }),
+        item("done", { seconds: 48 }),
+      ],
+    };
+    const second = { id: "demo-2", title: "Add a dark mode toggle", folder: WEATHER, engine: "chatgpt", model: "gpt-6.2", mode: "auto_edit", effort: "high", created: now - 86400, updated: now - 7200, items: [] };
+    const third = { id: "demo-3", title: "Explain the project layout", folder: "C:\\Users\\you\\code\\portfolio", engine: "claude", model: "", mode: "plan", effort: "", created: now - 86400 * 2, updated: now - 86400 * 2, items: [] };
+    for (const chat of [first, second, third]) codoh.chats[chat.id] = { ...chat, running: false, status: "", started: 0 };
+    const summaryOf = (c) => ({ id: c.id, title: c.title, folder: c.folder, engine: c.engine, model: c.model, mode: c.mode, effort: c.effort, created: c.created, updated: c.updated, running: c.running });
+    const touch = (c, it) => { codoh.rev += 1; it.rev = codoh.rev; return it; };
+    // A reply that streams in, with an approval for a change.
+    function demoReply(chat, text) {
+      chat.running = true; chat.status = "Thinking"; chat.started = Date.now() / 1000;
+      const ai = item("assistant", { engine: chat.engine, model: chat.model, text: "" });
+      const words = `Sure. I'll start by looking at where the settings live, then make the change.`.split(" ");
+      let i = 0;
+      const step = () => {
+        if (!chat.running) return;
+        if (i === 0) chat.items.push(ai);
+        if (i < words.length) { ai.text += (i ? " " : "") + words[i++]; touch(chat, ai); chat.status = "Writing"; setTimeout(step, 70); return; }
+        const read = tool("read", "src/settings.ts", { status: "running" });
+        chat.items.push(read); chat.status = "Reading src/settings.ts";
+        setTimeout(() => {
+          read.status = "done"; touch(chat, read);
+          const ask = item("approval", { request_id: "r1", tool: "Edit", kind_of: "edit", title: "src/settings.ts", detail: "", description: "", input: {},
+            diff: "--- a/src/settings.ts\n+++ b/src/settings.ts\n@@ -4,6 +4,7 @@ export const defaults = {\n   units: \"metric\",\n   city: \"Berlin\",\n+  theme: \"system\",\n   refreshMinutes: 15,\n };",
+            suggestions: [{ type: "setMode", mode: "acceptEdits", label: "Allow changes in this chat" }], state: "waiting" });
+          chat.items.push(ask); chat.status = "Waiting for you"; chat.ask = ask;
+        }, 900);
+      };
+      setTimeout(step, 400);
+    }
+
     // Settings → Advanced → Log, newest first.
     const demoLog = () => [
       { time: "09:41:12", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh: It is 9:41 AM.", details: "" },
@@ -370,6 +429,96 @@ const Bridge = (() => {
         return { ok: true, entries: all, total: demoLog().length, problems: demoLog().filter((e) => e.level !== "INFO").length, path: "C:\\Users\\you\\.abdoh\\abdoh.log" };
       },
       open_log: async () => true,
+      codoh_state: async () => ({
+        folders: codoh.folders,
+        chats: Object.values(codoh.chats).map(summaryOf).sort((a, b) => b.updated - a.updated),
+        engines: { claude: { ready: true, plan: "Claude Pro", why: "" }, chatgpt: { ready: demoChatGPT, why: demoChatGPT ? "" : "Your ChatGPT plan isn't connected. Connect it in Settings → Claude." } },
+        default_engine: codoh.limited && demoChatGPT ? "chatgpt" : "claude",
+        limited_until: codoh.limited ? now + 5400 : 0, limited_text: codoh.limited ? "until 8:50 PM" : "",
+      }),
+      codoh_models: async () => ({
+        claude: [
+          { id: "default", name: "Default (recommended)", line: "Opus 5.5 · Best for everyday, complex tasks" },
+          { id: "opus", name: "Opus 5.5", line: "For complex work and everyday tasks" },
+          { id: "sonnet", name: "Sonnet 5.5", line: "Most efficient for simpler tasks" },
+          { id: "fable", name: "Fable 5.2", line: "For your toughest challenges" },
+          { id: "haiku", name: "Haiku 5.5", line: "Fastest for quick answers" },
+        ],
+        claude_plan: "Claude Pro",
+        chatgpt: demoChatGPT ? [{ id: "gpt-6.2", name: "GPT-6.2 Sol", line: "" }, { id: "gpt-6.2-mini", name: "GPT-6.2 mini", line: "" }] : [],
+        chatgpt_error: "",
+      }),
+      codoh_open_folder: async () => ({ ok: true, folder: codoh.folders[0], git: { branch: "main", changed: 2 } }),
+      codoh_folder: async (path) => ({ ok: true, git: path === WEATHER ? { branch: "fix/forecast-nan", changed: 2 } : null }),
+      codoh_forget_folder: async (path) => { codoh.folders = codoh.folders.filter((f) => f.path !== path); return { ok: true }; },
+      codoh_new_chat: async (folder, engine, model, mode) => {
+        const id = `demo-${Date.now()}`;
+        codoh.chats[id] = { id, title: "New chat", folder, engine: engine || "claude", model: model || "", mode: mode || "ask", effort: "", created: Date.now() / 1000, updated: Date.now() / 1000, items: [], running: false, status: "" };
+        return { ok: true, chat: summaryOf(codoh.chats[id]) };
+      },
+      codoh_chat: async (id, since) => {
+        const chat = codoh.chats[id];
+        if (!chat) return { ok: false, error: "That chat is gone." };
+        return { ok: true, chat: summaryOf(chat), rev: codoh.rev, items: chat.items.filter((i) => !since || i.rev > since).map((i) => ({ ...i })),
+          running: chat.running, status: chat.status, seconds: chat.running ? Date.now() / 1000 - chat.started : 0 };
+      },
+      codoh_send: async (id, text) => {
+        const chat = codoh.chats[id];
+        if (chat.running) return { ok: false, error: "Codoh is still answering. Stop it first, or wait." };
+        chat.items.push(item("user", { text }));
+        if (chat.title === "New chat") chat.title = text.slice(0, 60);
+        chat.updated = Date.now() / 1000;
+        demoReply(chat, text);
+        return { ok: true };
+      },
+      codoh_stop: async (id) => {
+        const chat = codoh.chats[id];
+        chat.running = false; chat.status = "";
+        if (chat.ask && chat.ask.state === "waiting") { chat.ask.state = "expired"; touch(chat, chat.ask); }
+        chat.items.push(item("note", { text: "Stopped." }));
+        return { ok: true };
+      },
+      codoh_answer: async (id, itemId, decision) => {
+        const chat = codoh.chats[id];
+        const ask = chat.items.find((i) => i.id === itemId);
+        ask.state = decision === "deny" ? "denied" : decision === "always" ? "always" : "allowed";
+        touch(chat, ask);
+        if (decision !== "deny") {
+          chat.status = "Editing src/settings.ts";
+          setTimeout(() => {
+            chat.items.push(tool("edit", "src/settings.ts", { diff: ask.diff }));
+            chat.items.push(item("assistant", { engine: chat.engine, model: chat.model, text: "Added a `theme` setting (`system`, `light` or `dark`). The toggle in the header switches it." }));
+            chat.items.push(item("done", { seconds: 12 }));
+            chat.running = false; chat.status = "";
+          }, 700);
+        } else {
+          chat.items.push(item("assistant", { engine: chat.engine, model: chat.model, text: "Okay, I left `settings.ts` as it is. How would you like the theme stored?" }));
+          chat.running = false; chat.status = "";
+        }
+        return { ok: true };
+      },
+      codoh_configure: async (id, changes) => {
+        const chat = codoh.chats[id];
+        if (changes.model !== undefined) {
+          const [engine, model] = String(changes.model).includes(":") ? String(changes.model).split(":") : [chat.engine, changes.model];
+          if (engine !== chat.engine) chat.items.push(item("note", { text: `Now with ${engine === "claude" ? "Claude" : "ChatGPT"}. It got a summary of this chat.` }));
+          chat.engine = engine; chat.model = model;
+        }
+        if (changes.mode) chat.mode = changes.mode;
+        if (changes.effort !== undefined) chat.effort = changes.effort;
+        return { ok: true, chat: summaryOf(chat) };
+      },
+      codoh_rename: async (id, title) => { codoh.chats[id].title = title.trim(); return { ok: true }; },
+      codoh_delete: async (id) => { delete codoh.chats[id]; return { ok: true }; },
+      codoh_changes: async () => ({ ok: true, git: { branch: "fix/forecast-nan", changed: 2 }, files: [
+        { path: "src/forecast.ts", state: "changed", added: 5, removed: 2 },
+        { path: "src/forecast.test.ts", state: "new", added: 24, removed: 0 },
+      ] }),
+      codoh_diff: async (folder, path) => ({ ok: true, diff: path.endsWith("test.ts")
+        ? "--- /dev/null\n+++ b/src/forecast.test.ts\n@@ -0,0 +1,8 @@\n+import { dailySummary } from \"./forecast\";\n+\n+describe(\"dailySummary\", () => {\n+  it(\"copes with a day without data\", () => {\n+    expect(dailySummary([])).toEqual({ high: null, low: null, rain: 0 });\n+  });\n+});\n+"
+        : PATCH }),
+      codoh_reveal: async () => true,
+      codoh_open_editor: async () => ({ ok: true, editor: "VS Code" }),
       stop_watching: async () => { push("watch", null); return null; },
       claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},

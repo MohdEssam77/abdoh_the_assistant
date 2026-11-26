@@ -6,6 +6,7 @@
 <title>Abdoh</title>
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="codoh.css">
 </head>
 <body>
 <aside class="sidebar">
@@ -19,6 +20,10 @@
     <button data-page="home" class="active" title="Home">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20h5v-6h4v6h5V9.5"/></svg>
       <span>Home</span>
+    </button>
+    <button data-page="codoh" title="Codoh, your coding assistant" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>
+      <span>Codoh</span>
     </button>
     <button data-page="modes" title="Modes" hidden>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5z"/><path d="m3 13 9 5 9-5"/></svg>
@@ -123,6 +128,10 @@
       </div>
       <div class="composer-hint" id="composer-hint"></div>
     </footer>
+  </section>
+
+  <section class="page" id="page-codoh" aria-label="Codoh">
+    <div class="codoh" id="codoh"></div>
   </section>
 
   <section class="page" id="page-commands" aria-label="Commands">
@@ -295,5 +304,6 @@
 <script src="claude.js"></script>
 <script src="settings.js"></script>
 <script src="setup.js"></script>
+<script src="codoh.js"></script>
 </body>
 </html>

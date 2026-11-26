@@ -182,6 +182,11 @@ class Daemon:
         router.on_board_pdf = lambda: self.bus.emit("save_board", None)  # the page prints it
         router.on_watch = self._watch_changed  # watching the screen began or ended
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
+        router.add_builtin(
+            "open_codoh",
+            ["open codoh", "show codoh", "open the coding assistant", "codoh"],
+            self._open_codoh,
+        )
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
         router.add_builtin(
@@ -409,6 +414,12 @@ class Daemon:
     def _show_window(self) -> str:
         self.bus.emit("show")
         return ""
+
+    def _open_codoh(self) -> str:
+        """ "Abdoh, open Codoh": the window, on the coding assistant page."""
+        self.bus.emit("show")
+        self.bus.emit("page", "codoh")
+        return Done("Opening Codoh.")
 
     def _stop_listening(self) -> str:
         """ "Stop listening": quiet at once, not a word (the window says how to get it back)."""

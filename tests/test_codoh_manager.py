@@ -414,3 +414,22 @@ def test_the_window_api(tmp_path):
     assert api.codoh_send(chat_id, "hi")["ok"]
     assert api.codoh_chat(chat_id)["running"]
     assert api.codoh_reveal(str(world.folder)) is True or True
+
+
+def test_abdoh_open_codoh(tmp_path):
+    """ "Abdoh, open Codoh": the window comes up on the page."""
+    from fakes import FakeTranscriber, FakeWakeWord
+
+    from abdoh.commands.registry import CommandRegistry
+    from abdoh.daemon import Daemon
+    from abdoh.events import Bus
+    from abdoh.router import Router
+    from abdoh.speech.tts import FakeSpeaker
+
+    cfg = Config(app_dir=tmp_path)
+    bus = Bus()
+    router = Router(cfg, CommandRegistry(tmp_path / "none.yaml"))
+    Daemon(cfg, router, FakeSpeaker(), None, FakeWakeWord(10_000), FakeTranscriber([]), bus=bus)
+    assert router.handle("open codoh") == "Opening Codoh."
+    events = bus.pending_events()
+    assert ("show", None) in events and ("page", "codoh") in events

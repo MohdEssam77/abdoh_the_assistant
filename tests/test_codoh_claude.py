@@ -289,6 +289,7 @@ def test_cards_for_claude_code_tools(tmp_path):
         tmp_path,
     )
     assert "-x = 1" in edit["diff"] and "+x = 2" in edit["diff"]
+    assert "@@ … @@" in edit["diff"]  # where in the file isn't known before it runs
     assert cards.counts(edit["diff"]) == (1, 1)
     command = cards.card("PowerShell", {"command": "npm test", "description": "Run the tests"})
     assert (command["kind"], command["title"], command["detail"]) == (
