@@ -377,7 +377,13 @@ def system_prompt(
 
 
 class BrainError(RuntimeError):
-    """A Claude request failed; the message is safe to speak."""
+    """A Claude request failed; the message is safe to speak. `limit`: the plan's usage limit
+    was reached, and `resets_at` is when it resets (epoch seconds), if known."""
+
+    def __init__(self, message: str = "", limit: bool = False, resets_at: float | None = None):
+        super().__init__(message)
+        self.limit = limit
+        self.resets_at = resets_at
 
 
 class Brain(ABC):
@@ -416,7 +422,8 @@ class Brain(ABC):
 
 def make_brain(cfg: Config, find_code=None) -> Brain | None:
     """Claude Code if it's installed (paid by your subscription), else the API if a key is set,
-    else OpenRouter, else your ChatGPT plan (or the one `claude.backend` names)."""
+    else OpenRouter, else your ChatGPT plan (or the one `claude.backend` names). Claude Code
+    comes with your ChatGPT plan behind it for when its limit runs out (claude.fallback)."""
     from abdoh.claude.code import ClaudeCodeBrain, find_claude_code
 
     backend = cfg.claude.backend
@@ -425,7 +432,9 @@ def make_brain(cfg: Config, find_code=None) -> Brain | None:
     if backend in ("auto", "code"):
         exe = (find_code or find_claude_code)(cfg.claude.code_path)
         if exe:
-            return ClaudeCodeBrain(cfg, exe)
+            from abdoh.claude.fallback import with_fallback
+
+            return with_fallback(cfg, ClaudeCodeBrain(cfg, exe))
         if backend == "code":
             log.warning("claude.backend is 'code' but Claude Code wasn't found")
             return None
