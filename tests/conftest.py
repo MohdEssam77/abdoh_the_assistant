@@ -29,6 +29,19 @@ def no_real_key_presses(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_real_windows(monkeypatch):
+    """Tests never open real folders, files or settings pages (Explorer would pop up)."""
+    import os
+
+    if hasattr(os, "startfile"):
+
+        def refuse(*args, **kwargs):
+            raise AssertionError(f"a test opened a real window: {args}")
+
+        monkeypatch.setattr(os, "startfile", refuse)
+
+
+@pytest.fixture(autouse=True)
 def no_bundled_models(tmp_path_factory, monkeypatch):
     """Tests never see the models in this checkout's models/ folder: only the example files
     ship with the (pretend) app, so results are the same on every machine."""

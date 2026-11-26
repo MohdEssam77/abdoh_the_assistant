@@ -407,13 +407,15 @@ def test_the_window_api(tmp_path):
     from abdoh.ui.api import AppApi, UiState
 
     world = World(tmp_path)
-    api = AppApi(Bus(), UiState(), world.cfg, codoh=world.codoh)
+    opened = []
+    api = AppApi(Bus(), UiState(), world.cfg, codoh=world.codoh, open_path=opened.append)
     assert api.codoh_open_folder(str(world.folder))["ok"]
     assert api.codoh_open_folder()["cancelled"]  # no window to pick one in
     chat_id = api.codoh_new_chat(str(world.folder))["chat"]["id"]
     assert api.codoh_send(chat_id, "hi")["ok"]
     assert api.codoh_chat(chat_id)["running"]
-    assert api.codoh_reveal(str(world.folder)) is True or True
+    assert api.codoh_reveal(str(world.folder)) is True
+    assert opened == [world.folder]
 
 
 def test_abdoh_open_codoh(tmp_path):
