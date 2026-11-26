@@ -299,6 +299,21 @@ it; Abdoh's prompt mentions it; tests check every page, setting and permission i
 README (Codoh, watching, logs, the Catalog, the switch to ChatGPT), `docs/index.html`'s feature
 list, the memory notes. No release.
 
+### Story 119: Suggestions while watching (`story/119-watch-suggestions`)
+Asked for after the epic: "watch the screen while I'm shopping, give me suggestions", and talk
+about the items meanwhile. The same watch, with a kind: `ACTION watch: <goal> | mistakes` or
+`| suggestions`. Claude picks it from the request (asked for tips, or a task where tips clearly
+help, like shopping: suggestions; a form: mistakes only). "Stop suggesting for now" / "you can
+suggest things too" go to Claude, which writes `ACTION watch` again with the other kind: the
+same watch goes on (its notes, its time, its one look loop). A picture in a suggestions watch
+also asks for "a better or cheaper choice, a warning, a useful tip", otherwise
+`ACTION ignore: fine`. The chip says "Watching · suggestions on". No setting: the owner and
+Claude agreed an on/off switch would add almost nothing, since what you say decides.
+- [x] `watch.parse`, `Watch.suggest`, `Watch.change`; the router's kind notes; Claude's prompt.
+- [x] One look loop per watch (a change doesn't start a second one).
+- [x] "Watch me shop and give me suggestions" is one request (it was split in two).
+- [x] The chip, the Catalog card, README.
+
 ---
 
 ## 6b. Results (2026-11-26)
@@ -315,6 +330,7 @@ All stories are merged on `main` (not released: the version is still 0.12.0).
 | 115 Codoh, chats and folders | Fakes, plus real git in a temporary repository. Found and fixed: a repository without commits wasn't recognized |
 | 116 Codoh, the page | Demo screenshots (light, dark, a small window, menus, approvals, the Changes panel) and a real run through the page with real Claude Code in a temporary git project |
 | 117 The Catalog | 29 features in 9 sections; tests check every page and setting it names; screenshots with the real content |
+| 119 Suggestions while watching | Real Claude Code on a drawn shop page: it chose suggestions for "watch while I shop, give me suggestions", pointed out a cheaper, better rated pair unasked, answered "is the one I picked better?", and after "stop suggesting for now" kept watching and stayed quiet; a passport form got mistakes only and caught 31/02. The chip in light and dark |
 
 ## 7. The owner's decisions (2026-11-26)
 - Codoh is its own page, with its own sessions; Abdoh's context never goes to the coding models.
