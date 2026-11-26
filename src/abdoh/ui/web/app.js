@@ -780,9 +780,11 @@ function hideBanner(source) {
 /* ---------- status ---------- */
 
 const STATUS = {
-  "Listening": ["listening", "Listening", () => App.listening && App.listening.now
-    ? "Just talk: no “Hey Abdoh” needed in this lesson"
-    : `Say “Hey Abdoh” or press ${hotkeyText(App.settings.hotkey)}`],
+  "Listening": ["listening", "Listening", () => (App.watch
+    ? "Just talk: no “Hey Abdoh” needed while I watch"
+    : App.listening && App.listening.now
+      ? "Just talk: no “Hey Abdoh” needed in this lesson"
+      : `Say “Hey Abdoh” or press ${hotkeyText(App.settings.hotkey)}`)],
   "Paused": ["idle", "Paused", () => "Not listening for the wake word. The hotkey still works."],
   "Hotkey only": ["listening", "Hotkey only", () => `The wake word couldn't start. Press ${hotkeyText(App.settings.hotkey)} to talk.`],
   "Listening to you...": ["hearing", "Listening to you", () => "Go ahead, I'm listening"],
@@ -907,6 +909,16 @@ function setListening(listening) {
   if (App.status === "Listening") setStatus(App.status);
 }
 
+/* Abdoh is watching the screen ({goal}), or not (null). */
+function setWatch(watch) {
+  App.watch = watch || null;
+  const chip = $("#watch-chip");
+  if (!chip) return;
+  chip.hidden = !App.watch;
+  chip.title = App.watch ? `Watching: ${App.watch.goal}. Say “stop watching” or press ✕.` : "";
+  if (App.status === "Listening") setStatus(App.status);
+}
+
 function setRole(name) {
   App.role = name || "";
   const chip = $("#role-chip");
@@ -932,6 +944,7 @@ const HANDLERS = {
   hearing: setHearing,
   mode: setMode,
   role: setRole,
+  watch: setWatch,
   listening: setListening,
   board: addToBoard,
   save_board: () => saveBoardPdf(true),
@@ -1049,6 +1062,7 @@ async function start() {
   setHearing(state.hearing);
   setMode(state.mode);
   setRole(state.role);
+  setWatch(state.watch);
   App.listening = state.listening || { on: false, now: false };
   App.board = state.board || [];
   App.boardPictures = state.pictures || {};
@@ -1058,6 +1072,11 @@ async function start() {
   setStatus(state.status || "Starting...");
   renderHowToTalk();
   bindHome();
+  $("#watch-chip-end").addEventListener("click", async () => {
+    await call("stop_watching");
+    setWatch(null);
+    toast("Stopped watching your screen.");
+  });
   loadLamps(); // for the lamp pickers in commands and modes
   for (const page of Object.values(App.pages)) if (page.boot) page.boot(boot);
   showPage(params.get("page") || store("abdoh.page") || "home");

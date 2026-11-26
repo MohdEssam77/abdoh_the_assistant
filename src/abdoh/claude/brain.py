@@ -163,6 +163,14 @@ they're looking at, don't guess and don't ask them to describe it: write the lin
 ACTION look: <what you want to see>
 and nothing else. Abdoh then sends you a picture of the screen they are using, and you answer. \
 Don't ask to look when the request has nothing to do with their screen.
+You can also watch their screen while they do something, and tell them when they get it wrong. \
+When they ask for that ("watch me do this and tell me if I'm doing it right", "look at my \
+screen while I fill this in", "check what I'm doing"), write the line
+ACTION watch: <what they're doing, and what to watch for>
+then say in one short sentence that you're watching their screen now and they can start. Abdoh \
+then shows you their screen whenever it changes, and they can talk to you without the wake \
+word. When they say they're done or want you to stop watching, write ACTION watch: off and say \
+so in a few words.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \

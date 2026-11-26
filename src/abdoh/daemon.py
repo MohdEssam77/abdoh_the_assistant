@@ -81,6 +81,7 @@ class Daemon:
     # (a cough or a click is shorter), and not until Abdoh's own voice has died away.
     HEAR_ONSET_SECONDS = 0.3
     HEAR_AFTER_SPEAKING_SECONDS = 0.8
+    WATCH_MIN_SECONDS = 1.0  # watching the screen: never look more often than this
 
     def __init__(
         self,
@@ -179,6 +180,7 @@ class Daemon:
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
         router.on_board_pdf = lambda: self.bus.emit("save_board", None)  # the page prints it
+        router.on_watch = self._watch_changed  # watching the screen began or ended
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
         router.add_builtin("start_listening", ["start listening"], self._start_listening)
@@ -410,6 +412,9 @@ class Daemon:
 
     def _stop_listening(self) -> str:
         """ "Stop listening": quiet at once, not a word (the window says how to get it back)."""
+        end_watch = getattr(self.router, "end_watch", None)
+        if end_watch is not None:
+            end_watch()  # a watch of the screen ends too
         self.set_paused(True)
         self.bus.emit("history", f"Abdoh: {STOPPED_LISTENING}")
         return ""
@@ -940,6 +945,11 @@ class Daemon:
 
     def handle_request(self, kind: str, value=None) -> None:
         """One request from the UI."""
+        if kind == "stop_watching":
+            end_watch = getattr(self.router, "end_watch", None)
+            if end_watch is not None:
+                end_watch()
+            return
         if kind == "text":
             if value and value.strip():
                 self.handle_text(value.strip())
@@ -1250,6 +1260,8 @@ class Daemon:
         to stop listening), Abdoh's window is open, the board shows something, and you or Abdoh
         said something in the last lesson_listen_seconds (a setting; 0 = never). Otherwise, as
         usual: the wake word."""
+        if self._watch_on():
+            return True  # watching the screen: the user talks to Abdoh as they work
         acting = self.acting
         quiet = float(self.cfg.lesson_listen_seconds or 0)
         return bool(
@@ -1266,14 +1278,111 @@ class Daemon:
         acting = self.acting
         now = self.keeps_listening()
         if now != self._listening_now:
+            watching = self._watch_on()
             log.info(
-                "In a lesson: listening without the wake word"
+                ("Watching the screen" if watching else "In a lesson")
+                + ": listening without the wake word"
                 if now
-                else "No lesson going on: the wake word again"
+                else "No lesson or watch going on: the wake word again"
             )
         self._listening_now = now
         on = bool(acting is not None and acting.keeps_listening and self.cfg.lesson_listen_seconds)
         self.bus.emit("listening", {"on": on, "now": now})
+
+    # ----- watching the screen (abdoh/watch.py): looking, and listening without the wake word
+
+    def _watch_on(self) -> bool:
+        return bool(getattr(self.router, "watching", False)) and not self.paused
+
+    def _watch_changed(self, on: bool) -> None:
+        """A watch began (Claude: ACTION watch) or ended: look every few seconds while it's on,
+        and show it in the window."""
+        watch = getattr(self.router, "watch", None)
+        if on and watch is not None:
+            self.bus.emit("watch", {"goal": watch.goal})
+            threading.Thread(
+                target=self._watch_loop,
+                args=(watch.generation,),
+                name="abdoh-watch",
+                daemon=True,
+            ).start()
+        else:
+            self.bus.emit("watch", None)
+            self.bus.emit("history", "Abdoh: (stopped watching your screen)")
+        self._show_listening()
+
+    def _watch_busy(self) -> bool:
+        """Someone is talking (Abdoh, or the user): no picture now."""
+        return bool(self._handle_lock.locked() or self._recording or self._heard_for > 0)
+
+    def _watch_loop(self, generation: int) -> None:
+        """Every watch_seconds while the watch is on: a picture of the screen when it changed
+        and nobody is talking. Ends with the watch, "stop listening", or after watch_minutes
+        without a word from the user."""
+        watch = self.router.watch
+        while not self.stop_event.wait(max(self.WATCH_MIN_SECONDS, float(self.cfg.watch_seconds))):
+            if watch.generation != generation or not watch.active:
+                return  # ended, or a new watch took over
+            if self.paused:
+                self.router.end_watch()
+                return
+            limit = float(self.cfg.watch_minutes) * 60
+            if limit > 0 and watch.quiet_for() > limit:
+                self._watch_timed_out()
+                return
+            if self._watch_busy():
+                continue
+            try:
+                shot = watch.look()
+            except Exception as e:  # the screen can't be captured right now (locked, ...)
+                log.warning("Couldn't take a picture of the screen: %s", e)
+                continue
+            if shot is not None:
+                self._watch_frame(*shot)
+
+    def _watch_frame(self, image: bytes, window) -> None:
+        """Show Claude the screen; say what it says (usually nothing: the user is doing fine).
+        Skipped when a request took the floor meanwhile."""
+        if not self._handle_lock.acquire(blocking=False):
+            return
+        said = ""
+        try:
+            if self.paused or not self.router.watching:
+                return
+            self._interrupted.clear()
+            self._you_stopped = False
+            self._floor.set()
+            self._watching = False  # the voice watch follows this reply afresh
+            self._spoke = self._answered = False
+            self._request = ""
+            sentences = self.router.watch_frame(
+                image, getattr(window, "title", ""), getattr(window, "program", "")
+            )
+            said = self._speak_stream(sentences, time.perf_counter())
+        except Exception:
+            log.exception("Error while watching the screen")
+        finally:
+            self._handle_lock.release()
+        if said:
+            watch = self.router.watch
+            if watch is not None:
+                watch.note(said)
+            self._unduck_unless_listening()
+            self._quiet_for_hearing()
+            self._status_idle()
+
+    def _watch_timed_out(self) -> None:
+        minutes = float(self.cfg.watch_minutes)
+        if not self.router.end_watch():
+            return
+        with self._handle_lock:
+            self._interrupted.clear()
+            self.say(
+                f"I stopped watching your screen: you haven't said anything for {minutes:g} "
+                "minutes. Ask me again if you need me."
+            )
+            self._unduck_unless_listening()
+            self._status_idle()
 
     def _hearing_vad(self):
         if self._hear_vad is None and self.vad is not None:

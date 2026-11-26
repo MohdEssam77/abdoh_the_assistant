@@ -22,6 +22,8 @@ follow_up_seconds: 6             # after Claude answers, keep listening this lon
 memory: true                     # Abdoh remembers things about you (the Memory page); false = nothing is kept or sent
 keep_conversations: true         # keep your conversations on this computer, to ask about them later; false = nothing new is kept
 conversation_days: 7             # ... for this many days (1 to 30), then they are deleted
+watch_seconds: 5                 # watching your screen: a look when it changed, at most this often
+watch_minutes: 20                # ... and the watch ends after this many quiet minutes (0 = never)
 lesson_listen_seconds: 120       # in a lesson (a role explaining on the board), no wake word until this long is quiet; 0 = off
 wake_word_interrupts: true       # say the wake word while Abdoh is talking to stop it
 keep_unclear_clips: false        # keep what it heard but couldn't make out (one day, to check why)

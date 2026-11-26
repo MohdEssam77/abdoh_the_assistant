@@ -5,7 +5,8 @@ when every part is one on its own: it starts with a verb of doing ("stop", "play
 a question, or is a bare name after "open" or "close" ("open whatsapp and spotify"). Anything
 else stays one request: "play rock and roll", "what's the difference between python and java".
 After a verb that takes free text ("remind me to call mom and send the email"), the rest
-belongs to it.
+belongs to it, and "tell me if..." is about the step before it ("watch me fill this in and tell
+me if I get it wrong" is one request).
 """
 
 import re
@@ -25,6 +26,16 @@ DOING = frozenset(
 QUESTIONS = frozenset("what whats how hows when where who whos why which is are do does".split())
 # Their text runs on: what follows belongs to them.
 FREE_TEXT = frozenset("remind note write type dictate send tell say text message email".split())
+# "... and tell me if I get it wrong", "... and let me know when it's done": about the step
+# before, when that one watches or tries something ("open spotify and tell me if it's raining"
+# is still two).
+OBSERVING = frozenset(
+    "watch check run read listen look see monitor follow observe try test".split()
+)
+_ABOUT_IT = re.compile(
+    r"^(?:(?:please|just|also|and|then|now) )*(?:tell me|let me know|say|warn me|stop me"
+    r"|correct me|show me) (?:if|whether|when|what|how|why|where|which|as soon as|once)\b"
+)
 # "open whatsapp and spotify": the bare name borrows the verb.
 SHARED = frozenset("open close launch quit".split())
 _FILLER = re.compile(
@@ -47,7 +58,8 @@ def split_steps(text: str) -> list[str]:
         piece = pieces[i].strip()
         if not piece:
             continue
-        if steps and verb in FREE_TEXT:
+        about_it = verb in OBSERVING and _ABOUT_IT.match(normalize(piece))
+        if steps and (verb in FREE_TEXT or about_it):
             steps[-1] += pieces[i - 1] + piece  # "remind me to call mom and send the email"
             continue
         word = first_word(piece)
