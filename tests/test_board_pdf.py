@@ -1,6 +1,7 @@
 """The board as a PDF: the printable page, Edge (a fake one here), and "save the board"."""
 
 import subprocess
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +13,15 @@ from abdoh.events import Bus
 
 WHEN = datetime(2026, 11, 25, 12, 3)
 CARD = '<div class="board-item"><h3>DFA</h3><svg viewBox="0 0 10 10"><circle r="4"/></svg></div>'
+
+
+@pytest.fixture(autouse=True)
+def quick_waits(monkeypatch):
+    """Edge's waits, short: a missing PDF is known in a moment here."""
+    monkeypatch.setattr("abdoh.board_pdf.WAIT_SECONDS", 1.0)
+    monkeypatch.setattr("abdoh.board_pdf.FAILED_WAIT_SECONDS", 0.05)
+    monkeypatch.setattr("abdoh.board_pdf.POLL_SECONDS", 0.02)
+    monkeypatch.setattr("abdoh.board_pdf.RETRY_SECONDS", 0)
 
 
 class FakeEdge:
@@ -26,7 +36,7 @@ class FakeEdge:
         if not self.works:
             raise subprocess.TimeoutExpired(args, 60)
         target = next(a for a in args if a.startswith("--print-to-pdf="))[len("--print-to-pdf=") :]
-        Path(target).write_bytes(b"%PDF-1.7 board")
+        Path(target).write_bytes(b"%PDF-1.7 board\n%%EOF\n")
 
 
 def test_the_printable_page():
@@ -270,3 +280,59 @@ def test_done_says_saving_the_board_in_words():
 
     assert _what_was_done([("board_pdf", "now")]) == "Done: saving the board as a PDF."
     assert _what_was_done([("open_app", "Spotify")]) == "Done: open app Spotify."
+
+
+# ----- Edge returning before the PDF is written (the owner's Abdoh, 2026-11-27 00:31) -----
+
+
+def test_edge_returning_early_is_waited_for(tmp_path, monkeypatch):
+    """Edge handed the print off and returned at once; the PDF came a moment later."""
+    import threading
+
+    monkeypatch.setattr("abdoh.board_pdf.POLL_SECONDS", 0.02)
+    tries = []
+
+    def edge(args, **kwargs):
+        tries.append(args)
+        target = Path(next(a for a in args if a.startswith("--print-to-pdf="))[15:])
+        page_file = Path(args[-1].replace("file:///", ""))
+
+        def write():
+            time.sleep(0.15)
+            assert page_file.exists()  # the page is still there for Edge
+            target.write_bytes(b"%PDF-1.7 half")  # being written...
+            time.sleep(0.1)
+            target.write_bytes(b"%PDF-1.7 board\n%%EOF\n")  # ...finished
+
+        threading.Thread(target=write, daemon=True).start()
+        return Done(0)
+
+    pdf = save([CARD], "Board", tmp_path, edge=Path("msedge.exe"), run=edge, when=WHEN)
+    assert pdf.read_bytes().endswith(b"%%EOF\n") and len(tries) == 1  # no second Edge
+
+
+def test_a_half_written_pdf_isnt_finished(tmp_path):
+    from abdoh.board_pdf import finished, wait_for
+
+    pdf = tmp_path / "b.pdf"
+    assert not finished(pdf)
+    pdf.write_bytes(b"%PDF-1.7 half")
+    assert not finished(pdf)
+    clock = iter([0.0, 1.0, 2.0, 99.0]).__next__
+    assert not wait_for(pdf, 5, sleep=lambda s: None, clock=clock)
+    pdf.write_bytes(b"%PDF-1.7\n%%EOF")
+    assert finished(pdf)
+
+
+def test_edges_files_it_couldnt_let_go_of_are_tidied_later(tmp_path):
+    import os
+
+    from abdoh.board_pdf import _tidy_leftovers
+
+    old, new, other = (tmp_path / n for n in ("abdoh-board-old", "abdoh-board-new", "keep-me"))
+    for folder in (old, new, other):
+        (folder / "edge-profile-1" / "Crashpad").mkdir(parents=True)
+    os.utime(old, (0, 0))
+    os.utime(other, (0, 0))
+    _tidy_leftovers(tmp_path, now=10_000.0 + 3600 * 2)
+    assert not old.exists() and new.exists() and other.exists()
