@@ -222,6 +222,8 @@ class Daemon:
             return
         brain.on_activity = self._activity
         brain.state = self._state_line  # the mode that's on, with every message
+        if hasattr(brain, "on_switch"):  # ChatGPT answers while Claude's limit is used up
+            brain.on_switch = self._claude_switched
         warm_up = getattr(brain, "warm_up", None)
         if warm_up:
             warm_up()
@@ -1004,6 +1006,13 @@ class Daemon:
         self.bus.emit(
             "history", "Abdoh: Claude key saved." if key else "Abdoh: Claude key removed."
         )
+
+    def _claude_switched(self, chatgpt: bool) -> None:
+        """Your ChatGPT plan took over from Claude (its limit ran out), or Claude is back. The
+        switch to ChatGPT is said in the reply; going back is only shown."""
+        if not chatgpt:
+            self.bus.emit("history", "Abdoh: Claude's limit has reset, so Claude answers again.")
+        self._report_claude()
 
     def _report_claude(self) -> None:
         """Show how Claude is connected. Claude Code's sign-in is checked in the background."""

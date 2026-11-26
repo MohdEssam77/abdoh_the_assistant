@@ -97,6 +97,9 @@ class ClaudeConfig:
     max_tokens: int = 4000  # API key and OpenRouter only
     openrouter_model: str = "openrouter/auto"  # OpenRouter only: any model there
     chatgpt_model: str = ""  # your ChatGPT plan only: one of its models; empty = its first
+    # When Claude Code reaches your plan's usage limit, your ChatGPT plan answers until it resets
+    # (only once ChatGPT is connected and allowed; abdoh/claude/fallback.py)
+    fallback: bool = True
     # Pictures made by AI on the board (with an OpenRouter key): the model that makes them
     openrouter_image_model: str = "black-forest-labs/flux-3-image-klein"
     effort: str = "low"

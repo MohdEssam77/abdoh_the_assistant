@@ -236,7 +236,17 @@
         refresh(body);
       } }, "Disconnect")))];
     if (g.plan_usage) rows.push(chatgptModelPart());
+    if (g.plan_usage && state.installed && ["auto", "code"].includes(state.backend)) rows.push(fallbackPart());
     return el("div", {}, ...rows);
+  }
+
+  /* Claude's limit used up: your ChatGPT plan answers until it resets (claude.fallback). */
+  function fallbackPart() {
+    return row("When Claude's limit runs out", "Your ChatGPT plan answers until Claude's limit resets, and Abdoh says so once. Codoh's chats switch too.",
+      toggle(App.settings.claude.fallback !== false, async (on, input) => {
+        if (!(await saveSettings({ claude: { fallback: on } }, true))) input.checked = !on;
+        else toast(on ? "ChatGPT takes over when Claude's limit runs out." : "Abdoh waits for Claude's limit to reset.");
+      }, "Use my ChatGPT plan when Claude's limit runs out"));
   }
 
   function chatgptModelPart() {
@@ -291,7 +301,7 @@
       title: "You're using your ChatGPT plan",
       body: el("div", {},
         el("p", {}, "Eligible usage in this app uses your ChatGPT plan. Manage usage in your ChatGPT settings."),
-        el("p", { class: "muted" }, "Abdoh uses it when you choose “Only my ChatGPT plan” under Use below, or when there's no Claude account, API key or OpenRouter key.")),
+        el("p", { class: "muted" }, "Abdoh uses it when you choose “Only my ChatGPT plan” under Use below, when there's no Claude account, API key or OpenRouter key, and when Claude's usage limit runs out.")),
       actions: [
         el("button", { class: "btn", type: "button", onclick: () => call("open_link", CHATGPT_USAGE_URL) }, "Manage usage"),
         el("div", { class: "spacer" }),

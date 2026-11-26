@@ -167,7 +167,21 @@ def _thinking(cfg: Config, via: str) -> str:
             f"(model: {model})"
         )
     effort = c.effort or "default"
-    return f"{how}, effort {effort}. Answers are at most {c.voice_reply_max_sentences} sentences."
+    backup = ""
+    if via == "code" and c.fallback and _safe(lambda: _chatgpt_ready(cfg), ""):
+        backup = (
+            " When Claude's usage limit runs out, the user's ChatGPT plan answers until it resets."
+        )
+    return (
+        f"{how}, effort {effort}. Answers are at most {c.voice_reply_max_sentences} "
+        f"sentences.{backup}"
+    )
+
+
+def _chatgpt_ready(cfg: Config) -> str:
+    from abdoh.claude.chatgpt import Account
+
+    return "yes" if Account.of(cfg).plan_usage else ""
 
 
 def _conversation(cfg: Config) -> str:

@@ -375,6 +375,11 @@ under **Use** to use it instead of Claude (`claude.backend: chatgpt`); Automatic
 there's no Claude account, API key or OpenRouter key. Like an API key, Abdoh's actions and looking
 at the screen (with a model that sees images) work; Claude Code's own tools (your files, web
 search, Gmail and Calendar) don't, and only the last exchange is remembered.
+- **When Claude's limit runs out**, your ChatGPT plan takes over by itself (with Claude Code and
+  the ChatGPT plan both connected): Abdoh says once "Claude's limit is used up until 8:50 PM, so
+  your ChatGPT plan answers for now", every request goes to ChatGPT until then (the window's side
+  line says so), and then Claude answers again. Turn it off with **When Claude's limit runs out**
+  in the Claude card (`claude.fallback: false`).
 - Your plan's limits apply: for ChatGPT Plus the five-hour limit is shared with ChatGPT itself
   and every other app using your plan. When it's reached Abdoh says so; see it under **Manage
   usage** (https://chatgpt.com/settings/usage).
@@ -937,6 +942,7 @@ model and language need a restart (the Settings page offers a **Restart now** bu
 | `claude.model` | `claude-opus-5-5` | Model when using an API key |
 | `claude.openrouter_model` | `openrouter/auto` | Model when using OpenRouter (any id from openrouter.ai/models) |
 | `claude.chatgpt_model` | (empty) | Model when using your ChatGPT plan (one it lists in Settings); empty = its first |
+| `claude.fallback` | `true` | When Claude Code reaches your plan's usage limit, your ChatGPT plan answers until it resets |
 | `claude.effort` | `low` | How hard Claude thinks; `low` answers fastest |
 | `claude.allow_web` | `true` | Let Claude search the web (Claude Code) |
 | `claude.allow_files` | `true` | Let Claude work with the files in your user folder and run PowerShell; it asks before deleting or overwriting (Claude Code) |

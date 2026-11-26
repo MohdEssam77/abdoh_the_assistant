@@ -48,6 +48,7 @@ claude:
   max_tokens: 4000               # API key and OpenRouter only
   openrouter_model: "openrouter/auto"   # OpenRouter only: any model there, e.g. "google/gemini-3-pro"
   chatgpt_model: ""                     # your ChatGPT plan only (Settings → Continue with ChatGPT); empty = its first model
+  fallback: true                 # when Claude's usage limit runs out, your ChatGPT plan answers until it resets
   effort: "low"                  # low = quickest answers
   allow_web: true                # let Claude search the web (Claude Code)
   allow_files: true              # let Claude work with your files and run PowerShell (Claude Code);

@@ -235,6 +235,21 @@ def limit_message(resets_at=None) -> str:
         return LIMIT
 
 
+def limit_error(resets_at=None) -> BrainError:
+    """Claude's usage limit was reached: the message to speak, marked as a limit."""
+    try:
+        when = float(resets_at) if resets_at else None
+    except (TypeError, ValueError):
+        when = None
+    return BrainError(limit_message(when), limit=True, resets_at=when)
+
+
+def failure(detail: str) -> BrainError:
+    """The error to raise for what Claude Code reported (a limit is marked as one)."""
+    message = error_message(detail)
+    return limit_error() if message == LIMIT else BrainError(message)
+
+
 def error_message(detail: str) -> str:
     """A speakable message for an error Claude Code reported."""
     d = detail.lower()
@@ -286,12 +301,12 @@ def read_events(lines: Iterable[str], on_tool=None) -> Iterator[str]:
         elif kind == "rate_limit_event":
             info = event.get("rate_limit_info") or {}
             if info.get("status") == "rejected":
-                raise BrainError(limit_message(info.get("resetsAt")))
+                raise limit_error(info.get("resetsAt"))
         elif kind == "result":
             if event.get("is_error") or event.get("subtype", "success") != "success":
                 if not said:
                     log.warning("Claude Code reported an error: %s", str(event)[:300])
-                    raise BrainError(error_message(str(event.get("result") or "")))
+                    raise failure(str(event.get("result") or ""))
             elif not said and event.get("result"):
                 yield str(event["result"])
             return
@@ -630,7 +645,7 @@ class ClaudeCodeBrain(Brain):
                 detail = session.error_text()
                 self._retire(session)
                 log.error("Claude Code isn't taking requests: %s", detail or e)
-                raise BrainError(error_message(detail)) from e
+                raise failure(detail) from e
         timed_out = threading.Event()
 
         def kill() -> None:
@@ -653,8 +668,7 @@ class ClaudeCodeBrain(Brain):
                 if str(e) == FAILED:
                     detail = session.error_text()
                     log.error("Claude Code failed (exit %s): %s", session.proc.returncode, detail)
-                    message = error_message(detail)
-                    raise BrainError(message) from e
+                    raise failure(detail) from e
                 raise
             if timed_out.is_set():
                 raise BrainError(TOO_SLOW)
