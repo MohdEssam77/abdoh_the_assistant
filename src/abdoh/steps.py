@@ -33,8 +33,13 @@ OBSERVING = frozenset(
     "watch check run read listen look see monitor follow observe try test".split()
 )
 _ABOUT_IT = re.compile(
-    r"^(?:(?:please|just|also|and|then|now) )*(?:tell me|let me know|say|warn me|stop me"
-    r"|correct me|show me) (?:if|whether|when|what|how|why|where|which|as soon as|once)\b"
+    r"^(?:(?:please|just|also|and|then|now) )*(?:"
+    r"(?:tell me|let me know|say|warn me|stop me|correct me|show me)"
+    r" (?:if|whether|when|what|how|why|where|which|as soon as|once)\b"
+    # "watch me shop and give me suggestions", "... and suggest better ones"
+    r"|(?:give|offer|send) (?:me )?(?:any |some |your |a few )?(?:suggestions?|tips?|ideas?"
+    r"|advice|feedback|recommendations?|pointers)\b"
+    r"|(?:suggest|recommend|advise|point out|help me)\b)"
 )
 # "open whatsapp and spotify": the bare name borrows the verb.
 SHARED = frozenset("open close launch quit".split())

@@ -375,25 +375,32 @@ FEATURES: list[dict] = [
         "section": "screen",
         "title": "Watch me while I work",
         "icon": "eye",
-        "line": "Abdoh watches your screen as you work and speaks up when you get it wrong.",
+        "line": "Abdoh watches your screen as you work: it tells you about mistakes, and gives tips if you want.",
         "what": "Ask Abdoh to watch you do something. It says it's watching, looks whenever your "
         "screen changes, stays quiet while you do fine and tells you when you make a mistake, are "
-        "about to, or get stuck. Meanwhile just talk, no wake word. “Stop looking at the screen” "
-        "ends it all.",
+        "about to, or get stuck. Ask for suggestions too (“watch while I shop and give me "
+        "suggestions”) and it also speaks up when it sees a better choice or a useful tip; when you "
+        "don't say, it picks what suits the task. Meanwhile just talk, no wake word: ask about "
+        "what's on screen, or say “stop suggesting for now”. “Stop looking at the screen” ends it "
+        "all.",
         "say": [
             "Watch me fill in this form and tell me if I get anything wrong",
-            "Is this right?",
+            "Watch while I shop and give me suggestions",
+            "Is this one better than the last one?",
+            "Stop suggesting for now",
             "Okay, you can stop looking at the screen",
         ],
         "steps": [
-            "Ask Abdoh to watch you (“watch me do this and tell me if I'm wrong”).",
-            "Work as usual; talk to it any time.",
+            "Ask Abdoh to watch you (“watch me do this and tell me if I'm wrong”, or “… and give "
+            "me suggestions”).",
+            "Work as usual; talk to it any time, about anything on screen.",
             "Say “stop watching” (or press ✕ on the red chip) to end it.",
         ],
         "where": {"page": "settings", "label": "Settings → Conversation → Watching your screen"},
         "needs": "claude",
         "setting": "claude.allow_screen",
         "tips": [
+            "“You can suggest things too” or “just tell me about mistakes” changes it mid-watch.",
             "Each look uses a little of your plan; a still screen costs nothing.",
             "It ends by itself after 20 quiet minutes.",
         ],

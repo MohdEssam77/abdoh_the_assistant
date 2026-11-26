@@ -298,14 +298,22 @@ Then you can say:
   so ("I'm watching your screen now, go ahead"). Abdoh then looks at your screen whenever it
   changes (at most every 5 seconds, Settings → Conversation → **Watching your screen**) and
   shows it to Claude, which stays quiet while you do fine and speaks up when you make a mistake,
-  are about to, or get stuck. Meanwhile you just talk, no "Hey Abdoh" needed; what you say goes
-  to Claude with a fresh picture. "Okay, you can stop looking at the screen", "stop watching" or
+  are about to, or get stuck. Want ideas too? "Watch the screen while I shop and give me
+  suggestions": Claude then also speaks up when it sees something worth it (a cheaper or better
+  rated choice, a warning, a useful tip). When you don't say, Claude picks what suits the task
+  (shopping gets suggestions, a form gets mistakes only), and "stop suggesting for now" or "you
+  can suggest things too" changes it while the watch goes on; the chip shows **suggestions on**.
+  Meanwhile you just talk, no "Hey Abdoh" needed; what you say goes to Claude with a fresh
+  picture, so you can ask about what's on screen ("is this one better than the last one?").
+  "Okay, you can stop looking at the screen", "stop watching" or
   "end the session" (in any words) ends it all: no more looking and the wake word again. The ✕
   on the red **Watching your screen** chip does the same, "stop listening" ends it and pauses
   Abdoh, Claude ends it when you're done, and it ends by itself after 20 minutes without a word
   from you (`watch_minutes`). Each look uses a little of your plan; a still screen costs nothing.
   Tried with real Claude Code on a drawn form: it caught "31/02/1990" and an email without
-  ".com", and said nothing once they were fixed.
+  ".com", and said nothing once they were fixed. On a drawn shop page it pointed out, unasked,
+  a cheaper pair with better reviews, answered "is mine better?", and kept quiet after "stop
+  suggesting for now".
 - "Abdoh, translate what's on my screen" (into `translate_target`, default English), or
   "translate my screen to Arabic"
 - "Abdoh, summarize my screen"

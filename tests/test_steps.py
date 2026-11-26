@@ -178,3 +178,23 @@ def test_tell_me_if_belongs_to_what_it_watches():
         "open spotify",
         "tell me if it's raining",
     ]
+
+
+@pytest.mark.parametrize(
+    "said",
+    [
+        "watch the screen while I shop and give me suggestions",
+        "watch me shop and give me any tips",
+        "look at my screen while I shop and suggest better options",
+        "watch me cook and point out anything I miss",
+    ],
+)
+def test_suggestions_belong_to_what_it_watches(said):
+    assert split_steps(said) == []
+
+
+def test_suggestions_alone_are_still_a_step():
+    assert split_steps("open amazon and give me some gift ideas") == [
+        "open amazon",
+        "give me some gift ideas",
+    ]

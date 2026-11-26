@@ -15,10 +15,10 @@ from abdoh.config import Config
 from abdoh.daemon import Daemon
 from abdoh.events import Bus
 from abdoh.local_skills import stop_watching
-from abdoh.router import STOPPED_WATCHING, WATCH_FRAME, Router
+from abdoh.router import STOPPED_WATCHING, WATCH_FRAME, WATCH_WHEN, Router
 from abdoh.speech.tts import FakeSpeaker
 from abdoh.ui.api import AppApi, UiState
-from abdoh.watch import STILL_SECONDS, Watch
+from abdoh.watch import STILL_SECONDS, Watch, parse
 
 WINDOW = FrontWindow(title="Tax form - Chrome", program="chrome.exe", rect=(0, 0, 800, 600))
 
@@ -242,7 +242,97 @@ def test_a_frame_can_end_the_watch(tmp_path):
 
 
 def test_frame_prompt_mentions_the_quiet_line():
-    assert "ACTION ignore: fine" in WATCH_FRAME and "ACTION watch: off" in WATCH_FRAME
+    assert "ACTION watch: off" in WATCH_FRAME
+    assert all("ACTION ignore: fine" in when for when in WATCH_WHEN.values())
+
+
+# ----- mistakes only, or suggestions too -----
+
+
+@pytest.mark.parametrize(
+    ("arg", "goal", "suggest"),
+    [
+        ("shopping for headphones | suggestions", "shopping for headphones", True),
+        ("the tax form; check each field | mistakes", "the tax form; check each field", False),
+        ("the form | mistakes only", "the form", False),
+        ("the form | no suggestions", "the form", False),
+        ("the form", "the form", None),
+        ("| suggestions", "", True),
+    ],
+)
+def test_the_kind_of_watch(arg, goal, suggest):
+    assert parse(arg) == (goal, suggest)
+
+
+def test_a_watch_with_suggestions(tmp_path):
+    router, brain, _, changes = make_router(
+        tmp_path,
+        "ACTION watch: shopping for headphones on Amazon | suggestions\nOkay, I'm watching.",
+        "This one has the same sound for half the price, two results down.",
+    )
+    " ".join(router.handle("watch the screen while I shop and give me suggestions"))
+    assert router.watch.goal == "shopping for headphones on Amazon" and router.watch.suggest
+    assert list(router.watch_frame(b"PNG")) == [
+        "This one has the same sound for half the price, two results down."
+    ]
+    prompt = brain.asked[-1][0]
+    assert "They want suggestions too" in prompt and "a better or cheaper choice" in prompt
+    assert "suggestions" in system_prompt(router.cfg)
+
+
+def test_mistakes_only_has_no_suggestions(tmp_path):
+    router, brain, _, _ = make_router(tmp_path, "ACTION watch: the form | mistakes\nOk.", "fine")
+    " ".join(router.handle("watch me fill this in"))
+    assert not router.watch.suggest
+    list(router.watch_frame(b"PNG"))
+    assert "suggestions" not in brain.asked[-1][0].split("Nobody asked anything")[1]
+
+
+def test_a_goal_alone_is_mistakes_only(tmp_path):
+    router, _, _, _ = make_router(tmp_path, "ACTION watch: the form\nOk.")
+    " ".join(router.handle("watch me fill this in"))
+    assert router.watching and not router.watch.suggest
+
+
+def test_stop_suggesting_keeps_the_watch_going(tmp_path):
+    router, brain, _, changes = make_router(
+        tmp_path,
+        "ACTION watch: shopping on Amazon | suggestions\nOkay, I'm watching.",
+        "ACTION watch: shopping on Amazon | mistakes\nOkay, no more suggestions.",
+        "ACTION watch: shopping on Amazon | suggestions\nSure, I'll suggest things again.",
+    )
+    " ".join(router.handle("watch me shop and give me tips"))
+    watch = router.watch
+    generation, started = watch.generation, watch.started
+    watch.note("This one is cheaper.")
+    reply = " ".join(router.handle("stop suggesting for now", aside=True))
+    assert reply == "Okay, no more suggestions."
+    prompt = brain.asked[-1][0]
+    assert "You speak up about mistakes and with suggestions" in prompt
+    assert "ACTION watch: shopping on Amazon | mistakes" in prompt
+    assert router.watching and not watch.suggest
+    assert (watch.generation, watch.started, watch.notes) == (
+        generation,
+        started,
+        ["This one is cheaper."],
+    )
+    " ".join(router.handle("okay you can suggest things again", aside=True))
+    assert watch.suggest and "ACTION watch: shopping on Amazon | suggestions" in brain.asked[-1][0]
+    assert changes == [True, True, True]
+
+
+@pytest.mark.parametrize(
+    "said", ["stop suggesting for now", "no more suggestions please", "stop the suggestions"]
+)
+def test_stop_suggesting_is_not_stop_watching(said):
+    assert not stop_watching(said)
+
+
+def test_the_watch_ends_without_its_suggestions(tmp_path):
+    router, _, _, _ = make_router(tmp_path, "ACTION watch: shopping | suggestions\nOk.")
+    " ".join(router.handle("watch me shop"))
+    router.end_watch()
+    assert not router.watching and not router.watch.suggest
 
 
 # ----- the daemon -----
@@ -282,7 +372,7 @@ def test_watching_listens_without_the_wake_word(tmp_path):
     assert not daemon.keeps_listening()
     daemon.handle_text("watch me do this")
     assert daemon.keeps_listening()
-    assert {"goal": "the form"} in events(bus, "watch")
+    assert {"goal": "the form", "suggest": False} in events(bus, "watch")
     daemon.set_paused(True)
     assert not daemon.keeps_listening()
 
@@ -347,16 +437,18 @@ def test_the_loop_looks_and_ends_after_quiet_minutes(tmp_path, monkeypatch):
 
 def test_the_window_remembers_the_watch():
     state = UiState()
-    state.feed("watch", {"goal": "the form"})
-    assert state.snapshot()["watch"] == {"goal": "the form"}
+    state.feed("watch", {"goal": "the form", "suggest": True})
+    assert state.snapshot()["watch"] == {"goal": "the form", "suggest": True}
     state.feed("watch", None)
     assert state.snapshot()["watch"] is None
 
 
-def test_a_new_watch_stops_the_old_loop(tmp_path):
-    daemon, router, _, _ = make_daemon(tmp_path, "ACTION watch: a\nOk.", "ACTION watch: b\nOk.")
+def counted_loops(daemon):
+    """The generations of the look loops running now (a list that follows them). The loops
+    don't look: a picture would take the fake Claude's next answer."""
     daemon.WATCH_MIN_SECONDS = 0.01
     daemon.cfg.watch_seconds = 0.01
+    daemon._watch_busy = lambda: True
     running = []
     loop = daemon._watch_loop
 
@@ -368,10 +460,38 @@ def test_a_new_watch_stops_the_old_loop(tmp_path):
             running.remove(generation)
 
     daemon._watch_loop = counted
+    return running
+
+
+def test_one_loop_while_the_watch_changes(tmp_path):
+    daemon, router, _, bus = make_daemon(
+        tmp_path, "ACTION watch: a | suggestions\nOk.", "ACTION watch: a | mistakes\nOkay."
+    )
+    running = counted_loops(daemon)
+    daemon.handle_text("watch me do a and give me tips")
+    daemon.handle_text("stop suggesting for now")
+    time.sleep(0.3)
+    assert running == [router.watch.generation] and router.watching
+    assert events(bus, "watch")[-2:] == [
+        {"goal": "a", "suggest": True},
+        {"goal": "a", "suggest": False},
+    ]
+    router.end_watch()
+    time.sleep(0.1)
+    assert running == []
+
+
+def test_a_new_watch_after_the_last_one_ended(tmp_path):
+    daemon, router, _, _ = make_daemon(tmp_path, "ACTION watch: a\nOk.", "ACTION watch: b\nOk.")
+    running = counted_loops(daemon)
     daemon.handle_text("watch me do a")
+    time.sleep(0.1)
+    first = router.watch.generation
+    router.end_watch()
     daemon.handle_text("now watch me do b")
     time.sleep(0.3)
-    assert running == [router.watch.generation]
+    assert running == [router.watch.generation] and router.watch.generation != first
+    assert router.watch.goal == "b"
     router.end_watch()
     time.sleep(0.1)
     assert running == []
