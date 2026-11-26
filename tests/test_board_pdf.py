@@ -51,6 +51,10 @@ def test_a_file_name_windows_takes():
         file_name("Chef: carbonara / pasta?", WHEN) == "Chef carbonara  pasta 2026-11-25 12-03.pdf"
     )
     assert file_name("...", WHEN) == "Board 2026-11-25 12-03.pdf"
+    long = "Theoretical computer science professor who explains clearly board"
+    assert file_name(long, WHEN) == (  # cut at 60 letters: no space left before the date
+        "Theoretical computer science professor who explains clearly 2026-11-25 12-03.pdf"
+    )
 
 
 def test_edge_prints_it_in_the_background_with_its_own_profile(tmp_path):
@@ -92,6 +96,7 @@ def test_the_app_saves_it_and_says_where_when_asked_by_voice(tmp_path, monkeypat
     api = AppApi(bus, UiState(), Config(app_dir=tmp_path), open_path=opened.append)
     result = api.board_pdf([CARD], "Chef board", True)
     assert result["ok"] and Path(result["path"]).exists() and opened == [result["path"]]
+    assert bus.next_request(timeout=0) == ("board_pdf_done", True)  # the watchdog stops
     assert bus.next_request(timeout=0) == (
         "say",
         "The board is saved as a PDF in your Documents, Abdoh, Boards.",
@@ -131,3 +136,137 @@ def test_the_daemon_says_what_the_window_asks():
     daemon._say_aside = said.append
     daemon.handle_request("say", "The board is saved.")
     assert said == ["The board is saved."]
+
+
+# ----- what went wrong is in the log, and Abdoh always hears back (the owner's three saves that
+# left nothing, 2026-11-26) -----
+
+
+class Done:
+    def __init__(self, returncode=0, stderr=b""):
+        self.returncode, self.stderr = returncode, stderr
+
+
+def test_edge_gets_a_second_try(tmp_path, monkeypatch):
+    monkeypatch.setattr("abdoh.board_pdf.RETRY_SECONDS", 0)
+    tries = []
+
+    def edge(args, **kwargs):
+        tries.append(args)
+        if len(tries) == 2:
+            return FakeEdge()(args)
+        return Done(1, b"[ERROR] something went wrong")
+
+    pdf = save([CARD], "Board", tmp_path, edge=Path("msedge.exe"), run=edge, when=WHEN)
+    assert pdf.exists() and len(tries) == 2
+    profiles = [next(a for a in t if a.startswith("--user-data-dir=")) for t in tries]
+    assert profiles[0] != profiles[1]  # a fresh profile each time
+
+
+def test_what_edge_said_goes_to_the_log(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr("abdoh.board_pdf.RETRY_SECONDS", 0)
+    edge = lambda args, **kwargs: Done(21, b"Fatal:\n  can't open the profile")  # noqa: E731
+    with pytest.raises(BoardPdfError):
+        save([CARD], "Board", tmp_path, edge=Path("msedge.exe"), run=edge, when=WHEN)
+    said = [r.getMessage() for r in caplog.records if "made no PDF" in r.getMessage()]
+    assert len(said) == 2 and "exit code 21" in said[0] and "can't open the profile" in said[0]
+
+
+def make_api(tmp_path):
+    from abdoh.config import Config
+    from abdoh.ui.api import AppApi, UiState
+
+    bus = Bus()
+    return AppApi(bus, UiState(), Config(app_dir=tmp_path), open_path=lambda p: None), bus
+
+
+def requests(bus):
+    out = []
+    while (request := bus.next_request(timeout=0)) is not None:
+        out.append(request)
+    return out
+
+
+def test_when_edge_makes_nothing_abdoh_says_so_and_offers_the_print_dialog(tmp_path, monkeypatch):
+    from abdoh.ui.api import PRINT_INSTEAD
+
+    monkeypatch.setattr("abdoh.board_pdf.boards_folder", lambda documents=None: tmp_path)
+    monkeypatch.setattr("abdoh.board_pdf.find_edge", lambda: Path("msedge.exe"))
+    monkeypatch.setattr("abdoh.board_pdf.subprocess.run", lambda *a, **k: Done(1))
+    monkeypatch.setattr("abdoh.board_pdf.RETRY_SECONDS", 0)
+    api, bus = make_api(tmp_path)
+    result = api.board_pdf([CARD], "Board", True)
+    assert result["ok"] is False and result["print"] is True
+    assert requests(bus) == [
+        ("say", "The PDF couldn't be made." + PRINT_INSTEAD),
+        ("board_pdf_done", False),
+    ]
+
+
+def test_an_unexpected_error_is_said_too(tmp_path, monkeypatch):
+    def broken(*args, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr("abdoh.board_pdf.save", broken)
+    api, bus = make_api(tmp_path)
+    assert api.board_pdf([CARD], "Board", True)["ok"] is False
+    said = requests(bus)
+    assert said[0][0] == "say" and said[0][1].startswith("The PDF couldn't be made.")
+    assert said[-1] == ("board_pdf_done", False)
+
+
+def test_an_empty_board_is_said(tmp_path):
+    api, bus = make_api(tmp_path)
+    result = api.board_pdf([], "Board", True)
+    assert result["ok"] is False and result["print"] is False
+    assert requests(bus) == [("say", "The board is empty."), ("board_pdf_done", False)]
+
+
+def test_the_page_failing_to_draw_the_board_is_said(tmp_path):
+    api, bus = make_api(tmp_path)
+    api.board_pdf_failed("TypeError: x is undefined", True)
+    said = requests(bus)
+    assert said[0] == ("say", "The board couldn't be saved: drawing it for the PDF failed.")
+    assert said[-1] == ("board_pdf_done", False)
+
+
+def watched_daemon(monkeypatch):
+    from abdoh import daemon as module
+    from abdoh.daemon import Daemon
+
+    monkeypatch.setattr(module, "BOARD_PDF_SECONDS", 0.05)
+    daemon = Daemon.__new__(Daemon)
+    daemon.bus = Bus()
+    daemon.bus.ui_attached = True
+    said = []
+    daemon._say_aside = said.append
+    return daemon, said
+
+
+def test_a_window_that_doesnt_answer_is_said(monkeypatch):
+    import time
+
+    from abdoh.daemon import BOARD_PDF_SILENT
+
+    daemon, said = watched_daemon(monkeypatch)
+    daemon._save_board()
+    assert ("save_board", None) in daemon.bus.pending_events()
+    time.sleep(0.2)
+    assert said == [BOARD_PDF_SILENT]
+
+
+def test_a_window_that_answers_stops_the_watchdog(monkeypatch):
+    import time
+
+    daemon, said = watched_daemon(monkeypatch)
+    daemon._save_board()
+    daemon.handle_request("board_pdf_done", True)
+    time.sleep(0.2)
+    assert said == []
+
+
+def test_done_says_saving_the_board_in_words():
+    from abdoh.daemon import _what_was_done
+
+    assert _what_was_done([("board_pdf", "now")]) == "Done: saving the board as a PDF."
+    assert _what_was_done([("open_app", "Spotify")]) == "Done: open app Spotify."

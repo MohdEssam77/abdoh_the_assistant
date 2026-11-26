@@ -72,8 +72,8 @@ BOARD = (
     "Abdoh checks their credit and says so if it's too low. When it says AI pictures are off, "
     "draw it yourself (SVG) or show a photo, and if they ask for an AI picture, say it needs an "
     "OpenRouter key. When the user wants to keep the board (save it, as a PDF), write the line "
-    "ACTION board_pdf: now (Abdoh saves it and says where); at the end of a long lesson you may "
-    "offer it once."
+    "ACTION board_pdf: now and say you're saving it, never that it's saved: Abdoh says where it "
+    "went, or why it couldn't. At the end of a long lesson you may offer it once."
 )
 
 

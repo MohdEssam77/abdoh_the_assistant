@@ -70,9 +70,21 @@ NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
 
+# What Claude's action is called in "Done: ...", where its own words would read badly.
+DONE_WORDS = {"board_pdf": "saving the board as a PDF"}
+# The window was asked to save the board and didn't answer in this long (the save itself takes
+# a few seconds: drawings, then Edge).
+BOARD_PDF_SECONDS = 45.0
+BOARD_PDF_SILENT = (
+    "I couldn't save the board: my window didn't answer. Try the Save as PDF button on the "
+    "Act as page."
+)
+
+
 def _what_was_done(actions: list[tuple[str, str]]) -> str:
     """For the window, when Claude did something without a word: "Done: open app Spotify."."""
-    return "Done: " + "; ".join(f"{kind.replace('_', ' ')} {arg}" for kind, arg in actions) + "."
+    parts = [DONE_WORDS.get(kind) or f"{kind.replace('_', ' ')} {arg}" for kind, arg in actions]
+    return "Done: " + "; ".join(parts) + "."
 
 
 class Daemon:
@@ -180,7 +192,7 @@ class Daemon:
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
-        router.on_board_pdf = lambda: self.bus.emit("save_board", None)  # the page prints it
+        router.on_board_pdf = self._save_board  # the page prints it
         router.on_watch = self._watch_changed  # watching the screen began or ended
         router.codoh_note = self._codoh_note  # what Codoh does, while its page shows
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
@@ -284,8 +296,33 @@ class Daemon:
         if not self._spoke:
             self._say_aside(f"{text}.")
 
+    def _save_board(self) -> None:
+        """Claude: ACTION board_pdf. The page draws the board and Abdoh prints it; the window
+        answers (board_pdf_done). No answer: Abdoh says so, and it's in the log."""
+        log.info("Asked the window to save the board as a PDF")
+        old = getattr(self, "_board_wait", None)
+        if old is not None:
+            old.cancel()
+        timer = threading.Timer(BOARD_PDF_SECONDS, self._board_pdf_silent)
+        timer.daemon = True
+        self._board_wait = timer
+        timer.start()
+        self.bus.emit("save_board", None)
+
+    def _board_pdf_silent(self) -> None:
+        log.warning("The window didn't answer the request to save the board as a PDF")
+        self._board_wait = None
+        self._say_aside(BOARD_PDF_SILENT)
+
+    def _board_pdf_done(self, ok: bool) -> None:
+        timer = getattr(self, "_board_wait", None)
+        self._board_wait = None
+        if timer is not None:
+            timer.cancel()
+
     def _say_aside(self, text: str) -> None:
         """Say a few words that aren't part of the answer (not shown in the conversation)."""
+        log.info("Abdoh (aside): %s", text)
         if self.speaker.language not in ("", "en"):
             return  # these asides are English; the ticking sound says "still working"
         self._speak(text)
@@ -1002,6 +1039,8 @@ class Daemon:
             self._window_open = bool(value)
         elif kind == "say":  # the window: a few words to say (where the PDF went)
             self._say_aside(str(value))
+        elif kind == "board_pdf_done":  # the window answered "save the board"
+            self._board_pdf_done(bool(value))
         elif kind == "board_cleared":  # the Act as page's Clear button
             self._board_shown = False
         elif kind == "keep_listening":  # the Act as page: listen without the wake word or not

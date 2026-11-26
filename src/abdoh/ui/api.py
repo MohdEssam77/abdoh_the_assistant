@@ -161,6 +161,10 @@ def _open_path(target) -> None:
         webbrowser.open(Path(target).resolve().as_uri())
 
 
+# Edge made no PDF: the page opens the print dialog instead.
+PRINT_INSTEAD = " I opened the print dialog instead: pick Microsoft Print to PDF."
+
+
 class AppApi:
     def __init__(
         self,
@@ -455,12 +459,22 @@ class AppApi:
         Abdoh says where it is, or why not."""
         from abdoh.board_pdf import BoardPdfError, save
 
+        cards = [str(c) for c in cards or []]
+        log.info("Saving the board as a PDF (%d cards%s)", len(cards), ", asked" if spoken else "")
         try:
-            path = save([str(c) for c in cards or []], str(title or "Board"))
-        except BoardPdfError as e:
+            path = save(cards, str(title or "Board"))
+        except Exception as e:  # BoardPdfError, or anything else: said and in the log
+            message = str(e) if isinstance(e, BoardPdfError) else "The PDF couldn't be made."
+            if not isinstance(e, BoardPdfError):
+                log.exception("Saving the board as a PDF failed")
+            # Edge missing or failing: the page opens the print dialog (Microsoft Print to PDF)
+            printing = bool(cards) and "folder" not in message
+            log.warning("The board wasn't saved as a PDF: %s", message)
             if spoken:
-                self._bus.request("say", str(e))
-            return {"ok": False, "error": str(e), "print": "Edge" in str(e)}
+                self._bus.request("say", message + (PRINT_INSTEAD if printing else ""))
+            self._bus.request("board_pdf_done", False)
+            return {"ok": False, "error": message, "print": printing}
+        self._bus.request("board_pdf_done", True)
         if spoken:
             self._bus.request(
                 "say", "The board is saved as a PDF in your Documents, Abdoh, Boards."
@@ -470,6 +484,13 @@ class AppApi:
         except OSError:
             log.debug("Couldn't open the PDF", exc_info=True)
         return {"ok": True, "path": str(path), "folder": str(path.parent)}
+
+    def board_pdf_failed(self, reason, spoken=False) -> None:
+        """The page couldn't even get the board ready (an error drawing it): in the log, said."""
+        log.warning("The window couldn't get the board ready for the PDF: %s", str(reason)[:300])
+        if spoken:
+            self._bus.request("say", "The board couldn't be saved: drawing it for the PDF failed.")
+        self._bus.request("board_pdf_done", False)
 
     def clear_board(self) -> None:
         self._state.feed("board", None)
