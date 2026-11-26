@@ -742,8 +742,10 @@ teacher, Math teacher, Programming teacher). Each role has:
   button; **Clear** empties the board, and a new role starts with a clean one. **Save as PDF**
   (or "save the board" while the role is on) keeps everything the board showed, drawings,
   math and pictures included, as a PDF in `Documents\Abdoh\Boards` and opens it. Edge makes it
-  in the background (it's on every Windows 11 PC); without Edge, the print dialog opens
-  instead ("Microsoft Print to PDF").
+  in the background (it's on every Windows 11 PC); without Edge, or when Edge makes no PDF
+  (it tries twice), the print dialog opens instead ("Microsoft Print to PDF"). Asked by voice,
+  Abdoh says where the PDF went or why it couldn't (an empty board, Edge, the window not
+  answering within 45 s), and every step is in the log, so "why didn't it save?" has an answer.
 - **Keeps listening in a lesson**: while a role is on, Abdoh's window is open, the board shows
   something and you're talking with it (less than 2 minutes since either of you last spoke),
   you don't need "Hey Abdoh": just talk, also to answer its questions, and take your time to

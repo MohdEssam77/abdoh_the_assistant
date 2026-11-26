@@ -336,6 +336,19 @@ From the owner's log and Codoh chat (2026-11-26, evening):
   percentile of each block's loudest 32 ms, over ~10 s), and nothing while recording the user.
   Real recordings: webcam 4 and 6 false stops → 0; a mixed-in voice still heard in 0.2-0.3 s.
 
+### Story 123: The board as a PDF, said and logged (`story/123-board-pdf`)
+The owner asked three times to save the board (18:51, 22:49, 22:50 on 2026-11-26) and got no
+PDF; the log had nothing to say why: the save logged only success, what Abdoh said about it
+wasn't logged, and nothing noticed a window that didn't answer. Saving was then checked on the
+owner's laptop from source, with the 0.13.0 build's DLL folder, and in an isolated 0.13.0 build
+driven over the window's debugging port with the same lesson board and events: it worked every
+time, so the cause is still unknown. Now: every step is logged (asked, the window's answer,
+Edge's exit code and error output, what Abdoh said), Edge gets a second try with a fresh profile,
+a failing Edge opens the print dialog, an empty board or a drawing error is said, a window that
+doesn't answer within 45 s is said, Claude says it's saving (never that it's saved), and
+"Done: board pdf now." reads "Done: saving the board as a PDF." The file name lost its double
+space.
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and

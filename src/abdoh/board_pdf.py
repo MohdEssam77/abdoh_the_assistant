@@ -5,7 +5,8 @@ the owner's laptop 2026-11-25) into Documents\\Abdoh\\Boards.
 The page sends the board as it shows it (already drawn and cleaned by board.js); Abdoh wraps it
 in one printable page with KaTeX's CSS (its fonts load from the app's own folder), takes out
 anything that could run (scripts, event attributes) once more, and lets Edge print it. No Edge:
-the page opens the print dialog instead ("Microsoft Print to PDF").
+the page opens the print dialog instead ("Microsoft Print to PDF"), and when Edge makes no PDF
+(twice: a second try after a moment), too. What Edge said goes to the log.
 """
 
 import logging
@@ -23,6 +24,8 @@ log = logging.getLogger(__name__)
 WEB = Path(__file__).resolve().parent / "ui" / "web"
 FOLDER_NAME = ("Abdoh", "Boards")
 EDGE_SECONDS = 60
+TRIES = 2  # Edge made no PDF: once more (it may have been updating, or busy starting)
+RETRY_SECONDS = 1.0
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 EDGE_PATHS = (
     r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe",
@@ -108,7 +111,7 @@ def page(cards: list[str], title: str, when: datetime | None = None, web: Path =
 def file_name(title: str, when: datetime | None = None) -> str:
     when = when or datetime.now()
     clean = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title).strip(" .") or "Board"
-    return f"{clean[:60]} {when:%Y-%m-%d %H-%M}.pdf"
+    return f"{clean[:60].rstrip(' .')} {when:%Y-%m-%d %H-%M}.pdf"
 
 
 def save(cards: list[str], title: str, folder: Path | None = None, edge: Path | None = None,
@@ -122,24 +125,47 @@ def save(cards: list[str], title: str, folder: Path | None = None, edge: Path | 
         raise BoardPdfError("Edge isn't on this computer, so Abdoh can't make the PDF itself.")
     when = when or datetime.now()
     folder = Path(folder) if folder else boards_folder()
-    folder.mkdir(parents=True, exist_ok=True)
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        log.warning("Couldn't make the folder for the board's PDF (%s): %s", folder, e)
+        raise BoardPdfError("The folder for the PDF couldn't be made.") from e
     target = folder / file_name(title, when)
-    with tempfile.TemporaryDirectory(prefix="abdoh-board-") as work:
+    started = time.monotonic()
+    # Edge's helpers may still hold files in its profile for a moment: never fail on cleanup.
+    with tempfile.TemporaryDirectory(prefix="abdoh-board-", ignore_cleanup_errors=True) as work:
         html = Path(work) / "board.html"
         html.write_text(page(cards, title, when), encoding="utf-8")
-        profile = Path(work) / "edge-profile"  # its own: never touches the user's Edge
-        args = [
-            str(edge), "--headless", "--disable-gpu", "--no-pdf-header-footer",
-            "--no-first-run", "--disable-extensions", f"--user-data-dir={profile}",
-            f"--print-to-pdf={target}", html.as_uri(),
-        ]  # fmt: skip
-        started = time.monotonic()
-        try:
-            run(args, capture_output=True, timeout=EDGE_SECONDS, creationflags=NO_WINDOW)
-        except (OSError, subprocess.SubprocessError) as e:
-            log.warning("Edge couldn't print the board: %s", e)
-            raise BoardPdfError("The PDF couldn't be made.") from e
-    if not target.exists() or target.stat().st_size == 0:
-        raise BoardPdfError("The PDF couldn't be made.")
+        for attempt in range(1, TRIES + 1):
+            profile = Path(work) / f"edge-profile-{attempt}"  # its own: never the user's Edge
+            args = [
+                str(edge), "--headless", "--disable-gpu", "--no-pdf-header-footer",
+                "--no-first-run", "--disable-extensions", f"--user-data-dir={profile}",
+                f"--print-to-pdf={target}", html.as_uri(),
+            ]  # fmt: skip
+            try:
+                done = run(args, capture_output=True, timeout=EDGE_SECONDS, creationflags=NO_WINDOW)
+            except (OSError, subprocess.SubprocessError) as e:
+                log.warning("Edge couldn't print the board (try %d): %s", attempt, e)
+                done = None
+            if target.exists() and target.stat().st_size > 0:
+                break
+            log.warning(
+                "Edge made no PDF of the board (try %d, exit code %s): %s",
+                attempt,
+                getattr(done, "returncode", "none"),
+                _tail(getattr(done, "stderr", b"")) or "it said nothing",
+            )
+            if attempt < TRIES:
+                time.sleep(RETRY_SECONDS)
+        else:
+            raise BoardPdfError("The PDF couldn't be made.")
     log.info("Saved the board as %s in %.1fs", target, time.monotonic() - started)
     return target
+
+
+def _tail(output, chars: int = 400) -> str:
+    """The end of what Edge wrote to stderr, on one line (for the log)."""
+    if isinstance(output, bytes):
+        output = output.decode("utf-8", "replace")
+    return " ".join(str(output or "").split())[-chars:]

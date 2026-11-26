@@ -302,20 +302,29 @@ function actionRows(actions, canBeEmpty = false) {
    voice, so Abdoh says where it went. Without Edge, the print dialog. */
 async function saveBoardPdf(spoken = false, button = null) {
   const items = App.board || [];
-  if (!items.length) return;
-  const cards = items.map((card) => {
-    const node = Board.render(card.text); // all of it, also a card still being written out
-    node.querySelectorAll("button").forEach((b) => b.remove());
-    return node;
-  });
-  // drawings and pictures fill in a moment later: wait for them (at most a few seconds)
-  const host = el("div", { style: "position:fixed;left:-10000px;top:0;width:900px" }, cards);
-  document.body.append(host);
-  for (let i = 0; i < 40 && host.querySelector(".board-note"); i += 1) await new Promise((r) => setTimeout(r, 150));
-  const html = cards.map((node) => new XMLSerializer().serializeToString(node));
-  host.remove();
+  const title = App.role ? `${App.role} board` : "Board";
+  // Abdoh always hears back (an empty board, or what went wrong): it says so, and logs it.
+  if (!items.length) { if (spoken) await call("board_pdf", [], title, true); return; }
+  let html;
+  try {
+    const cards = items.map((card) => {
+      const node = Board.render(card.text); // all of it, also a card still being written out
+      node.querySelectorAll("button").forEach((b) => b.remove());
+      return node;
+    });
+    // drawings and pictures fill in a moment later: wait for them (at most a few seconds)
+    const host = el("div", { style: "position:fixed;left:-10000px;top:0;width:900px" }, cards);
+    document.body.append(host);
+    for (let i = 0; i < 40 && host.querySelector(".board-note"); i += 1) await new Promise((r) => setTimeout(r, 150));
+    html = cards.map((node) => new XMLSerializer().serializeToString(node));
+    host.remove();
+  } catch (e) {
+    await call("board_pdf_failed", String((e && e.stack) || e), spoken);
+    toast("The board couldn't be saved.", true);
+    return;
+  }
   if (button) { button.disabled = true; button.textContent = "Saving…"; }
-  const result = await call("board_pdf", html, App.role ? `${App.role} board` : "Board", spoken);
+  const result = await call("board_pdf", html, title, spoken);
   if (button) { button.disabled = false; button.textContent = "Save as PDF"; }
   if (!result) return;
   if (result.ok) toast("Saved as a PDF in Documents → Abdoh → Boards.");
