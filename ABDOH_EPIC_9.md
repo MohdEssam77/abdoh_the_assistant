@@ -316,6 +316,26 @@ Claude agreed an on/off switch would add almost nothing, since what you say deci
 
 ---
 
+### Story 122: Codoh's approvals and questions, Abdoh knowing Codoh, the webcam echo (`story/122-codoh-and-echo`)
+From the owner's log and Codoh chat (2026-11-26, evening):
+- **Full access didn't work mid-chat**: Claude Code refused `set_permission_mode
+  bypassPermissions` ("not launched with --dangerously-skip-permissions"), so the owner allowed
+  ~30 commands one by one. Claude Code now starts with `--allow-dangerously-skip-permissions` (it
+  only makes the mode available), and the chat's mode answers what Claude Code still asks (Full
+  access: everything; Auto-edit: changes), never a question or a plan.
+- **Claude's question (AskUserQuestion) showed as an approval card** with JSON, and Claude got
+  no answer. It's a question card now; the answer goes back as `updatedInput.answers`
+  ({question: label}), checked with real Claude Code (it answered "Blue").
+- **Abdoh didn't know what Codoh was doing** and asked to look at the screen, whose pictures
+  never show Abdoh's own window. While the Codoh page shows in the open window (like the board in
+  a lesson), Claude gets a short brief: the chat, what it waits for (with the proposed diff), its
+  last steps, git's changed files. Checked with real Claude Code twice (a Codoh chat waiting to
+  fix calc.py; Abdoh said what it wanted to change and that it waited for the OK).
+- **The webcam mic made Abdoh stop itself** (issue #1 reproduced here): the raw-mic check used
+  the echo's median, its louder words some 15 dB above. It learns the loud end now (95th
+  percentile of each block's loudest 32 ms, over ~10 s), and nothing while recording the user.
+  Real recordings: webcam 4 and 6 false stops → 0; a mixed-in voice still heard in 0.2-0.3 s.
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and
