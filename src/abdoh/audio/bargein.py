@@ -16,6 +16,11 @@ stopped, and the echo canceller needs a while to learn where it comes from. So t
 judges by the loudest Abdoh played in the last second, and by how much of its voice the
 canceller is known to leave: until it knows, only talk clearly louder than Abdoh's voice could
 be there counts. New speakers (or a new microphone) and it learns the room again.
+
+What it learns is the echo's loud end, not its middle: a microphone on another device than the
+speakers (a webcam, a laptop's mic with a monitor's speakers) hears Abdoh's louder words some
+15 dB above the median, which the margin alone doesn't cover, and Abdoh stopped itself for its
+own words. It doesn't learn while it records you talking over it (that's you, not the echo).
 """
 
 import logging
@@ -42,11 +47,14 @@ REFERENCE_LEAD_SECONDS = 0.04
 RESYNC_SECONDS = 0.03  # follow the microphone's timing when it is this far off on average
 # How much of Abdoh's voice reaches the microphone, and how much of it the echo canceller
 # leaves: learned from blocks where the speakers played at least REFERENCE_ACTIVE, over the last
-# ECHO_BLOCKS of them (the median, so you talking now and then doesn't count). Until
-# ECHO_LEARNED blocks, assume all of it does, and that the canceller takes none of it out.
+# ECHO_BLOCKS of them (about 10 s of Abdoh talking), each block by its loudest 32 ms. The echo's
+# level is their ECHO_PEAK percentile (its loud end: a few blocks of you talking now and then
+# don't count), what the canceller leaves their median. Until ECHO_LEARNED blocks, assume all of
+# it reaches the microphone, and that the canceller takes none of it out.
 REFERENCE_ACTIVE = 32768 * 10 ** (-50 / 20)
-ECHO_BLOCKS = 30
+ECHO_BLOCKS = 100
 ECHO_LEARNED = 10
+ECHO_PEAK = 95
 # The echo can come this much later than the sound left the speakers: slow speakers (a
 # monitor, Bluetooth) play it a few hundred milliseconds late, and the room adds its reverb.
 ECHO_SPAN_SECONDS = 1.0
@@ -65,6 +73,17 @@ def _rms(frame: bytes) -> float:
 
 def _db(ratio: float) -> float:
     return 20 * float(np.log10(max(ratio, 1e-9)))
+
+
+def _loudest_frame(audio: bytes) -> float:
+    """The level of the loudest 32 ms of `audio` (the echo's peaks, which a block's average
+    hides)."""
+    samples = np.frombuffer(audio, dtype=np.int16).astype(np.float32)
+    whole = len(samples) // (VAD_FRAME_BYTES // 2) * (VAD_FRAME_BYTES // 2)
+    if not whole:
+        return _rms(audio)
+    frames = samples[:whole].reshape(-1, VAD_FRAME_BYTES // 2)
+    return float(np.sqrt((frames**2).mean(axis=1)).max())
 
 
 def _loudest(audio: bytes) -> float:
@@ -157,10 +176,11 @@ class VoiceWatch:
     # ----- how much of Abdoh reaches the microphone -----
 
     def echo_gain(self) -> float:
-        """The microphone's level over the speakers' level while Abdoh talks (1.0: unknown)."""
+        """The microphone's level over the speakers' level while Abdoh talks, at its loud end
+        (1.0: unknown)."""
         if len(self._echo_ratios) < ECHO_LEARNED:
             return 1.0
-        return float(np.median(self._echo_ratios))
+        return float(np.percentile(self._echo_ratios, ECHO_PEAK))
 
     def residual(self) -> float:
         """How much of Abdoh's voice the echo canceller leaves in (1.0: unknown, all of it)."""
@@ -177,12 +197,12 @@ class VoiceWatch:
         return self._echo_level() * MARGIN < MIN_LEVEL
 
     def _learn(self, raw: bytes, cleaned: bytes) -> None:
-        if self._played < REFERENCE_ACTIVE:
-            return
-        raw_level = _rms(raw)
+        if self._played < REFERENCE_ACTIVE or self._fired:
+            return  # Abdoh is quiet, or you're talking over it (that's you, not the echo)
+        raw_level = _loudest_frame(raw)
         self._echo_ratios.append(raw_level / self._played)
         if raw_level >= MIN_LEVEL:  # Abdoh's voice is there: what's left of it once cleaned?
-            self._residuals.append(min(1.0, _rms(cleaned) / raw_level))
+            self._residuals.append(min(1.0, _loudest_frame(cleaned) / raw_level))
 
     def _check_speakers(self) -> None:
         speakers = getattr(self.tap, "generation", 0)
@@ -192,9 +212,10 @@ class VoiceWatch:
 
     # ----- cleaning -----
 
-    def clean(self, block: bytes, arrival: float) -> bytes:
+    def clean(self, block: bytes, arrival: float, learn: bool = True) -> bytes:
         """The block without the speakers' sound (`arrival`: when it came from the mic). Where
-        Abdoh's voice doesn't reach the microphone anyway, the block as it was."""
+        Abdoh's voice doesn't reach the microphone anyway, the block as it was. `learn`: what
+        the block says about Abdoh's echo counts now (feed() judges it first)."""
         usable = len(block) - len(block) % FRAME_BYTES
         if not usable:
             return block
@@ -204,7 +225,9 @@ class VoiceWatch:
         speakers = played[-usable:]  # what played while this block was heard
         cleaned = self.canceller.clean(block[:usable], speakers) + block[usable:]
         self._played = _loudest(played)
-        self._learn(block[:usable], cleaned[:usable])
+        self._unlearned = (block[:usable], cleaned[:usable])
+        if learn:
+            self._learn(*self._unlearned)
         self._keep(self._recent, cleaned)
         self._keep(self._recent_raw, block)
         return block if self._quiet_echo() else cleaned
@@ -239,7 +262,13 @@ class VoiceWatch:
         """Clean one microphone block and look for you talking. True once, when you are."""
         if not self.available:
             return False
-        self.clean(block, arrival)
+        self.clean(block, arrival, learn=False)
+        fired = self._judge(block, arrival)
+        if not fired:  # judged first, so your first words don't raise the bar for themselves
+            self._learn(*self._unlearned)
+        return fired
+
+    def _judge(self, block: bytes, arrival: float) -> bool:
         if self._fired or self._own_voice_unheard(arrival):
             return False
         cleaned = bytes(self._recent[-len(block) :])
