@@ -180,6 +180,15 @@ const Bridge = (() => {
         chat.items.push(read); chat.status = "Reading src/settings.ts";
         setTimeout(() => {
           read.status = "done"; touch(chat, read);
+          if (/project|portfolio/i.test(text)) {  // Claude asks which one
+            const q = item("approval", { request_id: "q1", tool: "AskUserQuestion", kind_of: "question", title: "", detail: "", description: "", diff: "", suggestions: [], state: "waiting",
+              input: { questions: [{ question: "Which project should I add to the portfolio?", header: "Project", multiSelect: false, options: [
+                { label: "Abdoh", description: "The voice assistant in C:\\codex\\abdoh_the_assistant" },
+                { label: "Q-Wordle", description: "The word game, last changed in October" },
+                { label: "VoiceOasis", description: "The meditation app" }] }] } });
+            chat.items.push(q); chat.status = "Waiting for you"; chat.ask = q;
+            return;
+          }
           const ask = item("approval", { request_id: "r1", tool: "Edit", kind_of: "edit", title: "src/settings.ts", detail: "", description: "", input: {},
             diff: "--- a/src/settings.ts\n+++ b/src/settings.ts\n@@ -4,6 +4,7 @@ export const defaults = {\n   units: \"metric\",\n   city: \"Berlin\",\n+  theme: \"system\",\n   refreshMinutes: 15,\n };",
             suggestions: [{ type: "setMode", mode: "acceptEdits", label: "Allow changes in this chat" }], state: "waiting" });
@@ -511,11 +520,18 @@ const Bridge = (() => {
         chat.items.push(item("note", { text: "Stopped." }));
         return { ok: true };
       },
-      codoh_answer: async (id, itemId, decision) => {
+      codoh_answer: async (id, itemId, decision, answers) => {
         const chat = codoh.chats[id];
         const ask = chat.items.find((i) => i.id === itemId);
         ask.state = decision === "deny" ? "denied" : decision === "always" ? "always" : "allowed";
         touch(chat, ask);
+        if (ask.tool === "AskUserQuestion") {
+          ask.answers = answers || {};
+          const picked = Object.values(ask.answers)[0] || "";
+          chat.items.push(item("assistant", { engine: chat.engine, model: chat.model, text: decision === "deny" ? "Okay, I'll pick the newest one myself." : `Got it: **${picked}**. Adding it now, the same way as the others.` }));
+          chat.running = false; chat.status = "";
+          return { ok: true };
+        }
         if (decision !== "deny") {
           chat.status = "Editing src/settings.ts";
           setTimeout(() => {
@@ -552,6 +568,7 @@ const Bridge = (() => {
         : PATCH }),
       codoh_reveal: async () => true,
       codoh_open_editor: async () => ({ ok: true, editor: "VS Code" }),
+      page_shown: async () => null,
       stop_watching: async () => { push("watch", null); return null; },
       claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},

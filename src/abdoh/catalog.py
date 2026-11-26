@@ -558,6 +558,8 @@ FEATURES: list[dict] = [
         "tips": [
             "“Ask first” asks before every change; “Auto-edit” only before commands; “Plan only” changes nothing.",
             "Codoh's chats are separate from Abdoh's: none of Abdoh's instructions go to them.",
+            "While Codoh's page is open, ask Abdoh “what is Codoh doing?”: it knows, without "
+            "looking at the screen.",
         ],
     },
     # ----- Abdoh itself -----

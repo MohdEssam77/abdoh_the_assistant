@@ -742,6 +742,7 @@ function showPage(name) {
   $$(".page").forEach((p) => p.classList.toggle("active", p.id === `page-${name}`));
   $$(".nav button").forEach((b) => b.classList.toggle("active", b.dataset.page === name));
   store("abdoh.page", name);
+  call("page_shown", name);  // while it's Codoh, Abdoh knows what Codoh does
   const page = App.pages[name];
   if (page && page.show) page.show();
 }

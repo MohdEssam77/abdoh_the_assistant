@@ -55,6 +55,7 @@
     diff: '<path d="M6 3v12M3 9h6M15 15h6M18 3v18"/>',
     refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
     side: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
+    ask: '<path d="M21 12a8.5 8.5 0 0 1-12.6 7.4L3 21l1.6-5.4A8.5 8.5 0 1 1 21 12z"/><path d="M9.6 9.5a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2-2.4 3.4M12 17h.01"/>',
   };
   const icon = (name, cls = "") => el("span", { class: `cx-ico ${cls}`.trim(), html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ICONS.other}</svg>` });
 
@@ -297,7 +298,84 @@
     }
   }
 
+  /* Claude asks the user something (AskUserQuestion): pick an option per question, or write
+     your own answer. Sent back as {question: answer}. */
+  function questionNode(item) {
+    const questions = ((item.input || {}).questions || []).filter((q) => q && q.question);
+    const waiting = item.state === "waiting";
+    const picked = new Map(questions.map((q) => [q.question, new Set()]));
+    const own = new Map();
+    const who = ENGINE[C.chat && C.chat.engine] || "Codoh";
+    const node = el("div", { class: `cx-ask cx-q-card ${item.state}` },
+      el("div", { class: "cx-ask-head" }, icon("ask", "kind"),
+        el("b", {}, waiting ? `${who} has a question for you` : `${who} asked you`),
+        el("span", { class: "spacer" }),
+        waiting ? el("span", { class: "cx-tag warn" }, "Needs you")
+          : el("span", { class: `cx-tag ${item.state === "denied" ? "" : "good"}` }, item.state === "denied" ? "Skipped" : item.state === "expired" ? "Not answered" : "Answered")));
+    const send = el("button", { class: "btn primary small", type: "button", disabled: true }, "Send answer");
+    const ready = () => {
+      send.disabled = !questions.every((q) => picked.get(q.question).size || (own.get(q.question) || "").trim());
+    };
+    for (const q of questions) {
+      const block = el("div", { class: "cx-q" },
+        el("div", { class: "cx-q-title" }, q.header ? el("span", { class: "cx-q-chip" }, q.header) : null, el("span", {}, q.question)));
+      if (!waiting) {
+        const answer = (item.answers || {})[q.question];
+        block.append(el("div", { class: "cx-q-answer" }, icon(answer ? "check" : "x"), answer || "No answer"));
+        node.append(block);
+        continue;
+      }
+      const opts = el("div", { class: "cx-q-opts", role: q.multiSelect ? "group" : "radiogroup" });
+      for (const o of q.options || []) {
+        const button = el("button", { class: "cx-q-opt", type: "button", "aria-pressed": "false" },
+          el("span", { class: "cx-q-mark" }, q.multiSelect ? icon("check") : null),
+          el("span", { class: "cx-q-text" }, el("b", {}, o.label), o.description ? el("small", {}, o.description) : null));
+        button.addEventListener("click", () => {
+          const set = picked.get(q.question);
+          if (q.multiSelect) set.has(o.label) ? set.delete(o.label) : set.add(o.label);
+          else { set.clear(); set.add(o.label); other.value = ""; own.delete(q.question); }
+          opts.querySelectorAll(".cx-q-opt").forEach((b) => {
+            const on = set.has(b.querySelector("b").textContent);
+            b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+          });
+          ready();
+        });
+        opts.append(button);
+      }
+      const other = el("input", { class: "cx-q-other", placeholder: "Or write your own answer…", "aria-label": `Your own answer to: ${q.question}` });
+      other.addEventListener("input", () => {
+        own.set(q.question, other.value);
+        if (other.value.trim() && !q.multiSelect) {
+          picked.get(q.question).clear();
+          opts.querySelectorAll(".cx-q-opt").forEach((b) => { b.classList.remove("on"); b.setAttribute("aria-pressed", "false"); });
+        }
+        ready();
+      });
+      block.append(opts, other);
+      node.append(block);
+    }
+    if (waiting) {
+      const reply = async (decision, button) => {
+        const answers = {};
+        for (const q of questions) {
+          const words = (own.get(q.question) || "").trim();
+          answers[q.question] = [...picked.get(q.question), ...(words ? [words] : [])].join(", ");
+        }
+        node.querySelectorAll("button, input").forEach((b) => { b.disabled = true; });
+        button.classList.add("busy");
+        const result = await call("codoh_answer", C.chatId, item.id, decision, decision === "deny" ? {} : answers);
+        if (result && !result.ok && result.error) { toast(result.error, true); node.querySelectorAll("button, input").forEach((b) => { b.disabled = false; }); ready(); }
+        poll(true);
+      };
+      send.addEventListener("click", (e) => reply("allow", e.currentTarget));
+      node.append(el("div", { class: "cx-ask-actions" }, send, el("span", { class: "spacer" }),
+        el("button", { class: "btn small", type: "button", onclick: (e) => reply("deny", e.currentTarget) }, "Skip")));
+    }
+    return node;
+  }
+
   function askNode(item) {
+    if (item.tool === "AskUserQuestion") return questionNode(item);
     const kind = item.kind_of || "command";
     const what = kind === "command" ? "run a command" : kind === "write" ? `create ${item.title}` : kind === "edit" ? `change ${item.title}` : `use ${item.tool}`;
     const waiting = item.state === "waiting";

@@ -143,6 +143,10 @@ class ClaudeChat:
             "stdio",
             "--permission-mode",
             PERMISSION_MODES.get(self.mode, "default"),
+            # Full access can be picked later in the chat: without this, Claude Code refuses
+            # to switch to it ("not launched with --dangerously-skip-permissions"). It only
+            # makes the mode available; the chat's mode decides.
+            "--allow-dangerously-skip-permissions",
         ]
         if self.model and self.model != "default":
             args += ["--model", self.model]

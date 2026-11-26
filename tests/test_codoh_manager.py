@@ -435,3 +435,140 @@ def test_abdoh_open_codoh(tmp_path):
     assert router.handle("open codoh") == "Opening Codoh."
     events = bus.pending_events()
     assert ("show", None) in events and ("page", "codoh") in events
+
+
+# ----- the chat's mode answers what Claude Code asks anyway; Claude's questions -----
+
+
+def ask(engine, tool="Bash", data=None, request="r1"):
+    data = data if data is not None else {"command": "pnpm build"}
+    engine.on_event({"type": "tool", "id": "t-" + request, "name": tool, "input": data})
+    engine.on_event(
+        {
+            "type": "approval",
+            "id": request,
+            "tool": tool,
+            "input": data,
+            "tool_use_id": "t-" + request,
+        }
+    )
+
+
+def test_full_access_answers_approvals_by_itself(world):
+    """The owner picked Full access mid-chat; Claude Code couldn't switch and asked about every
+    command (2026-11-26). The mode answers them now."""
+    chat_id = world.chat(mode="full")
+    world.codoh.send(chat_id, "build it")
+    engine = world.engines[0]
+    ask(engine)
+    assert items(world.codoh, chat_id, "approval") == []
+    assert engine.answers == [("r1", True, {"command": "pnpm build"}, None)]
+
+
+def test_auto_edit_answers_edits_but_asks_for_commands(world):
+    chat_id = world.chat(mode="auto_edit")
+    world.codoh.send(chat_id, "fix it")
+    engine = world.engines[0]
+    ask(engine, "Edit", {"file_path": "a.py", "old_string": "a", "new_string": "b"}, "r1")
+    assert engine.answers and engine.answers[0][:2] == ("r1", True)
+    ask(engine, "Bash", {"command": "rm -r build"}, "r2")
+    assert [i["request_id"] for i in items(world.codoh, chat_id, "approval")] == ["r2"]
+
+
+def test_a_question_from_claude(world):
+    chat_id = world.chat(mode="full")  # even in Full access: a question is for the user
+    world.codoh.send(chat_id, "add the project to the portfolio")
+    engine = world.engines[0]
+    question = {"question": "Which project?", "header": "Project", "multiSelect": False,
+                "options": [{"label": "Abdoh"}, {"label": "Q-Wordle"}]}  # fmt: skip
+    ask(engine, "AskUserQuestion", {"questions": [question]})
+    card = items(world.codoh, chat_id, "approval")[0]
+    assert card["kind_of"] == "question" and card["state"] == "waiting"
+    assert not world.codoh.answer(chat_id, card["id"], "allow", {})["ok"]  # nothing picked
+    assert world.codoh.answer(chat_id, card["id"], "allow", {"Which project?": "Abdoh"})["ok"]
+    request, allow, data, _ = engine.answers[-1]
+    assert (request, allow) == ("r1", True)
+    assert data == {"questions": [question], "answers": {"Which project?": "Abdoh"}}
+    assert items(world.codoh, chat_id, "approval")[0]["answers"] == {"Which project?": "Abdoh"}
+
+
+def test_a_question_can_be_skipped(world):
+    chat_id = world.chat()
+    world.codoh.send(chat_id, "go")
+    engine = world.engines[0]
+    ask(engine, "AskUserQuestion", {"questions": [{"question": "Which?", "options": []}]})
+    card = items(world.codoh, chat_id, "approval")[0]
+    assert world.codoh.answer(chat_id, card["id"], "deny")["ok"]
+    assert engine.answers[-1][1] is False
+
+
+# ----- what Abdoh knows about Codoh -----
+
+
+def test_the_brief_says_what_codoh_is_doing(world):
+    codoh = world.codoh
+    chat_id = world.chat()
+    codoh.send(chat_id, "add Abdoh to the portfolio")
+    engine = world.engines[0]
+    engine.on_event({"type": "text", "delta": "I'll look at how projects are set up."})
+    ask(engine)
+    brief = codoh.brief(chat_id)
+    assert "add Abdoh to the portfolio" in brief and "how projects are set up" in brief
+    assert "waiting for the user to allow or deny this in Codoh: pnpm build" in brief
+    assert "don't ask to look at the screen" in brief
+    assert "ran pnpm build (not done yet: waiting for the user's OK)" in brief
+
+
+def test_abdoh_knows_codoh_only_while_its_page_shows(world):
+    from abdoh.codoh import manager
+
+    codoh = world.codoh
+    chat_id = world.chat()
+    codoh.send(chat_id, "fix the tests")
+    assert manager.brief_for_abdoh() == ""  # the page never showed it
+    codoh.chat(chat_id)  # the page polls the chat it shows
+    codoh.page_open = True
+    assert "fix the tests" in manager.brief_for_abdoh()
+    codoh.page_open = False  # another page
+    assert manager.brief_for_abdoh() == ""
+
+
+def test_the_window_says_which_page_it_shows(tmp_path):
+    from abdoh.events import Bus
+    from abdoh.ui.api import AppApi, UiState
+
+    world = World(tmp_path)
+    api = AppApi(Bus(), UiState(), world.cfg, codoh=world.codoh)
+    api.page_shown("codoh")
+    assert world.codoh.page_open
+    api.page_shown("settings")
+    assert not world.codoh.page_open
+
+
+def test_abdohs_claude_gets_the_brief(tmp_path):
+    from test_router import FakeBrain
+
+    from abdoh.commands.registry import CommandRegistry
+    from abdoh.router import Router
+
+    brain = FakeBrain(["It's waiting for you to allow pnpm build."])
+    router = Router(Config(app_dir=tmp_path), CommandRegistry(tmp_path / "none.yaml"), brain=brain)
+    router.codoh_note = lambda: "(Codoh is open: waiting for the user to allow pnpm build.)\n"
+    reply = " ".join(router.handle("what is codoh doing right now?"))
+    assert reply == "It's waiting for you to allow pnpm build."
+    assert brain.asked[-1][0].startswith("(Codoh is open")
+    router.codoh_note = lambda: ""
+    " ".join(router.handle("what time is it in Tokyo?"))
+    assert "Codoh" not in brain.asked[-1][0]
+
+
+def test_the_daemon_tells_only_while_the_window_is_open(tmp_path, monkeypatch):
+    from abdoh.codoh import manager
+    from abdoh.daemon import Daemon
+
+    monkeypatch.setattr(manager, "brief_for_abdoh", lambda: "(Codoh: busy)\n")
+    daemon = Daemon.__new__(Daemon)
+    daemon._window_open = False
+    assert daemon._codoh_note() == ""
+    daemon._window_open = True
+    assert daemon._codoh_note() == "(Codoh: busy)\n"

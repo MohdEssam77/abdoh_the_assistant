@@ -182,6 +182,7 @@ class Daemon:
         router.on_self_edit = self._self_edited
         router.on_board_pdf = lambda: self.bus.emit("save_board", None)  # the page prints it
         router.on_watch = self._watch_changed  # watching the screen began or ended
+        router.codoh_note = self._codoh_note  # what Codoh does, while its page shows
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin(
             "open_codoh",
@@ -1300,6 +1301,15 @@ class Daemon:
         self._listening_now = now
         on = bool(acting is not None and acting.keeps_listening and self.cfg.lesson_listen_seconds)
         self.bus.emit("listening", {"on": on, "now": now})
+
+    def _codoh_note(self) -> str:
+        """What Codoh is doing, for Claude, while its page is the one Abdoh's window shows
+        (like the board in a lesson: minimized, and Abdoh doesn't know)."""
+        if not self._window_open:
+            return ""
+        from abdoh.codoh.manager import brief_for_abdoh
+
+        return brief_for_abdoh()
 
     # ----- watching the screen (abdoh/watch.py): looking, and listening without the wake word
 

@@ -40,6 +40,22 @@ NO_CLAUDE = (
 )
 NO_CHATGPT = "Your ChatGPT plan isn't connected. Connect it in Settings → Claude."
 BUSY = "Codoh is still answering. Stop it first, or wait."
+# Tools that ask the user something rather than for permission: never answered by the mode.
+QUESTION = "AskUserQuestion"
+DECISIONS = (QUESTION, "ExitPlanMode")
+MODE_NAMES = {"ask": "Ask first", "auto_edit": "Auto-edit", "plan": "Plan only",
+              "full": "Full access"}  # fmt: skip
+# What Abdoh's Claude is told about Codoh while its page is open (ABDOH_EPIC_9.md, story 122).
+BRIEF = """(Codoh, Abdoh's coding page, is open in Abdoh's window. Here is what it's doing, so \
+answer questions about Codoh from this and don't ask to look at the screen for it: Abdoh's \
+pictures of the screen never show Abdoh's own window. Codoh is a separate coding assistant: you \
+can't control it, but you can tell the user what it's doing and what it changed.
+{lines}
+)
+"""
+BRIEF_STEPS = 8
+BRIEF_TEXT = 600
+BRIEF_DIFF = 1200
 # What the header says while a tool runs.
 DOING = {
     "read": "Reading",
@@ -121,6 +137,21 @@ class Chat:
                                                "effort", "created", "updated")}  # fmt: skip
 
 
+_ACTIVE = None  # the app's Codoh (the latest made)
+
+
+def brief_for_abdoh() -> str:
+    """What Codoh is doing, while its page is the one Abdoh's window shows ("" otherwise)."""
+    codoh = _ACTIVE
+    if codoh is None or not codoh.page_open or not codoh.viewing:
+        return ""
+    try:
+        return codoh.brief()
+    except Exception:  # never in the way of an answer
+        log.debug("Couldn't tell Abdoh about Codoh", exc_info=True)
+        return ""
+
+
 class Codoh:
     def __init__(
         self,
@@ -158,6 +189,10 @@ class Codoh:
         self._chatgpt_at = 0.0
         self._chatgpt_error = ""
         self.limited_until = 0.0  # Claude's limit is used up until then (0: it isn't)
+        self.page_open = False  # the Codoh page is the one showing in Abdoh's window
+        self.viewing = ""  # the chat the page shows
+        global _ACTIVE
+        _ACTIVE = self
 
     # ----- what's there -----
 
@@ -343,6 +378,7 @@ class Codoh:
         chat = self._chat(chat_id)
         if chat is None:
             return {"ok": False, "error": "That chat is gone."}
+        self.viewing = chat_id  # the page asks for the chat it shows
         with chat.lock:
             items = [i for i in chat.items if since <= 0 or i.get("rev", 0) > since]
             return {
@@ -470,8 +506,10 @@ class Codoh:
             chat.engine.interrupt()
         return {"ok": True}
 
-    def answer(self, chat_id: str, item_id: str, decision: str) -> dict:
-        """An approval card answered: "allow", "always" (for this chat) or "deny"."""
+    def answer(self, chat_id: str, item_id: str, decision: str, answers=None) -> dict:
+        """An approval card answered: "allow", "always" (for this chat) or "deny". A question
+        card: "allow" with `answers` ({question: the option picked, or the user's words}), or
+        "deny" to skip it."""
         chat = self._chat(chat_id)
         if chat is None:
             return {"ok": False}
@@ -480,6 +518,12 @@ class Codoh:
             if item is None or item.get("kind") != "approval" or item.get("state") != "waiting":
                 return {"ok": False, "error": "That was already answered."}
             allow = decision in ("allow", "always")
+            data = dict(item.get("input") or {})
+            if item.get("tool") == QUESTION and allow:
+                answers = {str(k): str(v) for k, v in dict(answers or {}).items() if str(v)}
+                if not answers:
+                    return {"ok": False, "error": "Pick an answer first."}
+                data["answers"] = item["answers"] = answers
             item["state"] = "allowed" if allow else "denied"
             if decision == "always":
                 item["state"] = "always"
@@ -490,10 +534,90 @@ class Codoh:
             engine.answer(
                 item["request_id"],
                 allow,
-                data=item.get("input") or {},
+                data=data,
                 rules=item.get("suggestions") if decision == "always" else None,
+                note="The user skipped the question." if item.get("tool") == QUESTION else "",
             )
         return {"ok": True}
+
+    @staticmethod
+    def _mode_allows(mode: str, tool: str) -> bool:
+        """The chat's mode answers this approval by itself (Claude Code asked anyway: it
+        couldn't switch to the mode, or it asks for what the mode allows)."""
+        if tool in DECISIONS:
+            return False
+        if mode == "full":
+            return True
+        return mode == "auto_edit" and cards.kind_of(tool) in ("edit", "write")
+
+    # ----- what Abdoh is told about Codoh -----
+
+    def brief(self, chat_id: str = "") -> str:
+        """What Codoh's chat (the one the page shows) is doing, for Abdoh's Claude."""
+        chat = self._chat(chat_id or self.viewing)
+        if chat is None:
+            return ""
+        with chat.lock:
+            data = chat.data
+            model = data.get("model") or "its default model"
+            lines = [
+                f'Chat: "{data.get("title", "")}" in the folder {data.get("folder", "")}, with '
+                f"{ENGINE_NAMES.get(data.get('engine'), data.get('engine'))} ({model}), "
+                f"mode {MODE_NAMES.get(data.get('mode'), data.get('mode'))}."
+            ]
+            waiting = [i for i in chat.items if i.get("kind") == "approval"
+                       and i.get("state") == "waiting"]  # fmt: skip
+            if waiting:
+                ask = waiting[-1]
+                if ask.get("tool") == QUESTION:
+                    questions = (ask.get("input") or {}).get("questions") or []
+                    asked = "; ".join(str(q.get("question", "")) for q in questions)
+                    lines.append(f"Now: waiting for the user to answer its question: {asked}")
+                else:
+                    lines.append(
+                        "Now: waiting for the user to allow or deny this in Codoh: "
+                        f"{ask.get('title') or ask.get('tool', '')}."
+                    )
+                    if ask.get("diff"):
+                        lines.append(f"The change it asks to make:\n{ask['diff'][:BRIEF_DIFF]}")
+            elif chat.running:
+                seconds = round(self._now() - chat.started)
+                lines.append(f"Now: working for {seconds} s: {chat.status or 'thinking'}.")
+            else:
+                lines.append("Now: done, waiting for the user's next message.")
+            users = [i for i in chat.items if i.get("kind") == "user"]
+            if users:
+                lines.append(f'The user\'s latest message to it: "{users[-1].get("text", "")}"')
+            answers = [i for i in chat.items if i.get("kind") == "assistant" and i.get("text")]
+            if answers:
+                text = " ".join(answers[-1]["text"].split())
+                cut = "…" if len(text) > BRIEF_TEXT else ""
+                lines.append(f'Its latest words: "{text[:BRIEF_TEXT]}{cut}"')
+            steps = [i for i in chat.items if i.get("kind") == "tool"][-BRIEF_STEPS:]
+            if steps:
+                done = []
+                for step in steps:
+                    verb = VERBS.get(step.get("kind_of", ""), "used")
+                    status = step.get("status")
+                    state = {
+                        "failed": " (failed)",
+                        "running": " (running)",
+                        "waiting": " (not done yet: waiting for the user's OK)",
+                        "stopped": " (stopped)",
+                    }.get(status, "")
+                    done.append(f"{verb} {str(step.get('title', ''))[:120]}{state}")
+                lines.append("Its last steps, oldest first: " + "; ".join(done) + ".")
+            folder = Path(data.get("folder", ""))
+        try:
+            changed = self._git.changes(folder)
+        except Exception:
+            changed = None
+        if changed is not None:
+            files = ", ".join(
+                f"{c['path']} (+{c.get('added', 0)} -{c.get('removed', 0)})" for c in changed[:12]
+            )
+            lines.append(f"Files changed in git now: {files or 'none'}.")
+        return BRIEF.format(lines="\n".join(lines))
 
     # ----- settings of a chat -----
 
@@ -563,6 +687,7 @@ class Codoh:
     def _on_event(self, chat: Chat, event: dict) -> None:
         kind = event.get("type")
         resend = None
+        allowed = None  # an approval the chat's mode answers: (request id, input)
         with chat.lock:
             if kind == "ready":
                 if event.get("models"):
@@ -619,11 +744,18 @@ class Codoh:
                     chat.bump(item)
                 chat.status = "Thinking"
                 return
-            if kind == "approval":
+            if kind == "approval" and self._mode_allows(
+                chat.data.get("mode", ""), event.get("tool", "")
+            ):
+                allowed = (event.get("id", ""), event.get("input") or {})
+            elif kind == "approval":
                 chat.writing = None
-                found = cards.card(
-                    event.get("tool", ""), event.get("input") or {}, Path(chat.data["folder"])
-                )
+                if event.get("tool") == QUESTION:
+                    found = {"kind": "question", "title": "", "detail": "", "diff": ""}
+                else:
+                    found = cards.card(
+                        event.get("tool", ""), event.get("input") or {}, Path(chat.data["folder"])
+                    )
                 item = chat.add(
                     "approval",
                     request_id=event.get("id", ""),
@@ -646,6 +778,8 @@ class Codoh:
                 return
             if kind == "done":
                 resend = self._done(chat, event)
+        if allowed is not None and chat.engine is not None:
+            chat.engine.answer(allowed[0], True, data=allowed[1])
         if resend is not None:
             with chat.lock:
                 self._run(chat, resend)
