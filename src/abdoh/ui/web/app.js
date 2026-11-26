@@ -972,6 +972,7 @@ const HANDLERS = {
   gpu: (text) => { App.gpu = text || ""; },
   voice_download: (value) => { App.voiceDownload = value || null; },
   page: showPage,
+  codoh_open: (chat) => { if (window.Codoh) window.Codoh.open(chat || ""); },  // by voice
 };
 
 function handleEvent([kind, value]) {

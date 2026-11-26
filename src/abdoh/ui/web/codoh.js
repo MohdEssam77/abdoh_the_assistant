@@ -944,5 +944,6 @@
   }
 
   registerPage("codoh", { show, hide });
-  window.Codoh = { open: (id) => { showPage("codoh"); if (id) openChat(id); } };
+  // Abdoh by voice: the page, the chat (a new one is in the list now too)
+  window.Codoh = { open: (id) => { showPage("codoh"); refreshState(); if (id) openChat(id); } };
 })();

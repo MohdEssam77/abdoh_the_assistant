@@ -83,7 +83,14 @@ BOARD_PDF_SILENT = (
 
 def _what_was_done(actions: list[tuple[str, str]]) -> str:
     """For the window, when Claude did something without a word: "Done: open app Spotify."."""
-    parts = [DONE_WORDS.get(kind) or f"{kind.replace('_', ' ')} {arg}" for kind, arg in actions]
+    from abdoh.codoh.voice import done_words
+
+    parts = [
+        done_words(arg)
+        if kind == "codoh"
+        else DONE_WORDS.get(kind) or f"{kind.replace('_', ' ')} {arg}"
+        for kind, arg in actions
+    ]
     return "Done: " + "; ".join(parts) + "."
 
 
@@ -195,6 +202,8 @@ class Daemon:
         router.on_board_pdf = self._save_board  # the page prints it
         router.on_watch = self._watch_changed  # watching the screen began or ended
         router.codoh_note = self._codoh_note  # what Codoh does, while its page shows
+        router.codoh = self._codoh  # ACTION codoh: chats in Codoh by voice
+        router.on_codoh = self._show_codoh
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin(
             "open_codoh",
@@ -1340,6 +1349,19 @@ class Daemon:
         self._listening_now = now
         on = bool(acting is not None and acting.keeps_listening and self.cfg.lesson_listen_seconds)
         self.bus.emit("listening", {"on": on, "now": now})
+
+    def _codoh(self):
+        """The app's Codoh; Abdoh says what its voice chats need, and when they're done."""
+        from abdoh.codoh.manager import shared
+
+        codoh = shared(self.cfg)
+        codoh.on_notice = self._say_aside
+        return codoh
+
+    def _show_codoh(self, chat: str = "") -> None:
+        """The window, on the Codoh page, with this chat."""
+        self.bus.emit("show")
+        self.bus.emit("codoh_open", chat)
 
     def _codoh_note(self) -> str:
         """What Codoh is doing, for Claude, while its page is the one Abdoh's window shows

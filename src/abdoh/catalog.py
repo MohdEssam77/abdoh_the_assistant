@@ -546,7 +546,13 @@ FEATURES: list[dict] = [
         "the code, changes files and runs commands there. Every step shows as a card, changes with "
         "their diff, and it asks before anything risky. Switch models mid-chat; the Changes "
         "panel shows what changed in git.",
-        "say": ["Abdoh, open Codoh"],
+        "say": [
+            "Abdoh, open Codoh",
+            "Make a new chat in my portfolio folder and tell Codoh to add a dark mode",
+            "Tell Codoh to run the tests too",
+            "Yes, allow it",
+            "What is Codoh doing?",
+        ],
         "steps": [
             "Open Codoh (the </> page).",
             "Open a folder.",
@@ -560,6 +566,7 @@ FEATURES: list[dict] = [
             "Codoh's chats are separate from Abdoh's: none of Abdoh's instructions go to them.",
             "While Codoh's page is open, ask Abdoh “what is Codoh doing?”: it knows, without "
             "looking at the screen.",
+            "Chats you start by voice: Abdoh says when Codoh needs you and when it's done.",
         ],
     },
     # ----- Abdoh itself -----

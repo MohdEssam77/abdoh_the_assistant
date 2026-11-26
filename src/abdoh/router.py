@@ -16,6 +16,7 @@ from abdoh.claude.brain import NOT_CONNECTED, BrainError
 from abdoh.claude.reply import (
     ANSWER,
     BOARD_PDF,
+    CODOH,
     FORGET,
     IGNORE,
     LESSON,
@@ -271,6 +272,10 @@ class Router:
         # What Codoh is doing, while its page shows in Abdoh's window ("" otherwise): Claude
         # answers about it without looking at the screen (abdoh/codoh/manager.py, brief).
         self.codoh_note: Callable[[], str] = lambda: ""
+        # The app's Codoh, for ACTION codoh (None: Claude doesn't get the action), and showing
+        # a chat of it on the page.
+        self.codoh: Callable[[], object] | None = None
+        self.on_codoh: Callable[[str], None] = lambda chat: None
 
     @property
     def computer(self):
@@ -646,6 +651,13 @@ class Router:
                 self.on_board_pdf()
                 turn.actions.append((BOARD_PDF, arg))
                 return
+            if kind == CODOH:
+                said = self._codoh_action(arg)
+                if said:
+                    problems.append(said)  # why Codoh couldn't
+                else:
+                    turn.actions.append((CODOH, arg))
+                return
             if kind == ROLE:
                 if self.acting is not None:
                     self.acting.switch(arg)
@@ -709,6 +721,8 @@ class Router:
             allowed.append(LOGS)  # once, like recall
         if self.cfg.claude.allow_screen:
             allowed.append(WATCH)
+        if self.codoh is not None:
+            allowed.append(CODOH)
         if self.cfg.claude.allow_self_edit:
             allowed.extend(SELF_EDIT_ACTIONS)
         if self.acting is not None:
@@ -956,6 +970,19 @@ class Router:
             return ""
         self._told = turn
         return ABDOH_DID.format(request=turn.request, steps=_steps_text(turn.actions))
+
+    def _codoh_action(self, arg: str) -> str:
+        """ACTION codoh: what to do in Codoh. Shows the page (with the chat); returns why it
+        couldn't, or ""."""
+        from abdoh.codoh.voice import act
+
+        log.info("Codoh by voice: %s", arg[:200])
+        result = act(self.codoh(), arg)
+        if result.show or result.chat:
+            self.on_codoh(result.chat)
+        if result.said:
+            log.info("Codoh couldn't: %s", result.said)
+        return result.said
 
     def _codoh(self) -> str:
         try:
