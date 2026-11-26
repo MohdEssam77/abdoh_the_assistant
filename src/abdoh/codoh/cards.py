@@ -7,6 +7,7 @@ worked on (a file, a search, a command); `diff` is a unified diff for changes.
 
 import difflib
 import json
+import re
 from pathlib import Path
 
 OUTPUT_CHARS = 20_000  # of a command's output or a tool's result, kept for the card
@@ -63,6 +64,15 @@ def unified(old: str, new: str, name: str) -> str:
     return "\n".join(list(lines)[:DIFF_LINES])
 
 
+_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@", re.M)
+
+
+def snippet(old: str, new: str, name: str) -> str:
+    """A change to part of a file, before it's made: where in the file isn't known yet, so its
+    hunks have no line numbers."""
+    return _HUNK.sub("@@ … @@", unified(old, new, name))
+
+
 def from_patch(hunks: list, name: str) -> str:
     """Claude Code's structuredPatch ([{oldStart, oldLines, newStart, newLines, lines}]) as a
     unified diff."""
@@ -99,12 +109,12 @@ def card(tool: str, data: dict, folder: Path | None = None) -> dict:
         edits = data.get("edits")
         if isinstance(edits, list):  # MultiEdit
             parts = [
-                unified(str(e.get("old_string", "")), str(e.get("new_string", "")), name)
+                snippet(str(e.get("old_string", "")), str(e.get("new_string", "")), name)
                 for e in edits
             ]
             diff = "\n".join(p for p in parts if p)
         else:
-            diff = unified(old, new, name)
+            diff = snippet(old, new, name)
     elif kind == "write":
         diff = unified("", str(data.get("content", "")), name)
     elif kind == "command":

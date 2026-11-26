@@ -407,6 +407,40 @@ search, Gmail and Calendar) don't, and only the last exchange is remembered.
 
 Without Claude, everything else still works and Abdoh tells you Claude isn't connected.
 
+### Codoh, the coding assistant
+
+**Codoh** (the `</>` page in the window, or "Abdoh, open Codoh") is a coding assistant like
+Codex or T3 Code, on your own plans. **Open a folder**, start a chat, and ask: "find and fix the
+bug in the forecast", "write tests for the parser", "review my uncommitted changes". The model
+reads and searches the code, changes files and runs commands (tests, builds, git) in that folder,
+and you see each step as a card: what it read or searched, each change with its diff (+/− lines),
+each command with its output.
+
+- **Your plans' models**, switched any time in the composer: Claude (through Claude Code, your
+  Claude plan: Default, Opus, Sonnet, Fable, Haiku, as Claude Code lists them) and your ChatGPT
+  plan's models (Settings → Claude → Continue with ChatGPT). Switching to the other plan
+  mid-chat carries the chat over: the new model gets a summary of it.
+- **How it may act** (the second menu): **Ask first** (reading just happens; every change and
+  command shows an approval card: Allow, Allow for this chat, Deny), **Auto-edit** (changes just
+  happen, commands ask), **Plan only** (changes nothing, proposes a plan), **Full access**
+  (nothing asks). **Effort** sets how hard it thinks.
+- **Separate from Abdoh**: a Claude chat is plain Claude Code started in your folder (its own
+  coding prompt and tools, your CLAUDE.md and Claude Code settings), and a ChatGPT chat uses
+  Codoh's own tools (list, read, search, write, edit, run a command), which work only inside the
+  folder. None of Abdoh's instructions, actions or memory go to them, and coding chats don't go
+  into Abdoh's conversations.
+- **The header** shows the folder (click: Explorer), its git branch, and **N changed**, which
+  opens the **Changes** panel: every changed file with its diff. **Stop** (or Esc) stops a reply;
+  the chat goes on.
+- **When Claude's limit runs out** (with `claude.fallback` on and the ChatGPT plan connected), the
+  chat continues on your ChatGPT plan by itself with the same request, and new chats start there
+  until Claude's limit resets.
+- Chats are kept in `codoh/` in Abdoh's data folder (rename and delete them in the list); Claude
+  Code also keeps its sessions as usual, so a chat continues after a restart. A chat's Claude
+  Code closes after 15 quiet minutes and starts again with the next message.
+- Checked with real Claude Code: a bug fixed in a temporary repository through the page, with the
+  approval card and the Changes panel. The ChatGPT side isn't tried with a real account yet.
+
 ## 5. Your commands
 
 Open the window's **Commands** page (or **Commands** in the tray menu). Each command has the
