@@ -46,6 +46,7 @@ def main() -> int:
         (ROOT / "config.example.yaml", "."),
         (ROOT / "commands.example.yaml", "."),
         (ROOT / "src" / "abdoh" / "ui" / "web", "abdoh/ui/web"),  # the app window's page
+        (ROOT / "src" / "abdoh" / "phone" / "web", "abdoh/phone/web"),  # the phone's page
     ]
     for name in BUNDLED_MODELS:
         path = ROOT / "models" / name

@@ -9,6 +9,7 @@ paired phone (`Authorization: Bearer <key>`).
 import json
 import logging
 import re
+import sys
 import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -211,6 +212,19 @@ def _handler(app: PhoneApp):
     return Handler
 
 
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address) -> None:
+        """To the log, not the console (the app has none). A phone that hung up (it went to
+        the background, or lost its network) is normal."""
+        error = sys.exc_info()[1]
+        if isinstance(error, ConnectionError | TimeoutError):
+            log.debug("The phone hung up: %s", error)
+        else:
+            log.exception("The phone page's connection failed")
+
+
 class PhoneServer:
     """The HTTP server around a PhoneApp, on its own thread."""
 
@@ -222,8 +236,7 @@ class PhoneServer:
 
     def start(self) -> None:
         """Raises OSError if the port is taken."""
-        server = ThreadingHTTPServer((self.host, self.port), _handler(self.app))
-        server.daemon_threads = True
+        server = _Server((self.host, self.port), _handler(self.app))
         self._server = server
         thread = threading.Thread(target=server.serve_forever, name="abdoh-phone", daemon=True)
         thread.start()

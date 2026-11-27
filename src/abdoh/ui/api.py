@@ -947,9 +947,10 @@ class AppApi:
         tailscale = self._tailscale().state(self._config().phone_port)
         if not tailscale["address"] or not tailscale["shared"]:
             return {"ok": False, "error": "Finish the Tailscale steps above first."}
-        url = f"{tailscale['address']}/#pair={service.phones.new_code()}"
+        code = service.phones.new_code()
+        url = f"{tailscale['address']}/#pair={code}"
         qr = segno.make(url, error="m").svg_inline(scale=5, border=2, dark="#111", light="#fff")
-        return {"ok": True, "url": url, "qr": qr, "minutes": CODE_SECONDS // 60}
+        return {"ok": True, "url": url, "code": code, "qr": qr, "minutes": CODE_SECONDS // 60}
 
     def phone_remove(self, phone_id) -> dict:
         phones = self._phones()

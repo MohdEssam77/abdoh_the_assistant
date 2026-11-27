@@ -11,7 +11,14 @@ from test_daemon import StubRouter, make_daemon
 
 from abdoh.config import Config
 from abdoh.events import Bus
-from abdoh.phone.devices import CODE_SECONDS, WRONG_CODES, Phones, phone_name
+from abdoh.phone.devices import (
+    CODE_LETTERS,
+    CODE_SECONDS,
+    WRONG_CODES,
+    Phones,
+    clean_code,
+    phone_name,
+)
 from abdoh.phone.hub import MAX_EVENTS, PhoneError, PhoneHub
 from abdoh.phone.server import NOT_PAIRED, PhoneApp, PhoneService
 from abdoh.system_skills import Question
@@ -81,6 +88,16 @@ def test_a_broken_file_means_no_phones(tmp_path):
     assert Phones(path).list() == []
     path.write_text(json.dumps({"phones": [{"name": "no key"}, 3]}))
     assert Phones(path).list() == []
+
+
+def test_codes_can_be_typed(tmp_path):
+    phones = Phones(tmp_path / "phones.json")
+    code = phones.new_code()
+    assert len(code) == 9 and code[4] == "-"
+    assert set(code.replace("-", "")) <= set(CODE_LETTERS)
+    assert phones.pair(code.lower().replace("-", " ")) is not None  # as typed on the phone
+    assert clean_code("k7mx2q9p") == "K7MX-2Q9P"
+    assert clean_code("") == ""
 
 
 def test_phone_names():
@@ -447,3 +464,44 @@ def test_the_phone_hears_with_the_daemons_speech_recognition():
     daemon = make_daemon(StubRouter([]), transcriber=FakeTranscriber(["hello"]))
     assert daemon._phone_hear(b"\x00\x01") == "hello"
     assert daemon._phone_voice("Hi.") is None  # the fake voice can't make audio
+
+
+# ----- the page's files -----
+
+
+def test_the_phone_page_has_everything_it_names():
+    import re
+
+    from abdoh.phone.server import _NAME, TYPES, WEB_DIR
+
+    html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    named = re.findall(r'(?:src|href)="([^"#:]+)"', html)
+    worker = (WEB_DIR / "sw.js").read_text(encoding="utf-8")
+    page = json.loads(re.search(r"const PAGE = (\[.*?\]);", worker).group(1))
+    manifest = json.loads((WEB_DIR / "manifest.webmanifest").read_text(encoding="utf-8"))
+    assert "start_url" not in manifest  # the app opens the link it was added from (its code)
+    icons = [icon["src"] for icon in manifest["icons"]]
+    for name in {*named, *page, *icons, "demo.js"} - {"./"}:
+        path = WEB_DIR / name
+        assert path.is_file(), name
+        assert _NAME.fullmatch(name) and path.suffix in TYPES, name  # the server serves it
+
+
+def test_a_phone_that_hangs_up_is_only_logged(caplog):
+    import logging
+
+    from abdoh.phone.server import _Server
+
+    server = _Server.__new__(_Server)  # no socket
+    with caplog.at_level(logging.DEBUG, logger="abdoh.phone.server"):
+        try:
+            raise ConnectionAbortedError("gone")
+        except ConnectionAbortedError:
+            server.handle_error(None, ("127.0.0.1", 1))
+        try:
+            raise ValueError("broken")
+        except ValueError:
+            server.handle_error(None, ("127.0.0.1", 1))
+    levels = [(r.levelname, r.getMessage()) for r in caplog.records]
+    assert levels[0][0] == "DEBUG" and "hung up" in levels[0][1]
+    assert levels[1][0] == "ERROR"

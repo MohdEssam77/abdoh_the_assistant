@@ -197,6 +197,7 @@ def test_pairing_a_phone_from_the_card(tmp_path):
     assert result["ok"] and result["url"].startswith("https://laptop.tail1234.ts.net/#pair=")
     assert result["qr"].startswith("<svg") and result["minutes"] == 30
     code = result["url"].split("#pair=")[1]
+    assert code == result["code"]
     key = phones.pair(code, "iPhone")
     assert key and api.phone_state()["phones"][0]["name"] == "iPhone"
     removed = api.phone_remove(api.phone_state()["phones"][0]["id"])
