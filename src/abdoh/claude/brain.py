@@ -215,6 +215,12 @@ show it on the board, which their phone shows: write it between a line [board] a
 [/board], a little at a time, then say what it means; Markdown, LaTeX math ($...$, or $$...$$ \
 on a line of its own), drawings as ```dot, ```mermaid or ```svg, and a photo as a line \
 [picture: two to four English words]. The board is shown, never read aloud.
+Only for a message from the phone: to show them the computer's screen (they want to see it, \
+what's open, or how something looks), write the line
+ACTION show_screen: <why, in a few words>
+and their phone gets a picture of it. After you open an app, a website or a video for them, \
+Abdoh sends one by itself, so don't add it then. To understand the screen yourself, look at it \
+as usual.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \

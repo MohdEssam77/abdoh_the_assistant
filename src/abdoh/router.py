@@ -30,6 +30,7 @@ from abdoh.claude.reply import (
     SAVE_ITEM,
     SAVE_STEPS,
     SELF_EDIT_ACTIONS,
+    SHOW_SCREEN,
     UNDO_CHANGE,
     WATCH,
     speakable,
@@ -264,6 +265,7 @@ class Router:
         # Each action Claude's answer did, as it's done: (kind, arg). The phone shows them.
         self.on_action: Callable[[str, str], None] = lambda kind, arg: None
         self.phone = False  # the request being handled came from the phone (abdoh/phone)
+        self.on_show_screen: Callable[[str], None] = lambda why: None  # ACTION show_screen
         self.on_memory: Callable[[], None] = lambda: None  # the memory changed (the page)
         # Claude changed a command, mode or role ("command", "mode", "role"): the pages refresh.
         self.on_self_edit: Callable[[str], None] = lambda kind: None
@@ -682,6 +684,10 @@ class Router:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
+            if kind == SHOW_SCREEN:
+                self.on_show_screen(arg)
+                turn.actions.append((SHOW_SCREEN, arg))
+                return
             if kind == BOARD_PDF:
                 self.on_board_pdf()
                 turn.actions.append((BOARD_PDF, arg))
@@ -756,6 +762,8 @@ class Router:
             allowed.append(LOGS)  # once, like recall
         if self.cfg.claude.allow_screen:
             allowed.append(WATCH)
+        if self.phone:
+            allowed.append(SHOW_SCREEN)  # only the phone gets pictures of the screen
         if self.codoh is not None:
             allowed.append(CODOH)
             if not screen:
