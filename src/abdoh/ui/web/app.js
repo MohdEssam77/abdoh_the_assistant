@@ -895,6 +895,7 @@ function setClaude(value) {
   const info = typeof value === "string" ? { name: "Claude", label: "Claude", status: value } : (value || {});
   App.ai = info.name || "Claude";
   $("#side-claude").textContent = `${info.label || App.ai}: ${info.status || "checking…"}`;
+  for (const name of document.querySelectorAll(".ai-name")) name.textContent = App.ai;
 }
 /* What to call the AI that answers, in a sentence ("Claude", "ChatGPT", "the AI"). */
 function ai() { return App.ai || "Claude"; }

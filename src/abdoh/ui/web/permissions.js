@@ -115,7 +115,8 @@
     };
     draw();
     return card("Your connected services",
-      "Gmail, Google Calendar and the other services you connected to your Claude account. Claude may read them when you ask (“what's on my calendar tomorrow?”), and asks before it sends, creates or changes anything.",
+      (ai() === "Claude" ? "" : `Only with Claude (Claude Code): ${ai()} can't use them. `)
+      + "Gmail, Google Calendar and the other services you connected to your Claude account. Claude may read them when you ask (“what's on my calendar tomorrow?”), and asks before it sends, creates or changes anything.",
       [body]);
   }
 
