@@ -887,3 +887,17 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
 .watch-dot { width: 8px; height: 8px; margin-left: 11px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 0 var(--danger); animation: watch-pulse 1.8s ease-out infinite; flex: none; }
 @keyframes watch-pulse { 0% { box-shadow: 0 0 0 0 rgba(210, 59, 59, .45); } 70% { box-shadow: 0 0 0 8px rgba(210, 59, 59, 0); } 100% { box-shadow: 0 0 0 0 rgba(210, 59, 59, 0); } }
 @media (prefers-reduced-motion: reduce) { .watch-dot { animation: none; } }
+
+/* Settings: the sections, at the top of the page while you scroll */
+.jump-bar {
+  position: sticky; top: 0; z-index: 4; display: flex; gap: 6px; margin: -6px 0 16px; padding: 8px 0 10px;
+  overflow-x: auto; scrollbar-width: none; background: linear-gradient(180deg, var(--bg) 80%, transparent);
+}
+.jump-bar::-webkit-scrollbar { display: none; }
+.jump-chip {
+  flex: none; height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel);
+  color: var(--muted); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.jump-chip:hover { color: var(--text); border-color: var(--border-strong); }
+.jump-chip.on { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
+#settings-content > .card, #settings-content > details, #log-part { scroll-margin-top: 64px; }

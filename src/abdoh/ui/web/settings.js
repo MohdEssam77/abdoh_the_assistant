@@ -499,7 +499,7 @@
     box.append(...[
       el("summary", {},
         el("div", { class: "label" }, el("h2", {}, "Advanced"),
-          el("small", {}, "For people who like to choose their models. The recommended ones work well for most people.")),
+          el("small", {}, "The speech and voice models, and Abdoh's log. The recommended models work well for most people.")),
         el("span", { class: "chev", html: svg("down") })),
       el("div", { class: "advanced-group" }, "Speech recognition"),
       el("p", { class: "advanced-lead" }, `The models that understand ${languages.join(" and ")}. Choosing one downloads it while Abdoh keeps listening, switches when it's ready, and deletes the one it replaced if that was downloaded.`),
@@ -537,7 +537,7 @@
       },
     }, text);
     return [
-      el("div", { class: "advanced-group" }, "Log"),
+      el("div", { class: "advanced-group", id: "log-part" }, "Log"),
       el("p", { class: "advanced-lead" }, "What Abdoh heard, did and why, today and yesterday (older days are deleted). Abdoh can read it too: ask “why did you stop talking?” or “check your logs”."),
       el("div", { class: "log-view" },
         el("div", { class: "log-tools" },
@@ -751,7 +751,51 @@
       advancedCard(models),
       el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Abdoh ${App.version}`),
     ].filter(Boolean));
+    jumpBar();
     startMeter();
+  }
+
+  /* A long page: a row of its sections at the top, which stays while you scroll and shows
+     which one you're in. */
+  let watcher = null;
+  function jumpBar() {
+    const content = $("#settings-content");
+    const sections = [...content.children].filter((n) => n.matches(".card, details") && n.querySelector("h2"));
+    if (sections.length < 3) return;
+    const short = (title) => title.replace(/ and hotkey$/, "").replace(/^Speech recognition$/, "Speech");
+    const chips = sections.map((section, i) => {
+      section.id = section.id || `settings-${i}`;
+      const title = short(section.querySelector("h2").textContent.trim());
+      return el("button", { class: "jump-chip", type: "button", "data-target": section.id,
+        onclick: () => {
+          if (section.tagName === "DETAILS") section.open = true;
+          section.scrollIntoView({ block: "start", behavior: "smooth" });
+        } }, title);
+    });
+    const advanced = $("#advanced-card");
+    if (advanced && $("#log-part")) {  // the log is at the very bottom of Advanced
+      chips.push(el("button", { class: "jump-chip", type: "button", "data-target": "log-part",
+        onclick: () => { advanced.open = true; $("#log-part").scrollIntoView({ block: "start", behavior: "smooth" }); } }, "Log"));
+    }
+    const bar = el("nav", { class: "jump-bar", "aria-label": "Settings sections" }, chips);
+    let picked = 0;  // a chip was just clicked: it stays lit while the page scrolls there
+    const light = (target) => bar.querySelectorAll(".jump-chip").forEach((c) => c.classList.toggle("on", c.dataset.target === target));
+    bar.addEventListener("click", (e) => {
+      const chip = e.target.closest(".jump-chip");
+      if (!chip) return;
+      picked = Date.now();
+      light(chip.dataset.target);
+    });
+    content.querySelector(".page-head").after(bar);
+    if (watcher) watcher.disconnect();
+    watcher = new IntersectionObserver((entries) => {
+      if (Date.now() - picked < 1200) return;
+      for (const entry of entries) {
+        if (entry.isIntersecting) light(entry.target.id);
+      }
+    }, { root: content.closest(".scroll"), rootMargin: "-80px 0px -70% 0px" });
+    sections.forEach((s) => watcher.observe(s));
+    if ($("#log-part")) watcher.observe($("#log-part"));
   }
 
   registerPage("settings", {
