@@ -388,3 +388,53 @@ def test_the_app_is_built_with_the_directml_runtime():
     workflow = (Path(__file__).parents[1] / ".github/workflows/release.yml").read_text("utf-8")
     swap = workflow.index("pip install --no-deps onnxruntime-directml")
     assert workflow.index("pip uninstall -y onnxruntime") < swap < workflow.index("Run the tests")
+
+
+# ----- the speech model loads while Abdoh already listens (it took 9 s on the owner's card) -----
+
+
+def _daemon():
+    from fakes import FakeTranscriber, FakeWakeWord
+
+    from abdoh.config import Config
+    from abdoh.daemon import Daemon
+    from abdoh.events import Bus
+    from abdoh.speech.tts import FakeSpeaker
+
+    router = type("R", (), {"add_builtin": lambda *a: None, "brain": None, "registry": None})()
+    return Daemon(Config(), router, FakeSpeaker(), None, FakeWakeWord(10**9), FakeTranscriber([]),
+                  bus=Bus())  # fmt: skip
+
+
+def test_the_speech_model_loads_in_the_background():
+    daemon = _daemon()
+    mine = daemon.transcriber
+    loaded = []
+
+    def load(cfg, make):
+        model = make(cfg)
+        loaded.append(model)
+        return model
+
+    daemon.load_speech(load)
+    assert loaded == [mine] and daemon.transcriber is mine and not daemon.listen_error
+
+
+def test_whisper_takes_over_when_parakeet_doesnt_load():
+    daemon = _daemon()
+    whisper = object()
+    daemon.load_speech(lambda cfg, make: whisper)
+    assert daemon.transcriber is whisper
+
+
+def test_when_nothing_loads_voice_input_is_off_and_said():
+    from abdoh.daemon import SPEECH_MODEL_FAILED
+
+    daemon = _daemon()
+
+    def fails(cfg, make):
+        raise RuntimeError("no model")
+
+    daemon.load_speech(fails)
+    assert daemon.listen_error == SPEECH_MODEL_FAILED
+    assert ("status", f"Error: {SPEECH_MODEL_FAILED}") in daemon.bus.pending_events()

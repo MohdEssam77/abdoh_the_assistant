@@ -519,6 +519,25 @@ class Daemon:
                 log.info("Deleted the unclear recordings")
         log.info("Settings changed")
 
+    def load_speech(self, load=None) -> None:
+        """Load the speech model while Abdoh already listens for the wake word (it took 9 s on
+        the owner's graphics card, and the wake word waited for it). If Parakeet won't load,
+        Whisper takes over; if nothing loads, voice input is off and the window says why."""
+        from abdoh.audio.stt import load_transcriber
+
+        mine = self.transcriber
+        started = time.perf_counter()
+        try:
+            loaded = (load or load_transcriber)(self.cfg, make=lambda cfg: mine)
+        except Exception:
+            log.exception("Could not load the speech recognition model")
+            self.listen_error = SPEECH_MODEL_FAILED
+            self.bus.emit("status", f"Error: {self.listen_error}")
+            return
+        log.info("The speech model is ready (%.1fs)", time.perf_counter() - started)
+        if loaded is not mine:  # Parakeet didn't load: Whisper took over
+            self.use_transcriber(loaded)
+
     def use_transcriber(self, new) -> None:
         """Another speech model takes over (chosen in Settings → Advanced, already loaded): the
         next thing you say goes to it. On a graphics card it moves there as usual."""
@@ -2003,7 +2022,7 @@ class Daemon:
         from abdoh.audio.devices import DeviceWatch, reload_portaudio
         from abdoh.audio.ducking import Ducker
         from abdoh.audio.mic import Microphone
-        from abdoh.audio.stt import load_transcriber
+        from abdoh.audio.stt import make_transcriber
         from abdoh.audio.vad import load_vad
         from abdoh.audio.wakeword import load_wake_engine
         from abdoh.claude.brain import make_brain
@@ -2026,9 +2045,11 @@ class Daemon:
             log.exception("Could not set up the wake word; only the hotkey wakes Abdoh")
             engine = NoWakeWord()
         try:
-            transcriber = load_transcriber(cfg)
+            # Its model loads in the background (load_speech, below): the wake word works
+            # meanwhile, and what you say first waits for it.
+            transcriber = make_transcriber(cfg)
         except Exception:
-            log.exception("Could not load the speech recognition model")
+            log.exception("Could not set up speech recognition")
             listen_error = SPEECH_MODEL_FAILED
         router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
         daemon = cls(
@@ -2070,6 +2091,10 @@ class Daemon:
         router.computer.apps.load_in_background()
         daemon.use_roles(make_roles(cfg, daemon))
         daemon.use_modes(make_modes(cfg, router, daemon))
+        if transcriber is not None:
+            threading.Thread(
+                target=daemon.load_speech, name="abdoh-speech-model", daemon=True
+            ).start()
         try:
             daemon._codoh()  # the page's Codoh speaks up through Abdoh from the start
         except Exception:
