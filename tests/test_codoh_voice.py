@@ -293,3 +293,12 @@ def test_a_silent_action_reads_well_in_the_window():
 
     actions = [("codoh", "new | pocket calculator |"), ("codoh", "send | fix it")]
     assert _what_was_done(actions) == "Done: started a Codoh chat; told Codoh."
+
+
+def test_telling_a_busy_codoh_queues_it(world):
+    run(world, "new | weather app | build it")
+    result = run(world, "send | and run the tests too")
+    assert result.said == voice.QUEUED and world.engines[0].sent == ["build it"]
+    world.engines[0].on_event({"type": "done", "ok": True, "seconds": 2})
+    assert world.engines[0].sent == ["build it", "and run the tests too"]
+    assert world.said == []  # not done yet: no "Codoh is done"

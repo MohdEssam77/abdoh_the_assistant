@@ -503,11 +503,11 @@ const Bridge = (() => {
         const chat = codoh.chats[id];
         if (!chat) return { ok: false, error: "That chat is gone." };
         return { ok: true, chat: summaryOf(chat), rev: codoh.rev, items: chat.items.filter((i) => !since || i.rev > since).map((i) => ({ ...i })),
-          running: chat.running, status: chat.status, seconds: chat.running ? Date.now() / 1000 - chat.started : 0 };
+          running: chat.running, status: chat.status, seconds: chat.running ? Date.now() / 1000 - chat.started : 0, queued: [...(chat.queue || [])] };
       },
       codoh_send: async (id, text) => {
         const chat = codoh.chats[id];
-        if (chat.running) return { ok: false, error: "Codoh is still answering. Stop it first, or wait." };
+        if (chat.running) { (chat.queue = chat.queue || []).push(text); return { ok: true, queued: true }; }
         chat.items.push(item("user", { text }));
         if (chat.title === "New chat") chat.title = text.slice(0, 60);
         chat.updated = Date.now() / 1000;

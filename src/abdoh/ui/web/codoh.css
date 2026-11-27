@@ -448,3 +448,14 @@ button.cx-chip.quiet { cursor: pointer; }
 @media (max-width: 1100px) {
   .codoh.side-open .cx-scrim { display: block; position: absolute; inset: 0; z-index: 15; background: rgba(10, 12, 16, 0.35); }
 }
+
+/* messages sent while Codoh works: they wait above the composer, and go when the reply ends */
+.cx-queue { display: flex; flex-direction: column; gap: 6px; max-width: 900px; width: calc(100% - 48px); margin: 0 auto 8px; }
+.cx-queue[hidden] { display: none; }
+.cx-queue-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px;
+  border: 1px dashed var(--border-strong); background: var(--panel); color: var(--text); font-size: 13.5px;
+}
+.cx-queue-item .kind { color: var(--accent-text); }
+.cx-queue-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cx-queue-item small { flex: none; color: var(--muted); font-size: 12px; }

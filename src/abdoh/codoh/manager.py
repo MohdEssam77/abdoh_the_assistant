@@ -121,6 +121,9 @@ class Chat:
         self.tools: dict[str, str] = {}  # the engine's tool id -> the card's item id
         self.lock = threading.RLock()
         self.voice = False  # the latest message came from Abdoh: it says what happens next
+        # Messages sent while a reply runs, sent when it ends: (text, by voice). Shown beside
+        # the conversation, and part of it once sent.
+        self.queue: list[tuple[str, bool]] = []
 
     def bump(self, item: dict | None = None) -> None:
         self.rev += 1
@@ -409,6 +412,7 @@ class Codoh:
                 "running": chat.running,
                 "status": chat.status,
                 "seconds": round(self._now() - chat.started, 1) if chat.running else 0,
+                "queued": [text for text, _ in chat.queue],
             }
 
     def rename(self, chat_id: str, title: str) -> dict:
@@ -484,8 +488,11 @@ class Codoh:
         if chat is None or not text:
             return {"ok": False, "error": "Nothing to send."}
         with chat.lock:
-            if chat.running:
-                return {"ok": False, "error": BUSY}
+            if chat.running:  # it goes next, when this reply ends
+                chat.queue.append((text, by_voice))
+                chat.bump()
+                log.info("Codoh: a message queued in %s", Path(chat.data["folder"]).name)
+                return {"ok": True, "queued": True}
             chat.voice = by_voice
             if not Path(chat.data["folder"]).is_dir():
                 return {"ok": False, "error": "The chat's folder doesn't exist anymore."}
@@ -808,8 +815,12 @@ class Codoh:
                 return
             if kind == "done":
                 resend = self._done(chat, event)
-                if self._speaks_up(chat) and resend is None and not event.get("stopped"):
-                    said = self._done_notice(chat, event)
+                if resend is None:
+                    resend = self._next_queued(chat, stopped=bool(event.get("stopped")))
+                    if resend is not None:
+                        said = ""  # not done: the next message goes now
+                    elif self._speaks_up(chat) and not event.get("stopped"):
+                        said = self._done_notice(chat, event)
         if allowed is not None and chat.engine is not None:
             chat.engine.answer(allowed[0], True, data=allowed[1])
         if said and kind == "done":
@@ -862,6 +873,23 @@ class Codoh:
         """Abdoh says when this chat needs the user or is done: always when the voice sent its
         latest message, else when the user isn't looking at it (the card shows it then)."""
         return chat.voice or not self.seen(chat.data.get("id", ""))
+
+    def _next_queued(self, chat: Chat, stopped: bool) -> str | None:
+        """A reply ended: the next queued message, to send now (None if there's none). Stopped:
+        the queue is dropped (you stopped to change course)."""
+        if not chat.queue:
+            return None
+        if stopped:
+            for text, _ in chat.queue:
+                chat.add("note", text=f"Not sent: {text}")
+            chat.queue.clear()
+            self._save(chat)
+            return None
+        text, by_voice = chat.queue.pop(0)
+        chat.add("user", text=text)
+        self._save(chat)
+        chat.voice = by_voice
+        return text
 
     def _done_notice(self, chat: Chat, event: dict) -> str:
         from abdoh.codoh.voice import notice
