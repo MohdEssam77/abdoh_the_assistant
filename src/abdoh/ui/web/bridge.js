@@ -33,7 +33,9 @@ const Bridge = (() => {
       "Abdoh: How about Smokey, Ash, or Pebble? Pebble is short, sweet and easy to call out.",
     ];
     setTimeout(() => {
-      push("claude", "Pro subscription (Claude Code)");
+      push("claude", params.get("ai") === "chatgpt"  // ?ai=chatgpt: ChatGPT answers
+        ? { name: "ChatGPT", label: "ChatGPT", status: "your plan (gpt-5.1)" }
+        : { name: "Claude", label: "Claude", status: "Pro subscription (Claude Code)" });
       push("wake", "openWakeWord (hey_abdoh)");
       push("status", "Listening");
       if (params.has("watch")) push("watch", params.get("watch") === "tips"
@@ -210,7 +212,7 @@ const Bridge = (() => {
           S("claude", "Claude, your AI", "sparkles", "Answers, the web, files, your plans"), S("screen", "Your screen", "eye", "Looking at it, and watching you work"),
           S("codoh", "Codoh", "code", "Your coding assistant"), S("abdoh", "Abdoh itself", "settings", "Settings, logs, updates, privacy")],
         start: [{ title: "Say “Hey Abdoh”", line: "Then ask anything: “what's the weather tomorrow?” Or press Ctrl+Alt+Space, or type on Home.", page: "home" },
-          { title: "Connect Claude", line: "With your Claude plan (Claude Code), an API key, OpenRouter or your ChatGPT plan, Abdoh answers everything else.", page: "settings" },
+          { title: "Connect your AI", line: "With your Claude plan (Claude Code), an API key, OpenRouter or your ChatGPT plan, Abdoh answers everything else.", page: "settings" },
           { title: "Make it yours", line: "Your own commands, modes for movie night or work, roles like a German teacher, and lamps.", page: "commands" }],
         features: [
           F("wake-word", "talk", "Wake word and hotkey", "mic", "Say “Hey Abdoh”, or press Ctrl+Alt+Space, and talk.", ["Hey Abdoh, what time is it?"], "on", { try: "What time is it?" }),
@@ -475,7 +477,7 @@ const Bridge = (() => {
       codoh_state: async () => ({
         folders: codoh.folders,
         chats: Object.values(codoh.chats).map(summaryOf).sort((a, b) => b.updated - a.updated),
-        engines: { claude: { ready: true, plan: "Claude Pro", why: "" }, chatgpt: { ready: demoChatGPT, why: demoChatGPT ? "" : "Your ChatGPT plan isn't connected. Connect it in Settings → Claude." } },
+        engines: { claude: { ready: true, plan: "Claude Pro", why: "" }, chatgpt: { ready: demoChatGPT, why: demoChatGPT ? "" : "Your ChatGPT plan isn't connected. Connect it in Settings → AI." } },
         default_engine: codoh.limited && demoChatGPT ? "chatgpt" : "claude",
         limited_until: codoh.limited ? now + 5400 : 0, limited_text: codoh.limited ? "until 8:50 PM" : "",
       }),

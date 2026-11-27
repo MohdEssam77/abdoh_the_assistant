@@ -658,7 +658,7 @@
     }));
     popover(anchor, [
       { title: `Claude${models.claude_plan ? ` · ${models.claude_plan}` : ""}`, options: engines.claude && engines.claude.ready ? claudeOptions : [], empty: engines.claude && engines.claude.ready ? null : engines.claude ? engines.claude.why : "" },
-      { title: "ChatGPT · your plan", options: chatgptOptions, empty: engines.chatgpt && engines.chatgpt.ready ? (models.chatgpt_error || (chatgptOptions.length ? null : "Loading…")) : "Connect your ChatGPT plan in Settings → Claude." },
+      { title: "ChatGPT · your plan", options: chatgptOptions, empty: engines.chatgpt && engines.chatgpt.ready ? (models.chatgpt_error || (chatgptOptions.length ? null : "Loading…")) : "Connect your ChatGPT plan in Settings → AI." },
     ]);
   }
 

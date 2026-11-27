@@ -379,14 +379,19 @@ instead: click **Set Claude key** in the window (or put `ANTHROPIC_API_KEY=...` 
 always use the key.
 
 **Or OpenRouter**: one key from https://openrouter.ai/keys for Claude, GPT, Gemini, Llama and
-hundreds more, paid from your OpenRouter credits. Paste it in the Claude card (Settings) and pick
+hundreds more, paid from your OpenRouter credits. Paste it in the AI card (Settings) and pick
 the model there (searchable, with prices and which ones see images; **Auto** lets OpenRouter
 choose). Like an API key, Abdoh's actions (lamps, apps, modes...) and looking at the screen work,
 but Claude Code's own tools (your files, web search, Gmail and Calendar) don't, and only the last
 exchange is remembered. Smaller models may follow Abdoh's actions less reliably than Claude. In
 `.env`: `OPENROUTER_API_KEY=...`; `claude.backend: openrouter` always uses it.
 
-**Or your ChatGPT plan** (ChatGPT Plus or Pro): Settings → Claude card → **Continue with ChatGPT**.
+The window names the AI that answers: the sidebar shows e.g. "ChatGPT: your plan (gpt-5.1)" or
+"Gemini: OpenRouter (google/gemini-2.5-flash)", and Permissions, Memory and the Catalog say
+"ChatGPT" or "Gemini" where they used to say Claude. Features only Claude has (files, Gmail and
+Calendar, Codoh) still say Claude.
+
+**Or your ChatGPT plan** (ChatGPT Plus or Pro): Settings → AI card → **Continue with ChatGPT**.
 OpenAI's page opens in your browser (OpenAI's own "Sign in with ChatGPT" for apps on your
 computer); choose your account and allow Abdoh to use your plan. The card then shows the
 account, a **ChatGPT model** to pick (the ones your plan allows here), **Test**, **Reconnect**,
@@ -399,7 +404,7 @@ search, Gmail and Calendar) don't, and only the last exchange is remembered.
   the ChatGPT plan both connected): Abdoh says once "Claude's limit is used up until 8:50 PM, so
   your ChatGPT plan answers for now", every request goes to ChatGPT until then (the window's side
   line says so), and then Claude answers again. Turn it off with **When Claude's limit runs out**
-  in the Claude card (`claude.fallback: false`).
+  in the AI card (`claude.fallback: false`).
 - Your plan's limits apply: for ChatGPT Plus the five-hour limit is shared with ChatGPT itself
   and every other app using your plan. When it's reached Abdoh says so; see it under **Manage
   usage** (https://chatgpt.com/settings/usage).
@@ -436,7 +441,7 @@ each command with its output.
 
 - **Your plans' models**, switched any time in the composer: Claude (through Claude Code, your
   Claude plan: Default, Opus, Sonnet, Fable, Haiku, as Claude Code lists them) and your ChatGPT
-  plan's models (Settings → Claude → Continue with ChatGPT). Switching to the other plan
+  plan's models (Settings → AI → Continue with ChatGPT). Switching to the other plan
   mid-chat carries the chat over: the new model gets a summary of it.
 - **How it may act** (the second menu): **Ask first** (reading just happens; every change and
   command shows an approval card: Allow, Allow for this chat, Deny), **Auto-edit** (changes just
@@ -756,7 +761,7 @@ teacher, Math teacher, Programming teacher). Each role has:
   Commons has nothing) or opens a picture Claude found on the web, keeps it for a week in
   `board/` in its data folder, and the page never loads anything from the internet. With an
   **OpenRouter key**, a role can also have a picture **made by AI** where no photo would do ("draw
-  me the kitchen of my dreams"): Settings → Claude card → **Picture model** chooses the model and
+  me the kitchen of my dreams"): Settings → AI card → **Picture model** chooses the model and
   shows what a picture costs (FLUX 3 Klein, the default, about $0.009) and the credit left.
   Abdoh checks the credit first and says so if it's too low; a picture is made once per
   description, so asking again costs nothing. Code has a **Copy**

@@ -700,9 +700,12 @@ class ChatGPTBrain(Brain):
                 raise BrainError(problem(0, {"error": event.get("error") or event}, model))
         raise BrainError(CUT_OFF)
 
+    def ai(self) -> str:
+        return "ChatGPT"
+
     def status(self) -> str:
         chosen = self.cfg.claude.chatgpt_model.strip()
-        return f"ChatGPT ({chosen})" if chosen else "ChatGPT"
+        return f"your plan ({chosen})" if chosen else "your plan"
 
     def close(self) -> None:
         if self._http is not None:

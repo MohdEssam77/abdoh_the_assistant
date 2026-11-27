@@ -58,8 +58,8 @@ def test_api_key_when_claude_code_is_missing():
 
 
 def test_backend_choices():
-    assert state(Config(claude=ClaudeConfig(backend="off")), info=PRO)["summary"] == (
-        "Claude is turned off."
+    assert state(Config(claude=ClaudeConfig(backend="off")), info=PRO)["summary"].startswith(
+        "No AI is connected"
     )
     api_only = Config(claude=ClaudeConfig(backend="api"), anthropic_api_key="sk-ant-x")
     assert state(api_only, info=PRO)["using"] == "api"

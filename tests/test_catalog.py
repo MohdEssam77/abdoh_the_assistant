@@ -52,7 +52,7 @@ def test_status_follows_the_settings(tmp_path):
     cfg = Config(app_dir=tmp_path)
     cfg.claude.backend = "off"
     found = {f["id"]: f["status"] for f in catalog.catalog(cfg)["features"]}
-    assert found["claude"]["state"] == "needs" and found["claude"]["text"] == "Connect Claude"
+    assert found["claude"]["state"] == "needs" and found["claude"]["text"] == "Connect an AI"
     assert found["wake-word"]["state"] == "on"
     cfg.memory = False
     cfg.voice_interrupts = False

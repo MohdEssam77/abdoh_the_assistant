@@ -119,6 +119,16 @@ class OpenRouterBrain(Brain):
             return f"OpenRouter couldn't use the model {self.model}. Pick another in Settings."
         return "OpenRouter couldn't answer right now."
 
+    def ai(self) -> str:
+        from abdoh.claude.brain import maker_name
+
+        return maker_name(self.model) or "the AI"
+
+    def label(self) -> str:
+        from abdoh.claude.brain import maker_name
+
+        return maker_name(self.model) or "OpenRouter"
+
     def status(self) -> str:
         return f"OpenRouter ({self.model})"
 
@@ -313,7 +323,7 @@ def make_picture(key: str | None, model: str, prompt: str, http=None) -> tuple[b
 
     if not key:
         raise PictureRefused(
-            "I can't make pictures with AI: that needs an OpenRouter key (Settings, Claude card)."
+            "I can't make pictures with AI: that needs an OpenRouter key (Settings, AI card)."
         )
     model = model or DEFAULT_IMAGE_MODEL
     http = http or _client()

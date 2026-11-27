@@ -159,10 +159,16 @@ class FallbackBrain(Brain):
         yield sentence + "\n"
         yield from self._backup.stream(prompt, image_png)
 
+    def ai(self) -> str:
+        return "ChatGPT" if self.switched() and self._backup is not None else self.primary.ai()
+
+    def label(self) -> str:
+        return self.ai()
+
     def status(self) -> str:
         if self.switched() and self._backup is not None:
             until = f" until {clock(self._until)}" if self._known else ""
-            return f"ChatGPT plan (Claude's limit is used up{until})"
+            return f"your plan, while Claude's limit is used up{until}"
         return self.primary.status()
 
     def same_setup(self, other) -> bool:

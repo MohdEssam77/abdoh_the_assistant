@@ -46,7 +46,7 @@ PLAN_ONLY = """
 
 You are in plan mode: don't change anything and don't run commands. Read what you need, then \
 propose a plan as a short numbered list."""
-OFF = "Your ChatGPT plan isn't connected. Connect it in Settings → Claude → Continue with ChatGPT."
+OFF = "Your ChatGPT plan isn't connected. Connect it in Settings → AI → Continue with ChatGPT."
 TOO_MANY = "I stopped after {n} steps. Say “go on” to continue."
 EFFORTS = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"}
 

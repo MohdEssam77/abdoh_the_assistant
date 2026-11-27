@@ -87,7 +87,7 @@
     });
     update();
     return card("Your instructions for Abdoh",
-      "Tell Claude about yourself and how Abdoh should behave. They're sent with every request to Claude.",
+      `Tell ${ai()} about yourself and how Abdoh should behave. They're sent with every request to ${ai()}.`,
       [text, el("div", { class: "row", style: "border:0;padding-bottom:0" }, counter, el("div", { class: "spacer" }), button)]);
   }
 
@@ -123,23 +123,24 @@
     const settings = App.settings;
     $("#perm-content").replaceChildren(
       el("div", { class: "page-head" }, el("h1", {}, "Permissions"),
-        el("p", {}, "What Abdoh may do on your computer when Claude handles a request. Your own commands always work.")),
-      card("What Claude may do", "When you ask Claude for something, Abdoh can also do these things for you.",
+        el("p", {}, `What Abdoh may do on your computer when ${ai()} handles a request. Your own commands always work.`)),
+      card(`What ${ai()} may do`, `When you ask ${ai()} for something, Abdoh can also do these things for you.`,
         CLAUDE_ACTIONS.map(([name, title, help]) => row(title, help, actionSwitch(name)))),
-      card("What Claude may see and use", null, [
+      card(`What ${ai()} may see and use`, null, [
         row("Search the web", "For news, weather, prices and anything recent.", claudeSwitch("allow_web")),
         row("Look at your screen when you ask",
-          "When what you say is about something on your screen (“what does this error mean?”, “read this to me”), Claude asks to see it, and Abdoh sends a picture of the screen you're using. Abdoh always says when it looks. When you ask it to watch you work (“tell me if I get this wrong”), it looks whenever the screen changes until you say “stop watching”.",
+          `When what you say is about something on your screen (“what does this error mean?”, “read this to me”), ${ai()} asks to see it, and Abdoh sends a picture of the screen you're using. Abdoh always says when it looks. When you ask it to watch you work (“tell me if I get this wrong”), it looks whenever the screen changes until you say “stop watching”.`,
           claudeSwitch("allow_screen")),
         row("Work with your files and run PowerShell",
-          "Create, read, change and sort files. Claude asks before deleting or overwriting anything, and deletes to the Recycle Bin.",
+          (ai() === "Claude" ? "" : `Only with Claude (Claude Code): ${ai()} can't use your files. `)
+            + "Create, read, change and sort files. Claude asks before deleting or overwriting anything, and deletes to the Recycle Bin.",
           claudeSwitch("allow_files")),
         folderBlock(),
         row("Read its own log",
-          "When you ask what happened (“why did you stop talking?”, “check your logs”), Claude reads Abdoh's log of that time and explains it. Keys and tokens are never in what it reads.",
+          `When you ask what happened (“why did you stop talking?”, “check your logs”), ${ai()} reads Abdoh's log of that time and explains it. Keys and tokens are never in what it reads.`,
           claudeSwitch("allow_logs")),
         row("Change its own commands, modes and roles",
-          "When you ask (“make a command called good evening that locks the screen”, “add Spotify to work mode”). Claude asks for what's missing, Abdoh says what it changed, and “undo that” puts it back.",
+          `When you ask (“make a command called good evening that locks the screen”, “add Spotify to work mode”). ${ai()} asks for what's missing, Abdoh says what it changed, and “undo that” puts it back.`,
           claudeSwitch("allow_self_edit")),
       ]),
       card("Your computer", null, [

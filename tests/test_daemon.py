@@ -184,7 +184,8 @@ def test_set_key_saves_env_and_connects(tmp_path):
     daemon.handle_request("set_key", "sk-new")
     assert (tmp_path / ".env").read_text() == "OTHER=1\nANTHROPIC_API_KEY=sk-new\n"
     assert cfg.has_api_key and router.brain is not None
-    assert ("claude", "API key") in bus.pending_events()
+    info = {"name": "Claude", "label": "Claude", "status": "API key"}
+    assert ("claude", info) in bus.pending_events()
 
 
 def test_show_window_by_voice(tmp_path):
@@ -426,18 +427,22 @@ def test_claude_status_is_reported_then_refined():
     events = []
     for _ in range(200):
         events += bus.pending_events()
-        if ("claude", "Pro subscription (Claude Code)") in events:
+        if ("claude", PRO_STATUS) in events:
             break
         threading.Event().wait(0.01)
-    assert events[0] == ("claude", "Claude Code")
-    assert ("claude", "Pro subscription (Claude Code)") in events
+    assert events[0] == ("claude", {"name": "Claude", "label": "Claude", "status": "Claude Code"})
+    assert ("claude", PRO_STATUS) in events
+
+
+PRO_STATUS = {"name": "Claude", "label": "Claude", "status": "Pro subscription (Claude Code)"}
 
 
 def test_no_claude_is_reported():
     bus = Bus()
     daemon = make_daemon(StubRouter([]), bus=bus)
     daemon._report_claude()
-    assert ("claude", "not connected") in bus.pending_events()
+    info = {"name": "the AI", "label": "AI", "status": "not connected"}
+    assert ("claude", info) in bus.pending_events()
 
 
 def test_timer_announcement_plays_the_alarm_then_speaks(monkeypatch):

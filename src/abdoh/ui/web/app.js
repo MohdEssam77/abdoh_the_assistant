@@ -889,7 +889,16 @@ function renderHowToTalk() {
 
 /* ---------- side bar ---------- */
 
-function setClaude(text) { $("#side-claude").textContent = `Claude: ${text}`; }
+/* The AI that answers: {name (in sentences), label (the sidebar's), status} — Claude, ChatGPT,
+   OpenRouter's model. An older daemon sent only the status. */
+function setClaude(value) {
+  const info = typeof value === "string" ? { name: "Claude", label: "Claude", status: value } : (value || {});
+  App.ai = info.name || "Claude";
+  $("#side-claude").textContent = `${info.label || App.ai}: ${info.status || "checking…"}`;
+}
+/* What to call the AI that answers, in a sentence ("Claude", "ChatGPT", "the AI"). */
+function ai() { return App.ai || "Claude"; }
+function Ai() { const name = ai(); return name[0].toUpperCase() + name.slice(1); }
 function setWake(text) { $("#side-wake").textContent = `Wake word: ${text}`; }
 function setVoice(on) { $("#voice-toggle").checked = !!on; }
 // Why Abdoh can't hear you over its own voice ("" when it can).

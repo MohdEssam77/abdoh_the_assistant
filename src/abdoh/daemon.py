@@ -1228,18 +1228,18 @@ class Daemon:
         self._report_claude()
 
     def _report_claude(self) -> None:
-        """Show how Claude is connected. Claude Code's sign-in is checked in the background."""
+        """Show which AI answers and how it's connected ({name, label, status}: Claude,
+        ChatGPT, OpenRouter's model). Claude Code's sign-in is checked in the background."""
+        from abdoh.claude.brain import ai_info, ai_names
+
         brain = self.router.brain
         if brain is None:
-            self.bus.emit("claude", "not connected")
+            self.bus.emit("claude", ai_info(None))
             return
-        self.bus.emit("claude", brain.name)
+        self.bus.emit("claude", {**ai_names(brain), "status": brain.name})
 
         def check() -> None:
-            try:
-                self.bus.emit("claude", brain.status())
-            except Exception:
-                log.exception("Couldn't check the Claude connection")
+            self.bus.emit("claude", ai_info(brain))
 
         threading.Thread(target=check, name="abdoh-claude-status", daemon=True).start()
 
