@@ -928,6 +928,8 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
 .phone-qr svg { width: 184px; height: 184px; }
 .phone-pair-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .phone-pair-text ol { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; line-height: 1.45; }
+.phone-code { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.phone-code b { font-size: 20px; letter-spacing: .08em; font-variant-numeric: tabular-nums; user-select: all; }
 .phone-link { display: flex; gap: 8px; }
 .phone-link .input { flex: 1; min-width: 0; font-size: 12px; }
 .phone-list { border-top: 1px solid var(--border); padding-top: 12px; }

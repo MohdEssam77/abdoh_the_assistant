@@ -3,6 +3,10 @@
 A paired phone has its own key (256 random bits). Only the key's SHA-256 is kept, in
 phones.json; the phone keeps the key itself. A pairing code works once, for 30 minutes, and is
 only kept in memory: a restart makes it invalid.
+
+The code is short enough to type ("K7MX-2Q9P": 8 of 31 letters and digits that can't be mixed
+up, about 40 bits), for a phone whose home-screen app opened without it: after 10 wrong tries
+it stops working, so guessing it is hopeless.
 """
 
 import hashlib
@@ -20,6 +24,7 @@ log = logging.getLogger(__name__)
 
 FILE = "phones.json"
 CODE_SECONDS = 30 * 60
+CODE_LETTERS = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # no 0/O, 1/I/L
 WRONG_CODES = 10  # this many wrong codes and the current one stops working
 SEEN_EVERY = 60.0  # "last used" is written at most this often (seconds)
 MAX_PHONES = 20
@@ -28,6 +33,18 @@ NAME_LENGTH = 40
 
 def _digest(key: str) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def make_code(choice=secrets.choice) -> str:
+    """A new pairing code: "K7MX-2Q9P"."""
+    letters = "".join(choice(CODE_LETTERS) for _ in range(8))
+    return f"{letters[:4]}-{letters[4:]}"
+
+
+def clean_code(code: str) -> str:
+    """A code as typed ("k7mx 2q9p", "K7MX2Q9P") in its own form ("K7MX-2Q9P")."""
+    letters = "".join(ch for ch in str(code or "").upper() if ch.isalnum())
+    return f"{letters[:4]}-{letters[4:]}" if len(letters) == 8 else letters
 
 
 def phone_name(user_agent: str) -> str:
@@ -42,10 +59,11 @@ def phone_name(user_agent: str) -> str:
 class Phones:
     """The paired phones (phones.json in Abdoh's folder) and the current pairing code."""
 
-    def __init__(self, path: Path, clock=time.time, token=secrets.token_urlsafe):
+    def __init__(self, path: Path, clock=time.time, token=secrets.token_urlsafe, code=make_code):
         self.path = Path(path)
         self._clock = clock
         self._token = token
+        self._make_code = code
         self._lock = threading.Lock()
         self._code: tuple[str, float] | None = None  # (code, made at)
         self._wrong = 0
@@ -78,7 +96,7 @@ class Phones:
     def new_code(self) -> str:
         """A new pairing code (the one before stops working)."""
         with self._lock:
-            self._code = (self._token(16), self._clock())
+            self._code = (self._make_code(), self._clock())
             self._wrong = 0
             return self._code[0]
 
@@ -95,7 +113,7 @@ class Phones:
             current = self._code
             if current is None or self._clock() - current[1] > CODE_SECONDS:
                 return None
-            if not isinstance(code, str) or not hmac.compare_digest(code, current[0]):
+            if not isinstance(code, str) or not hmac.compare_digest(clean_code(code), current[0]):
                 self._wrong += 1
                 if self._wrong >= WRONG_CODES:
                     log.warning("Too many wrong pairing codes: the code no longer works")

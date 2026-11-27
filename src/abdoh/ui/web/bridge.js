@@ -593,7 +593,7 @@ const Bridge = (() => {
       phone_state: async () => demoPhone.state(),
       phone_share: async () => demoPhone.share(),
       phone_unshare: async () => ({ ok: true }),
-      phone_pair: async () => ({ ok: true, url: "https://laptop.tail1234.ts.net/#pair=Q2h3dGVzdC1jb2RlLW5vdC1yZWFs", minutes: 30,
+      phone_pair: async () => ({ ok: true, url: "https://laptop.tail1234.ts.net/#pair=K7MX-2Q9P", code: "K7MX-2Q9P", minutes: 30,
         qr: '<svg viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg"><rect width="29" height="29" fill="#fff"/><path fill="#111" d="M2 2h7v7H2zM20 2h7v7h-7zM2 20h7v7H2zM4 4v3h3V4zM22 4v3h3V4zM4 22v3h3v-3zM11 2h2v2h-2zM14 4h2v3h-2zM11 8h3v2h-3zM16 10h3v2h-3zM10 12h2v4h-2zM13 13h4v2h-4zM18 14h3v3h-3zM22 12h3v2h-3zM11 17h2v3h-2zM14 18h4v2h-4zM20 19h2v3h-2zM23 21h4v2h-4zM12 22h3v3h-3zM16 23h3v4h-3zM21 25h4v2h-4zM2 11h3v2H2zM6 13h3v3H6zM2 16h2v2H2z"/></svg>' }),
       phone_remove: async (id) => { demoPhone.phones = demoPhone.phones.filter((p) => p.id !== id); return { ok: true, phones: demoPhone.phones }; },
       open_power_settings: async () => {},
