@@ -67,10 +67,10 @@ def test_a_call_hears_when_you_start_and_stop_talking():
         "\n".join(parts)
         + """
 const MS = 2048 / 48000 * 1000;
-function run(ear, levels) {
+function run(ear, levels, over = false) {
   const out = [];
   levels.forEach((rms, i) => {
-    const got = earStep(ear, rms, MS);
+    const got = earStep(ear, rms, MS, over);
     if (got) out.push([got, Math.round(i * MS)]);
   });
   return out;
@@ -86,6 +86,10 @@ const result = {
   floor: fan.floor,
   overFan: run(fan, [...talk(1.5), ...blocks(2, 0.03)]),
   endless: run(newEar(), [...blocks(0.5, 0.003), ...blocks(50, 0.1)]),
+  // While Abdoh talks (story 146): what's left of its voice after the echo canceller...
+  echo: run(newEar(), blocks(10, 0).map((_, i) => 0.005 + 0.02 * Math.abs(Math.sin(i))), true),
+  knockOver: run(newEar(), [...blocks(1, 0.01), ...blocks(0.15, 0.3), ...blocks(2, 0.01)], true),
+  talkOver: run(newEar(), [...blocks(1, 0.01), ...talk(2), ...blocks(2, 0.01)], true),
 };
 console.log(JSON.stringify(result));
 """
@@ -101,3 +105,8 @@ console.log(JSON.stringify(result));
     assert [kind for kind, _ in got["overFan"]] == ["start", "end"]  # talking over it is
     (start, began), (end, ended) = got["endless"][:2]
     assert end == "end" and 44800 <= ended - began <= 45000  # sent at 45 s
+    assert got["echo"] == []  # Abdoh's own voice, what the phone leaves of it, isn't you
+    assert got["knockOver"] == []  # over Abdoh, a knock doesn't even start a turn
+    (start, began), (end, ended) = got["talkOver"]
+    assert start == "start" and 1250 <= began <= 1500  # about 0.3 s into your words
+    assert end == "end" and 4150 <= ended <= 4300

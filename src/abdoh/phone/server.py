@@ -139,7 +139,10 @@ class PhoneApp:
         if route == "/api/voice":
             if len(body) > MAX_VOICE:
                 raise PhoneError("That recording is too long: a minute at most.")
-            heard = self.hub.hear(body, query.get("speak") == "1", phone["id"])
+            speak = query.get("speak") == "1"
+            if query.get("over") == "1":  # said over Abdoh's answer on a call (story 146)
+                return answer({"ok": True, **self.hub.hear_over(body, speak, phone["id"])})
+            heard = self.hub.hear(body, speak, phone["id"])
             return answer({"ok": True, "text": heard})
         if route == "/api/stop":
             self.hub.stop()

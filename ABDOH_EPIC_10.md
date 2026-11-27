@@ -162,6 +162,22 @@ volume actions, `power` lock), with the same permissions.
 - The screen is kept on (Wake Lock, where the phone has it). The call ends when the page goes
   to the background, when the microphone stops, or after five quiet minutes.
 
+### 3.8 Talking over Abdoh on a call (story 146)
+- While Abdoh thinks or talks, the phone keeps listening with a stricter ear: louder than 0.03
+  and four times the room, for 300 ms (short gaps between words allowed). The phone's echo
+  canceller (on for the microphone) keeps most of Abdoh's voice out.
+- At the first sign of you (120 ms) Abdoh's voice drops to 15 %; a knock lets it come back up.
+- When you pause, the turn goes to `/api/voice?over=1`. The hub (`hear_over`) sorts it with the
+  laptop's own rules: `local_skills.interruption_kind`, and `audio/echo_text.own_words` over
+  the last 12 sentences said to the phone (two minutes: the phone plays them well after they
+  were sent). "go_on" (nothing, "okay", a word or two, its own voice): the answer goes on at
+  full volume. "stop": stopped, and the call listens. "end" ("stop listening"): the call ends.
+  "request": stopped, and asked instead. The computer stops the answer itself, so a false alarm
+  never cuts it off.
+- Fooled three times in a call (nothing heard, or its own voice), it stops listening over
+  itself for the rest of the call and says to tap the circle (which still stops it and keeps
+  what you already said).
+
 ## 4. Ground rules for this epic
 
 1. Unit tests never start a real server socket, never run Tailscale, never use the microphone
@@ -213,6 +229,10 @@ Catalog (a "Your phone" feature), this file's results. No release.
 "Can I have a call to Abdoh from my phone, to have a back and forth conversation?" (2026-11-27,
 before the release). See 3.7. Docs in GUIDE.md and the Catalog.
 
+### Story 146: Talking over Abdoh on a call (`story/146-phone-talk-over`)
+The owner: "the phone blocks its own speakers... let him listen to me when I start talking and
+cut it, but if it will be a problem in a noisy place then it is fine". See 3.8.
+
 ---
 
 ## 6. The owner's decisions (2026-11-27)
@@ -251,3 +271,10 @@ All six stories are merged (139 to 144); not released (still 0.13.3).
   with screenshots in light and dark; the listening is tested in Node with made-up loudness (a
   quiet room, a knock, a fan, someone who never stops). Not tried with a real phone's
   microphone: the loudness thresholds (0.015, three times the room) may need tuning there.
+- **Story 146 (talking over Abdoh):** checked in the demo with made-up microphone blocks (its
+  voice dropped at the first sound, "actually, make it vegetarian" stopped the answer and was
+  answered next; a knock only dipped it; three false alarms showed "It's noisy here"), and in
+  tests: the sorting on the computer (a noise, "okay", its own words, "wait", "stop listening",
+  a request) and the stricter ear in Node (an echo that stays under 0.03, a knock, talking over
+  it). Not tried on a real phone: how much of Abdoh's voice a real phone leaves in its
+  microphone decides whether 0.03 is right.

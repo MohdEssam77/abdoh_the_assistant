@@ -318,7 +318,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   transform: scale(calc(1 + var(--level) * 0.6)); transition: transform 0.1s linear, background 0.3s;
 }
 .ring.outer { inset: 18px; background: color-mix(in srgb, var(--accent) 10%, transparent); transform: scale(calc(1 + var(--level) * 0.3)); }
-.call[data-state="thinking"] .ring { animation: breathe 1.6s ease-in-out infinite; }
+.call[data-state="thinking"] .ring, .call[data-state="checking"] .ring { animation: breathe 1.6s ease-in-out infinite; }
 .call[data-state="thinking"] .ring.outer { animation-delay: 0.5s; }
 @keyframes breathe { 50% { transform: scale(1.1); opacity: 0.45; } }
 .call[data-state="speaking"] .logo.huge rect { transform-box: fill-box; transform-origin: center; animation: talk 0.9s ease-in-out infinite; }

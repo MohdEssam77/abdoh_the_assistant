@@ -281,7 +281,7 @@ function addLine(line, fresh = false) {
 /* A sentence of the reply to this phone: shown, and said if this phone asked and speaks (on a
    call, always). Not the rest of a reply that was stopped. */
 function addSaid(event) {
-  const wanted = call.on ? ["sending", "thinking", "speaking"].includes(call.state) : S.speak;
+  const wanted = call.on ? ANSWERING.includes(call.state) : S.speak;
   if (wanted && event.for === S.me && S.answered >= S.cut) play(event);
   if (S.final) return; // already shown whole (a short reply comes whole, then is said)
   if (!S.live) S.live = bubble("abdoh", "");
@@ -420,7 +420,7 @@ async function stop() {
    Its own voice (a WAV from your computer) when it has a natural voice, else the phone's.
    A phone only plays sound after a tap: the first tap (send, talk) unlocks it. */
 
-const player = { ctx: null, queue: [], playing: false, source: null, turn: 0, unlocked: false };
+const player = { ctx: null, queue: [], playing: false, source: null, turn: 0, unlocked: false, gain: null, ducked: false };
 
 function audioContext() {
   if (!player.ctx) {
@@ -475,7 +475,7 @@ function playSound(buffer) {
     const ctx = audioContext();
     const source = ctx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    source.connect(output());
     source.onended = resolve;
     player.source = source;
     source.start();
@@ -493,7 +493,23 @@ function speakHere(text) {
   });
 }
 
+/* Abdoh's voice goes through this, so it can be turned down while you talk over it. */
+function output() {
+  if (!player.gain) {
+    player.gain = audioContext().createGain();
+    player.gain.connect(audioContext().destination);
+  }
+  return player.gain;
+}
+
+function duck(on) {
+  if (player.ducked === on) return;
+  player.ducked = on;
+  if (player.gain) player.gain.gain.setTargetAtTime(on ? CALL.duck : 1, player.gain.context.currentTime, 0.05);
+}
+
 function silence() {
+  duck(false);
   player.turn += 1;
   player.queue = [];
   player.playing = false;
@@ -639,11 +655,15 @@ async function sendVoice(pcm, { speak = S.speak, inCall = false } = {}) {
   return data.text || "";
 }
 
-/* ---------- a call: back and forth by voice, hands-free (story 145) ----------
+/* ---------- a call: back and forth by voice, hands-free (stories 145, 146) ----------
    The phone button in the header starts it. Abdoh listens; when you pause, what you said is
-   sent, the reply is said here, and it listens again, until you hang up. The microphone stays
-   open for the whole call (one permission), but what it hears while Abdoh answers is ignored,
-   so its own voice is never taken for yours: tap the circle to talk over it. */
+   sent, the reply is said here, and it listens again, until you hang up.
+
+   You can talk over Abdoh, as on a phone call (the phone's echo canceller keeps its own voice
+   out of the microphone): at the first sign of you its voice drops, and when you pause, your
+   computer decides (hub.hear_over): "okay", a noise or its own voice coming back, and it goes
+   on; "wait", and it stops; anything else, and it stops and answers that. Fooled three times
+   in a call (a noisy street), it stops listening over itself: tap the circle instead. */
 
 const CALL = {
   frame: 2048,
@@ -654,10 +674,16 @@ const CALL = {
   maxTurnMs: 45000,
   graceMs: 450, // after Abdoh's voice (or the microphone opening): its echo dies away
   quietEndMs: 5 * 60000, // nobody talked this long: the call ends
+  overLevel: 0.03, // over Abdoh's answer: louder than this (and 4 times the room)...
+  overMs: 300, // ... for this long (short gaps between words allowed): you're talking over it
+  duck: 0.15, // Abdoh's voice while you talk over it
+  fooledMax: 3, // talking over Abdoh turned out to be nothing this often: tap the circle instead
 };
+const OVER = ["thinking", "speaking"]; // Abdoh's turn: you may talk over it
+const ANSWERING = ["sending", "thinking", "speaking", "over", "checking"]; // its answer is said
 const call = {
   on: false, state: "", muted: false, stream: null, source: null, node: null, rate: 48000,
-  ear: newEar(), pre: [], chunks: [], level: 0,
+  ear: newEar(), pre: [], chunks: [], level: 0, fooled: 0, overOff: false,
   armed: 0, idle: 0, started: 0, timer: null, demo: null, lock: null, you: "", abdoh: "", hint: "",
 };
 
@@ -667,13 +693,14 @@ function newEar(floor = 0.004) {
 }
 
 /* One block from the microphone (its loudness and length): "start" when you started talking,
-   "end" when you've stopped, "drop" when it was only a knock or a cough, else null. */
-function earStep(ear, rms, ms) {
-  const loud = Math.max(0.015, ear.floor * 3);
+   "end" when you've stopped, "drop" when it was only a knock or a cough, else null. `over`:
+   while Abdoh answers, it takes more (louder, longer) to count as you. */
+function earStep(ear, rms, ms, over = false) {
+  const loud = over ? Math.max(CALL.overLevel, ear.floor * 4) : Math.max(0.015, ear.floor * 3);
   if (!ear.talking) {
     ear.floor += (rms - ear.floor) * (rms < ear.floor ? 0.1 : 0.004); // follows the room's hum
-    ear.loudMs = rms > loud ? ear.loudMs + ms : 0;
-    if (ear.loudMs < CALL.startMs) return null;
+    ear.loudMs = rms > loud ? ear.loudMs + ms : over ? Math.max(0, ear.loudMs - ms / 2) : 0;
+    if (ear.loudMs < (over ? CALL.overMs : CALL.startMs)) return null;
     Object.assign(ear, { talking: true, speechMs: ear.loudMs, quietMs: 0, totalMs: ear.loudMs });
     return "start";
   }
@@ -701,7 +728,8 @@ async function startCall() {
   } catch (error) {
     return failed(error);
   }
-  Object.assign(call, { on: true, muted: false, stream, started: Date.now(), ear: newEar(), you: "", abdoh: "", hint: "" });
+  Object.assign(call, { on: true, muted: false, stream, started: Date.now(), ear: newEar(), fooled: 0, overOff: false,
+    you: "", abdoh: "", hint: "" });
   S.cut = S.asked; // a reply still coming from before the call isn't said in it
   if (stream) {
     const ctx = audioContext();
@@ -732,32 +760,87 @@ function listen(grace = CALL.graceMs) {
   showCall();
 }
 
-/* Every block from the microphone: did you start talking, and have you stopped? */
+/* Every block from the microphone: did you start talking (also over Abdoh), and have you
+   stopped? */
 function hearFrame(data) {
   if (!call.on) return;
   let sum = 0;
   for (let i = 0; i < data.length; i += 4) sum += data[i] * data[i];
   const rms = Math.sqrt(sum / Math.ceil(data.length / 4));
   call.level = call.muted ? 0 : Math.min(1, rms * 6);
-  if (call.muted || !["listening", "hearing"].includes(call.state)) return;
+  const over = OVER.includes(call.state) && !call.overOff;
+  if (call.muted || !(over || ["listening", "hearing", "over"].includes(call.state))) return;
   const ear = call.ear;
   if (Date.now() < call.armed) { // not yet: learn how loud the room is meanwhile
     if (call.state === "listening") ear.floor += (rms - ear.floor) * 0.2;
     return;
   }
   const ms = (data.length / call.rate) * 1000;
-  const heard = earStep(ear, rms, ms);
-  if (call.state === "listening") {
+  const heard = earStep(ear, rms, ms, over || call.state === "over");
+  if (call.state === "listening" || over) {
     call.pre.push(new Float32Array(data));
     while (call.pre.length * ms > CALL.preRollMs) call.pre.shift();
-    if (heard === "start") Object.assign(call, { state: "hearing", chunks: call.pre, pre: [], hint: "" });
+    if (over) duck(ear.loudMs >= CALL.startMs); // the first sign of you: Abdoh's voice drops
+    if (heard === "start") Object.assign(call, { state: over ? "over" : "hearing", chunks: call.pre, pre: [], hint: "" });
+    if (heard === "start") showCall();
     return;
   }
   call.chunks.push(new Float32Array(data));
-  if (heard === "drop") return listen(0);
+  if (heard === "drop") return call.state === "over" ? backToAnswer() : listen(0);
   if (heard !== "end") return;
   const extra = Math.floor(Math.max(0, ear.quietMs - 300) / ms); // most of the quiet at the end
-  sendTurn(call.chunks.slice(0, call.chunks.length - extra));
+  const chunks = call.chunks.slice(0, call.chunks.length - extra);
+  if (call.state === "over") sendOver(chunks);
+  else sendTurn(chunks);
+}
+
+/* What you said over Abdoh's answer: your computer decides what it was (hub.hear_over), while
+   Abdoh goes on quietly. */
+async function sendOver(chunks) {
+  Object.assign(call, { state: "checking", chunks: [] });
+  showCall();
+  const cut = S.asked; // the requests being answered now
+  const pcm = DEMO ? new ArrayBuffer(32000) : toPcm16k(chunks, call.rate);
+  let got;
+  try {
+    got = await api("POST", "/api/voice?speak=1&over=1", pcm, { timeout: 60000 });
+  } catch (error) {
+    if (error instanceof Unpaired) {
+      endCall();
+      return unpaired();
+    }
+    return backToAnswer();
+  }
+  if (!call.on || call.state !== "checking") return;
+  if (got.kind === "end") return endCall("You said to stop listening, so the call ended.");
+  if (got.kind !== "stop" && got.kind !== "request") {
+    if (got.heard === "nothing" || got.heard === "echo") fooled();
+    return backToAnswer();
+  }
+  S.cut = cut; // your computer stopped the answer: the rest of it isn't said
+  silence();
+  call.abdoh = "";
+  if (got.kind === "stop") return listen(250);
+  S.asked += 1; // ... and asked what you said instead
+  call.you = got.text;
+  call.state = "thinking";
+  showCall();
+  turnOver();
+}
+
+/* It wasn't you (a noise, or Abdoh's own voice): the answer goes on, at full volume. */
+function backToAnswer() {
+  if (!call.on) return;
+  duck(false);
+  Object.assign(call, { ear: newEar(call.ear.floor), pre: [], chunks: [] });
+  call.state = player.playing || player.queue.length ? "speaking" : "thinking";
+  showCall();
+  turnOver();
+}
+
+function fooled() {
+  call.fooled += 1;
+  if (call.fooled >= CALL.fooledMax) call.overOff = true; // a noisy place: tap the circle instead
 }
 
 /* What you said goes to your computer; the reply comes as events ("say", then "done"). */
@@ -795,10 +878,10 @@ async function sendTurn(chunks) {
   turnOver();
 }
 
-/* A sentence of the reply starts. */
+/* A sentence of the reply starts (quietly, while you talk over it). */
 function callSays(text) {
-  if (!["sending", "thinking", "speaking"].includes(call.state)) return;
-  call.state = "speaking";
+  if (!ANSWERING.includes(call.state)) return;
+  if (!["over", "checking"].includes(call.state)) call.state = "speaking";
   call.abdoh = text;
   showCall();
 }
@@ -809,16 +892,18 @@ function turnOver() {
   if (S.answered >= S.asked && !player.playing && !player.queue.length) listen();
 }
 
-/* The circle: talk over Abdoh (it stops), or unmute. */
+/* The circle: stop Abdoh and talk (what you already said over it is kept), or unmute. */
 function tapOrb() {
   if (!call.on) return;
   if (call.muted) return toggleMute();
-  if (!["thinking", "speaking"].includes(call.state)) return;
+  if (![...OVER, "over"].includes(call.state)) return;
   S.cut = S.asked;
   silence();
   api("POST", "/api/stop").catch(() => {});
   call.abdoh = "";
-  listen(250);
+  if (call.state !== "over") return listen(250);
+  call.state = "hearing";
+  showCall();
 }
 
 function toggleMute() {
@@ -826,12 +911,13 @@ function toggleMute() {
   call.muted = !call.muted;
   if (call.stream) call.stream.getAudioTracks().forEach((track) => { track.enabled = !call.muted; });
   if (["listening", "hearing"].includes(call.state)) listen(0); // what you were saying is dropped
+  else if (call.state === "over") backToAnswer();
   showCall();
 }
 
 function endCall(why = "") {
   if (!call.on) return;
-  const busy = S.answered < S.asked || player.playing || call.state === "sending";
+  const busy = S.answered < S.asked || player.playing || ["sending", "checking"].includes(call.state);
   const seconds = Math.floor((Date.now() - call.started) / 1000);
   call.on = false;
   clearInterval(call.timer);
@@ -863,9 +949,11 @@ async function keepAwake(on) {
   }
 }
 
-const CALL_STATE = { listening: "Listening…", hearing: "Listening…", sending: "Thinking…", speaking: "Answering", muted: "Muted" };
-const CALL_HINT = { listening: "Talk whenever you like", hearing: "Pause when you're done", thinking: "Tap the circle to stop it",
-  speaking: "Tap the circle to talk", muted: "Abdoh can't hear you" };
+const CALL_STATE = { listening: "Listening…", hearing: "Listening…", sending: "Thinking…", speaking: "Answering",
+  over: "Listening…", checking: "One moment…", muted: "Muted" };
+const CALL_HINT = { listening: "Talk whenever you like", hearing: "Pause when you're done", over: "Pause when you're done",
+  thinking: "Talk or tap the circle to cut in", speaking: "Talk or tap the circle to cut in", muted: "Abdoh can't hear you" };
+const NOISY_HINT = "It's noisy here: tap the circle to cut in";
 
 function showCall() {
   if (!call.on) return;
@@ -875,13 +963,14 @@ function showCall() {
   $("#call").dataset.state = state;
   $("#call-time").textContent = clock(Math.floor((now - call.started) / 1000));
   let level = 0;
-  if (state === "hearing") level = DEMO ? 0.45 + 0.35 * Math.sin(now / 140) : call.level;
+  if (state === "hearing" || state === "over") level = DEMO ? 0.45 + 0.35 * Math.sin(now / 140) : call.level;
   else if (state === "listening") level = DEMO ? 0.04 : call.level;
   $("#orb").style.setProperty("--level", level.toFixed(3));
   const offline = S.online === false;
   const thinking = S.activity ? `${S.activity}…`.replace(/\.+…$/, "…") : "Thinking…";
   $("#call-state").textContent = offline ? "Can't reach your computer" : state === "thinking" ? thinking : CALL_STATE[state] || "";
-  $("#call-hint").textContent = offline ? "Trying again…" : call.hint || CALL_HINT[state] || "";
+  const hint = call.overOff && OVER.includes(state) ? NOISY_HINT : CALL_HINT[state];
+  $("#call-hint").textContent = offline ? "Trying again…" : call.hint || hint || "";
   $("#call-you").textContent = call.you ? `“${call.you}”` : "";
   $("#call-abdoh").textContent = call.abdoh;
   $("#call-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");

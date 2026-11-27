@@ -684,6 +684,7 @@ FEATURES: list[dict] = [
             "Remove a phone in Settings → Phone, or “Unpair this phone” in its menu.",
             "“Speak replies” in the phone's menu: off, the answers are only shown.",
             "For a conversation, tap the phone button: Abdoh listens, answers and listens again.",
+            "On a call, just talk to cut in: “okay” lets Abdoh go on, “wait” stops it.",
         ],
     },
 ]
