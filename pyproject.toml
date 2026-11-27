@@ -41,6 +41,7 @@ abdoh = "abdoh.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"abdoh.phone" = ["web/*"]
 "abdoh.ui" = [
     "web/*", "web/vendor/katex/*", "web/vendor/katex/fonts/*", "web/vendor/katex/contrib/*",
     "web/vendor/viz/*", "web/vendor/mermaid/*",
