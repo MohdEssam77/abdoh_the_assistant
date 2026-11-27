@@ -34,6 +34,10 @@ HOUSEKEEPING_SECONDS = 30.0
 WARM_EVERY_SECONDS = 240.0
 PRUNE_EVERY_SECONDS = 3600.0
 SORRY = "Sorry, something went wrong."
+PHONE_PORT_TAKEN = (
+    "The phone page couldn't start: port {port} is taken by another program. Choose another "
+    "port in Settings → Phone."
+)
 # After the hotkey, nothing louder than this came from the mic (of 32768): it's muted or
 # turned right down. Speech is usually in the thousands.
 QUIET_MIC_PEAK = 100
@@ -195,6 +199,10 @@ class Daemon:
         self._answer_wait = ANSWER_WAIT_SECONDS  # ... for this long
         self._soft_chime = False  # ... announced by a softer sound than the hotkey's
         self._spoke = False  # something was said aloud for the current request
+        # Abdoh from your phone (abdoh/phone): the service while the Phone switch is on, and
+        # whether the request being answered came from the phone (its reply goes there).
+        self.phone = None
+        self._phone_turn = False
         if hasattr(speaker, "on_missing_voice"):
             speaker.on_missing_voice = self._missing_voice
         if hasattr(speaker, "on_download"):
@@ -265,6 +273,7 @@ class Daemon:
         brain = self.router.brain
         if brain is not None:
             brain.close()
+        self._phone_off()
 
     def _use_brain(self, brain) -> None:
         """Switch to a brain made from the settings as they are now. If nothing about Claude
@@ -336,7 +345,7 @@ class Daemon:
         """Claude started something slow (a web search, a file): show it, and say it if Claude
         didn't say what it was about to do."""
         self.bus.emit("activity", text)
-        if not self._spoke:
+        if not self._spoke and not self._phone_turn:  # the phone shows it as its status
             self._say_aside(f"{text}.")
 
     def _save_board(self) -> None:
@@ -365,6 +374,9 @@ class Daemon:
 
     def _say_aside(self, text: str) -> None:
         """Say a few words that aren't part of the answer (not shown in the conversation)."""
+        if self._phone_turn:
+            self.bus.emit("phone_aside", text)  # the phone shows it; the laptop stays quiet
+            return
         if self.speaker.language not in ("", "en"):
             return  # these asides are English; the ticking sound says "still working"
         if self._speak(text):
@@ -514,6 +526,7 @@ class Daemon:
             self.gpu_speech.apply()
         if self.cfg.speech_model != old_model and self.model_switch is not None:
             self.model_switch.apply()  # downloads it if needed, then switches
+        self._phone_switch()
         if kept_clips and not self.cfg.keep_unclear_clips:
             from abdoh.audio.unclear import delete_all
 
@@ -615,6 +628,12 @@ class Daemon:
         """Say it, after you've finished talking and in one voice with everything else. False
         if it wasn't said (stopped meanwhile, or voice replies are off)."""
         self.earcons.stop_ticking()
+        if self._phone_turn:  # a request from the phone: its reply is said there
+            if self._interrupted.is_set():
+                return False
+            self._spoke = True
+            self.bus.emit("phone_say", text)
+            return True
         if not self._wait_for_floor() or not self.voice_enabled:
             return False
         with self._voice_lock:  # one voice at a time: never two things over each other
@@ -754,86 +773,99 @@ class Daemon:
     def _thinking(self) -> None:
         """A slow request (Claude) started: show it and tick until the answer comes."""
         self.bus.emit("status", "Thinking...")
-        if self.voice_enabled:
+        if self.voice_enabled and not self._phone_turn:
             self.earcons.start_ticking("thinking")
 
-    def handle_text(self, text: str, voice: bool = False, aside: bool = False, woken=False) -> str:
+    def handle_text(
+        self, text: str, voice: bool = False, aside: bool = False, woken=False, phone=False
+    ) -> str:
         """Route one request and speak the reply. Never raises.
 
         `voice`: the request was spoken, so if Claude's reply ends with a question, Abdoh
         listens for the answer next (no wake word needed). `aside`: it was said right after a
         reply, without the wake word, so it may be meant for someone else in the room. `woken`: it
         came after the wake word, which a video or people talking can set off by mistake (True,
-        or how clearly the name was heard: (score, voice check or None)).
+        or how clearly the name was heard: (score, voice check or None)). `phone`: it came from
+        the phone (abdoh/phone): the reply goes there, and nothing is said here.
         """
         with self._handle_lock:
-            self._interrupted.clear()
-            self._you_stopped = False
-            self._floor.set()
-            # A new reply: the voice watch starts afresh. It fired for the one you just talked
-            # over, and the next reply can follow straight on, with no idle moment to reset it.
-            self._watching = False
-            self._spoke = self._answered = False
-            self._request = text
-            self._turn_board = {}
-            self._last_exchange = time.monotonic()  # you're talking with Abdoh
-            log.info("You: %s", text)
-            self.bus.emit("history", f"You: {text}")
-            self.bus.emit("status", "Thinking...")
-            started = time.perf_counter()
-            watcher = self._watch_reply() if voice else None
-            kept = ""  # the answer, for the week's conversations
+            self._phone_turn = phone
             try:
-                try:
-                    maybe = {"aside": aside} if aside else {"woken": woken} if woken else {}
-                    reply = self.router.handle(text, **maybe)
-                except Exception:
-                    log.exception("Error handling %r", text)
-                    reply = SORRY
-                if isinstance(reply, str):
-                    spent = time.perf_counter() - started
-                    log.info("Timing: answered in %.2fs, without Claude", spent)
-                    kept = str(reply) or ("Done." if isinstance(reply, Done) else "")
-                    if isinstance(reply, Done) and self.cfg.confirm_actions != "words":
-                        self._done(reply)  # "open Spotify": done, no words needed
-                    elif reply:
-                        self._answered = True
-                        self.say(reply)
-                    if voice and isinstance(reply, Question) and not self._interrupted.is_set():
-                        self._awaiting_answer = True  # "Shut down the computer?": just answer
-                        self._answer_wait, self._soft_chime = ANSWER_WAIT_SECONDS, False
-                else:
-                    filler = threading.Timer(FILLER_SECONDS, self._still_working)
-                    filler.daemon = True
-                    filler.start()
-                    try:
-                        reply = self._speak_stream(reply, started)
-                    finally:
-                        filler.cancel()
-                    turn = getattr(self.router, "last_turn", None)
-                    acted = bool(turn is not None and turn.actions)
-                    kept = reply or (_what_was_done(turn.actions) if acted else "")
-                    if getattr(turn, "ignored", False):
-                        kept = ""  # not meant for Abdoh: not part of the conversation
-                    if acted and not reply:
-                        self._done(_what_was_done(turn.actions))  # Claude did it without a word
-                    elif woken and not reply and getattr(turn, "ignored", False):
-                        self._sound("unclear")  # not for it: say it again if it was
-                    if voice and not getattr(turn, "failed", False):  # not after "the limit"
-                        self._listen_for_more(reply, acted)
+                return self._handle_text(text, voice, aside, woken, phone)
             finally:
-                if watcher is not None:
-                    watcher()
-                done = getattr(self.voice_watch, "reply_done", None)
-                if done is not None:
-                    done()  # no false alarm this time: the watch eases off
-            self._keep_exchange(text, kept, typed=not voice)
-            self.earcons.stop_ticking()
-            if not voice:
-                self._unduck_unless_listening()  # a typed request: its reply is over
-            self._quiet_for_hearing()
-            self._status_idle()
-            return reply
+                self._phone_turn = False
+
+    def _handle_text(self, text: str, voice: bool, aside: bool, woken, phone: bool) -> str:
+        self._interrupted.clear()
+        self._you_stopped = False
+        self._floor.set()
+        # A new reply: the voice watch starts afresh. It fired for the one you just talked
+        # over, and the next reply can follow straight on, with no idle moment to reset it.
+        self._watching = False
+        self._spoke = self._answered = False
+        self._request = text
+        self._turn_board = {}
+        self._last_exchange = time.monotonic()  # you're talking with Abdoh
+        you = "You (phone)" if phone else "You"
+        log.info("%s: %s", you, text)
+        self.bus.emit("history", f"{you}: {text}")
+        self.bus.emit("status", "Thinking...")
+        started = time.perf_counter()
+        watcher = self._watch_reply() if voice else None
+        kept = ""  # the answer, for the week's conversations
+        try:
+            try:
+                maybe = {"aside": aside} if aside else {"woken": woken} if woken else {}
+                reply = self.router.handle(text, **maybe)
+            except Exception:
+                log.exception("Error handling %r", text)
+                reply = SORRY
+            if isinstance(reply, str):
+                spent = time.perf_counter() - started
+                log.info("Timing: answered in %.2fs, without Claude", spent)
+                kept = str(reply) or ("Done." if isinstance(reply, Done) else "")
+                if isinstance(reply, Done) and self.cfg.confirm_actions != "words":
+                    self._done(reply)  # "open Spotify": done, no words needed
+                elif reply:
+                    self._answered = True
+                    self.say(reply)
+                if phone and isinstance(reply, Question) and not self._interrupted.is_set():
+                    self.bus.emit("phone_question", str(reply))  # Yes and No on the phone
+                if voice and isinstance(reply, Question) and not self._interrupted.is_set():
+                    self._awaiting_answer = True  # "Shut down the computer?": just answer
+                    self._answer_wait, self._soft_chime = ANSWER_WAIT_SECONDS, False
+            else:
+                filler = threading.Timer(FILLER_SECONDS, self._still_working)
+                filler.daemon = True
+                filler.start()
+                try:
+                    reply = self._speak_stream(reply, started)
+                finally:
+                    filler.cancel()
+                turn = getattr(self.router, "last_turn", None)
+                acted = bool(turn is not None and turn.actions)
+                kept = reply or (_what_was_done(turn.actions) if acted else "")
+                if getattr(turn, "ignored", False):
+                    kept = ""  # not meant for Abdoh: not part of the conversation
+                if acted and not reply:
+                    self._done(_what_was_done(turn.actions))  # Claude did it without a word
+                elif woken and not reply and getattr(turn, "ignored", False):
+                    self._sound("unclear")  # not for it: say it again if it was
+                if voice and not getattr(turn, "failed", False):  # not after "the limit"
+                    self._listen_for_more(reply, acted)
+        finally:
+            if watcher is not None:
+                watcher()
+            done = getattr(self.voice_watch, "reply_done", None)
+            if done is not None:
+                done()  # no false alarm this time: the watch eases off
+        self._keep_exchange(text, kept, typed=not voice)
+        self.earcons.stop_ticking()
+        if not voice:
+            self._unduck_unless_listening()  # a typed request: its reply is over
+        self._quiet_for_hearing()
+        self._status_idle()
+        return reply
 
     def _sound(self, name: str) -> None:
         if self.voice_enabled:
@@ -964,7 +996,7 @@ class Daemon:
         if text:
             log.info("Abdoh (done): %s", text)
             self.bus.emit("history", f"Abdoh: {text}")
-        if self.voice_enabled:
+        if self.voice_enabled and not self._phone_turn:
             self.earcons.play("done")
 
     def _listen_for_more(self, reply: str, acted: bool = False) -> None:
@@ -1154,6 +1186,10 @@ class Daemon:
         if kind == "text":
             if value and value.strip():
                 self.handle_text(value.strip())
+        elif kind == "phone":  # the phone page (abdoh/phone/hub.py): {"text": ...}
+            text = str((value or {}).get("text") or "").strip()
+            if text:
+                self.handle_text(text, phone=True)
         elif kind == "pause":
             self.set_paused(True)
         elif kind == "resume":
@@ -1243,6 +1279,49 @@ class Daemon:
 
         threading.Thread(target=check, name="abdoh-claude-status", daemon=True).start()
 
+    # ----- Abdoh from your phone (abdoh/phone) -----
+
+    def _phone_switch(self) -> None:
+        """Start or stop the phone page as the Phone switch says (a new port: start again)."""
+        service = self.phone
+        if service is not None and (not self.cfg.phone or service.port != self.cfg.phone_port):
+            self._phone_off()
+        if not self.cfg.phone or self.phone is not None:
+            return
+        from abdoh.phone.server import PhoneService
+
+        service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice)
+        try:
+            service.start()
+        except OSError as e:
+            log.warning("The phone page couldn't start on port %d: %s", self.cfg.phone_port, e)
+            self.bus.emit("phone", {"error": PHONE_PORT_TAKEN.format(port=self.cfg.phone_port)})
+            return
+        self.phone = service
+        self.bus.emit("phone", {"error": ""})
+
+    def _phone_off(self) -> None:
+        service, self.phone = self.phone, None
+        if service is not None:
+            try:
+                service.stop()
+            except Exception:
+                log.exception("Couldn't stop the phone page")
+
+    def _phone_hear(self, audio: bytes) -> str:
+        """What was said in a recording from the phone (16 kHz mono 16-bit)."""
+        if self.transcriber is None:
+            raise RuntimeError("no speech recognition")
+        text = self.transcriber.transcribe(audio)
+        log.info("Heard from the phone: %r", text)
+        return text
+
+    def _phone_voice(self, text: str) -> bytes | None:
+        """A sentence in Abdoh's voice as WAV for the phone, or None: the phone's own voice
+        says it (the Windows voice can't make audio to send)."""
+        render = getattr(self.speaker, "render", None)
+        return render(text) if render is not None else None
+
     def serve_requests(self) -> None:
         """Process UI requests until stop().
 
@@ -1253,7 +1332,7 @@ class Daemon:
             message = self.bus.next_request(timeout=0.2)
             if not message:
                 continue
-            if message[0] == "text":
+            if message[0] in ("text", "phone"):
                 threading.Thread(
                     target=self._safe_request, args=message, name="abdoh-typed", daemon=True
                 ).start()
@@ -1272,6 +1351,7 @@ class Daemon:
         """Listen forever (until stop()). Reopens the mic every few seconds if it goes away."""
         self._connect_brain()
         self._report_claude()
+        self._phone_switch()
         if self.engine is not None:
             self.bus.emit("wake", self.engine.label)
         self.bus.emit("hearing", self._hearing_problem())
