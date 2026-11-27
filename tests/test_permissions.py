@@ -76,7 +76,7 @@ def test_prompt_without_any_actions():
     )
     kept += ("ACTION recall:", "ACTION save_item:", "ACTION delete_item:", "ACTION undo_change:")
     kept += ("ACTION logs:",)  # reading its own log isn't done on the computer either
-    kept += ("ACTION codoh:",)  # Codoh works in its own page, on the user's say
+    kept += ("ACTION codoh:", "ACTION codoh_state:")  # Codoh works in its own page
     assert all(line.startswith(kept) for line in lines)
     assert NO_ACTIONS.split(":")[0] in text  # roles aren't things done on the computer
 

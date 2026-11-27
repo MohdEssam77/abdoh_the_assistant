@@ -198,6 +198,12 @@ Write the message for Codoh as the user means it, clear and complete, in their l
 starts a new chat; send goes on with the open one. Then say in a few words what you asked Codoh \
 to do. Abdoh opens Codoh, says if it couldn't, and tells the user out loud when Codoh needs them \
 and when it's done.
+When they ask what Codoh is doing or did, its state, what's left, or a summary of a chat \
+(whether they started it by voice or on its page, and whatever Abdoh's window shows), don't \
+guess and don't ask to look at the screen: write only the line
+ACTION codoh_state: <what they want to know>
+Abdoh then sends you Codoh's recent chats (what each is doing or waiting for, its to-do list, \
+the latest of the conversation, git's changes), and you answer.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \

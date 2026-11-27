@@ -17,6 +17,7 @@ from abdoh.claude.reply import (
     ANSWER,
     BOARD_PDF,
     CODOH,
+    CODOH_STATE,
     FORGET,
     IGNORE,
     LESSON,
@@ -628,6 +629,7 @@ class Router:
         looks: list[str] = []  # Claude asked to see the screen
         recalls: list[str] = []  # ... or what was said in an earlier conversation
         logs: list[str] = []  # ... or Abdoh's own log
+        states: list[str] = []  # ... or what Codoh is doing
 
         def act(kind: str, arg: str) -> None:
             if kind == LOOK:
@@ -638,6 +640,9 @@ class Router:
                 return
             if kind == LOGS:
                 logs.append(arg)
+                return
+            if kind == CODOH_STATE:
+                states.append(arg)
                 return
             if kind == WATCH:
                 if self._watch_action(arg):
@@ -723,6 +728,8 @@ class Router:
             allowed.append(WATCH)
         if self.codoh is not None:
             allowed.append(CODOH)
+            if not screen:
+                allowed.append(CODOH_STATE)  # once, like the log
         if self.cfg.claude.allow_self_edit:
             allowed.extend(SELF_EDIT_ACTIONS)
         if self.acting is not None:
@@ -742,13 +749,15 @@ class Router:
                 spoken.append(sentence)
                 yield sentence
             yield from _drain(problems)
-            if (recalls or logs) and not turn.ignored:
+            if (recalls or logs or states) and not turn.ignored:
                 chunks.close()
                 if recalls:
                     chunks = self._recall(brain, recalls[0], request)
-                else:
+                elif logs:
                     chunks = self._read_log(brain, logs[0], request)
-                allowed = [a for a in allowed if a not in (RECALL, LOOK, LOGS)]
+                else:
+                    chunks = self._codoh_state(brain, states[0], request)
+                allowed = [a for a in allowed if a not in (RECALL, LOOK, LOGS, CODOH_STATE)]
                 for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
                     yield from _drain(problems)
                     spoken.append(sentence)
@@ -970,6 +979,14 @@ class Router:
             return ""
         self._told = turn
         return ABDOH_DID.format(request=turn.request, steps=_steps_text(turn.actions))
+
+    def _codoh_state(self, brain, arg: str, request: str):
+        """Claude asked what Codoh is doing (ACTION codoh_state): it's asked again, with Codoh's
+        recent chats."""
+        from abdoh.codoh.report import report
+
+        log.info("Claude asked what Codoh is doing: %s", arg[:200])
+        return brain.stream(report(self.codoh(), request), None)
 
     def _codoh_action(self, arg: str) -> str:
         """ACTION codoh: what to do in Codoh. Shows the page (with the chat); returns why it
