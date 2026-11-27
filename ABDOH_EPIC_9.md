@@ -407,6 +407,11 @@ function and feature, check for bugs, make it better, faster, better looking". D
 - Settings' section chips; steady page layout; the window polls less when hidden; quieter,
   truer logs; programs Abdoh starts can't hang it.
 
+### Release 0.13.3 (2026-11-27)
+On the owner's go: Abdoh turns its own voice up in the volume mixer when you name it ("set your
+volume to 100"; before, "I can't find Abdoh in the volume mixer"), and the download page's link
+at the top of the README. The build was run in isolation first.
+
 ### Release 0.13.2 (2026-11-27)
 Story 129 (pull request #3, reviewed and merged by the owner), on the owner's go: one voice at a
 time, the webcam echo (own words, false-alarm learning), Codoh's queue, the wake word while the
