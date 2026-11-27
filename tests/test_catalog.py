@@ -39,7 +39,7 @@ def test_pages_and_settings_exist():
 
 def test_the_new_features_are_in_it():
     ids = {f["id"] for f in catalog.FEATURES}
-    assert {"codoh", "watch", "fallback", "logs", "quiet", "memory", "lamps"} <= ids
+    assert {"codoh", "watch", "fallback", "logs", "quiet", "memory", "lamps", "phone"} <= ids
 
 
 def test_try_it_phrases_are_harmless():
