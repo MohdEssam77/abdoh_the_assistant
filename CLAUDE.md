@@ -19,9 +19,10 @@ applies unless epic 9 changes it.
    Unit tests must never need a microphone, speakers, network, or API key.
 7. **Keep it simple.** No new dependencies beyond the epic's tech stack without a one-line
    justification in the commit message.
-8. Update `README.md` at the end of each story if setup or usage changed.
+8. Update `GUIDE.md` (the details) at the end of each story if setup or usage changed, and
+   `README.md` (short: what it does, how to run it) only for something big.
 9. If something is blocked (e.g. OS permission needed), finish everything else, write a `TODO(blocked):`
-   note in the README "Known issues" section, and continue to the next story.
+   note in GUIDE.md's "Known issues" section, and continue to the next story.
 
 ## Dev commands
 
