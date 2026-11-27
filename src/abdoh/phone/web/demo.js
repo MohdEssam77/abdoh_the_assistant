@@ -41,7 +41,10 @@
         : /steps|quick|yes/.test(lower) ? ["Sure.", "Boil salted water and cook the spaghetti for nine minutes.",
           "Meanwhile, fry sliced garlic in olive oil until it's golden.", "Then toss it all together with a splash of the pasta water."]
           : ["Here's a quick plan for tonight.", "Start the pasta water now, it takes about ten minutes.", "Then chop the garlic while you wait."];
-    later(400, { type: "aside", text: "Searching the web" });
+    const steps = /lamp|light/.test(lower) ? ["Lamp: desk | off"]
+      : ["Searching the web: quick pasta recipes with garlic", "Reading bbcgoodfood.com", "Looking for *recipes*.pdf"];
+    later(400, { type: "aside", text: /lamp|light/.test(lower) ? "" : "Searching the web" });
+    steps.forEach((s, i) => later(350 + i * 300, { type: "step", text: s, for: "demo-phone" }));
     sentences.forEach((s, i) => later(1300 + i * 900, { type: "say", text: s, audio: null, for: "demo-phone" }));
     later(1300 + sentences.length * 900, { type: "history", line: `Abdoh: ${sentences.join(" ")}` });
     later(1400 + sentences.length * 900, { type: "status", text: "Listening" });

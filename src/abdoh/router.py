@@ -95,6 +95,8 @@ WATCH_WHEN = {
     "tip), say it in one or two short spoken sentences. Otherwise, and that's most of the time, "
     "write only the line ACTION ignore: fine.",
 }
+# A request from the phone (claude/brain.py PHONE says what that means for Claude).
+FROM_PHONE = "(From the phone) "
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -211,6 +213,21 @@ def woken_note(wake: Wake) -> str:
     return WOKEN.format(heard=heard)
 
 
+class _Reported(list):
+    """A turn's actions: each is reported as it's done (the phone shows it as a step)."""
+
+    def __init__(self, report: Callable[[str, str], None]):
+        super().__init__()
+        self._report = report
+
+    def append(self, item) -> None:
+        super().append(item)
+        try:
+            self._report(*item)
+        except Exception:
+            log.debug("Couldn't report an action", exc_info=True)
+
+
 @dataclass
 class ClaudeTurn:
     """The last request Claude handled, for "remember that" and follow-up questions."""
@@ -244,6 +261,9 @@ class Router:
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
+        # Each action Claude's answer did, as it's done: (kind, arg). The phone shows them.
+        self.on_action: Callable[[str, str], None] = lambda kind, arg: None
+        self.phone = False  # the request being handled came from the phone (abdoh/phone)
         self.on_memory: Callable[[], None] = lambda: None  # the memory changed (the page)
         # Claude changed a command, mode or role ("command", "mode", "role"): the pages refresh.
         self.on_self_edit: Callable[[str], None] = lambda kind: None
@@ -414,6 +434,8 @@ class Router:
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
             prompt = self._codoh() + prompt
+            if self.phone:
+                prompt = FROM_PHONE + prompt  # brain.PHONE: what's different there
             if self.watching and self.cfg.claude.allow_screen:
                 # Watching the screen: what they say comes with a picture of it
                 note = self._watching_note() if aside else ""
@@ -630,6 +652,7 @@ class Router:
     ) -> Iterator[str]:
         """Claude's answer as sentences; runs the actions it asks for along the way."""
         turn = ClaudeTurn(request)
+        turn.actions = _Reported(lambda kind, arg: self.on_action(kind, arg))
         problems: list[str] = []
         spoken: list[str] = []
 

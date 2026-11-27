@@ -25,7 +25,7 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{logs}{codoh}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}\
+{look}{logs}{codoh}{phone}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}\
 If you need more information, ask one short question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
@@ -205,6 +205,16 @@ guess and don't ask to look at the screen: write only the line
 ACTION codoh_state: <what they want to know>
 Abdoh then sends you Codoh's recent chats (what each is doing or waiting for, its to-do list, \
 the latest of the conversation, git's changes), and you answer.
+"""
+# The user's phone (abdoh/phone, ABDOH_EPIC_11.md 2.1): what's different for its requests.
+PHONE = """The user can also talk to you from their phone, wherever they are. A message that \
+starts with (From the phone) comes from there: they read and hear your answer on the phone, \
+they can't see the computer's screen, and what you do still happens on the computer. When \
+seeing helps more than hearing (steps, a table, code, math, a drawing, a picture of something), \
+show it on the board, which their phone shows: write it between a line [board] and a line \
+[/board], a little at a time, then say what it means; Markdown, LaTeX math ($...$, or $$...$$ \
+on a line of its own), drawings as ```dot, ```mermaid or ```svg, and a photo as a line \
+[picture: two to four English words]. The board is shown, never read aloud.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \
@@ -413,6 +423,7 @@ def system_prompt(
         look=LOOK if cfg.claude.allow_screen else "",
         logs=LOGS if cfg.claude.allow_logs else "",
         codoh=CODOH,
+        phone=PHONE,
         roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
         recall=RECALL.format(days=cfg.conversation_days)
@@ -477,6 +488,8 @@ class Brain(ABC):
     remembers = False
     # Called with a few words when Claude starts something slow ("Searching the web").
     on_activity = None
+    # Called with each step's details ("Searching the web: weather in Berlin"; the phone).
+    on_step = None
     # How Abdoh is right now ("mode on: Work; voice replies on"), sent with every message.
     state = None
 
