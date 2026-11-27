@@ -973,6 +973,7 @@ const HANDLERS = {
   voice_download: (value) => { App.voiceDownload = value || null; },
   page: showPage,
   codoh_open: (chat) => { if (window.Codoh) window.Codoh.open(chat || ""); },  // by voice
+  update: setUpdate,  // installing an update: how it's going
 };
 
 function handleEvent([kind, value]) {
@@ -1032,14 +1033,41 @@ function bindHome() {
 
 /* ---------- updates ---------- */
 
+/* A newer Abdoh: "Install now" downloads it here, then Abdoh closes, installs it quietly and
+   opens again. No browser, nothing to click. */
 function showUpdate(update) {
+  App.update = update;
+  const going = update.installing && update.installing.state;
+  if (going && going !== "idle") return setUpdate(update.installing);
   showBanner("info", `Abdoh ${update.version} is out (you have ${update.current}).`, "update",
-    { label: "Download", run: () => call("open_link", update.download || update.url) });
+    { label: "Install now", run: installUpdate });
+}
+
+async function installUpdate() {
+  const status = await call("install_update");
+  if (status) setUpdate(status);
+  return status;
+}
+
+/* How the update is going: {state: downloading | installing | failed, version, percent, error}. */
+function setUpdate(status) {
+  App.updating = status || null;
+  if (!status || status.state === "idle") return;
+  if (status.state === "downloading") {
+    showBanner("info", `Downloading Abdoh ${status.version}: ${status.percent || 0}%. Abdoh works as usual meanwhile.`, "update");
+  } else if (status.state === "installing") {
+    showBanner("info", `Installing Abdoh ${status.version}: Abdoh closes now and opens again in a moment.`, "update");
+  } else if (status.state === "failed") {
+    showBanner("error", status.error || "The update didn't work.", "update", { label: "Try again", run: installUpdate });
+  }
+  const row = document.getElementById("update-controls");
+  if (row && row.refresh) row.refresh();
 }
 
 async function checkUpdate(force = false) {
   const update = await call("check_update", force);
   if (update && update.available) showUpdate(update);
+  else App.update = null;
   return update;
 }
 

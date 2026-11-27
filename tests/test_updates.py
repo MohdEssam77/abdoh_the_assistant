@@ -42,7 +42,12 @@ def test_latest_release_with_the_installer():
         "version": "0.4.0",
         "url": "https://github.com/x/y/releases/tag/v0.4.0",
         "download": f"https://dl/v0.4.0/{ASSET}",
+        "size": 0,
     }
+    data = release()
+    data["assets"][0].update(size=12, digest="sha256:ABC123")
+    found = latest_release(lambda url: data)
+    assert (found["size"], found["sha256"]) == (12, "abc123")  # what the download must be
 
 
 def test_latest_release_without_the_installer_links_the_page():
@@ -110,6 +115,7 @@ def test_app_update_check(app_dir):
         "version": "9.0.0",
         "url": "https://page",
         "download": "https://dl",
+        "installing": {"state": "idle"},
     }
     api.save_settings({"check_updates": False})
     assert api.check_update() == {"available": False, "current": __version__}
@@ -171,3 +177,162 @@ def test_release_workflow_builds_and_publishes():
     assert f"Copy-Item dist/{ASSET} dist/Krekos-Setup.exe" in runs
     assert f"Copy-Item dist/{ASSET} dist/Xanthos-Setup.exe" in runs
     assert "WAKE_WORD_URL" not in str(steps)  # the model is in the repo, not downloaded
+
+
+# ----- installing it from the app ("Install now") -----
+
+
+class Response:
+    def __init__(self, data: bytes):
+        self.data, self.at, self.headers = data, 0, {"Content-Length": str(len(data))}
+
+    def read(self, size):
+        chunk = self.data[self.at : self.at + size]
+        self.at += len(chunk)
+        return chunk
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def opener(data):
+    asked = []
+
+    def open_(request, timeout=0):
+        asked.append(request.full_url)
+        return Response(data)
+
+    open_.asked = asked
+    return open_
+
+
+INSTALLER = b"MZ" + b"x" * 3_000_000  # a few chunks
+SHA = __import__("hashlib").sha256(INSTALLER).hexdigest()
+
+
+def test_the_installer_is_downloaded_and_checked(tmp_path):
+    from abdoh.updates import download
+
+    shown = []
+    target = tmp_path / "Abdoh-Setup-9.0.0.exe"
+    got = download("https://dl/x.exe", target, len(INSTALLER), SHA, shown.append, opener(INSTALLER))
+    assert got == target and target.read_bytes() == INSTALLER
+    assert shown[-1] == 100 and shown == sorted(shown) and not (tmp_path / "x.part").exists()
+    again = opener(INSTALLER)
+    download("https://dl/x.exe", target, len(INSTALLER), SHA, opener=again)
+    assert again.asked == []  # already here and right: not downloaded twice
+
+
+@pytest.mark.parametrize("size, sha", [(5, SHA), (len(INSTALLER), "0" * 64)])
+def test_a_download_that_doesnt_match_is_thrown_away(tmp_path, size, sha):
+    from abdoh.updates import BROKEN, UpdateError, download
+
+    target = tmp_path / "Abdoh-Setup.exe"
+    with pytest.raises(UpdateError, match=BROKEN):
+        download("https://dl/x.exe", target, size, sha, opener=opener(INSTALLER))
+    assert not target.exists() and list(tmp_path.iterdir()) == []
+
+
+def test_the_helper_installs_quietly_after_abdoh_closes_and_starts_it(tmp_path):
+    from abdoh.updates import helper_script
+
+    script = helper_script(tmp_path / "Abdoh-Setup-9.0.0.exe", tmp_path, exe=tmp_path / "Abdoh.exe")
+    text = script.read_text(encoding="utf-8")
+    lines = [line for line in text.splitlines() if line and not line.startswith(("@", "rem"))]
+    assert lines[0].startswith("ping")  # Abdoh closes first
+    assert "/wait" in lines[1] and "/VERYSILENT" in lines[1] and "/SUPPRESSMSGBOXES" in lines[1]
+    assert str(tmp_path / "Abdoh-Setup-9.0.0.exe") in lines[1] and "/LOG=" in lines[1]
+    assert str(tmp_path / "Abdoh.exe") in lines[2] and "run --show" in lines[2]  # then again
+
+
+def test_the_helper_outlives_abdoh():
+    from abdoh.updates import BREAKAWAY, launch
+
+    calls = []
+
+    def popen(args, creationflags=0, **kw):
+        calls.append(creationflags)
+        if len(calls) == 1 and BREAKAWAY:
+            raise OSError("access denied")  # a job that doesn't allow breaking away
+
+    launch(Path("x.cmd"), popen)
+    assert calls[-1] and (len(calls) == 2 or not BREAKAWAY)
+
+
+def test_installing_downloads_hands_over_and_closes(tmp_path):
+    from abdoh.updates import Updater
+
+    statuses, started, ready = [], [], []
+
+    def fetch(url, target, size=0, sha256="", on_progress=lambda p: None):
+        on_progress(50)
+        on_progress(100)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(b"MZ")
+        return target
+
+    updater = Updater(statuses.append, lambda: ready.append(True), tmp_path, frozen=True,
+                      fetch=fetch, start=started.append)  # fmt: skip
+    first = updater.install({"version": "9.0.0", "download": "https://dl/Abdoh-Setup.exe"})
+    assert first["state"] == "downloading"
+    updater._thread.join(5)
+    assert [s["state"] for s in statuses][-1] == "installing" and ready == [True]
+    assert started and started[0].name == "install-update.cmd"
+    assert any(s.get("percent") == 50 for s in statuses)
+
+
+def test_installing_from_source_or_without_an_installer_says_why(tmp_path):
+    from abdoh.updates import FROM_SOURCE, NOT_AN_INSTALLER, Updater
+
+    release = {"version": "9.0.0", "download": "https://dl/Abdoh-Setup.exe"}
+    assert Updater(folder=tmp_path, frozen=False).install(release)["error"] == FROM_SOURCE
+    page = {"version": "9.0.0", "download": "https://github.com/x/y/releases/tag/v9.0.0"}
+    assert Updater(folder=tmp_path, frozen=True).install(page)["error"] == NOT_AN_INSTALLER
+
+
+def test_a_failed_download_is_said_and_can_be_tried_again(tmp_path):
+    from abdoh.updates import BROKEN, UpdateError, Updater
+
+    tries = []
+
+    def fetch(*args, **kwargs):
+        tries.append(1)
+        raise UpdateError(BROKEN)
+
+    statuses = []
+    updater = Updater(statuses.append, folder=tmp_path, frozen=True, fetch=fetch)
+    release = {"version": "9.0.0", "download": "https://dl/Abdoh-Setup.exe"}
+    updater.install(release)
+    updater._thread.join(5)
+    assert statuses[-1] == {"state": "failed", "version": "9.0.0", "error": BROKEN}
+    updater.install(release)
+    updater._thread.join(5)
+    assert len(tries) == 2
+
+
+def test_the_window_installs_and_abdoh_closes(app_dir, monkeypatch):
+    from abdoh.ui import api as module
+
+    monkeypatch.setattr(module, "UPDATE_CLOSE_SECONDS", 0)
+    bus = Bus()
+    latest = {"version": "9.0.0", "download": "https://dl/Abdoh-Setup.exe", "url": "https://page"}
+    api = AppApi(bus, UiState(), load_config(app_dir), check_for_update=lambda force: latest)
+    job = api._update_job()
+    job.frozen = True
+    job._fetch = lambda url, target, **kw: target
+    job._start = lambda script: None
+    job.folder = app_dir / "update"
+    assert api.install_update()["state"] == "downloading"
+    job._thread.join(5)
+    for _ in range(100):
+        request = bus.next_request(timeout=0.05)
+        if request == ("quit", None):
+            break
+    else:
+        raise AssertionError("Abdoh didn't close for the installer")
+    assert api.update_status()["state"] == "installing"
+    api2 = AppApi(bus, UiState(), load_config(app_dir), check_for_update=lambda force: None)
+    assert api2.install_update()["error"] == "You already have the latest version."

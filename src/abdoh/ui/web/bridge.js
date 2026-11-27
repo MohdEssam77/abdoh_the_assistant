@@ -574,8 +574,19 @@ const Bridge = (() => {
       claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},
       check_update: async () => (params.get("update")
-        ? { available: true, current: "0.3.0", version: "0.3.1", url: "https://github.com", download: "https://github.com" }
-        : { available: false, current: "0.3.0" }),
+        ? { available: true, current: "0.13.3", version: "0.13.4", url: "https://github.com", download: "https://github.com/Abdoh-Setup.exe" }
+        : { available: false, current: "0.13.3" }),
+      install_update: async () => {  // a download that goes up, then "installing"
+        let percent = 0;
+        const step = () => {
+          percent = Math.min(100, percent + 17);
+          push("update", percent < 100 ? { state: "downloading", version: "0.13.4", percent } : { state: "installing", version: "0.13.4", percent: 100 });
+          if (percent < 100) setTimeout(step, 600);
+        };
+        setTimeout(step, 300);
+        return { state: "downloading", version: "0.13.4", percent: 0 };
+      },
+      update_status: async () => ({ state: "idle" }),
     };
   }
 
