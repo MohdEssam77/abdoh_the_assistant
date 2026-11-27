@@ -353,3 +353,33 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .call-key[aria-pressed="true"] span { background: var(--text); border-color: var(--text); color: var(--bg); }
 .call-key[aria-pressed="true"] .slash { display: inline; }
 .call-key.end span { background: #e5484d; border-color: #e5484d; color: #fff; box-shadow: 0 6px 20px rgba(229, 72, 77, 0.35); }
+
+/* ----- what Abdoh is doing, step by step (story 147) ----- */
+.msg.work-msg { max-width: min(86%, 560px); }
+.work {
+  font-size: 13.5px; color: var(--muted); padding: 7px 12px 8px; border-radius: 14px;
+  border: 1px dashed var(--border-strong); background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+.work summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--muted);
+}
+.work summary::-webkit-details-marker { display: none; }
+.work summary::after {
+  content: ""; width: 6px; height: 6px; margin-left: auto; border: solid currentColor; border-width: 0 1.6px 1.6px 0;
+  transform: rotate(45deg); transition: transform 0.15s; opacity: 0.7;
+}
+.work[open] summary::after { transform: rotate(225deg); }
+.work .spin {
+  width: 11px; height: 11px; border-radius: 999px; flex: none;
+  border: 2px solid var(--accent-soft); border-top-color: var(--accent); animation: turn 0.8s linear infinite;
+}
+.work.done .spin {
+  animation: none; border: 0; width: 12px; height: 12px;
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 6.2l2 2 4-4.4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+@keyframes turn { to { transform: rotate(360deg); } }
+.work-list { margin: 7px 0 1px; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.work-list li { overflow-wrap: anywhere; line-height: 1.35; }
+.work-list li::marker { color: var(--faint); font-size: 12px; }
+.work:not(.done) .work-list li:last-child { color: var(--text); }

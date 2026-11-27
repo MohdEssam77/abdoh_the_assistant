@@ -229,6 +229,7 @@ class Daemon:
         self._quiet_since = 0.0  # when Abdoh's voice last stopped (time.monotonic)
         router.on_thinking = self._thinking
         router.on_activity = self._activity
+        router.on_action = self._did
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
@@ -295,6 +296,7 @@ class Daemon:
         if brain is None:
             return
         brain.on_activity = self._activity
+        brain.on_step = self._step  # the phone shows each step
         brain.state = self._state_line  # the mode that's on, with every message
         if hasattr(brain, "on_switch"):  # ChatGPT answers while Claude's limit is used up
             brain.on_switch = self._claude_switched
@@ -348,6 +350,18 @@ class Daemon:
         self.bus.emit("activity", text)
         if not self._spoke and not self._phone_turn:  # the phone shows it as its status
             self._say_aside(f"{text}.")
+
+    def _step(self, text: str) -> None:
+        """One of Claude's steps ("Reading CV.pdf"): the phone shows it, for its requests."""
+        if self._phone_turn and text:
+            self.bus.emit("phone_step", text)
+
+    def _did(self, kind: str, arg: str) -> None:
+        """An action of Claude's answer was done ("Opened Spotify"): a step on the phone."""
+        if self._phone_turn:
+            from abdoh.doing import action_step
+
+            self.bus.emit("phone_step", action_step(kind, arg))
 
     def _save_board(self) -> None:
         """Claude: ACTION board_pdf. The page draws the board and Abdoh prints it; the window
@@ -797,11 +811,11 @@ class Daemon:
         was said into the phone, not typed (the laptop doesn't listen afterwards).
         """
         with self._handle_lock:
-            self._phone_turn = phone
+            self._phone_turn = self.router.phone = phone
             try:
                 return self._handle_text(text, voice, aside, woken, phone, spoken)
             finally:
-                self._phone_turn = False
+                self._phone_turn = self.router.phone = False
 
     def _handle_text(
         self, text: str, voice: bool, aside: bool, woken, phone: bool, spoken: bool = False
@@ -1532,8 +1546,9 @@ class Daemon:
         self.bus.emit("board", {"id": card, "text": text})
         if card != self._board_card:
             self._board_card = card
-            self.bus.emit("show")
-            self.bus.emit("page", "roles")
+            if not self._phone_turn:  # from the phone: shown there, the laptop stays as it is
+                self.bus.emit("show")
+                self.bus.emit("page", "roles")
         self._board_text = text
         self._turn_board[card] = text
         self._board_shown = True

@@ -20,6 +20,7 @@ const S = {
   final: true, // the reply to the last request is shown in full
   pending: [], // what this phone sent, until the computer shows it: [{node, text}]
   speak: localStorage.getItem(SPEAK) !== "0",
+  steps: null, // the steps of the request being answered: {node, box, title, list, count, done}
   asked: 0, answered: 0, // this phone's requests that reached the computer, and those answered
   cut: 0, // replies to the requests up to this one aren't said (stopped, or the call ended)
 };
@@ -193,6 +194,7 @@ async function load() {
   S.live = null;
   S.final = true;
   S.pending = [];
+  S.steps = null;
   S.answered = S.asked; // what was being answered is over (or Abdoh restarted)
   $("#messages").replaceChildren();
   for (const line of state.history || []) addLine(line);
@@ -241,7 +243,7 @@ function rest(ms) {
 function take(event) {
   switch (event.type) {
     case "history": addLine(event.line, true); break;
-    case "clear": $("#messages").replaceChildren(); S.live = null; updateEmpty(); break;
+    case "clear": $("#messages").replaceChildren(); S.live = null; S.steps = null; updateEmpty(); break;
     case "status": S.status = event.text || ""; S.activity = ""; render(); break;
     case "activity":
     case "aside": S.activity = event.text || ""; render(); break;
@@ -249,9 +251,43 @@ function take(event) {
     case "mode": setMode(event.name || ""); break;
     case "say": addSaid(event); break;
     case "question": askQuestion(event.text || ""); break;
-    case "done": if (event.for === S.me) { S.answered += 1; turnOver(); } break;
+    case "done": if (event.for === S.me) { S.answered += 1; stepsDone(); turnOver(); } break;
+    case "step": if (event.for === S.me) addStep(event.text || ""); break;
     default: break;
   }
+}
+
+/* What Abdoh is doing for this phone's request, step by step (story 147): live above its
+   answer while it works, then folded into "3 steps". */
+function addStep(text) {
+  if (!text) return;
+  if (!S.steps) {
+    const title = el("span", { class: "work-title" });
+    const list = el("ol", { class: "work-list" });
+    const box = el("details", { class: "work", open: true }, el("summary", {}, el("i", { class: "spin" }), title), list);
+    const node = el("div", { class: "msg abdoh work-msg" }, box);
+    $("#messages").insertBefore(node, S.live || $("#typing"));
+    S.steps = { node, box, title, list, count: 0, done: false };
+  }
+  S.steps.count += 1;
+  S.steps.list.append(el("li", {}, text));
+  showSteps();
+  scrollDown();
+}
+
+function showSteps() {
+  const steps = S.steps;
+  if (!steps) return;
+  const count = `${steps.count} step${steps.count === 1 ? "" : "s"}`;
+  steps.title.textContent = steps.done ? count : `Working on it · ${count}`;
+  steps.box.classList.toggle("done", steps.done);
+}
+
+function stepsDone() {
+  if (!S.steps || S.steps.done) return;
+  S.steps.done = true;
+  S.steps.box.open = false;
+  showSteps();
 }
 
 function addLine(line, fresh = false) {
@@ -272,6 +308,8 @@ function addLine(line, fresh = false) {
     if (!sent) bubble("you", text, fromPhone ? null : "On the computer");
     S.live = null;
     S.final = false;
+    if (S.steps) stepsDone();
+    S.steps = null; // a new request: its own steps
     hideQuestion();
   }
   render();

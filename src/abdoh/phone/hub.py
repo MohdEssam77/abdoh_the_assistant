@@ -21,6 +21,7 @@ Events for the page (each with its number, "seq"):
   {"type": "question", "text": ...}       Abdoh asked a yes/no question
   {"type": "done", "for": ...}            the phone's request is answered (after its last
                                           "say"): a call listens again (story 145)
+  {"type": "step", "text", "for"}         what Abdoh is doing for it: "Reading CV.pdf"
 
 Every event goes through one worker thread, in order: the audio of a sentence is made there,
 so a reply's sentences and the line with the whole reply arrive in the order they were said.
@@ -53,7 +54,7 @@ SAID_KEPT = 12
 OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
-     "phone_question", "phone_done"}
+     "phone_question", "phone_done", "phone_step"}
 )  # fmt: skip
 
 
@@ -162,6 +163,8 @@ class PhoneHub:
             self._add({"type": "question", "text": str(value or "")})
         elif kind == "phone_done":
             self._add({"type": "done", "for": self._asker})
+        elif kind == "phone_step":
+            self._add({"type": "step", "text": str(value or "")[:200], "for": self._asker})
 
     def _new_day(self) -> None:
         today = self._today()
