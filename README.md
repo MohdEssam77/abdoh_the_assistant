@@ -1,5 +1,7 @@
 # Abdoh
 
+**Download for Windows: [mohdessam77.github.io/abdoh_the_assistant](https://mohdessam77.github.io/abdoh_the_assistant/)**
+
 A simple, voice-first personal assistant for your laptop. Say "Hey Abdoh" (or press
 Ctrl+Alt+Space) and a request: Abdoh runs your own commands (open a link, open an app, tell the
 time), handles everyday things by itself (timers, volume and music, opening any app), and sends
@@ -13,8 +15,9 @@ Abdoh was called Xanthos and then Krekos for a while, and is Abdoh again. Updati
 settings, commands and modes, but the wake word needs your voice taught again (Settings → Wake
 word → Only my voice).
 
-**Just want to use it?** Download `Abdoh-Setup.exe` from the download page (`docs/index.html`,
-see section 6), install it, and follow the short setup. No Python or terminal needed. The rest
+**Just want to use it?** Download `Abdoh-Setup.exe` from the
+[download page](https://mohdessam77.github.io/abdoh_the_assistant/) (`docs/index.html`, see
+section 6), install it, and follow the short setup. No Python or terminal needed. The rest
 of this README is for running Abdoh from source.
 
 ## Setup checklist
