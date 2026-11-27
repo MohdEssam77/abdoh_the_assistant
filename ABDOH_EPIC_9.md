@@ -393,6 +393,12 @@ daemon connects Codoh's voice at start (not only after the first ACTION codoh). 
 way: reading what a chat waits for went through the page's `chat()`, which counts as looking at
 it, and silenced its "done".
 
+### Release 0.13.1 (2026-11-27)
+Stories 122 to 127, on the owner's go: the webcam echo, Codoh's Full access and question cards,
+Abdoh knowing Codoh, Codoh by voice, asking about Codoh any time, Codoh speaking up, and the
+board PDF (logged, said, and waited for when Edge returns early). The build was run in isolation
+first (`--version`, `list-commands`; the new modules are inside).
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and
