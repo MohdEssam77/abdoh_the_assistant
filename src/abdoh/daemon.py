@@ -363,10 +363,10 @@ class Daemon:
 
     def _say_aside(self, text: str) -> None:
         """Say a few words that aren't part of the answer (not shown in the conversation)."""
-        log.info("Abdoh (aside): %s", text)
         if self.speaker.language not in ("", "en"):
             return  # these asides are English; the ticking sound says "still working"
-        self._speak(text)
+        if self._speak(text):
+            log.info("Abdoh (aside): %s", text)  # only what was said: Abdoh reads its own log
         if not self._interrupted.is_set():
             self.bus.emit("status", "Thinking...")
 
@@ -609,13 +609,15 @@ class Daemon:
         self.bus.emit("history", f"Abdoh: {text}")
         self._speak(text)
 
-    def _speak(self, text: str) -> None:
+    def _speak(self, text: str) -> bool:
+        """Say it, after you've finished talking and in one voice with everything else. False
+        if it wasn't said (stopped meanwhile, or voice replies are off)."""
         self.earcons.stop_ticking()
         if not self._wait_for_floor() or not self.voice_enabled:
-            return
+            return False
         with self._voice_lock:  # one voice at a time: never two things over each other
             if self._interrupted.is_set():
-                return
+                return False
             self._spoke = True
             self._said.append((time.monotonic(), text))  # Abdoh's own words, if heard back
             self.bus.emit("status", "Speaking")
@@ -624,6 +626,8 @@ class Daemon:
                 self.speaker.say(text)
             except Exception:
                 log.exception("Could not speak")
+                return False
+            return True
 
     def _wait_for_floor(self) -> bool:
         """Wait while you are talking over a reply. False if the reply was stopped."""

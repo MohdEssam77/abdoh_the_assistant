@@ -241,3 +241,16 @@ def test_a_quiet_action_doesnt_touch_the_others():
     daemon, _, order = daemon_with(Router(Done("Opening Spotify.")), [])
     daemon.handle_text("open spotify")
     assert ("duck", 30) not in order
+
+
+def test_the_log_names_only_the_apps_making_sound(caplog):
+    """It listed a dozen silent, nameless sessions every time (the owner's log)."""
+    ducker, _ = make(
+        app("b", "brave", 100),
+        *(app(f"x{i}", "", playing=False) for i in range(8)),
+        app("w", "msedgewebview2", playing=False),
+    )
+    with caplog.at_level("INFO"):
+        ducker.duck(30)
+    line = next(r.getMessage() for r in caplog.records if "for the conversation" in r.getMessage())
+    assert line == "Lowered 1 app(s) for the conversation; brave: 100%"

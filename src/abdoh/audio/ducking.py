@@ -53,10 +53,12 @@ class Ducker:
             self._lowered, self._percent = [], percent
             sessions = self._sessions()
             lowered = self._lower(sessions)
+            # Only the apps that make sound (a dozen silent, nameless ones were listed each time)
+            playing = [s for s in sessions if s.pid != self._own and s.playing and s.program]
             log.info(
                 "Lowered %d app(s) for the conversation%s",
                 lowered,
-                "".join(f"; {s.program}: {_state(s)}" for s in sessions if s.pid != self._own),
+                "".join(f"; {s.program}: {_state(s)}" for s in playing),
             )
             if self._follow_seconds:
                 self._released = threading.Event()
