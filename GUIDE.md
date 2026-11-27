@@ -907,8 +907,12 @@ always point at the latest release. The wake word model it bundles is `assets/he
 `Xanthos-Setup.exe` and `Abdoh-Setup.exe`, the names older versions look for when they check
 for updates.
 
-Abdoh checks for a new release once a day (Settings → **Check for updates**; it only asks
-GitHub for the latest version number) and shows a **Download** button when there is one.
+Abdoh checks for a new release once a day (Settings → **Updates**, or **Check now**; it only
+asks GitHub for the latest version number). When there is one, **Install now** (in Settings, or
+on the Home page's banner) downloads it in the app, with its progress shown, and checks it against
+the size and SHA-256 GitHub lists for it. Then Abdoh closes, a small helper installs it quietly
+(no windows, nothing to click, your choices like starting at sign-in kept) and opens the new
+Abdoh. If the download fails, **Try again**. Run from source, update with `git pull`.
 
 ### The download page
 

@@ -161,6 +161,8 @@ def _open_path(target) -> None:
         webbrowser.open(Path(target).resolve().as_uri())
 
 
+# Installing an update: the window says so for this long, then Abdoh closes for the installer.
+UPDATE_CLOSE_SECONDS = 2.0
 # Edge made no PDF: the page opens the print dialog instead.
 PRINT_INSTEAD = " I opened the print dialog instead: pick Microsoft Print to PDF."
 
@@ -1093,7 +1095,45 @@ class AppApi:
         latest = self._check_for_update(force=bool(force))
         if not latest:
             return {"available": False, "current": __version__}
-        return {"available": True, "current": __version__, **latest}
+        return {"available": True, "current": __version__, **latest,
+                "installing": self._update_job().status}  # fmt: skip
+
+    def _update_job(self):
+        if getattr(self, "_updater", None) is None:
+            from abdoh.updates import Updater
+
+            self._updater = Updater(
+                on_status=lambda status: self._state.feed("update", status),
+                on_ready=self._close_for_update,
+            )
+        return self._updater
+
+    def install_update(self) -> dict:
+        """Download the newer Abdoh and install it: the installer runs quietly after Abdoh
+        closes, and the new Abdoh opens. Returns how it's going ({state, percent, error})."""
+        check = self._check_for_update
+        if check is None:
+            from abdoh.updates import check_for_update as check
+        latest = check(force=False)
+        if not latest:
+            return {"state": "failed", "error": "You already have the latest version."}
+        return self._update_job().install(latest)
+
+    def update_status(self) -> dict:
+        return dict(self._update_job().status)
+
+    def _close_for_update(self) -> None:
+        """The installer is ready and waits for Abdoh to close: close, after a moment for the
+        window to say so."""
+        import threading
+
+        def close() -> None:
+            import time
+
+            time.sleep(UPDATE_CLOSE_SECONDS)
+            self._bus.request("quit")
+
+        threading.Thread(target=close, name="abdoh-update-close", daemon=True).start()
 
     # ----- the window -----
 

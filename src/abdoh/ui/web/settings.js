@@ -697,6 +697,54 @@
     if (models && speech) { const card = speechCard(models); card.id = "speech-card"; speech.replaceWith(card); }
   }
 
+  /* ---------- updates: found, downloaded and installed right here ---------- */
+
+  function updateRow(settings) {
+    const text = el("small", {});
+    const controls = el("div", { class: "btn-row update-controls", id: "update-controls" });
+    const check = el("button", { class: "btn small", onclick: async (e) => {
+      const button = e.currentTarget; // gone from the event once we've awaited
+      button.disabled = true;
+      const update = await checkUpdate(true);
+      button.disabled = false;
+      if (update && !update.available) toast("You have the latest version.");
+      controls.refresh();
+    } }, "Check now");
+    const onOff = toggle(settings.check_updates, (on, input) => saveSettings({ check_updates: on }).then((ok) => { if (!ok) input.checked = !on; }), "Check for updates");
+    controls.refresh = () => {
+      const update = App.update;
+      const going = App.updating && App.updating.state;
+      if (going === "downloading") {
+        const percent = App.updating.percent || 0;
+        text.textContent = `Downloading Abdoh ${App.updating.version}: ${percent}%. Abdoh works as usual meanwhile.`;
+        controls.replaceChildren(el("div", { class: "update-bar", role: "progressbar", "aria-valuenow": percent, "aria-valuemin": 0, "aria-valuemax": 100 },
+          el("i", { style: `width:${percent}%` })));
+      } else if (going === "installing") {
+        text.textContent = `Installing Abdoh ${App.updating.version}: Abdoh closes now and opens again in a moment.`;
+        controls.replaceChildren();
+      } else if (update && update.available) {
+        text.textContent = going === "failed"
+          ? `${App.updating.error} You have ${App.version}.`
+          : `Abdoh ${update.version} is out. You have ${App.version}. Installing downloads it here; Abdoh then closes and opens again, updated.`;
+        controls.replaceChildren(
+          el("button", { class: "btn small", onclick: () => call("open_link", update.url) }, "What's new"),
+          el("button", { class: "btn small primary", onclick: async (e) => {
+            e.currentTarget.disabled = true;
+            await installUpdate();
+            controls.refresh();
+          } }, going === "failed" ? "Try again" : "Install now"),
+          onOff);
+      } else {
+        text.textContent = `Look for a new version of Abdoh once a day. You have ${App.version}.`;
+        controls.replaceChildren(check, onOff);
+      }
+    };
+    controls.refresh();
+    const line = row("Updates", null, controls);
+    line.querySelector(".label").append(text);
+    return line;
+  }
+
   /* ---------- general ---------- */
 
   function generalCard(login) {
@@ -713,17 +761,7 @@
             if (result) toast(result.error, true);
           } else toast(on ? "Abdoh will start when you sign in." : "Abdoh won't start by itself.");
         }, "Start at sign-in")),
-      row("Check for updates", `Look for a new version of Abdoh once a day. You have ${App.version}.`,
-        el("div", { class: "btn-row" },
-          el("button", { class: "btn small", onclick: async (e) => {
-            const button = e.currentTarget; // gone from the event once we've awaited
-            button.disabled = true;
-            const update = await checkUpdate(true);
-            button.disabled = false;
-            if (update && !update.available) toast("You have the latest version.");
-            if (update && update.available) showPage("home");
-          } }, "Check now"),
-          toggle(settings.check_updates, (on, input) => saveSettings({ check_updates: on }).then((ok) => { if (!ok) input.checked = !on; }), "Check for updates"))),
+      updateRow(settings),
       row("Appearance", null, select([["system", "Same as Windows"], ["light", "Light"], ["dark", "Dark"]], theme, (value) => {
         store("abdoh.theme", value);
         applyTheme(value);

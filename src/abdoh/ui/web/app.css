@@ -901,3 +901,7 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
 .jump-chip:hover { color: var(--text); border-color: var(--border-strong); }
 .jump-chip.on { color: var(--accent-text); border-color: var(--accent); background: var(--accent-soft); }
 #settings-content > .card, #settings-content > details, #log-part { scroll-margin-top: 64px; }
+
+/* Settings → Updates: the download's progress */
+.update-bar { width: 220px; height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+.update-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
