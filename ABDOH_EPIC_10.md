@@ -204,3 +204,25 @@ Catalog (a "Your phone" feature), this file's results. No release.
 - Install Tailscale on the laptop and the phone, sign in with the same account on both, and
   allow HTTPS for the tailnet when Settings → Phone asks.
 - Scan the QR code, add Abdoh to the Home Screen, and try it away from home (mobile data).
+
+## 8. Results (2026-11-27)
+
+All six stories are merged (139 to 144); not released (still 0.13.3).
+
+- **Checked here, for real:** the phone server on 127.0.0.1 (pairing, keys, long polling that
+  waited for an event, a request reaching Abdoh, an oversized upload refused); the phone page in
+  a browser window against that real server (pairing from the link, the code removed from the
+  address, a request and a two-sentence reply growing into one bubble, unpairing on the
+  computer sending the page back to "Pair this phone"); Abdoh's real voice and speech
+  recognition through the server: a sentence rendered by Piper, turned into 16 kHz audio the way
+  the phone does, came back as "Turn on the desk lamp and play some jazz." in 0.6 s, and the
+  reply's WAV was served to the phone that asked.
+- **Screenshots** (demo mode, phone size, light and dark): pairing, adding to the Home Screen,
+  the conversation, answering, Yes and No, offline, the menu, recording, the controls; the
+  Settings → Phone card at each Tailscale step and with a pairing code.
+- **Changed on the way:** pairing codes are short enough to type ("K7MX-2Q9P"), for an iPhone
+  app that opens without the link's code. Story 142's commit went straight onto main (a merge
+  that ran after a failed lint); its branch points at it.
+- **Not tried:** a real iPhone, a real Tailscale network (no Tailscale on this computer), the
+  phone's microphone (the conversion is tested in Node). The download page gets the phone with
+  the release that has it.

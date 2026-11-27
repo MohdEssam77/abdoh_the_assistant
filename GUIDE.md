@@ -841,6 +841,50 @@ keys, card numbers or health details unless you explicitly ask.
   the same words) and Claude answers from them, in about 3 to 4 seconds. Only what was found goes
   to Claude.
 
+### Abdoh on your phone
+
+Talk and type to the Abdoh on your computer from your phone, at home or anywhere. Abdoh
+answers on the phone (in its own voice, or the phone's), and does things on the computer:
+"turn on the desk lamp", "play some jazz", "what's on my calendar tomorrow?".
+
+**How it connects.** Your phone opens a small page that Abdoh serves on your computer, saved
+to the Home Screen like an app. [Tailscale](https://tailscale.com) (free) connects the phone
+and the computer privately, wherever they are: the page is only reachable from your own
+devices, over HTTPS, and nothing is open to the internet. Only phones you paired can use it.
+
+**Set it up once** (about 5 minutes), in **Settings → Phone**:
+
+1. Turn on **Use Abdoh from your phone**.
+2. **Get Tailscale**, install it on the computer, open it and sign in. Install the Tailscale
+   app on your phone too, sign in with the same account, and turn it on.
+3. Press **Share**. The first time, Tailscale asks you to allow HTTPS for your network
+   (**Allow HTTPS** opens its page; allow it, then press **Share** again). Your phone page's
+   address appears (`https://<your computer>.<your network>.ts.net`).
+4. Press **Pair a phone** and scan the code with the phone's camera. On an iPhone, tap
+   **Share → Add to Home Screen**, then open **Abdoh** from the Home Screen (on Android: **Install
+   app**). If it asks for a code, type the one shown under the QR code. A code works once, for 30
+   minutes.
+
+**Using it.** Type, or tap the microphone, talk, and tap send. Replies appear as Abdoh says
+them, and play on the phone (**Speak replies** in the phone's menu turns that off); the
+computer stays quiet. **Stop** stops a reply. When Abdoh asks something ("Shut down the
+computer now?"), **Yes** and **No** appear. The controls button (top right) has music, volume,
+your modes and **Lock the computer**. The conversation is the same as on the computer: what you
+asked from the phone shows there with a small "Phone" tag.
+
+**Good to know.**
+- The computer must be on and awake. When it's plugged in, let it never sleep (**Power
+  settings** in the card). A sleeping computer can't answer; the phone says so and tries again
+  by itself.
+- Your phone's Tailscale must be on (the iPhone app can keep it on all the time with VPN On
+  Demand). An iPhone runs one VPN at a time.
+- Remove a phone in **Settings → Phone** (or **Unpair this phone** in its menu): it can't reach
+  Abdoh any more. Turning the switch off also stops sharing the page in Tailscale.
+- The phone can ask Abdoh things and use the controls, nothing more: it can't change settings,
+  see keys, or edit memory. Claude's permissions apply as on the computer.
+- Settings: `phone` (off by default) and `phone_port` (47811, on 127.0.0.1 only). Paired phones
+  are in `phones.json` in Abdoh's data folder (only a fingerprint of each phone's key).
+
 ## 6. Install it like an app
 
 ```
@@ -1145,6 +1189,12 @@ Developer scripts:
   (it speaks; `--talk` to try talking over it).
 
 ## Known issues
+
+- **Abdoh on your phone is not tried with a real iPhone and Tailscale yet.** The page, pairing,
+  talking and the controls are checked in a browser and against Abdoh's real server, speech
+  recognition and voice on this computer; Tailscale's `serve` is tested with a stand-in. On an
+  iPhone, the Home Screen app may ask for the microphone each time it starts (Apple's rule for
+  web apps). No notifications on the phone yet (timers and reminders are said on the computer).
 
 - **Codoh and the switch to ChatGPT are not tried with a real ChatGPT account yet.** Codoh's
   ChatGPT chats (OpenAI's Responses API with Codoh's own tools) and ChatGPT taking over when

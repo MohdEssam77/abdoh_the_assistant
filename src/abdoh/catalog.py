@@ -64,7 +64,7 @@ SECTIONS = [
         "id": "abdoh",
         "title": "Abdoh itself",
         "icon": "settings",
-        "line": "Settings, logs, updates, privacy",
+        "line": "Settings, logs, updates, your phone",
     },
 ]
 
@@ -649,13 +649,40 @@ FEATURES: list[dict] = [
         "title": "Updates and starting with Windows",
         "icon": "refresh",
         "line": "Abdoh checks for a new version once a day and can start when you sign in.",
-        "what": "When a new version is out, Home shows a banner to install it. Abdoh can start in "
-        "the tray when you sign in to Windows.",
+        "what": "When a new version is out, Home shows a banner: Install now downloads it, "
+        "installs it quietly and opens the new Abdoh. Abdoh can start in the tray when you sign "
+        "in to Windows.",
         "say": [],
         "steps": ["Settings → General."],
         "where": {"page": "settings", "label": "Settings → General"},
         "setting": "check_updates",
         "tips": ["Run the first-start setup again from Settings → General."],
+    },
+    {
+        "id": "phone",
+        "section": "abdoh",
+        "title": "Abdoh on your phone",
+        "icon": "phone",
+        "line": "Talk and type to Abdoh from your phone, at home or anywhere, and hear its answers there.",
+        "what": "A home-screen app on your phone for the Abdoh on this computer: the conversation, "
+        "a microphone button, and controls for music, volume, your modes and locking the computer. "
+        "Tailscale (free) connects your phone and this computer privately; nothing is open to the "
+        "internet, and only phones you pair can use it. Replies play on the phone; actions happen "
+        "on the computer.",
+        "say": [],
+        "steps": [
+            "Settings → Phone: turn on “Use Abdoh from your phone”.",
+            "Install Tailscale on this computer and your phone, signed in with the same account.",
+            "Press Share, then Pair a phone, and scan the code with your phone's camera.",
+            "iPhone: Share → Add to Home Screen, then open Abdoh from there.",
+        ],
+        "where": {"page": "settings", "label": "Settings → Phone"},
+        "setting": "phone",
+        "tips": [
+            "The computer must be on and awake: plugged in, let it never sleep.",
+            "Remove a phone in Settings → Phone, or “Unpair this phone” in its menu.",
+            "“Speak replies” in the phone's menu: off, the answers are only shown.",
+        ],
     },
 ]
 
