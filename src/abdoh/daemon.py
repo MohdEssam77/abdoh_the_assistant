@@ -85,6 +85,7 @@ BOARD_PDF_SILENT = (
 # Notices (say_later): said within this long, else left out; looked at this often.
 LATER_SECONDS = 600.0
 LATER_POLL_SECONDS = 0.2
+LATER_GAP_SECONDS = 1.0  # ... and not straight after Abdoh's last words
 
 
 def _still_true(check: Callable[[], bool]) -> bool:
@@ -216,6 +217,7 @@ class Daemon:
         self._later_event = threading.Event()
         self._later_thread: threading.Thread | None = None
         self._answer_window = False  # listening for an answer or an aside after a reply
+        self._quiet_since = 0.0  # when Abdoh's voice last stopped (time.monotonic)
         router.on_thinking = self._thinking
         router.on_activity = self._activity
         router.on_board = self._on_board
@@ -388,14 +390,14 @@ class Daemon:
 
     def _free_to_talk(self) -> bool:
         """Nothing else going on: no reply, nobody talking, no answer awaited, and Abdoh's last
-        words have died away."""
+        words have died away. (Not _hear_from: the wake-word loop moves it on every block.)"""
         return not (
             self._handle_lock.locked()
             or self._recording
             or self._heard_for > 0
             or self._awaiting_answer
             or self._answer_window
-            or time.monotonic() < self._hear_from
+            or time.monotonic() - self._quiet_since < LATER_GAP_SECONDS
         )
 
     def _say_when_free(self) -> None:
@@ -425,7 +427,7 @@ class Daemon:
                 if not self.paused:
                     self._speak(text)
                     self._unduck_unless_listening()
-                self._hear_from = time.monotonic() + self.HEAR_AFTER_SPEAKING_SECONDS
+                self._hear_from = time.monotonic() + self.HEAR_AFTER_SPEAKING_SECONDS  # a lesson
                 self._status_idle()
             except Exception:
                 log.exception("Couldn't say %r", text)
@@ -627,6 +629,8 @@ class Daemon:
             except Exception:
                 log.exception("Could not speak")
                 return False
+            finally:
+                self._quiet_since = time.monotonic()
             return True
 
     def _wait_for_floor(self) -> bool:

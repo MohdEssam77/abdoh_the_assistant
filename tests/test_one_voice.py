@@ -157,7 +157,6 @@ def test_a_notice_waits_for_the_reply_being_said():
     router = Router()
     speaker = SlowSpeaker()
     daemon = make(router, FakeWatch(), speaker=speaker)
-    daemon.HEAR_AFTER_SPEAKING_SECONDS = 0.05
     router.replies = [explaining(daemon, 10)]
     started = threading.Event()
 
@@ -200,7 +199,6 @@ def test_a_filler_and_the_answer_never_overlap():
 def test_a_notice_that_is_no_longer_true_is_left_out():
     router = Router()
     daemon = make(router, FakeWatch())
-    daemon.HEAR_AFTER_SPEAKING_SECONDS = 0
     waiting = {"state": "allowed"}  # you allowed it on the page meanwhile
     daemon.say_later(
         "Codoh wants to run a command. Allow it?", lambda: waiting["state"] == "waiting"
@@ -218,7 +216,6 @@ def test_a_notice_that_is_no_longer_true_is_left_out():
 def test_a_notice_waits_while_you_talk_or_abdoh_waits_for_your_answer():
     router = Router()
     daemon = make(router, FakeWatch())
-    daemon.HEAR_AFTER_SPEAKING_SECONDS = 0
     for busy in ("_recording", "_answer_window", "_awaiting_answer"):
         setattr(daemon, busy, True)
         daemon.say_later(f"Notice while {busy}.")
@@ -237,7 +234,6 @@ def test_a_notice_waits_while_you_talk_or_abdoh_waits_for_your_answer():
 def test_while_paused_a_notice_is_shown_not_said():
     router = Router()
     daemon = make(router, FakeWatch())
-    daemon.HEAR_AFTER_SPEAKING_SECONDS = 0
     daemon.paused = True
     daemon.say_later("Codoh is done: Built.")
     for _ in range(200):
@@ -248,3 +244,33 @@ def test_while_paused_a_notice_is_shown_not_said():
         raise AssertionError("not shown")
     assert daemon.speaker.said == []
     daemon.stop_event.set()
+
+
+def test_a_notice_is_said_while_abdoh_listens_for_its_name(monkeypatch):
+    """The real loop: waiting for the wake word on a silent microphone. (The first version
+    waited for a moment that loop kept pushing back: notices were never said in the app.)"""
+    from fakes import FakeMic
+    from test_daemon import run_until
+
+    from abdoh import daemon as module
+
+    monkeypatch.setattr(module, "LATER_GAP_SECONDS", 0.05)
+    router = Router()
+    daemon = Daemon(
+        Config(),
+        router,
+        FakeSpeaker(),
+        lambda: FakeMic([b"\0\0" * 1600] * 2000),
+        FakeWakeWord(fire_on=10**9),
+        FakeTranscriber([]),
+        bus=Bus(),
+        mic_retry_seconds=0.01,
+    )
+
+    def said():
+        if daemon.mic is not None and not daemon._later:
+            daemon.say_later("Codoh is done: Built.") if not daemon.speaker.said else None
+        return daemon.speaker.said == ["Codoh is done: Built."]
+
+    run_until(daemon, said, timeout=5.0)
+    assert daemon.speaker.said == ["Codoh is done: Built."]
