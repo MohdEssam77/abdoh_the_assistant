@@ -566,7 +566,7 @@ FEATURES: list[dict] = [
             "“Ask first” asks before every change; “Auto-edit” only before commands; “Plan only” changes nothing.",
             "Codoh's chats are separate from Abdoh's: none of Abdoh's instructions go to them.",
             "Ask Abdoh “what is Codoh doing?” or “what's left?” any time, also minimized.",
-            "Chats you start by voice: Abdoh says when Codoh needs you and when it's done.",
+            "Abdoh says when Codoh needs you and when it's done, unless you're looking at it.",
         ],
     },
     # ----- Abdoh itself -----

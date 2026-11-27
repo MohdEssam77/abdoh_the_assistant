@@ -206,8 +206,11 @@ class Codoh:
         self.limited_until = 0.0  # Claude's limit is used up until then (0: it isn't)
         self.page_open = False  # the Codoh page is the one showing in Abdoh's window
         self.viewing = ""  # the chat the page shows
-        # Abdoh says this out loud: a chat the voice started needs the user, or is done.
+        # Abdoh says this out loud: a chat needs the user, or is done (a chat sent to by voice
+        # always; a chat typed on the page when the user isn't looking at it).
         self.on_notice = None
+        # Abdoh's window is open (not minimized or hidden): set by the daemon.
+        self.window_open = lambda: False
         global _ACTIVE
         _ACTIVE = self
 
@@ -796,7 +799,7 @@ class Codoh:
                     chat.bump(tool)
                 chat.status = "Waiting for you"
                 chat.bump(item)
-                if chat.voice:
+                if self._speaks_up(chat):
                     from abdoh.codoh.voice import notice
 
                     question = item.get("tool") == QUESTION
@@ -805,7 +808,7 @@ class Codoh:
                 return
             if kind == "done":
                 resend = self._done(chat, event)
-                if chat.voice and resend is None and not event.get("stopped"):
+                if self._speaks_up(chat) and resend is None and not event.get("stopped"):
                     said = self._done_notice(chat, event)
         if allowed is not None and chat.engine is not None:
             chat.engine.answer(allowed[0], True, data=allowed[1])
@@ -846,6 +849,19 @@ class Codoh:
         chat.bump()
         self._save(chat)
         return None
+
+    def seen(self, chat_id: str) -> bool:
+        """The user is looking at this chat: on the Codoh page, in Abdoh's open window."""
+        try:
+            window = bool(self.window_open())
+        except Exception:
+            window = False
+        return window and self.page_open and self.viewing == chat_id
+
+    def _speaks_up(self, chat: Chat) -> bool:
+        """Abdoh says when this chat needs the user or is done: always when the voice sent its
+        latest message, else when the user isn't looking at it (the card shows it then)."""
+        return chat.voice or not self.seen(chat.data.get("id", ""))
 
     def _done_notice(self, chat: Chat, event: dict) -> str:
         from abdoh.codoh.voice import notice

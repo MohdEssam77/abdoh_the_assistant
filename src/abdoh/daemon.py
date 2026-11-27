@@ -1351,11 +1351,13 @@ class Daemon:
         self.bus.emit("listening", {"on": on, "now": now})
 
     def _codoh(self):
-        """The app's Codoh; Abdoh says what its voice chats need, and when they're done."""
+        """The app's Codoh; Abdoh says what its chats need, and when they're done (a chat typed
+        on the page when the user isn't looking at it)."""
         from abdoh.codoh.manager import shared
 
         codoh = shared(self.cfg)
         codoh.on_notice = self._say_aside
+        codoh.window_open = lambda: bool(getattr(self, "_window_open", False))
         return codoh
 
     def _show_codoh(self, chat: str = "") -> None:
@@ -1948,6 +1950,10 @@ class Daemon:
         router.computer.apps.load_in_background()
         daemon.use_roles(make_roles(cfg, daemon))
         daemon.use_modes(make_modes(cfg, router, daemon))
+        try:
+            daemon._codoh()  # the page's Codoh speaks up through Abdoh from the start
+        except Exception:
+            log.exception("Couldn't connect Codoh to Abdoh's voice")
         return daemon
 
 
