@@ -197,7 +197,18 @@ async function load() {
   S.steps = null;
   S.answered = S.asked; // what was being answered is over (or Abdoh restarted)
   $("#messages").replaceChildren();
-  for (const line of state.history || []) addLine(line);
+  // Pictures and files sent to this phone, each where it fell in the conversation ("line":
+  // how many lines came before it today; the first line shown is number first_line).
+  const media = (state.media || []).filter((m) => m.for === S.me);
+  const first = state.first_line || 0;
+  let next = 0;
+  (state.history || []).forEach((line, i) => {
+    for (; next < media.length && media[next].line <= first + i; next += 1) {
+      if (media[next].line >= first) addMedia(media[next]);
+    }
+    addLine(line);
+  });
+  media.slice(next).forEach((m) => addMedia(m));
   setAi(state.ai || {});
   setMode(state.mode || "");
   S.status = state.status || "";
@@ -253,7 +264,80 @@ function take(event) {
     case "question": askQuestion(event.text || ""); break;
     case "done": if (event.for === S.me) { S.answered += 1; stepsDone(); turnOver(); } break;
     case "step": if (event.for === S.me) addStep(event.text || ""); break;
+    case "note": if (event.for === S.me) { note(event.text || ""); scrollDown(); } break;
+    case "image":
+    case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); } break;
     default: break;
+  }
+}
+
+/* ---------- pictures and files from the computer (stories 148, 149) ----------
+   Behind secret links (/media/<id>, an hour): an <img> and the phone's own viewer can't send
+   the phone's key. */
+
+function mediaSrc(event) {
+  return event.src || `/media/${event.id}`; // the demo draws its own
+}
+
+function addMedia(event) {
+  if (event.type === "file") return place(fileCard(event), "msg abdoh media");
+  const src = mediaSrc(event);
+  const figure = el("figure", { class: "shot", onclick: () => openViewer(src, event.caption || "") });
+  const img = el("img", { src, alt: event.caption || "The computer's screen", loading: "lazy" });
+  img.addEventListener("error", () => figure.replaceChildren(el("span", { class: "gone" }, "This picture has expired.")));
+  img.addEventListener("load", () => scrollDown()); // its height is known now
+  figure.append(img);
+  if (event.caption) figure.append(el("figcaption", {}, event.caption));
+  return place(figure, "msg abdoh media");
+}
+
+/* A file card: its name, size and kind; Open (the phone's own viewer) and Download. */
+function fileCard(event) {
+  const src = mediaSrc(event);
+  return el("div", { class: "file" },
+    el("span", { class: `file-icon ${event.kind || "file"}`, "aria-hidden": "true" }, fileLabel(event)),
+    el("span", { class: "file-about" }, el("b", {}, event.name || "A file"), el("small", {}, size(event.size))),
+    el("a", { class: "file-button", href: src, target: "_blank", rel: "noopener" }, "Open"),
+    el("a", { class: "file-button primary", href: `${src}${src.includes("?") ? "&" : "?"}download=1`, download: event.name || "", target: "_blank", rel: "noopener" }, "Download"));
+}
+
+function fileLabel(event) {
+  const dot = String(event.name || "").lastIndexOf(".");
+  return dot > 0 ? String(event.name).slice(dot + 1, dot + 5).toUpperCase() : "FILE";
+}
+
+function size(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} bytes`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  return `${(n / 1024 ** 3).toFixed(1)} GB`;
+}
+
+function openViewer(src, caption) {
+  $("#viewer-img").src = src;
+  $("#viewer-caption").textContent = caption;
+  $("#viewer-open").href = src;
+  $("#viewer-open").hidden = src.startsWith("data:");
+  $("#viewer").hidden = false;
+}
+
+function closeViewer() {
+  $("#viewer").hidden = true;
+  $("#viewer-img").removeAttribute("src");
+}
+
+/* "See the screen" in the controls: a picture of it now, not part of the conversation. */
+async function seeScreen() {
+  $("#controls").hidden = true;
+  toast("Taking a picture of the screen…");
+  try {
+    const data = await api("POST", "/api/screen", undefined, { timeout: 30000 });
+    $("#toast").hidden = true;
+    openViewer(DEMO ? window.AbdohDemo.picture() : `/media/${data.id}`, "Your screen now");
+  } catch (error) {
+    $("#toast").hidden = true;
+    failed(error);
   }
 }
 
@@ -331,8 +415,13 @@ function addSaid(event) {
 }
 
 function bubble(who, text, label = null) {
-  const node = el("div", { class: `msg ${who}` },
-    el("div", { class: "bubble" }, label ? el("span", { class: "from" }, label) : null, el("span", { class: "text" }, text)));
+  return place(el("div", { class: "bubble" }, label ? el("span", { class: "from" }, label) : null,
+    el("span", { class: "text" }, text)), `msg ${who}`);
+}
+
+/* A new message at the end of the conversation (above the typing dots). */
+function place(content, classes) {
+  const node = el("div", { class: classes }, content);
   const list = $("#messages");
   list.insertBefore(node, $("#typing"));
   while (list.children.length > MAX_MESSAGES) list.firstElementChild.remove();
@@ -1116,6 +1205,9 @@ function setupControls() {
       if (await control("media", key.dataset.media)) toast(MEDIA_DONE[key.dataset.media]);
     });
   }
+  $("#see-screen").addEventListener("click", seeScreen);
+  $("#viewer-close").addEventListener("click", closeViewer);
+  $("#viewer").addEventListener("click", (e) => { if (e.target.id === "viewer") closeViewer(); });
   $("#lock").addEventListener("click", async () => {
     if (!confirm("Lock your computer now?")) return;
     if (await control("lock")) { sheet.hidden = true; toast("Locked"); }

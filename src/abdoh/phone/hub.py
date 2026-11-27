@@ -22,6 +22,9 @@ Events for the page (each with its number, "seq"):
   {"type": "done", "for": ...}            the phone's request is answered (after its last
                                           "say"): a call listens again (story 145)
   {"type": "step", "text", "for"}         what Abdoh is doing for it: "Reading CV.pdf"
+  {"type": "note", "text", "for"}         a line for it that isn't Abdoh's answer
+  {"type": "image", "id", "caption", "for"} a picture of the screen: /media/<id>
+  {"type": "file", "id", "name", "size", "kind", "for"} a file sent to it: /media/<id>
 
 Every event goes through one worker thread, in order: the audio of a sentence is made there,
 so a reply's sentences and the line with the whole reply arrive in the order they were said.
@@ -36,6 +39,8 @@ from collections import OrderedDict, deque
 from collections.abc import Callable
 from datetime import date
 
+from abdoh.phone.media import MediaStore
+
 log = logging.getLogger(__name__)
 
 MAX_EVENTS = 300
@@ -45,6 +50,7 @@ MAX_TEXT = 2000
 AUDIO_SECONDS = 600.0  # a reply's audio can be fetched for this long
 MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
+SHOWN = 30  # pictures and files kept for a page that opens later
 # What was said to the phone, for telling its own voice coming back from yours: the phone plays
 # a reply's sentences one after another, well after they were sent.
 SAID_SECONDS = 120.0
@@ -54,7 +60,7 @@ SAID_KEPT = 12
 OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
-     "phone_question", "phone_done", "phone_step"}
+     "phone_question", "phone_done", "phone_step", "phone_image", "phone_note"}
 )  # fmt: skip
 
 
@@ -69,6 +75,7 @@ class PhoneHub:
         hear: Callable[[bytes], str] | None = None,
         voice: Callable[[str], bytes | None] | None = None,
         modes: Callable[[], list[str]] | None = None,
+        screen: Callable[[], bytes] | None = None,
         today=date.today,
         clock=time.monotonic,
     ):
@@ -76,6 +83,8 @@ class PhoneHub:
         self._hear = hear  # 16 kHz mono 16-bit audio -> text
         self._voice = voice  # a sentence -> WAV bytes, or None (the phone's own voice speaks)
         self._modes = modes  # your modes' names, for the phone's controls
+        self._screen = screen  # a picture of the screen (JPEG), for "See the screen"
+        self.media = MediaStore(clock)  # pictures and files behind secret links (media.py)
         self._today = today
         self._clock = clock
         self.boot = secrets.token_hex(4)  # a new hub (Abdoh restarted): the page starts over
@@ -84,6 +93,8 @@ class PhoneHub:
         self._events: deque[tuple[int, dict]] = deque(maxlen=MAX_EVENTS)
         self._seq = 0
         self._history: deque[str] = deque(maxlen=HISTORY)
+        self._lines = 0  # today's conversation lines so far: where a picture or file falls
+        self._shown: deque[dict] = deque(maxlen=SHOWN)  # pictures and files sent today
         self._day = today()
         self._status = ""
         self._ai: dict = {}
@@ -134,6 +145,7 @@ class PhoneHub:
             self._new_day()
             with self._cond:
                 self._history.append(line)
+                self._lines += 1
             self._add({"type": "history", "line": line})
         elif kind == "status":
             self._status = str(value or "")
@@ -165,6 +177,17 @@ class PhoneHub:
             self._add({"type": "done", "for": self._asker})
         elif kind == "phone_step":
             self._add({"type": "step", "text": str(value or "")[:200], "for": self._asker})
+        elif kind == "phone_note":
+            self._add({"type": "note", "text": str(value or "")[:500], "for": self._asker})
+        elif kind == "phone_image":  # {"data": JPEG bytes, "caption"}: a picture of the screen
+            value = value if isinstance(value, dict) else {}
+            try:
+                data, kind = value.get("data") or b"", value.get("type", "image/jpeg")
+                key = self.media.add_picture(data, kind)
+            except ValueError:
+                log.warning("A picture for the phone was empty or too big")
+                return
+            self._show({"type": "image", "id": key, "caption": str(value.get("caption") or "")})
 
     def _new_day(self) -> None:
         today = self._today()
@@ -172,7 +195,18 @@ class PhoneHub:
             self._day = today
             with self._cond:
                 self._history.clear()
+                self._lines = 0
+                self._shown.clear()
             self._add({"type": "clear"})
+
+    def _show(self, event: dict) -> None:
+        """A picture or a file for the phone that asked: sent now, and kept with where it falls
+        in the conversation, for a page that opens later."""
+        self._new_day()
+        event = {**event, "for": self._asker}
+        with self._cond:
+            self._shown.append({**event, "line": self._lines})
+        self._add(event)
 
     def _add(self, event: dict) -> None:
         with self._cond:
@@ -188,6 +222,8 @@ class PhoneHub:
                 "boot": self.boot,
                 "seq": self._seq,
                 "history": list(self._history),
+                "first_line": self._lines - len(self._history),  # the first one's number
+                "media": [dict(m) for m in self._shown if self.media.get(m["id"]) is not None],
                 "status": self._status,
                 "ai": dict(self._ai),
                 "mode": self._mode,
@@ -266,6 +302,20 @@ class PhoneHub:
     def stop(self) -> None:
         """Stop the reply (the phone's Stop button)."""
         self.bus.request("stop_speaking")
+
+    def screen_now(self) -> str:
+        """A picture of the computer's screen right now (the controls' "See the screen"): its
+        link's key. Not part of the conversation."""
+        from abdoh.claude.screen import ScreenCaptureError
+
+        if self._screen is None:
+            raise PhoneError("Abdoh can't take pictures of the screen here.")
+        try:
+            return self.media.add_picture(self._screen())
+        except ScreenCaptureError as e:
+            raise PhoneError(str(e)) from e
+        except ValueError as e:
+            raise PhoneError("The picture of the screen didn't come out.") from e
 
     # ----- the phone's quick controls -----
 

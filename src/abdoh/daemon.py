@@ -75,6 +75,9 @@ NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
 
+# After the phone asked to open one of these, it gets a picture of the screen this long after.
+PHONE_OPENS = frozenset({"open_app", "open_url", "play_youtube"})
+PHONE_SHOT_SECONDS = 2.5
 # What Claude's action is called in "Done: ...", where its own words would read badly.
 DONE_WORDS = {"board_pdf": "saving the board as a PDF"}
 # The window was asked to save the board and didn't answer in this long (the save itself takes
@@ -203,6 +206,7 @@ class Daemon:
         # whether the request being answered came from the phone (its reply goes there).
         self.phone = None
         self.phone_error = ""  # why the phone page couldn't start (its port is taken)
+        self._phone_shot = None  # the picture of the screen the phone gets after opening
         self._phone_turn = False
         if hasattr(speaker, "on_missing_voice"):
             speaker.on_missing_voice = self._missing_voice
@@ -230,6 +234,7 @@ class Daemon:
         router.on_thinking = self._thinking
         router.on_activity = self._activity
         router.on_action = self._did
+        router.on_show_screen = self._show_screen
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
@@ -357,11 +362,55 @@ class Daemon:
             self.bus.emit("phone_step", text)
 
     def _did(self, kind: str, arg: str) -> None:
-        """An action of Claude's answer was done ("Opened Spotify"): a step on the phone."""
-        if self._phone_turn:
-            from abdoh.doing import action_step
+        """An action of Claude's answer was done ("Opened Spotify"): a step on the phone, and
+        after opening something, a picture of the screen a moment later."""
+        if not self._phone_turn:
+            return
+        from abdoh.doing import action_step
 
-            self.bus.emit("phone_step", action_step(kind, arg))
+        done = action_step(kind, arg)
+        self.bus.emit("phone_step", done)
+        if kind in PHONE_OPENS:
+            self._screen_later(done)
+
+    def _screen_later(self, caption: str) -> None:
+        """A picture of the screen for the phone once what was opened is up (one per reply:
+        the last opening's wait counts)."""
+        old = self._phone_shot
+        if old is not None:
+            old.cancel()
+        timer = threading.Timer(PHONE_SHOT_SECONDS, self._send_screen, args=(caption,))
+        timer.daemon = True
+        self._phone_shot = timer
+        timer.start()
+
+    def _show_screen(self, why: str) -> None:
+        """Claude: ACTION show_screen (only for the phone): a picture of the screen, now."""
+        old, self._phone_shot = self._phone_shot, None
+        if old is not None:
+            old.cancel()
+        threading.Thread(
+            target=self._send_screen, args=("Your screen",), name="abdoh-phone-screen", daemon=True
+        ).start()
+
+    def _send_screen(self, caption: str) -> None:
+        from abdoh.claude.screen import ScreenCaptureError
+
+        try:
+            data = self._grab_screen()
+        except ScreenCaptureError as e:
+            self.bus.emit("phone_note", str(e))
+            return
+        except Exception:
+            log.exception("Couldn't send the screen to the phone")
+            return
+        log.info("Sent a picture of the screen to the phone (%d KB)", len(data) // 1024)
+        self.bus.emit("phone_image", {"data": data, "caption": caption})
+
+    def _grab_screen(self) -> bytes:
+        from abdoh.phone.media import screen_picture
+
+        return screen_picture()
 
     def _save_board(self) -> None:
         """Claude: ACTION board_pdf. The page draws the board and Abdoh prints it; the window
@@ -1317,10 +1366,12 @@ class Daemon:
             self._phone_off()
         if not self.cfg.phone or self.phone is not None:
             return
+        from abdoh.phone.media import screen_picture
         from abdoh.phone.server import PhoneService
 
         service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice,
-                               modes=lambda: self.modes.names() if self.modes else [])  # fmt: skip
+                               modes=lambda: self.modes.names() if self.modes else [],
+                               screen=screen_picture)  # fmt: skip
         try:
             service.start()
         except OSError as e:

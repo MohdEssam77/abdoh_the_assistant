@@ -14,10 +14,11 @@ import threading
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 from abdoh.phone.devices import FILE, Phones, phone_name
 from abdoh.phone.hub import PhoneError, PhoneHub
+from abdoh.phone.media import SHOWN
 
 log = logging.getLogger(__name__)
 
@@ -44,6 +45,15 @@ SECURITY = {
     "Referrer-Policy": "no-referrer",
     "X-Frame-Options": "DENY",
 }
+# A picture or file behind a secret link: never run as a page of this site.
+MEDIA_SECURITY = {
+    "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; "
+    "style-src 'unsafe-inline'",
+    "Cache-Control": "private, max-age=3600",
+}
+_MEDIA = re.compile(r"/media/([0-9a-f]{32})")
+_RANGE = re.compile(r"bytes=(\d*)-(\d*)")
+CHUNK = 256 * 1024
 NOT_PAIRED = "This phone isn't paired with Abdoh. Scan the code in Settings → Phone again."
 OLD_CODE = "That code doesn't work any more. Make a new one in Settings → Phone."
 _NAME = re.compile(r"[a-z0-9][a-z0-9._-]*")
@@ -55,6 +65,9 @@ class Response:
     body: bytes = b""
     type: str = "application/json"
     headers: dict = field(default_factory=dict)
+    path: Path | None = None  # a file sent from disk instead of `body`: from `start`, `size` bytes
+    start: int = 0
+    size: int = 0
 
 
 def answer(data, status: int = 200) -> Response:
@@ -91,9 +104,12 @@ class PhoneApp:
         """One request. `headers` with lowercase names."""
         url = urlsplit(path)
         route = url.path
+        query = {k: v[-1] for k, v in parse_qs(url.query).items()}
+        media = _MEDIA.fullmatch(route)
+        if media:
+            return self._media(method, media.group(1), query, headers)
         if not route.startswith("/api/"):
             return self._static(method, route)
-        query = {k: v[-1] for k, v in parse_qs(url.query).items()}
         try:
             if route == "/api/pair":
                 if method != "POST":
@@ -147,6 +163,8 @@ class PhoneApp:
         if route == "/api/stop":
             self.hub.stop()
             return answer({"ok": True})
+        if route == "/api/screen":  # "See the screen" in the controls
+            return answer({"ok": True, "id": self.hub.screen_now()})
         if route == "/api/control":
             data = _json(body[:MAX_JSON])
             self.hub.control(str(data.get("kind") or ""), str(data.get("value") or ""),
@@ -156,6 +174,38 @@ class PhoneApp:
             self.phones.remove(phone["id"])
             return answer({"ok": True})
         return error(404, "Not found.")
+
+    def _media(self, method: str, key: str, query: dict, headers: dict) -> Response:
+        """A picture or a file behind its secret link (media.py). ?download=1: saved, not
+        shown; and anything a phone shouldn't open as a page of this site is only saved."""
+        if method not in ("GET", "HEAD"):
+            return error(405, "Not allowed.")
+        found = self.hub.media.get(key)
+        if found is None:
+            return Response(404, b"This link has expired.", "text/plain; charset=utf-8")
+        kind = found.type if found.type in SHOWN else "application/octet-stream"
+        how = "attachment" if query.get("download") == "1" or kind not in SHOWN else "inline"
+        extra = {**MEDIA_SECURITY, "Accept-Ranges": "bytes"}
+        if found.name:
+            extra["Content-Disposition"] = f"{how}; filename*=UTF-8''{quote(found.name)}"
+        if found.data is not None:
+            return Response(200, found.data, kind, extra)
+        if not found.path or not found.path.is_file():
+            return Response(404, b"That file isn't there any more.", "text/plain; charset=utf-8")
+        size = found.path.stat().st_size
+        start, length, status = 0, size, 200
+        asked = _RANGE.fullmatch(str(headers.get("range") or "").strip())
+        if asked and size and (asked.group(1) or asked.group(2)):  # a piece (video, PDF)
+            if asked.group(1):
+                start = int(asked.group(1))
+                end = min(int(asked.group(2)) if asked.group(2) else size - 1, size - 1)
+            else:  # the last N bytes
+                start, end = max(0, size - int(asked.group(2))), size - 1
+            if start > end or start >= size:
+                return Response(416, b"", kind, {"Content-Range": f"bytes */{size}"})
+            length, status = end - start + 1, 206
+            extra["Content-Range"] = f"bytes {start}-{end}/{size}"
+        return Response(status, b"", kind, extra, path=found.path, start=start, size=length)
 
     def _static(self, method: str, route: str) -> Response:
         if method not in ("GET", "HEAD"):
@@ -171,7 +221,7 @@ class PhoneApp:
 
 
 _ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget",
-           "/api/controls", "/api/control"}  # fmt: skip
+           "/api/controls", "/api/control", "/api/screen"}  # fmt: skip
 
 
 def _handler(app: PhoneApp):
@@ -206,10 +256,23 @@ def _handler(app: PhoneApp):
             for name, value in {**SECURITY, **response.headers}.items():
                 self.send_header(name, value)
             self.send_header("Content-Type", response.type)
-            self.send_header("Content-Length", str(len(response.body)))
+            size = response.size if response.path is not None else len(response.body)
+            self.send_header("Content-Length", str(size))
             self.end_headers()
-            if method != "HEAD":
+            if method == "HEAD":
+                return
+            if response.path is None:
                 self.wfile.write(response.body)
+                return
+            with open(response.path, "rb") as file:  # a piece at a time, never all of it
+                file.seek(response.start)
+                left = response.size
+                while left > 0:
+                    piece = file.read(min(CHUNK, left))
+                    if not piece:
+                        break
+                    self.wfile.write(piece)
+                    left -= len(piece)
 
         def do_GET(self) -> None:  # noqa: N802 - http.server's names
             self._serve("GET")
@@ -265,10 +328,11 @@ class PhoneService:
     """Abdoh from your phone: the paired phones, the hub and the server, started and stopped
     with the Phone switch in Settings."""
 
-    def __init__(self, cfg, bus, hear=None, voice=None, modes=None, server_class=None):
+    def __init__(self, cfg, bus, hear=None, voice=None, modes=None, screen=None,
+                 server_class=None):  # fmt: skip
         self.port = cfg.phone_port
         self.phones = Phones(cfg.app_dir / FILE)
-        self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes)
+        self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes, screen=screen)
         self.app = PhoneApp(self.hub, self.phones)
         self.server = (server_class or PhoneServer)(self.app, self.port)
 

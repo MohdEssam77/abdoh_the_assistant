@@ -35,6 +35,14 @@
       later(580, { type: "done", for: "demo-phone" });
       return;
     }
+    if (/^open/.test(lower)) { // opened on the computer: the screen comes a moment later
+      later(300, { type: "step", text: "Opened Music", for: "demo-phone" });
+      later(700, { type: "history", line: "Abdoh: Done: open app Music." });
+      later(760, { type: "status", text: "Listening" });
+      later(800, { type: "done", for: "demo-phone" });
+      later(1900, { type: "image", id: "demo-shot", src: picture(), caption: "Opened Music", for: "demo-phone" });
+      return;
+    }
     const sentences = /lamp|light/.test(lower) ? ["The desk lamp is off now."]
       : /vegetarian/.test(lower) ? ["Good news, it already is.", "Add a handful of spinach at the end if you like."]
       : /dinner|cook/.test(lower) ? ["How about pasta tonight?", "You have spaghetti and garlic, so aglio e olio works.", "Want the steps?"]
@@ -51,12 +59,29 @@
     later(1450 + sentences.length * 900, { type: "done", for: "demo-phone" });
   }
 
+  // A made-up picture of the computer's screen: a desktop with a music app open.
+  function picture() {
+    const rows = ["Morning jazz", "Focus beats", "Late night piano", "Coffee house", "Sunday soul", "Rainy day"]
+      .map((name, i) => `<rect x='470' y='${330 + i * 74}' width='960' height='62' rx='8' fill='${i === 0 ? "#1f3a2e" : "#181818"}'/>`
+        + `<text x='500' y='${369 + i * 74}' fill='${i === 0 ? "#4ade80" : "#e5e5e5"}' font-size='24'>${i + 1}.  ${name}</text>`).join("");
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' font-family='Segoe UI, Arial, sans-serif'>`
+      + "<rect width='1600' height='1000' fill='#22384d'/><rect x='120' y='60' width='1360' height='850' rx='14' fill='#121212'/>"
+      + "<rect x='120' y='60' width='1360' height='46' rx='14' fill='#1f1f1f'/><text x='150' y='91' fill='#ccc' font-size='19'>Music</text>"
+      + "<rect x='120' y='106' width='310' height='804' fill='#0a0a0a'/><text x='160' y='170' fill='#fff' font-size='26' font-weight='700'>Home</text>"
+      + "<text x='160' y='220' fill='#9ca3af' font-size='22'>Search</text><text x='160' y='265' fill='#9ca3af' font-size='22'>Your library</text>"
+      + "<rect x='470' y='140' width='150' height='150' rx='10' fill='#0d9668'/><text x='650' y='200' fill='#fff' font-size='44' font-weight='800'>Jazz for the evening</text>"
+      + `<text x='650' y='250' fill='#9ca3af' font-size='22'>Playlist · 6 songs</text>${rows}`
+      + "<rect x='0' y='952' width='1600' height='48' fill='#0b1220'/><circle cx='800' cy='976' r='12' fill='#60a5fa'/></svg>";
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  }
+
   // What "you" say into the demo's microphone, in turn (a call goes on with the next).
   const SAID = ["help me plan dinner tonight", "yes, the quick steps please", "turn off the desk lamp"];
   let said = 0;
 
   window.AbdohDemo = {
     key: () => (kind === "pair" || kind === "install" ? null : "demo-key"),
+    picture,
     async api(method, path, body) {
       await new Promise((r) => setTimeout(r, 60));
       if (path === "/api/pair") return { key: "demo-key" };
@@ -81,6 +106,7 @@
         setTimeout(() => answer(heard), 700);
         return { ok: true, text: heard };
       }
+      if (path === "/api/screen") return { ok: true, id: "demo" };
       if (path === "/api/stop") { push({ type: "status", text: "Listening" }); return { ok: true }; }
       if (path === "/api/controls") return { modes: ["Work", "Movie night", "Focus", "Gaming"], mode: kind === "empty" ? "" : "Work" };
       if (path === "/api/control" && body.kind === "mode") {
