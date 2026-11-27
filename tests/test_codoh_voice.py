@@ -159,15 +159,47 @@ def test_a_voice_chat_says_what_it_needs_and_when_its_done(world):
     assert wait_for(world.said, 2)[1] == "Codoh is done: The build works now."
 
 
-def test_a_chat_typed_on_the_page_stays_quiet(world):
+def test_a_chat_typed_on_the_page_stays_quiet_while_you_look_at_it(world):
     chat = world.chat()
     world.codoh.send(chat, "build it")
+    world.codoh.chat(chat)  # the page shows it
+    world.codoh.page_open = True
+    world.codoh.window_open = lambda: True
     engine = world.engines[0]
     ask(engine)
     engine.on_event({"type": "done", "ok": True, "seconds": 3})
     time.sleep(0.1)
     assert world.said == []
     assert items(world.codoh, chat, "approval")[0]["state"] == "expired"
+
+
+@pytest.mark.parametrize(
+    "window, page, shown",
+    [(False, True, True), (True, False, True), (True, True, False)],
+    ids=["minimized", "another page", "another chat"],
+)
+def test_a_chat_typed_on_the_page_speaks_up_when_you_dont_look(world, window, page, shown):
+    chat = world.chat()
+    world.codoh.send(chat, "build it")
+    world.codoh.viewing = chat if shown else "other"
+    world.codoh.page_open = page
+    world.codoh.window_open = lambda: window
+    engine = world.engines[0]
+    ask(engine)
+    assert wait_for(world.said) == ["Codoh wants to run a command: Build it. Allow it?"]
+    run(world, "allow")  # by voice: Abdoh found the chat it was waiting in
+    engine.on_event({"type": "text", "delta": "Built."})
+    engine.on_event({"type": "done", "ok": True, "seconds": 3})
+    assert wait_for(world.said, 2)[1] == "Codoh is done: Built."
+
+
+def test_a_voice_chat_speaks_up_even_while_you_look(world):
+    result = run(world, "new | weather app | build it")
+    world.codoh.page_open = True
+    world.codoh.window_open = lambda: True
+    assert world.codoh.viewing == result.chat
+    ask(world.engines[0])
+    assert wait_for(world.said) == ["Codoh wants to run a command: Build it. Allow it?"]
 
 
 def test_the_question_is_said_with_its_options():
@@ -243,8 +275,9 @@ def test_the_daemon_shows_the_chat_and_says_the_notices(tmp_path, monkeypatch):
     daemon.cfg = Config(app_dir=tmp_path)
     daemon.bus = Bus()
     daemon.bus.ui_attached = True
+    daemon._window_open = True
     codoh = daemon._codoh()
-    assert codoh.on_notice == daemon._say_aside
+    assert codoh.on_notice == daemon._say_aside and codoh.window_open() is True
     daemon._show_codoh("c1")
     assert daemon.bus.pending_events() == [("show", None), ("codoh_open", "c1")]
 

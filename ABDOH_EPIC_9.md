@@ -385,6 +385,14 @@ and git's changed files. The page-open brief stays (no round trip for the chat o
 Checked with real Claude Code twice: a chat typed on the page with a to-do list, waiting for an
 OK, the page not showing; "what is Codoh doing right now?" and "what's left?" answered right.
 
+### Story 127: Codoh speaks up for every chat (`story/127-codoh-speaks-up`)
+Chats typed on the Codoh page now speak up too ("Codoh wants to … Allow it?", "Codoh is done:
+…") when the user isn't looking at them: Abdoh's window minimized or hidden, another page, or
+another chat on the Codoh page. A chat whose latest message came by voice speaks up always. The
+daemon connects Codoh's voice at start (not only after the first ACTION codoh). Found on the
+way: reading what a chat waits for went through the page's `chat()`, which counts as looking at
+it, and silenced its "done".
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and

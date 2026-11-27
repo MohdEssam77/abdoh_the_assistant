@@ -224,9 +224,14 @@ def _model(codoh, said: str) -> str:
 
 
 def _waiting(codoh, chat: str) -> dict | None:
-    found = codoh.chat(chat)
-    waiting = [i for i in found.get("items", []) if i.get("kind") == "approval"
-               and i.get("state") == "waiting"]  # fmt: skip
+    """What the chat waits for the user to allow or answer. Read directly: codoh.chat() is the
+    page asking, and would count as the user looking at the chat."""
+    found = codoh._chat(chat)
+    if found is None:
+        return None
+    with found.lock:
+        waiting = [dict(i) for i in found.items if i.get("kind") == "approval"
+                   and i.get("state") == "waiting"]  # fmt: skip
     return waiting[-1] if waiting else None
 
 

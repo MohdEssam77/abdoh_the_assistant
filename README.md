@@ -451,10 +451,12 @@ each command with its output.
   my code folder and have Codoh start a canvas game", "tell Codoh to run the tests too", "switch
   Codoh to Opus" or "to full access", "stop Codoh". Abdoh finds the folder by its name (Codoh's
   folders, then your home folder, Documents, Desktop and the usual code folders), opens the Codoh
-  page with the chat, and passes on what you said. For chats started this way it tells you out
-  loud when Codoh needs you ("Codoh wants to change calc.py. Allow it?": say "yes, allow it",
-  "no" or the answer to its question) and when it's done ("Codoh is done: Fixed add in
-  calc.py."). Checked with real Claude Code both sides: a chat made by voice in a folder named by
+  page with the chat, and passes on what you said. It tells you out loud when Codoh needs you
+  ("Codoh wants to change calc.py. Allow it?": say "yes, allow it", "no" or the answer to its
+  question) and when it's done ("Codoh is done: Fixed add in calc.py."): always for chats you
+  sent to by voice, and for chats you typed on the Codoh page whenever you aren't looking at
+  them (Abdoh minimized, another page or chat, another app; when you are, the card is right
+  there). Checked with real Claude Code both sides: a chat made by voice in a folder named by
   voice, the change allowed by voice, the bug fixed.
 - **Ask Abdoh about Codoh any time**: "what is Codoh doing?", "what's left?", "give me a summary
   of the portfolio chat", whether you started the chat by voice or on the Codoh page, and while
