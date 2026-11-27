@@ -64,6 +64,11 @@
         return { ok: true, text: heard };
       }
       if (path === "/api/stop") { push({ type: "status", text: "Listening" }); return { ok: true }; }
+      if (path === "/api/controls") return { modes: ["Work", "Movie night", "Focus", "Gaming"], mode: kind === "empty" ? "" : "Work" };
+      if (path === "/api/control" && body.kind === "mode") {
+        push({ type: "mode", name: body.value });
+        push({ type: "history", line: `Abdoh: ${body.value ? `${body.value} mode is on.` : "Back to normal."}` });
+      }
       return { ok: true };
     },
   };

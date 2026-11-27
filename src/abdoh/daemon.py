@@ -1191,6 +1191,8 @@ class Daemon:
             text = str((value or {}).get("text") or "").strip()
             if text:
                 self.handle_text(text, phone=True)
+        elif kind == "phone_control":  # the phone's quick controls: {"kind", "value"}
+            self._phone_control(value)
         elif kind == "pause":
             self.set_paused(True)
         elif kind == "resume":
@@ -1291,7 +1293,8 @@ class Daemon:
             return
         from abdoh.phone.server import PhoneService
 
-        service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice)
+        service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice,
+                               modes=lambda: self.modes.names() if self.modes else [])  # fmt: skip
         try:
             service.start()
         except OSError as e:
@@ -1318,6 +1321,29 @@ class Daemon:
         log.info("Heard from the phone: %r", text)
         return text
 
+    def _phone_control(self, value) -> None:
+        """A quick control on the phone: a mode, music and volume, or locking the computer."""
+        from abdoh.commands.actions import ActionError
+
+        kind = str((value or {}).get("kind") or "")
+        arg = str((value or {}).get("value") or "")
+        computer = getattr(self.router, "computer", None)
+        log.info("The phone's controls: %s %s", kind, arg)
+        try:
+            if kind == "mode":
+                with self._handle_lock:  # its question (screens missing) goes to the phone
+                    self._phone_turn = True
+                    try:
+                        self._switch_mode(arg)
+                    finally:
+                        self._phone_turn = False
+            elif kind == "media" and computer is not None:
+                computer.media(arg)
+            elif kind == "lock" and computer is not None:
+                computer.lock()
+        except ActionError as e:
+            self.bus.emit("history", f"Abdoh: {e}")
+
     def _phone_voice(self, text: str) -> bytes | None:
         """A sentence in Abdoh's voice as WAV for the phone, or None: the phone's own voice
         says it (the Windows voice can't make audio to send)."""
@@ -1334,7 +1360,7 @@ class Daemon:
             message = self.bus.next_request(timeout=0.2)
             if not message:
                 continue
-            if message[0] in ("text", "phone"):
+            if message[0] in ("text", "phone", "phone_control"):
                 threading.Thread(
                     target=self._safe_request, args=message, name="abdoh-typed", daemon=True
                 ).start()
@@ -1421,7 +1447,9 @@ class Daemon:
             reply = SORRY
         if isinstance(reply, Question):  # it needs screens that aren't there: ask, and listen
             self.say(reply)
-            if self.voice_enabled:
+            if self._phone_turn:  # asked from the phone: Yes and No there
+                self.bus.emit("phone_question", str(reply))
+            elif self.voice_enabled:
                 self.push_to_talk()
             return
         self.bus.emit("history", f"Abdoh: {reply}")

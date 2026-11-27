@@ -123,6 +123,8 @@ class PhoneApp:
             except ValueError:
                 after = 0
             return answer(self.hub.events(after))
+        if method == "GET" and route == "/api/controls":
+            return answer(self.hub.controls())
         if method == "GET" and route.startswith("/api/audio/"):
             wav = self.hub.audio(route.rsplit("/", 1)[-1])
             if wav is None:
@@ -142,6 +144,11 @@ class PhoneApp:
         if route == "/api/stop":
             self.hub.stop()
             return answer({"ok": True})
+        if route == "/api/control":
+            data = _json(body[:MAX_JSON])
+            self.hub.control(str(data.get("kind") or ""), str(data.get("value") or ""),
+                             bool(data.get("speak")), phone["id"])  # fmt: skip
+            return answer({"ok": True})
         if route == "/api/forget":
             self.phones.remove(phone["id"])
             return answer({"ok": True})
@@ -160,7 +167,8 @@ class PhoneApp:
         return Response(200, path.read_bytes(), kind, {"Cache-Control": "no-cache"})
 
 
-_ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget"}
+_ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget",
+           "/api/controls", "/api/control"}  # fmt: skip
 
 
 def _handler(app: PhoneApp):
@@ -254,10 +262,10 @@ class PhoneService:
     """Abdoh from your phone: the paired phones, the hub and the server, started and stopped
     with the Phone switch in Settings."""
 
-    def __init__(self, cfg, bus, hear=None, voice=None, server_class=None):
+    def __init__(self, cfg, bus, hear=None, voice=None, modes=None, server_class=None):
         self.port = cfg.phone_port
         self.phones = Phones(cfg.app_dir / FILE)
-        self.hub = PhoneHub(bus, hear=hear, voice=voice)
+        self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes)
         self.app = PhoneApp(self.hub, self.phones)
         self.server = (server_class or PhoneServer)(self.app, self.port)
 
