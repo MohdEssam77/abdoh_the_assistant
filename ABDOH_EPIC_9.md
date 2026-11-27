@@ -407,6 +407,12 @@ function and feature, check for bugs, make it better, faster, better looking". D
 - Settings' section chips; steady page layout; the window polls less when hidden; quieter,
   truer logs; programs Abdoh starts can't hang it.
 
+### Release 0.13.2 (2026-11-27)
+Story 129 (pull request #3, reviewed and merged by the owner), on the owner's go: one voice at a
+time, the webcam echo (own words, false-alarm learning), Codoh's queue, the wake word while the
+speech model loads, Settings' chips, and the smaller fixes. The build was run in isolation first
+(`--version`, `list-commands`; the new modules are inside).
+
 ### Release 0.13.1 (2026-11-27)
 Stories 122 to 127, on the owner's go: the webcam echo, Codoh's Full access and question cards,
 Abdoh knowing Codoh, Codoh by voice, asking about Codoh any time, Codoh speaking up, and the
