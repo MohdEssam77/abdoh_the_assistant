@@ -400,6 +400,9 @@ class ClaudeCodeBrain(Brain):
         self._closed = False
         self._interrupts = 0  # numbers the interrupt requests
         self._started_with: tuple | None = None  # see same_setup
+        # The screenshot was handed over and Claude hasn't read it yet: that Read is Abdoh
+        # looking at the screen (it already said so), not "Looking at a file".
+        self._screenshot_unread = False
 
     def tools(self) -> list[str]:
         tools = ["Read"]
@@ -609,6 +612,7 @@ class ClaudeCodeBrain(Brain):
         if image_png:
             self.workdir.mkdir(parents=True, exist_ok=True)
             shot.write_bytes(image_png)
+            self._screenshot_unread = True
             prompt += (
                 f"\n\nThe screenshot is the file {SCREENSHOT} in the current folder. "
                 "Read it with the Read tool."
@@ -628,6 +632,7 @@ class ClaudeCodeBrain(Brain):
                         raise
                     log.info("Claude Code gave no answer; asking once more")
         finally:
+            self._screenshot_unread = False
             shot.unlink(missing_ok=True)
 
     def _ask(self, prompt: str) -> Iterator[str]:
@@ -724,6 +729,10 @@ class ClaudeCodeBrain(Brain):
             timer.cancel()
 
     def _on_tool(self, tool: str) -> None:
+        if tool == "Read" and self._screenshot_unread:
+            self._screenshot_unread = False
+            log.info("Claude is reading the screenshot")
+            return  # not "Looking at a file": it's the screen, and Abdoh said it looks
         log.info("Claude is using %s", tool)
         notify = self.on_activity
         if notify:

@@ -541,6 +541,37 @@ def test_tools_are_reported_as_activity(tmp_path):
     brain.close()
 
 
+def tool_start(name):
+    block = {"type": "tool_use", "name": name}
+    event = {"type": "content_block_start", "content_block": block}
+    return json.dumps({"type": "stream_event", "event": event})
+
+
+def test_reading_the_screenshot_is_not_looking_at_a_file(tmp_path):
+    """Watching the screen: Claude reads screenshot.png each time, and Abdoh kept saying
+    "Looking at a file". Reading the screenshot is quiet; a file read after it is still said."""
+    lines = [tool_start("Read"), delta("Nice chair."), result()]
+    popen = FakePopen(lines + [tool_start("Read"), tool_start("Read"), delta("Done."), result()])
+    brain = make_brain(tmp_path, popen)
+    seen = []
+    brain.on_activity = seen.append
+    assert "".join(brain.stream("what's this?", image_png=b"PNG")) == "Nice chair."
+    assert seen == []
+    assert "".join(brain.stream("and that file?", image_png=b"PNG")) == "Done."
+    assert seen == ["Looking at a file"]  # the screenshot first, then a real file
+    brain.close()
+
+
+def test_a_file_read_without_a_screenshot_is_said(tmp_path):
+    popen = FakePopen([tool_start("Read"), delta("It says hi."), result()])
+    brain = make_brain(tmp_path, popen)
+    seen = []
+    brain.on_activity = seen.append
+    assert "".join(brain.stream("read my notes")) == "It says hi."
+    assert seen == ["Looking at a file"]
+    brain.close()
+
+
 def test_screenshot_is_given_as_a_file_and_removed(tmp_path):
     popen = FakePopen([delta("It shows a cat."), result()])
     brain = make_brain(tmp_path, popen)
