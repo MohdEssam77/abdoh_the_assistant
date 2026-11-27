@@ -33,7 +33,11 @@ UNCLEAR_MIN_SECONDS = 0.5
 # (you, quietly or late, or the TV). Rooms in the logs stay under 200; speech goes far above.
 SOUND_AFTER_WAKE = 500
 # A transcription slower than this is logged: the speech model was probably out of memory.
-SLOW_TRANSCRIPTION_SECONDS = 0.6
+# Understanding what was said took longer than this, plus a little for each second of speech:
+# the speech model was probably paged out (0.7 s for 15 s of speech is normal, and was warned
+# about).
+SLOW_TRANSCRIPTION_SECONDS = 0.8
+SLOW_PER_SECOND = 0.1
 # An answer that came out as no words (an "um", a breath, a click, Abdoh's own echo): listen
 # again, up to this many more times, instead of giving up on the answer.
 NO_WORDS_RETRIES = 2
@@ -194,9 +198,13 @@ def _transcribe(transcriber, audio: bytes) -> str:
     log.info(
         "Timing: you spoke for %.1fs, understood in %.2fs", len(audio) / BYTES_PER_SECOND, spent
     )
-    if spent > SLOW_TRANSCRIPTION_SECONDS:
+    seconds = len(audio) / BYTES_PER_SECOND
+    if spent > SLOW_TRANSCRIPTION_SECONDS + SLOW_PER_SECOND * seconds:
         log.warning(
-            "Slow transcription (%.2fs): the speech model was probably out of memory", spent
+            "Slow transcription (%.2fs for %.1fs of speech): the speech model may have been "
+            "out of memory",
+            spent,
+            seconds,
         )
     return text
 

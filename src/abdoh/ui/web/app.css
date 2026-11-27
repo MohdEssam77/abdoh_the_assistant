@@ -178,7 +178,7 @@ main { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
   min-height: 62px;
 }
 .topbar h1 { font-size: 18px; font-weight: 650; }
-.scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }  /* no jump between pages */
 .content { max-width: 860px; margin: 0 auto; padding: 24px 28px 48px; }
 .page-head { margin: 4px 0 20px; }
 .page-head h1 { font-size: 24px; font-weight: 700; }

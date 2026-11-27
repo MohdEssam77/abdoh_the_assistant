@@ -73,7 +73,7 @@ CAUTION_EASE = 0.9
 # Abdoh's voice has been playing this long, but the speakers it hears are silent: it plays on
 # other speakers than the ones it listens to (or hearing them failed), so its own voice can't
 # be told from yours. Talking over it waits until they aren't silent.
-MISSING_AFTER_SECONDS = 0.6
+MISSING_AFTER_SECONDS = 1.0  # (0.6 warned at every first sentence: speakers wake up slowly)
 
 
 def _rms(frame: bytes) -> float:

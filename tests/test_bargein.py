@@ -479,12 +479,12 @@ def test_abdohs_voice_playing_on_other_speakers_never_counts(caplog):
     """Abdoh plays, but the speakers it hears are silent: its own voice can't be told from yours."""
     watch = VoiceWatch(TimedTap(level=0), PassThrough(), FakeVad(), raw_vad=FakeVad())
     watch.speaking(True, 10.0)
-    loud = [tone(0.1, 9000).tobytes()] * 10
+    loud = [tone(0.1, 9000).tobytes()] * 15
     with caplog.at_level("WARNING"):
         assert not any(watch.feed(b, 10.05 + i * 0.1) for i, b in enumerate(loud))
     warnings = [r for r in caplog.records if "sound silent" in r.getMessage()]
     assert len(warnings) == 1 and "Monitor speakers" in warnings[0].getMessage()
-    watch.speaking(False, 11.1)
+    watch.speaking(False, 11.6)
     assert feed_blocks(watch, [tone(0.1, 9000).tobytes()]) == 0  # Abdoh quiet: that's you
 
 
