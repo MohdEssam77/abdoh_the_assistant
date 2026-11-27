@@ -1,9 +1,9 @@
 # CLAUDE.md
 
 Abdoh (called Xanthos, then Krekos, for a while; the code always used the `abdoh` package name)
-is a simple, voice-first personal assistant. `ABDOH_EPIC_9.md` is the current source of truth:
-work through its stories in order. Epics 1 to 8 (`ABDOH_EPIC.md` to `ABDOH_EPIC_8.md`) are done; their architecture still
-applies unless epic 9 changes it.
+is a simple, voice-first personal assistant. `ABDOH_EPIC_10.md` is the current source of truth:
+work through its stories in order. Epics 1 to 9 (`ABDOH_EPIC.md` to `ABDOH_EPIC_9.md`) are done; their architecture still
+applies unless epic 10 changes it.
 
 ## Working rules
 
