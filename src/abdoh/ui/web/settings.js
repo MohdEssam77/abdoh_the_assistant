@@ -785,7 +785,8 @@
       el("div", { class: "page-head" }, el("h1", {}, "Settings")),
       restartBanner(),
       ...extra,
-      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speech, lampsCard(), generalCard(login),
+      voiceCard(voices), micCard(mics), wakeCard(), conversationCard(), speech, lampsCard(),
+      window.PhoneCard ? window.PhoneCard() : null, generalCard(login),
       advancedCard(models),
       el("p", { class: "faint", style: "text-align:center;margin:8px 0 0" }, `Abdoh ${App.version}`),
     ].filter(Boolean));

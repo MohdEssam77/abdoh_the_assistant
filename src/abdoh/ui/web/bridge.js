@@ -589,8 +589,38 @@ const Bridge = (() => {
         return { state: "downloading", version: "0.13.4", percent: 0 };
       },
       update_status: async () => ({ state: "idle" }),
+      // Settings → Phone: ?phone=off | install | signin | share | https | ready (the default)
+      phone_state: async () => demoPhone.state(),
+      phone_share: async () => demoPhone.share(),
+      phone_unshare: async () => ({ ok: true }),
+      phone_pair: async () => ({ ok: true, url: "https://laptop.tail1234.ts.net/#pair=Q2h3dGVzdC1jb2RlLW5vdC1yZWFs", minutes: 30,
+        qr: '<svg viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg"><rect width="29" height="29" fill="#fff"/><path fill="#111" d="M2 2h7v7H2zM20 2h7v7h-7zM2 20h7v7H2zM4 4v3h3V4zM22 4v3h3V4zM4 22v3h3v-3zM11 2h2v2h-2zM14 4h2v3h-2zM11 8h3v2h-3zM16 10h3v2h-3zM10 12h2v4h-2zM13 13h4v2h-4zM18 14h3v3h-3zM22 12h3v2h-3zM11 17h2v3h-2zM14 18h4v2h-4zM20 19h2v3h-2zM23 21h4v2h-4zM12 22h3v3h-3zM16 23h3v4h-3zM21 25h4v2h-4zM2 11h3v2H2zM6 13h3v3H6zM2 16h2v2H2z"/></svg>' }),
+      phone_remove: async (id) => { demoPhone.phones = demoPhone.phones.filter((p) => p.id !== id); return { ok: true, phones: demoPhone.phones }; },
+      open_power_settings: async () => {},
     };
   }
+
+  /* The demo's Settings → Phone. */
+  const demoPhone = {
+    stage: params.get("phone") || "ready",
+    phones: [{ id: "a1", name: "iPhone", added: Date.now() / 1000 - 86400 * 3, seen: Date.now() / 1000 - 300 }],
+    state() {
+      const s = this.stage;
+      const order = ["off", "install", "signin", "share", "https", "ready"];
+      const at = order.indexOf(s);
+      return {
+        on: s !== "off", running: s !== "off", port: 47811, error: "", download: "https://tailscale.com/download",
+        phones: s === "off" || at >= 5 ? this.phones : [],
+        tailscale: { installed: at >= 2, running: at >= 3, signed_in: at >= 3, https: at >= 5, shared: at >= 5,
+          address: at >= 3 ? "https://laptop.tail1234.ts.net" : "", error: "" },
+      };
+    },
+    share() {
+      if (this.stage === "share") { this.stage = "https"; return { ok: false, link: "https://login.tailscale.com/f/serve?node=demo" }; }
+      this.stage = "ready";
+      return { ok: true };
+    },
+  };
 
   const ready = new Promise((resolve) => {
     if (params.has("demo")) return resolve(demoApi());

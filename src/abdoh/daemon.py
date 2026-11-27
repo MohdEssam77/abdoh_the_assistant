@@ -202,6 +202,7 @@ class Daemon:
         # Abdoh from your phone (abdoh/phone): the service while the Phone switch is on, and
         # whether the request being answered came from the phone (its reply goes there).
         self.phone = None
+        self.phone_error = ""  # why the phone page couldn't start (its port is taken)
         self._phone_turn = False
         if hasattr(speaker, "on_missing_voice"):
             speaker.on_missing_voice = self._missing_voice
@@ -1295,9 +1296,10 @@ class Daemon:
             service.start()
         except OSError as e:
             log.warning("The phone page couldn't start on port %d: %s", self.cfg.phone_port, e)
-            self.bus.emit("phone", {"error": PHONE_PORT_TAKEN.format(port=self.cfg.phone_port)})
+            self.phone_error = PHONE_PORT_TAKEN.format(port=self.cfg.phone_port)
+            self.bus.emit("phone", {"error": self.phone_error})
             return
-        self.phone = service
+        self.phone, self.phone_error = service, ""
         self.bus.emit("phone", {"error": ""})
 
     def _phone_off(self) -> None:

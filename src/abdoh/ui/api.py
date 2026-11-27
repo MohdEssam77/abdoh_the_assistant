@@ -893,6 +893,72 @@ class AppApi:
         self._open_path(path)
         return True
 
+    # ----- Abdoh from your phone (abdoh/phone, ABDOH_EPIC_10.md) -----
+
+    def _tailscale(self):
+        if getattr(self, "_tailscale_cli", None) is None:
+            from abdoh.phone.tailscale import Tailscale
+
+            self._tailscale_cli = Tailscale()
+        return self._tailscale_cli
+
+    def _phones(self):
+        """The paired phones: the running page's (it holds the pairing code), or the file."""
+        service = getattr(self._daemon, "phone", None)
+        if service is not None:
+            return service.phones
+        from abdoh.phone.devices import FILE, Phones
+
+        return Phones(self._cfg.app_dir / FILE)
+
+    def phone_state(self) -> dict:
+        """Settings → Phone: the switch, Tailscale's state, the paired phones."""
+        from abdoh.phone.tailscale import DOWNLOAD
+
+        cfg = self._config()
+        service = getattr(self._daemon, "phone", None)
+        return {
+            "on": cfg.phone,
+            "running": service is not None,
+            "port": cfg.phone_port,
+            "error": getattr(self._daemon, "phone_error", "") if cfg.phone else "",
+            "tailscale": self._tailscale().state(cfg.phone_port),
+            "phones": self._phones().list(),
+            "download": DOWNLOAD,
+        }
+
+    def phone_share(self) -> dict:
+        """Share the phone page in your Tailscale network (tailscale serve)."""
+        result = self._tailscale().share(self._config().phone_port)
+        return {**result, "state": self.phone_state()}
+
+    def phone_unshare(self) -> dict:
+        return {"ok": self._tailscale().unshare()}
+
+    def phone_pair(self) -> dict:
+        """A one-time pairing link for a new phone, and its QR code (SVG)."""
+        import segno
+
+        from abdoh.phone.devices import CODE_SECONDS
+
+        service = getattr(self._daemon, "phone", None)
+        if service is None:
+            return {"ok": False, "error": "Turn on “Use Abdoh from your phone” first."}
+        tailscale = self._tailscale().state(self._config().phone_port)
+        if not tailscale["address"] or not tailscale["shared"]:
+            return {"ok": False, "error": "Finish the Tailscale steps above first."}
+        url = f"{tailscale['address']}/#pair={service.phones.new_code()}"
+        qr = segno.make(url, error="m").svg_inline(scale=5, border=2, dark="#111", light="#fff")
+        return {"ok": True, "url": url, "qr": qr, "minutes": CODE_SECONDS // 60}
+
+    def phone_remove(self, phone_id) -> dict:
+        phones = self._phones()
+        return {"ok": phones.remove(str(phone_id)), "phones": phones.list()}
+
+    def open_power_settings(self) -> None:
+        """Windows' power and sleep settings: a laptop that sleeps can't answer the phone."""
+        self._open_path("ms-settings:powersleep")
+
     def open_sound_settings(self) -> None:
         """Windows' sound settings, where a muted microphone can be turned on."""
         self._open_path("ms-settings:sound")
