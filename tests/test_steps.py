@@ -52,6 +52,11 @@ def test_things_to_do_one_after_another_are_split(said, steps):
         "Okay, thank you.",
         "Stop the music, please.",
         "open spotify",
+        # the owner's, 2026-11-26/27: each was done twice
+        "Can you please save this as a PDF? Save the board.",
+        "Um I want you to open uh a project of mine in Kodo, so the project is called Unigo.",
+        "Stop the music. Play some jazz.",  # two sentences, no "then": Claude does both
+        "open chrome and the files of my project",
     ],
 )
 def test_everything_else_stays_one_request(said):
