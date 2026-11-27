@@ -63,7 +63,7 @@ def test_apps_are_found_by_name_alias_or_close_spelling():
     assert ids(find_sessions("spotify app", all_)) == ["s"]
     assert ids(find_sessions("whatsapp", all_)) == ["w"]
     assert ids(find_sessions("spotfy", all_)) == ["s"]  # a speech recognition slip
-    assert find_sessions("abdoh", all_) == []  # never Abdoh's own voice
+    assert find_sessions("Brave", all_) and all(s.id != "me" for s in find_sessions("b", all_))
     assert find_sessions("the lights", all_) == []
     assert find_sessions("it", all_) == []
 
@@ -181,3 +181,50 @@ def test_the_commands_file_checks_app_volume():
     bad = "- name: work\n  triggers: [work]\n  actions:\n    - app_volume: browser\n"
     with pytest.raises(CommandsFileError, match="app_volume needs an app and a number"):
         parse_commands(yaml.safe_load(bad))
+
+
+# ----- Abdoh's own slider (the owner, 2026-11-27: "I can't find Abdoh in the volume mixer") -----
+
+
+def test_abdohs_own_sound_only_when_you_name_abdoh():
+    all_ = mixer().app_sessions()
+    for said in ("Abdoh", "abdoh's volume", "your volume", "yourself", "your voice", "you"):
+        assert ids(find_sessions(said, all_)) == ["me"], said
+    for said in ("the browser", "everything", "spotify", "python"):
+        assert "me" not in ids(find_sessions(said, all_)), said
+
+
+def test_abdoh_turns_itself_up_but_never_mutes_itself():
+    import pytest
+
+    from abdoh.computer import OWN_NO_MUTE
+
+    fake = mixer()
+    fake.sessions["me"] = replace(fake.sessions["me"], volume=40)
+    computer = Computer(audio=fake)
+    assert computer.set_app_volume("Abdoh", 100) == "Abdoh"  # what Claude wrote
+    assert fake.sessions["me"].volume == 100
+    assert fake.sessions["b1"].volume == 80  # the others untouched
+    with pytest.raises(ActionError, match="mute myself"):
+        computer.mute_app("yourself", True)
+    assert not fake.sessions["me"].muted and OWN_NO_MUTE
+
+
+def test_before_abdoh_has_spoken_its_slider_isnt_there_yet():
+    import pytest
+
+    from abdoh.computer import OWN_NOT_LISTED
+
+    fake = mixer()
+    del fake.sessions["me"]
+    with pytest.raises(ActionError) as said:
+        Computer(audio=fake).set_app_volume("Abdoh", 100)
+    assert str(said.value) == OWN_NOT_LISTED
+
+
+def test_saying_turn_yourself_up_needs_no_claude():
+    fake = mixer()
+    fake.sessions["me"] = replace(fake.sessions["me"], volume=40)
+    skills = LocalSkills(Computer(audio=fake))
+    reply = skills.handle("set your volume to 100", "set your volume to 100")
+    assert str(reply) == "Abdoh at 100 percent." and fake.sessions["me"].volume == 100

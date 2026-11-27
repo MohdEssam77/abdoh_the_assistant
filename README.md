@@ -579,7 +579,9 @@ These work instantly, without Claude (your own commands still come first):
   "what's the volume"
 - **One app's volume** (the Windows volume mixer): "lower the browser", "turn up Spotify",
   "set the browser to 30 percent", "mute Discord", "unmute Discord", "what's playing?".
-  "Browser" (or "YouTube") means every web browser.
+  "Browser" (or "YouTube") means every web browser. Abdoh's own slider too, when you name it:
+  "set your volume to 100", "Abdoh louder" (no other name ever turns Abdoh down, and it won't
+  mute itself: turn voice replies off for that).
 - **Music**: "pause", "play", "next song", "previous song"
 - **Screen**: "set the brightness to 60", "brighter", "dim the screen" (a laptop's own screen),
   "take a screenshot" (saved in Pictures\Screenshots)

@@ -373,12 +373,14 @@ class Computer:
 
     def find_app_audio(self, name: str) -> list:
         """The mixer's sessions for an app you named ("the browser", "Spotify"); [] if none.
-        Abdoh's own sound never counts."""
+        Abdoh's own sound only when you name Abdoh itself ("your volume")."""
         return find_sessions(name, self._mixer().app_sessions())
 
     def _app_sessions(self, name: str) -> list:
         found = self.find_app_audio(name)
         if not found:
+            if means_abdoh(name):  # Windows lists it once Abdoh has said something
+                raise ActionError(OWN_NOT_LISTED)
             raise ActionError(f"I can't find {name.strip()} in the volume mixer.")
         return found
 
@@ -404,6 +406,8 @@ class Computer:
 
     def mute_app(self, name: str, muted: bool) -> str:
         found = self._app_sessions(name)
+        if muted and all(s.pid == os.getpid() for s in found):
+            raise ActionError(OWN_NO_MUTE)  # muted, Abdoh couldn't say anything anymore
         for session in found:
             self._mixer().set_session_volume(session.id, muted=muted)
         return app_label(found[0])
@@ -727,10 +731,32 @@ APP_ALIASES = {
 }
 NICE_NAMES = {"msedge": "Edge", "ms-teams": "Teams", "music.ui": "Media Player"}
 _FILLER_WORDS = re.compile(r"^(?:the|my) |(?: app| application| volume| sound| audio| tab)+$")
+# Abdoh itself (what's left of "your volume", "Abdoh's sound", "yourself" ...): its own slider,
+# which no other name ever reaches ("turn the browser down" never turns Abdoh down).
+ABDOH_NAMES = frozenset(
+    {
+        "abdoh", "abdo", "abdou", "abdu", "krekos", "xanthos",  # its names, as heard
+        "you", "your", "yourself", "your own", "your voice", "your own voice", "voice",
+        "assistant", "the assistant",
+    }
+)  # fmt: skip
+OWN_NOT_LISTED = (
+    "My own sound isn't in the volume mixer yet: Windows lists it once I've said something."
+)
+OWN_NO_MUTE = "If I mute myself I can't talk at all: turn voice replies off instead."
+
+
+def means_abdoh(name: str) -> bool:
+    """The name you gave is Abdoh itself ("your volume", "Abdoh's sound", "yourself")."""
+    wanted = re.sub(r"'s\b", "", " ".join(str(name).lower().split()))
+    wanted = _FILLER_WORDS.sub("", _FILLER_WORDS.sub("", wanted)).strip()
+    return wanted in ABDOH_NAMES
 
 
 def app_label(session) -> str:
     """A name to say for a mixer session: "Brave", "Spotify", "WhatsApp"."""
+    if session.pid == os.getpid():
+        return "Abdoh"  # (run from source, its program is Python)
     program = session.program or ""
     if program.lower() in NICE_NAMES:
         return NICE_NAMES[program.lower()]
@@ -741,12 +767,14 @@ def app_label(session) -> str:
 
 def find_sessions(name: str, sessions) -> list:
     """The sessions an app's spoken name means: by alias ("browser"), program or mixer name;
-    a close spelling if nothing matches exactly. Never Abdoh's own."""
+    a close spelling if nothing matches exactly. Abdoh's own only when you name Abdoh itself."""
     wanted = _FILLER_WORDS.sub("", " ".join(name.lower().split()))
     wanted = _FILLER_WORDS.sub("", wanted).strip()
     if not wanted:
         return []
     own = os.getpid()
+    if means_abdoh(name):
+        return [s for s in sessions if s.pid == own]
     candidates = [s for s in sessions if s.pid not in (0, own)]
     programs = APP_ALIASES.get(wanted, ())
     squeezed = wanted.replace(" ", "")
