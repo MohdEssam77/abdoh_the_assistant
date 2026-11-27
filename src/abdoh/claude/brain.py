@@ -179,7 +179,8 @@ goes on. When they say they're done or want you to stop watching, write ACTION w
 say so in a few words.
 """
 # Claude has Codoh, the coding page, work for the user (abdoh/codoh/voice.py).
-CODOH = """Codoh is Abdoh's coding assistant (its own page): it works on the user's code in a \
+CODOH = """Codoh is Abdoh's coding assistant (its own page; speech recognition often writes it \
+"Kodo", "Codo" or "Kudo"): it works on the user's code in a \
 folder, with Claude Code or their ChatGPT plan. When the user wants Codoh to do something \
 ("make a chat in my portfolio folder and tell it to add a dark mode", "open the abdoh folder in \
 Codoh", "tell Codoh to run the tests too", "allow it", "switch Codoh to Opus"), don't do the \

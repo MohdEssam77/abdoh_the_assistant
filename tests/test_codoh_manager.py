@@ -433,6 +433,7 @@ def test_abdoh_open_codoh(tmp_path):
     router = Router(cfg, CommandRegistry(tmp_path / "none.yaml"))
     Daemon(cfg, router, FakeSpeaker(), None, FakeWakeWord(10_000), FakeTranscriber([]), bus=bus)
     assert router.handle("open codoh") == "Opening Codoh."
+    assert router.handle("open kodo") == "Opening Codoh."  # as speech recognition writes it
     events = bus.pending_events()
     assert ("show", None) in events and ("page", "codoh") in events
 

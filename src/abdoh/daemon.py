@@ -229,7 +229,17 @@ class Daemon:
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin(
             "open_codoh",
-            ["open codoh", "show codoh", "open the coding assistant", "codoh"],
+            # speech recognition often writes Codoh as Kodo, Codo or Kudo
+            [
+                "open codoh",
+                "show codoh",
+                "open the coding assistant",
+                "codoh",
+                "open kodo",
+                "show kodo",
+                "open codo",
+                "open kudo",
+            ],  # fmt: skip
             self._open_codoh,
         )
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
