@@ -507,3 +507,44 @@ def test_the_tap_counts_new_speakers(monkeypatch):
         time.sleep(0.01)
     tap.stop()
     assert tap.generation == 1 and tap.device_name == "monitor speakers"
+
+
+# ----- learning from false alarms (the owner's webcam, 2026-11-27) -----
+
+
+def test_a_false_alarm_makes_the_watch_harder_to_fool():
+    watch = raw_watch(tap_level=0)
+    assert feed_blocks(watch, [tone(0.1, 3000).tobytes()]) == 0  # you: heard at once
+    watch.rearm()
+    watch.false_alarm()  # it was Abdoh's own voice
+    watch.false_alarm()
+    assert 2.2 < watch.caution < 2.3
+    watch.reply_done()  # the false alarms were in that reply: no easing yet
+    assert 2.2 < watch.caution < 2.3
+    caution = watch.caution
+    watch.reply_done()  # a reply without one eases it
+    assert watch.caution < caution
+    for _ in range(100):
+        watch.reply_done()
+    assert watch.caution == 1.0
+
+
+def test_the_caution_has_a_limit_and_a_new_room_forgets_it():
+    watch = raw_watch()
+    for _ in range(20):
+        watch.false_alarm()
+    assert watch.caution == 8.0
+    watch.forget_room()
+    assert watch.caution == 1.0
+
+
+def test_with_caution_the_echo_needs_louder_speech():
+    watch = raw_watch()
+    assert feed_blocks(watch, [tone(0.1, 3000).tobytes()] * 100) is None  # gain 1.0 learned
+    watch.rearm()
+    assert feed_blocks(watch, [tone(0.1, 14000).tobytes()] * 2) in (0, 1)  # > 12 dB above
+    watch.rearm()
+    watch.false_alarm()  # +3.5 dB
+    assert feed_blocks(watch, [tone(0.1, 14000).tobytes()] * 2) is None
+    watch.rearm()
+    assert feed_blocks(watch, [tone(0.1, 20000).tobytes()] * 2) in (0, 1)

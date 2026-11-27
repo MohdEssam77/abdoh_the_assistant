@@ -787,6 +787,9 @@ class Daemon:
             finally:
                 if watcher is not None:
                     watcher()
+                done = getattr(self.voice_watch, "reply_done", None)
+                if done is not None:
+                    done()  # no false alarm this time: the watch eases off
             self._keep_exchange(text, kept, typed=not voice)
             self.earcons.stop_ticking()
             if not voice:
@@ -1061,6 +1064,10 @@ class Daemon:
             kind = "stop"  # you stopped it (or paused it) meanwhile: nothing more to do
         elif kind not in ("nothing", "backchannel") and self._own_words(text):
             kind = "echo"  # Abdoh's own words came back through the microphone: go on
+        if kind in ("echo", "nothing"):
+            false_alarm = getattr(watch, "false_alarm", None)
+            if false_alarm is not None:
+                false_alarm()  # it took Abdoh's voice (or a noise) for you: be harder to fool
         log.info("Heard %r over the reply (%s)", text, kind)
         if kind in ("nothing", "backchannel", "fragment", "echo"):
             if paused:

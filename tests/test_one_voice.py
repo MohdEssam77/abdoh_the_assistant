@@ -95,9 +95,18 @@ def explaining(daemon, count=30):
     return sentences
 
 
+class AlarmWatch(FakeWatch):
+    def __init__(self):
+        super().__init__()
+        self.alarms = 0
+
+    def false_alarm(self):
+        self.alarms += 1
+
+
 def test_its_own_words_heard_back_dont_stop_the_reply():
     router = Router()
-    watch = FakeWatch()
+    watch = AlarmWatch()
     daemon = make(router, watch)
     daemon.transcriber = Echo(daemon)
     router.replies = [explaining(daemon)]
@@ -105,6 +114,7 @@ def test_its_own_words_heard_back_dont_stop_the_reply():
     daemon._handle_spoken("Explain the automaton")
     assert router.requests == ["Explain the automaton"]  # no "request" from its own voice
     assert len(daemon.speaker.said) == 30 and daemon.speaker.resumes == 1
+    assert watch.alarms == 1  # the watch learns it was fooled
 
 
 def test_what_you_say_over_a_reply_may_be_ignored_by_claude():
