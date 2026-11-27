@@ -19,7 +19,8 @@ def world(tmp_path):
     for name in ("myportfolio", "abdoh_the_assistant", "weather-app"):
         (w.code / name).mkdir(parents=True)
     w.said = []
-    w.codoh.on_notice = w.said.append
+    w.stills = []
+    w.codoh.on_notice = lambda text, still=None: (w.said.append(text), w.stills.append(still))
     return w
 
 
@@ -277,7 +278,7 @@ def test_the_daemon_shows_the_chat_and_says_the_notices(tmp_path, monkeypatch):
     daemon.bus.ui_attached = True
     daemon._window_open = True
     codoh = daemon._codoh()
-    assert codoh.on_notice == daemon._say_aside and codoh.window_open() is True
+    assert codoh.on_notice == daemon.say_later and codoh.window_open() is True
     daemon._show_codoh("c1")
     assert daemon.bus.pending_events() == [("show", None), ("codoh_open", "c1")]
 

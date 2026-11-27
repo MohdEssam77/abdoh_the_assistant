@@ -101,6 +101,13 @@ CLIPBOARD_LIMIT = 4000
 CLIPBOARD_NOTE = '\n\nThe user\'s clipboard contains:\n"""\n{text}\n"""'
 COMMANDS_FILE_ERROR = "Your commands file has an error."
 NOTHING_TO_SAVE = "I didn't just do anything I could save as a command."
+# Heard while Abdoh was talking (you talked over the reply): maybe someone else in the room, or
+# Abdoh's own voice coming back through the microphone. Passed as `aside` (Router.handle).
+OVER_REPLY = (
+    "(Heard while you were talking, without your name: the user interrupting you, someone else "
+    "in the room, or your own voice coming back through the microphone. If it isn't meant for "
+    "you, or is just your own words, write only the line ACTION ignore: not for me.)\n"
+)
 # What you say right after a reply, without the wake word, may be meant for someone else.
 ASIDE = (
     "(Said right after your last reply, without your name. It may be meant for someone else "
@@ -319,7 +326,7 @@ class Router:
             return UNCLEAR
         return ""
 
-    def handle(self, text: str, aside: bool = False, woken: Wake = False) -> Reply:
+    def handle(self, text: str, aside: bool | str = False, woken: Wake = False) -> Reply:
         """Route one request. Returns the reply ("" means nothing to say). `aside`: said right
         after a reply without the wake word, so maybe to someone else; `woken`: said after the
         wake word, which may have been a mistake (True, or how clearly the name was heard:
@@ -412,7 +419,7 @@ class Router:
                 note = self._watching_note() if aside else ""
                 prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
                 return self._ask(prompt, original, screen=True, aside=True)
-            note = ASIDE if aside else woken_note(woken) if woken else ""
+            note = _aside_note(aside) if aside else woken_note(woken) if woken else ""
             prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
             return self._ask(prompt, original, aside=bool(aside or woken))
 
@@ -517,7 +524,7 @@ class Router:
                 reply = None if i == 0 else self._route_local(request, part)
                 turn.actions += self._done[before:]
                 if reply is None:
-                    note = ASIDE if aside else woken_note(woken) if woken else ""
+                    note = _aside_note(aside) if aside else woken_note(woken) if woken else ""
                     prompt = STEP.format(request=original, step=part)
                     prompt = self._unclear_note() + self._abdoh_did_note() + note + prompt
                     answer = self._ask(prompt, part, aside=bool(aside or woken))
@@ -1155,6 +1162,12 @@ def _together(replies: list[str]) -> str:
 def _drain(items: list[str]) -> Iterator[str]:
     while items:
         yield items.pop(0)
+
+
+def _aside_note(aside: bool | str) -> str:
+    """The note for something said without the wake word: after a reply (True), or the one
+    given (OVER_REPLY: heard while Abdoh talked)."""
+    return aside if isinstance(aside, str) else ASIDE
 
 
 def _prepend(first: str, rest: Iterator[str]) -> Iterator[str]:

@@ -154,7 +154,7 @@ def test_abdoh_says_why_it_cant(tmp_path):
     daemon.bus, daemon.cfg = Bus(), Config(app_dir=tmp_path)  # no OpenRouter key
     daemon._pictures, daemon._pictures_asked = None, set()
     said = []
-    daemon._say_aside = said.append
+    daemon.say_later = lambda text, still=None: said.append(text)
     daemon._pictures = Pictures(tmp_path, ai=daemon._ai_picture)
     daemon._find_pictures("[picture: draw: a cozy kitchen]")
     for _ in range(100):

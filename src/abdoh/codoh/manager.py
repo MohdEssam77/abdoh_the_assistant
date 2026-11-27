@@ -804,7 +804,7 @@ class Codoh:
 
                     question = item.get("tool") == QUESTION
                     said = notice("question" if question else "approval", "", item)
-                    self._tell(said)
+                    self._tell(said, still=lambda: item.get("state") == "waiting")
                 return
             if kind == "done":
                 resend = self._done(chat, event)
@@ -871,13 +871,17 @@ class Codoh:
         last = next((i for i in reversed(chat.items) if i.get("kind") == "assistant"), None)
         return notice("done", chat.data.get("title", ""), text=(last or {}).get("text", ""))
 
-    def _tell(self, text: str) -> None:
-        """Abdoh says it (on a thread of its own: never in the way of the chat)."""
+    def _tell(self, text: str, still=None) -> None:
+        """Abdoh says it when it's free (daemon.say_later: never over a reply), if `still()` is
+        still true then (Codoh still waits for that OK)."""
         hook = self.on_notice
         if hook is None or not text:
             return
         log.info("Codoh: telling the user: %s", text)
-        threading.Thread(target=hook, args=(text,), name="abdoh-codoh-notice", daemon=True).start()
+        try:
+            hook(text, still)
+        except Exception:
+            log.exception("Couldn't tell the user about Codoh")
 
     # ----- housekeeping -----
 
