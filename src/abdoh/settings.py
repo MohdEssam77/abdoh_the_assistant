@@ -58,6 +58,7 @@ _RANGES = {
     "duck_percent": (0, 90),
     "max_record_seconds": (3, 60),
     "tts_rate": (80, 400),
+    "phone_port": (1024, 65535),
     "claude.max_tokens": (100, 64000),
     "claude.timeout_seconds": (10, 900),
     "claude.followup_seconds": (0, 3600),
@@ -100,6 +101,8 @@ LABELS = {
     "claude.folders": "Folders Claude may use",
     "claude.instructions": "Your instructions",
     "claude.backend": "How Abdoh connects to Claude",
+    "phone": "Use Abdoh from your phone",
+    "phone_port": "The phone page's port",
 }
 
 

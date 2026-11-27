@@ -41,6 +41,8 @@ mic_device: ""                   # a microphone's name (pick one in the app); ""
 allow_run: false                 # let your commands run programs (the "run" action)
 check_updates: true              # look for a new version of Abdoh once a day
 setup_done: false                # the first-start setup was finished or skipped
+phone: false                     # use Abdoh from your phone (Settings → Phone, with Tailscale)
+phone_port: 47811                # the phone page's port on this computer (127.0.0.1 only)
 claude:
   backend: "auto"                # auto: Claude Code if installed (your subscription), else API key, else OpenRouter, else ChatGPT; or code, api, openrouter, chatgpt, off
                                  # code | api | off

@@ -168,6 +168,10 @@ class Config:
     allow_run: bool = False
     check_updates: bool = True  # look for a new version once a day
     setup_done: bool = False  # the first-start setup was finished (or skipped)
+    # Abdoh from your phone (abdoh/phone): a page for paired phones, on 127.0.0.1 only; Tailscale
+    # shares it with your phone (Settings → Phone).
+    phone: bool = False
+    phone_port: int = 47811
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     log_file: str = LOG_FILE
     # Not read from config.yaml:
