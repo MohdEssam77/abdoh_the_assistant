@@ -32,15 +32,24 @@
       later(520, { type: "say", text: "Shut down the computer now?", audio: null, for: "demo-phone" });
       later(540, { type: "question", text: "Shut down the computer now?" });
       later(560, { type: "status", text: "Listening" });
+      later(580, { type: "done", for: "demo-phone" });
       return;
     }
     const sentences = /lamp|light/.test(lower) ? ["The desk lamp is off now."]
-      : ["Here's a quick plan for tonight.", "Start the pasta water now, it takes about ten minutes.", "Then chop the garlic while you wait."];
+      : /dinner|cook/.test(lower) ? ["How about pasta tonight?", "You have spaghetti and garlic, so aglio e olio works.", "Want the steps?"]
+        : /steps|quick|yes/.test(lower) ? ["Sure.", "Boil salted water and cook the spaghetti for nine minutes.",
+          "Meanwhile, fry sliced garlic in olive oil until it's golden.", "Then toss it all together with a splash of the pasta water."]
+          : ["Here's a quick plan for tonight.", "Start the pasta water now, it takes about ten minutes.", "Then chop the garlic while you wait."];
     later(400, { type: "aside", text: "Searching the web" });
     sentences.forEach((s, i) => later(1300 + i * 900, { type: "say", text: s, audio: null, for: "demo-phone" }));
     later(1300 + sentences.length * 900, { type: "history", line: `Abdoh: ${sentences.join(" ")}` });
     later(1400 + sentences.length * 900, { type: "status", text: "Listening" });
+    later(1450 + sentences.length * 900, { type: "done", for: "demo-phone" });
   }
+
+  // What "you" say into the demo's microphone, in turn (a call goes on with the next).
+  const SAID = ["help me plan dinner tonight", "yes, the quick steps please", "turn off the desk lamp"];
+  let said = 0;
 
   window.AbdohDemo = {
     key: () => (kind === "pair" || kind === "install" ? null : "demo-key"),
@@ -59,7 +68,7 @@
       }
       if (path === "/api/text") { answer(body.text); return { ok: true, text: body.text }; }
       if (path.startsWith("/api/voice")) {
-        const heard = "turn off the desk lamp";
+        const heard = SAID[said++ % SAID.length];
         setTimeout(() => answer(heard), 700);
         return { ok: true, text: heard };
       }

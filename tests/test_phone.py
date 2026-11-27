@@ -181,7 +181,7 @@ def test_talking_from_the_phone():
     heard = FakeTranscriber(["turn on the lamp", ""])
     bus, hub = make_hub(hear=heard.transcribe)
     assert hub.hear(b"\x00\x01" * 100) == "turn on the lamp"
-    assert bus.next_request(0) == ("phone", {"text": "turn on the lamp"})
+    assert bus.next_request(0) == ("phone", {"text": "turn on the lamp", "spoken": True})
     assert hub.hear(b"\x00\x01" * 100) == ""  # nothing understood: nothing asked
     assert bus.next_request(0) is None
     with pytest.raises(PhoneError):
@@ -233,14 +233,25 @@ def test_the_hub_listens_to_the_bus_in_order():
         bus.emit("history", "Abdoh: One.")
         bus.emit("phone_aside", "One moment.")
         bus.emit("phone_question", "Shut down the computer?")
+        bus.emit("phone_done", None)
         got = []
-        while len(got) < 4:
+        while len(got) < 5:
             got += hub.events(got[-1]["seq"] if got else 0, wait=2)["events"]
-        assert [e["type"] for e in got] == ["say", "history", "aside", "question"]
+        assert [e["type"] for e in got] == ["say", "history", "aside", "question", "done"]
     finally:
         hub.close()
     bus.emit("status", "after")  # no longer listening
-    assert hub.events(4, wait=0)["events"] == []
+    assert hub.events(5, wait=0)["events"] == []
+
+
+def test_done_tells_the_phone_that_asked():
+    """A call on the phone listens again once its request is answered (story 145)."""
+    bus, hub = make_hub()
+    hub.ask("hi", speak=True, phone="p1")
+    hub.take("phone_say", "Hello.")
+    hub.take("phone_done", None)
+    events = hub.events(0, wait=0)["events"]
+    assert [(e["type"], e["for"]) for e in events] == [("say", "p1"), ("done", "p1")]
 
 
 # ----- the page's API -----
@@ -375,6 +386,30 @@ def test_a_phone_request_is_answered_on_the_phone():
     assert daemon._phone_turn is False  # the next request is the laptop's again
 
 
+def test_the_phone_hears_when_its_request_is_answered():
+    """After the last sentence: "done", so a call on the phone listens again (story 145)."""
+    bus = Bus(ui_attached=False)
+    seen = Recorder(bus)
+    daemon = make_daemon(StubRouter([iter(["First.", "Second."]), "Hi."]), bus=bus)
+    daemon.handle_request("phone", {"text": "tell me"})
+    kinds = [k for k, _ in seen.events if k in ("phone_say", "phone_done")]
+    assert kinds == ["phone_say", "phone_say", "phone_done"]
+    daemon.handle_text("hello")  # from the laptop: nothing for the phone to wait for
+    assert len(seen.of("phone_done")) == 1
+
+
+def test_a_request_said_into_the_phone_is_kept_as_spoken(tmp_path):
+    from abdoh.conversations import FOLDER, Conversations
+
+    bus = Bus(ui_attached=False)
+    daemon = make_daemon(StubRouter(["Sunny.", "Rainy."]), cfg=Config(app_dir=tmp_path), bus=bus)
+    daemon.handle_request("phone", {"text": "weather today?", "spoken": True})
+    daemon.handle_request("phone", {"text": "and tomorrow?"})
+    found = Conversations(tmp_path / FOLDER).exchanges()
+    assert [(e.you, e.typed) for e in found] == [("weather today?", False), ("and tomorrow?", True)]
+    assert daemon._awaiting_answer is False  # the laptop doesn't listen afterwards
+
+
 def test_a_streamed_reply_goes_to_the_phone_sentence_by_sentence():
     bus = Bus(ui_attached=False)
     seen = Recorder(bus)
@@ -491,6 +526,20 @@ def test_the_phone_page_has_everything_it_names():
         path = WEB_DIR / name
         assert path.is_file(), name
         assert _NAME.fullmatch(name) and path.suffix in TYPES, name  # the server serves it
+
+
+def test_the_phone_script_uses_only_the_pages_elements():
+    """Every #id phone.js looks up is on the page (a renamed one would break a button)."""
+    import re
+
+    from abdoh.phone.server import WEB_DIR
+
+    html = (WEB_DIR / "index.html").read_text(encoding="utf-8")
+    script = (WEB_DIR / "phone.js").read_text(encoding="utf-8")
+    ids = set(re.findall(r'id="([\w-]+)"', html))
+    used = set(re.findall(r'\$\("#([\w-]+)"\)', script))
+    assert {"call", "call-button", "orb", "hang-up", "call-mute"} <= used
+    assert used - ids == {"typing"}  # the typing dots: made by the script
 
 
 def test_a_phone_that_hangs_up_is_only_logged(caplog):

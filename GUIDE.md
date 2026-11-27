@@ -872,6 +872,14 @@ computer now?"), **Yes** and **No** appear. The controls button (top right) has 
 your modes and **Lock the computer**. The conversation is the same as on the computer: what you
 asked from the phone shows there with a small "Phone" tag.
 
+**A call.** For a back-and-forth conversation, tap the phone button at the top. Abdoh listens;
+when you pause (about a second), it answers out loud on the phone, then listens again, with no
+buttons to press, until you tap **End**. Tap the circle while Abdoh is answering to stop it
+and talk; **Mute** stops it hearing you. The screen stays on during a call; locking the phone
+or leaving the app ends it, and so do five quiet minutes. What you say in a call is part of the
+conversation like everything else. Abdoh's own voice is ignored while it talks, so it won't
+answer itself, but it also won't notice you talking over it: tap the circle.
+
 **Good to know.**
 - The computer must be on and awake. When it's plugged in, let it never sleep (**Power
   settings** in the card). A sleeping computer can't answer; the phone says so and tries again

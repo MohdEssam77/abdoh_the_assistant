@@ -112,8 +112,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 @keyframes pulse { 50% { opacity: 0.35; } }
 .mode {
   flex: none; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent-text); max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--accent-soft); color: var(--accent-text); max-width: 28vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.tools { display: flex; flex: none; margin-right: -4px; }
 .icon { width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; color: var(--muted); flex: none; }
 .icon:active { background: var(--panel-2); }
 .icon svg { width: 22px; height: 22px; }
@@ -294,3 +295,61 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   background: var(--text); color: var(--bg); box-shadow: var(--shadow); animation: up 0.18s ease-out; white-space: nowrap;
 }
 .muted { color: var(--muted); }
+
+/* ----- a call (story 145): the circle listens, thinks and talks ----- */
+.call {
+  position: fixed; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: calc(20px + var(--safe-top)) 24px calc(26px + var(--safe-bottom));
+  background: radial-gradient(130% 75% at 50% 28%, color-mix(in srgb, var(--accent) 16%, var(--bg)) 0%, var(--bg) 72%);
+  animation: fade 0.2s ease-out;
+}
+@keyframes fade { from { opacity: 0; } }
+.call-head { display: flex; flex-direction: column; align-items: center; gap: 2px; margin-top: 4vh; }
+.call-head b { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
+.call-head span { color: var(--muted); font-size: 15px; font-variant-numeric: tabular-nums; }
+.orb {
+  --level: 0; position: relative; flex: none; width: 220px; height: 220px; margin: 6vh 0 3.5vh;
+  display: grid; place-items: center; border-radius: 999px;
+}
+.orb .logo.huge { width: 116px; height: 116px; border-radius: 36px; position: relative; z-index: 1; box-shadow: 0 12px 40px rgba(13, 150, 104, 0.35); }
+.orb .logo.huge svg { width: 62px; height: 62px; }
+.ring {
+  position: absolute; inset: 44px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: scale(calc(1 + var(--level) * 0.6)); transition: transform 0.1s linear, background 0.3s;
+}
+.ring.outer { inset: 18px; background: color-mix(in srgb, var(--accent) 10%, transparent); transform: scale(calc(1 + var(--level) * 0.3)); }
+.call[data-state="thinking"] .ring { animation: breathe 1.6s ease-in-out infinite; }
+.call[data-state="thinking"] .ring.outer { animation-delay: 0.5s; }
+@keyframes breathe { 50% { transform: scale(1.1); opacity: 0.45; } }
+.call[data-state="speaking"] .logo.huge rect { transform-box: fill-box; transform-origin: center; animation: talk 0.9s ease-in-out infinite; }
+.call[data-state="speaking"] .logo.huge rect:nth-child(2) { animation-delay: 0.15s; }
+.call[data-state="speaking"] .logo.huge rect:nth-child(3) { animation-delay: 0.3s; }
+.call[data-state="speaking"] .logo.huge rect:nth-child(4) { animation-delay: 0.45s; }
+.call[data-state="speaking"] .logo.huge rect:nth-child(5) { animation-delay: 0.6s; }
+@keyframes talk { 50% { transform: scaleY(0.4); } }
+.call[data-state="muted"] .ring { background: color-mix(in srgb, var(--faint) 18%, transparent); transform: none; }
+.call[data-state="muted"] .logo.huge { filter: grayscale(1); opacity: 0.55; box-shadow: none; }
+.call-state { margin: 0; font-size: 21px; font-weight: 650; }
+.call-hint { margin: 4px 0 0; min-height: 21px; color: var(--muted); font-size: 14.5px; }
+.captions {
+  flex: 1; min-height: 0; width: 100%; max-width: 460px; display: flex; flex-direction: column; justify-content: flex-end;
+  gap: 10px; overflow: hidden; padding: 10px 4px 28px;
+}
+.said { margin: 0; overflow-wrap: anywhere; }
+.said:empty { display: none; }
+.said.you { color: var(--muted); font-size: 15px; }
+.said.abdoh {
+  font-size: 19px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden;
+}
+.call-buttons { flex: none; display: flex; justify-content: center; gap: 64px; }
+.call-key { display: flex; flex-direction: column; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 500; }
+.call-key span {
+  width: 70px; height: 70px; border-radius: 999px; display: grid; place-items: center; transition: transform 0.12s, background 0.15s;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow);
+}
+.call-key:active span { transform: scale(0.93); }
+.call-key svg { width: 28px; height: 28px; }
+.call-key .slash { display: none; }
+.call-key[aria-pressed="true"] span { background: var(--text); border-color: var(--text); color: var(--bg); }
+.call-key[aria-pressed="true"] .slash { display: inline; }
+.call-key.end span { background: #e5484d; border-color: #e5484d; color: #fff; box-shadow: 0 6px 20px rgba(229, 72, 77, 0.35); }

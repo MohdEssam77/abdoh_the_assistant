@@ -146,6 +146,22 @@ volume actions, `power` lock), with the same permissions.
 
 ---
 
+### 3.7 A call (story 145)
+- The phone button in the page's header opens a call screen: Abdoh's logo in a circle, the
+  call's time, what you said and the sentence Abdoh is saying, **Mute** and **End**.
+- The phone listens for you itself: the microphone's loudness block by block, against how loud
+  the room is (it follows a fan or a hum). 120 ms of sound starts your turn, 1.2 s of quiet ends
+  it, less than 300 ms of sound was a knock, 45 s at most. The turn goes to `/api/voice` like
+  the microphone button's, always spoken.
+- After a phone request the daemon emits `phone_done`; the hub sends `{"type": "done", "for"}`
+  after the request's last sentence. When every request is answered and the last sentence has
+  played, the call listens again (after 450 ms, so the end of Abdoh's voice isn't taken for you).
+- Half duplex: the microphone stays open for the call (one permission prompt), but what it
+  hears while Abdoh thinks and talks is ignored. Tapping the circle stops Abdoh (`/api/stop`)
+  and listens; the rest of the stopped reply isn't played.
+- The screen is kept on (Wake Lock, where the phone has it). The call ends when the page goes
+  to the background, when the microphone stops, or after five quiet minutes.
+
 ## 4. Ground rules for this epic
 
 1. Unit tests never start a real server socket, never run Tailscale, never use the microphone
@@ -193,6 +209,10 @@ replies".
 GUIDE.md (a Phone section: setup step by step, privacy, known issues), README (one line), the
 Catalog (a "Your phone" feature), this file's results. No release.
 
+### Story 145: A call (`story/145-phone-call`), added on the owner's request
+"Can I have a call to Abdoh from my phone, to have a back and forth conversation?" (2026-11-27,
+before the release). See 3.7. Docs in GUIDE.md and the Catalog.
+
 ---
 
 ## 6. The owner's decisions (2026-11-27)
@@ -226,3 +246,8 @@ All six stories are merged (139 to 144); not released (still 0.13.3).
 - **Not tried:** a real iPhone, a real Tailscale network (no Tailscale on this computer), the
   phone's microphone (the conversion is tested in Node). The download page gets the phone with
   the release that has it.
+- **Story 145 (a call):** checked in the demo (a call through two turns, talking over Abdoh, the
+  stopped reply's last sentences not played, Mute, End and the "Call with Abdoh · 0:13" line),
+  with screenshots in light and dark; the listening is tested in Node with made-up loudness (a
+  quiet room, a knock, a fan, someone who never stops). Not tried with a real phone's
+  microphone: the loudness thresholds (0.015, three times the room) may need tuning there.
