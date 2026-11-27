@@ -37,6 +37,7 @@ MODE_WORDS = {
     "ask": ("ask first", "ask", "default"),
 }
 NO_CHAT = "There's no Codoh chat yet: say which folder it should work in."
+QUEUED = "Codoh is still working on something: it gets that as soon as it's done."
 NOTHING_WAITING = "Codoh isn't waiting for anything right now."
 UNKNOWN = "I didn't understand what to do in Codoh."
 
@@ -178,6 +179,8 @@ def _send(codoh, message: str, chat: str = "") -> Result:
     sent = codoh.send(chat, message, by_voice=True)
     if not sent.get("ok"):
         return Result(sent.get("error") or "Codoh couldn't take that.", chat=chat, show=True)
+    if sent.get("queued"):
+        return Result(QUEUED, chat=chat, show=True)
     return Result(chat=chat, show=True)
 
 

@@ -17,6 +17,11 @@ judges by the loudest Abdoh played in the last second, and by how much of its vo
 canceller is known to leave: until it knows, only talk clearly louder than Abdoh's voice could
 be there counts. New speakers (or a new microphone) and it learns the room again.
 
+After a false alarm (what it heard turned out to be Abdoh's own words, or nothing at all: the
+daemon says so with `false_alarm()`), it asks for louder speech for a while: a microphone that
+hears Abdoh very loudly (the owner's webcam, 2026-11-27) gets a watch that's harder to fool,
+and one that doesn't keeps the watch it had.
+
 What it learns is the echo's loud end, not its middle: a microphone on another device than the
 speakers (a webcam, a laptop's mic with a monitor's speakers) hears Abdoh's louder words some
 15 dB above the median, which the margin alone doesn't cover, and Abdoh stopped itself for its
@@ -60,10 +65,15 @@ ECHO_PEAK = 95
 ECHO_SPAN_SECONDS = 1.0
 LEVEL_CHUNK = 1600  # the speakers' level is the loudest of these 100 ms pieces
 MARGIN = 4.0  # you count when you're this much (12 dB) louder than any echo could be
+# After each false alarm the margin grows this much (+3.5 dB), up to CAUTION_MAX (+18 dB); a
+# reply without one takes CAUTION_EASE of it back.
+CAUTION_STEP = 1.5
+CAUTION_MAX = 8.0
+CAUTION_EASE = 0.9
 # Abdoh's voice has been playing this long, but the speakers it hears are silent: it plays on
 # other speakers than the ones it listens to (or hearing them failed), so its own voice can't
 # be told from yours. Talking over it waits until they aren't silent.
-MISSING_AFTER_SECONDS = 0.6
+MISSING_AFTER_SECONDS = 1.0  # (0.6 warned at every first sentence: speakers wake up slowly)
 
 
 def _rms(frame: bytes) -> float:
@@ -119,6 +129,8 @@ class VoiceWatch:
         self.heard_on = ""  # where you were heard last: "cleaned" or "raw" microphone (the log)
         self._speaking_since: float | None = None  # Abdoh's voice has been playing since then
         self._missing_told = False
+        self.caution = 1.0  # the margin's multiplier: grows with false alarms (false_alarm())
+        self._alarmed = False  # a false alarm during this reply
         self.idle()
 
     def speaking(self, on: bool, at: float) -> None:
@@ -143,6 +155,18 @@ class VoiceWatch:
     def sensitivity(self, value: str) -> None:
         self._sensitivity = value if value in SENSITIVITY else "medium"
 
+    def false_alarm(self) -> None:
+        """What it took for you was Abdoh's own words, or nothing: be harder to fool."""
+        self.caution = min(CAUTION_MAX, self.caution * CAUTION_STEP)
+        self._alarmed = True
+        log.info("Abdoh heard itself: talking over it needs %.0f dB more now", _db(self.caution))
+
+    def reply_done(self) -> None:
+        """A reply ended: without a false alarm, some of the caution goes."""
+        if not self._alarmed and self.caution > 1.0:
+            self.caution = max(1.0, self.caution * CAUTION_EASE)
+        self._alarmed = False
+
     def idle(self) -> None:
         """No reply is running: forget the speech history (what was learned about the room and
         the background level is kept)."""
@@ -158,6 +182,7 @@ class VoiceWatch:
         self._echo_ratios.clear()
         self._residuals.clear()
         self._floor = MIN_LEVEL
+        self.caution = 1.0
         reset = getattr(self.canceller, "reset", None)
         if reset is not None:
             reset()
@@ -277,16 +302,17 @@ class VoiceWatch:
         raw, self._pending_raw = self._frames(self._pending_raw + block)
         echo = self._echo_level()
         left = echo * self.residual()  # what the canceller may leave of Abdoh's voice
+        margin = MARGIN * self.caution
         for frame, raw_frame in zip(audio, raw, strict=False):
             level = _rms(frame)
             self._floor = min(level, self._floor * FLOOR_RISE) if level > 0 else self._floor
             self._floor = max(self._floor, 1.0)
-            loud = level >= max(FLOOR_FACTOR * self._floor, MIN_LEVEL, MARGIN * left)
+            loud = level >= max(FLOOR_FACTOR * self._floor, MIN_LEVEL, margin * left)
             speech = self.vad.speech_prob(frame) >= threshold  # every frame: the model streams
             hot = "cleaned" if loud and speech else ""
             if self.raw_vad is not None:
                 raw_speech = self.raw_vad.speech_prob(raw_frame) >= threshold
-                raw_loud = _rms(raw_frame) >= max(MIN_LEVEL, MARGIN * echo)
+                raw_loud = _rms(raw_frame) >= max(MIN_LEVEL, margin * echo)
                 hot = hot or ("raw" if raw_loud and raw_speech else "")
             self._hot.append(bool(hot))
             if hot:

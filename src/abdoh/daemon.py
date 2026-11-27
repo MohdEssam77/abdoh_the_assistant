@@ -8,6 +8,7 @@ import math
 import random
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import fields
 
@@ -17,7 +18,7 @@ from abdoh.audio.recorder import record_until_silence
 from abdoh.audio.wakeword import NoWakeWord, WakeWordEngine
 from abdoh.config import ClaudeConfig, Config, save_api_key
 from abdoh.events import Bus
-from abdoh.router import Router
+from abdoh.router import OVER_REPLY, Router
 from abdoh.speech.earcons import Earcons
 from abdoh.speech.tts import Speaker
 from abdoh.system_skills import Done, Question
@@ -79,6 +80,20 @@ BOARD_PDF_SILENT = (
     "I couldn't save the board: my window didn't answer. Try the Save as PDF button on the "
     "Act as page."
 )
+
+
+# Notices (say_later): said within this long, else left out; looked at this often.
+LATER_SECONDS = 600.0
+LATER_POLL_SECONDS = 0.2
+LATER_GAP_SECONDS = 1.0  # ... and not straight after Abdoh's last words
+
+
+def _still_true(check: Callable[[], bool]) -> bool:
+    try:
+        return bool(check())
+    except Exception:
+        log.debug("Couldn't check a notice", exc_info=True)
+        return False
 
 
 def _what_was_done(actions: list[tuple[str, str]]) -> str:
@@ -194,6 +209,15 @@ class Daemon:
         self.voice_enabled = True
         self._woke = time.perf_counter()
         self._handle_lock = threading.Lock()
+        # One voice at a time: a reply's sentences, a filler ("Just a second"), a notice.
+        self._voice_lock = threading.RLock()
+        self._said: deque[tuple[float, str]] = deque(maxlen=8)  # what Abdoh said lately
+        # Notices said when Abdoh is free (say_later): (text, still true?, when queued).
+        self._later: deque[tuple[str, Callable[[], bool] | None, float]] = deque()
+        self._later_event = threading.Event()
+        self._later_thread: threading.Thread | None = None
+        self._answer_window = False  # listening for an answer or an aside after a reply
+        self._quiet_since = 0.0  # when Abdoh's voice last stopped (time.monotonic)
         router.on_thinking = self._thinking
         router.on_activity = self._activity
         router.on_board = self._on_board
@@ -207,7 +231,17 @@ class Daemon:
         router.add_builtin("show_window", ["show window", "open window"], self._show_window)
         router.add_builtin(
             "open_codoh",
-            ["open codoh", "show codoh", "open the coding assistant", "codoh"],
+            # speech recognition often writes Codoh as Kodo, Codo or Kudo
+            [
+                "open codoh",
+                "show codoh",
+                "open the coding assistant",
+                "codoh",
+                "open kodo",
+                "show kodo",
+                "open codo",
+                "open kudo",
+            ],  # fmt: skip
             self._open_codoh,
         )
         router.add_builtin("stop_listening", ["stop listening"], self._stop_listening)
@@ -321,7 +355,7 @@ class Daemon:
     def _board_pdf_silent(self) -> None:
         log.warning("The window didn't answer the request to save the board as a PDF")
         self._board_wait = None
-        self._say_aside(BOARD_PDF_SILENT)
+        self.say_later(BOARD_PDF_SILENT)
 
     def _board_pdf_done(self, ok: bool) -> None:
         timer = getattr(self, "_board_wait", None)
@@ -331,12 +365,74 @@ class Daemon:
 
     def _say_aside(self, text: str) -> None:
         """Say a few words that aren't part of the answer (not shown in the conversation)."""
-        log.info("Abdoh (aside): %s", text)
         if self.speaker.language not in ("", "en"):
             return  # these asides are English; the ticking sound says "still working"
-        self._speak(text)
+        if self._speak(text):
+            log.info("Abdoh (aside): %s", text)  # only what was said: Abdoh reads its own log
         if not self._interrupted.is_set():
             self.bus.emit("status", "Thinking...")
+
+    def say_later(self, text: str, still: Callable[[], bool] | None = None) -> None:
+        """Say this once Abdoh is free: not talking, not hearing you, not waiting for your
+        answer (Codoh's notices, where the board's PDF went). Never over another reply.
+        `still()`: it's still true then (Codoh still waits for that OK), else it's left out.
+        It's shown in the conversation too."""
+        if not text:
+            return
+        log.info("Abdoh will say when free: %s", text)
+        self._later.append((text, still, time.monotonic()))
+        self._later_event.set()
+        thread = self._later_thread
+        if thread is None or not thread.is_alive():
+            thread = threading.Thread(target=self._say_when_free, name="abdoh-later", daemon=True)
+            self._later_thread = thread
+            thread.start()
+
+    def _free_to_talk(self) -> bool:
+        """Nothing else going on: no reply, nobody talking, no answer awaited, and Abdoh's last
+        words have died away. (Not _hear_from: the wake-word loop moves it on every block.)"""
+        return not (
+            self._handle_lock.locked()
+            or self._recording
+            or self._heard_for > 0
+            or self._awaiting_answer
+            or self._answer_window
+            or time.monotonic() - self._quiet_since < LATER_GAP_SECONDS
+        )
+
+    def _say_when_free(self) -> None:
+        while not self.stop_event.is_set():
+            if not self._later:
+                self._later_event.clear()
+                if not self._later:
+                    self._later_event.wait(1.0)
+                continue
+            text, still, queued = self._later[0]
+            if time.monotonic() - queued > LATER_SECONDS:
+                self._later.popleft()
+                log.info("Too late to say: %s", text)
+                continue
+            if not self._free_to_talk() or not self._handle_lock.acquire(blocking=False):
+                self.stop_event.wait(LATER_POLL_SECONDS)
+                continue
+            try:
+                self._later.popleft()
+                if still is not None and not _still_true(still):
+                    log.info("No longer true, not said: %s", text)
+                    continue
+                self._interrupted.clear()
+                self._floor.set()
+                log.info("Abdoh: %s", text)
+                self.bus.emit("history", f"Abdoh: {text}")
+                if not self.paused:
+                    self._speak(text)
+                    self._unduck_unless_listening()
+                self._hear_from = time.monotonic() + self.HEAR_AFTER_SPEAKING_SECONDS  # a lesson
+                self._status_idle()
+            except Exception:
+                log.exception("Couldn't say %r", text)
+            finally:
+                self._handle_lock.release()
 
     def _still_working(self) -> None:
         """Claude has been quiet for a while: say that Abdoh is on it."""
@@ -425,6 +521,25 @@ class Daemon:
                 log.info("Deleted the unclear recordings")
         log.info("Settings changed")
 
+    def load_speech(self, load=None) -> None:
+        """Load the speech model while Abdoh already listens for the wake word (it took 9 s on
+        the owner's graphics card, and the wake word waited for it). If Parakeet won't load,
+        Whisper takes over; if nothing loads, voice input is off and the window says why."""
+        from abdoh.audio.stt import load_transcriber
+
+        mine = self.transcriber
+        started = time.perf_counter()
+        try:
+            loaded = (load or load_transcriber)(self.cfg, make=lambda cfg: mine)
+        except Exception:
+            log.exception("Could not load the speech recognition model")
+            self.listen_error = SPEECH_MODEL_FAILED
+            self.bus.emit("status", f"Error: {self.listen_error}")
+            return
+        log.info("The speech model is ready (%.1fs)", time.perf_counter() - started)
+        if loaded is not mine:  # Parakeet didn't load: Whisper took over
+            self.use_transcriber(loaded)
+
     def use_transcriber(self, new) -> None:
         """Another speech model takes over (chosen in Settings → Advanced, already loaded): the
         next thing you say goes to it. On a graphics card it moves there as usual."""
@@ -496,17 +611,27 @@ class Daemon:
         self.bus.emit("history", f"Abdoh: {text}")
         self._speak(text)
 
-    def _speak(self, text: str) -> None:
+    def _speak(self, text: str) -> bool:
+        """Say it, after you've finished talking and in one voice with everything else. False
+        if it wasn't said (stopped meanwhile, or voice replies are off)."""
         self.earcons.stop_ticking()
         if not self._wait_for_floor() or not self.voice_enabled:
-            return
-        self._spoke = True
-        self.bus.emit("status", "Speaking")
-        self._duck()  # the others stay down while Abdoh talks (also for typed requests)
-        try:
-            self.speaker.say(text)
-        except Exception:
-            log.exception("Could not speak")
+            return False
+        with self._voice_lock:  # one voice at a time: never two things over each other
+            if self._interrupted.is_set():
+                return False
+            self._spoke = True
+            self._said.append((time.monotonic(), text))  # Abdoh's own words, if heard back
+            self.bus.emit("status", "Speaking")
+            self._duck()  # the others stay down while Abdoh talks (also for typed requests)
+            try:
+                self.speaker.say(text)
+            except Exception:
+                log.exception("Could not speak")
+                return False
+            finally:
+                self._quiet_since = time.monotonic()
+            return True
 
     def _wait_for_floor(self) -> bool:
         """Wait while you are talking over a reply. False if the reply was stopped."""
@@ -660,7 +785,7 @@ class Daemon:
             kept = ""  # the answer, for the week's conversations
             try:
                 try:
-                    maybe = {"aside": True} if aside else {"woken": woken} if woken else {}
+                    maybe = {"aside": aside} if aside else {"woken": woken} if woken else {}
                     reply = self.router.handle(text, **maybe)
                 except Exception:
                     log.exception("Error handling %r", text)
@@ -699,6 +824,9 @@ class Daemon:
             finally:
                 if watcher is not None:
                     watcher()
+                done = getattr(self.voice_watch, "reply_done", None)
+                if done is not None:
+                    done()  # no false alarm this time: the watch eases off
             self._keep_exchange(text, kept, typed=not voice)
             self.earcons.stop_ticking()
             if not voice:
@@ -971,8 +1099,14 @@ class Daemon:
             kind = "request"  # the end of what you were asking ("... in Berlin")
         if kind != "stop_listening" and (self._you_stopped or self.paused):
             kind = "stop"  # you stopped it (or paused it) meanwhile: nothing more to do
+        elif kind not in ("nothing", "backchannel") and self._own_words(text):
+            kind = "echo"  # Abdoh's own words came back through the microphone: go on
+        if kind in ("echo", "nothing"):
+            false_alarm = getattr(watch, "false_alarm", None)
+            if false_alarm is not None:
+                false_alarm()  # it took Abdoh's voice (or a noise) for you: be harder to fool
         log.info("Heard %r over the reply (%s)", text, kind)
-        if kind in ("nothing", "backchannel", "fragment"):
+        if kind in ("nothing", "backchannel", "fragment", "echo"):
             if paused:
                 self.speaker.resume()
             watch.rearm()
@@ -993,6 +1127,14 @@ class Daemon:
             return ""
         self._via_voice = True
         return f"{earlier} {text}".strip()
+
+    def _own_words(self, text: str) -> bool:
+        """What was heard over the reply is what Abdoh just said (audio/echo_text.py)."""
+        from abdoh.audio.echo_text import SECONDS, own_words
+
+        now = time.monotonic()
+        said = [words for at, words in list(self._said) if now - at < SECONDS]
+        return own_words(text, said)
 
     def _asked_question(self, reply: str) -> bool:
         """Did Claude end its reply with a question (and you didn't stop it)?"""
@@ -1047,7 +1189,7 @@ class Daemon:
         elif kind == "window_open":  # the window was shown, or hidden (or minimized)
             self._window_open = bool(value)
         elif kind == "say":  # the window: a few words to say (where the PDF went)
-            self._say_aside(str(value))
+            self.say_later(str(value))  # after the reply that's being said
         elif kind == "board_pdf_done":  # the window answered "save the board"
             self._board_pdf_done(bool(value))
         elif kind == "board_cleared":  # the Act as page's Clear button
@@ -1356,7 +1498,7 @@ class Daemon:
         from abdoh.codoh.manager import shared
 
         codoh = shared(self.cfg)
-        codoh.on_notice = self._say_aside
+        codoh.on_notice = self.say_later
         codoh.window_open = lambda: bool(getattr(self, "_window_open", False))
         return codoh
 
@@ -1566,6 +1708,7 @@ class Daemon:
         answer, self._awaiting_answer = self._awaiting_answer, False
         if not answer:
             self._soft_chime = False
+        self._answer_window = answer  # no notice now: it would be heard as your answer
         try:
             text = listen_for_request(
                 mic,
@@ -1601,6 +1744,7 @@ class Daemon:
         finally:
             self._recording = False
             self._quiet_wake = False
+            self._answer_window = False
         via_hotkey, self._via_hotkey = self._via_hotkey, False
         via_voice, self._via_voice = self._via_voice, False
         via_speech, self._via_speech = self._via_speech, False
@@ -1657,7 +1801,7 @@ class Daemon:
             shown = {"what": what, "ok": False, "error": str(e)}
             log.info("No board picture of %r: %s", what, e)
             if what.lower().startswith("draw:"):  # no credit, no key: say so, not only show it
-                self._say_aside(str(e))
+                self.say_later(str(e))  # after the reply being said
         except Exception:
             log.exception("Couldn't get a picture for the board")
             shown = {"what": what, "ok": False, "error": "That picture didn't load."}
@@ -1850,11 +1994,14 @@ class Daemon:
             self.bus.emit("wake", self.engine.label)
         log.info("Voice check forgotten")
 
-    def _handle_spoken(self, text: str, aside: bool = False, woken=False) -> None:
-        """Answer a spoken request, then whatever you said over that answer, and so on."""
+    def _handle_spoken(self, text: str, aside=False, woken=False) -> None:
+        """Answer a spoken request, then whatever you said over that answer, and so on (what
+        was heard over a reply may be someone else, or Abdoh's own voice: Claude may stay
+        quiet)."""
         while text and not self.stop_event.is_set():
             self.handle_text(text, voice=True, aside=aside, woken=woken)
-            aside = woken = False
+            woken = False
+            aside = OVER_REPLY
             text, self._next_request = self._next_request, None
             if text and self.paused and not self._wants_listening(text):
                 log.info("Paused; ignoring %r", text)  # "stop listening" came first
@@ -1883,7 +2030,7 @@ class Daemon:
         from abdoh.audio.devices import DeviceWatch, reload_portaudio
         from abdoh.audio.ducking import Ducker
         from abdoh.audio.mic import Microphone
-        from abdoh.audio.stt import load_transcriber
+        from abdoh.audio.stt import make_transcriber
         from abdoh.audio.vad import load_vad
         from abdoh.audio.wakeword import load_wake_engine
         from abdoh.claude.brain import make_brain
@@ -1906,9 +2053,11 @@ class Daemon:
             log.exception("Could not set up the wake word; only the hotkey wakes Abdoh")
             engine = NoWakeWord()
         try:
-            transcriber = load_transcriber(cfg)
+            # Its model loads in the background (load_speech, below): the wake word works
+            # meanwhile, and what you say first waits for it.
+            transcriber = make_transcriber(cfg)
         except Exception:
-            log.exception("Could not load the speech recognition model")
+            log.exception("Could not set up speech recognition")
             listen_error = SPEECH_MODEL_FAILED
         router = Router(cfg, CommandRegistry(cfg.commands_path), brain=make_brain(cfg))
         daemon = cls(
@@ -1950,6 +2099,10 @@ class Daemon:
         router.computer.apps.load_in_background()
         daemon.use_roles(make_roles(cfg, daemon))
         daemon.use_modes(make_modes(cfg, router, daemon))
+        if transcriber is not None:
+            threading.Thread(
+                target=daemon.load_speech, name="abdoh-speech-model", daemon=True
+            ).start()
         try:
             daemon._codoh()  # the page's Codoh speaks up through Abdoh from the start
         except Exception:

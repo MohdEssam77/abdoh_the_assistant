@@ -206,10 +206,10 @@ def test_stop(world):
     assert not codoh.send(chat_id, "")["ok"]
 
 
-def test_busy_chat_says_so(world):
+def test_a_busy_chat_queues_the_next_message(world):
     chat_id = world.chat()
     world.codoh.send(chat_id, "one")
-    assert world.codoh.send(chat_id, "two")["error"].startswith("Codoh is still answering")
+    assert world.codoh.send(chat_id, "two") == {"ok": True, "queued": True}  # was refused
 
 
 def test_model_mode_and_effort(world):
@@ -433,6 +433,7 @@ def test_abdoh_open_codoh(tmp_path):
     router = Router(cfg, CommandRegistry(tmp_path / "none.yaml"))
     Daemon(cfg, router, FakeSpeaker(), None, FakeWakeWord(10_000), FakeTranscriber([]), bus=bus)
     assert router.handle("open codoh") == "Opening Codoh."
+    assert router.handle("open kodo") == "Opening Codoh."  # as speech recognition writes it
     events = bus.pending_events()
     assert ("show", None) in events and ("page", "codoh") in events
 
@@ -572,3 +573,38 @@ def test_the_daemon_tells_only_while_the_window_is_open(tmp_path, monkeypatch):
     assert daemon._codoh_note() == ""
     daemon._window_open = True
     assert daemon._codoh_note() == "(Codoh: busy)\n"
+
+
+# ----- a message sent while Codoh works goes next -----
+
+
+def test_a_message_sent_while_it_works_goes_when_the_reply_ends(world):
+    codoh = world.codoh
+    chat = world.chat()
+    codoh.send(chat, "fix the tests")
+    engine = world.engines[0]
+    engine.on_event({"type": "tool", "id": "t1", "name": "Bash", "input": {"command": "pytest"}})
+    queued = codoh.send(chat, "then run them all")
+    assert queued == {"ok": True, "queued": True}
+    assert engine.sent == ["fix the tests"]  # not yet
+    state = codoh.chat(chat)
+    assert state["queued"] == ["then run them all"]
+    assert [i["text"] for i in items(codoh, chat, "user")] == ["fix the tests"]  # beside it
+    engine.on_event({"type": "done", "ok": True, "seconds": 1})
+    assert engine.sent == ["fix the tests", "then run them all"]
+    kinds = [i["kind"] for i in codoh.chat(chat)["items"]]
+    assert kinds[-2:] == ["done", "user"]  # in the conversation, after the reply it waited for
+    assert codoh.chat(chat)["queued"] == [] and codoh.chat(chat)["running"]
+
+
+def test_stop_drops_what_was_queued(world):
+    codoh = world.codoh
+    chat = world.chat()
+    codoh.send(chat, "fix the tests")
+    engine = world.engines[0]
+    codoh.send(chat, "then run them all")
+    engine.on_event({"type": "done", "ok": False, "stopped": True})
+    assert engine.sent == ["fix the tests"]
+    notes = [i["text"] for i in items(codoh, chat, "note")]
+    assert "Not sent: then run them all" in notes
+    assert codoh.chat(chat)["queued"] == [] and not codoh.chat(chat)["running"]

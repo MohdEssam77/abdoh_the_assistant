@@ -143,7 +143,7 @@ def test_the_daemon_says_what_the_window_asks():
 
     daemon = Daemon.__new__(Daemon)
     said = []
-    daemon._say_aside = said.append
+    daemon.say_later = lambda text, still=None: said.append(text)
     daemon.handle_request("say", "The board is saved.")
     assert said == ["The board is saved."]
 
@@ -249,7 +249,7 @@ def watched_daemon(monkeypatch):
     daemon.bus = Bus()
     daemon.bus.ui_attached = True
     said = []
-    daemon._say_aside = said.append
+    daemon.say_later = lambda text, still=None: said.append(text)
     return daemon, said
 
 

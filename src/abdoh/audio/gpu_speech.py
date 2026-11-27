@@ -109,6 +109,7 @@ class GpuSpeech:
 
     def _move(self) -> None:
         stt = self.transcriber
+        stt.warm_up()  # the model Abdoh started with first (it may still be loading): never two
         if stt.gpu_failed:
             self._say(FAILED)
             return

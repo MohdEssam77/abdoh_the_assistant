@@ -93,7 +93,7 @@ WantedBy=default.target
 def _run(cmd: list[str]) -> subprocess.CompletedProcess:
     # No console window flashing when this runs from the tray (pythonw).
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    return subprocess.run(cmd, capture_output=True, text=True, creationflags=flags)
+    return subprocess.run(cmd, capture_output=True, text=True, creationflags=flags, timeout=30)
 
 
 def is_installed() -> bool:

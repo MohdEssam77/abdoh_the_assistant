@@ -19,7 +19,8 @@ def world(tmp_path):
     for name in ("myportfolio", "abdoh_the_assistant", "weather-app"):
         (w.code / name).mkdir(parents=True)
     w.said = []
-    w.codoh.on_notice = w.said.append
+    w.stills = []
+    w.codoh.on_notice = lambda text, still=None: (w.said.append(text), w.stills.append(still))
     return w
 
 
@@ -277,7 +278,7 @@ def test_the_daemon_shows_the_chat_and_says_the_notices(tmp_path, monkeypatch):
     daemon.bus.ui_attached = True
     daemon._window_open = True
     codoh = daemon._codoh()
-    assert codoh.on_notice == daemon._say_aside and codoh.window_open() is True
+    assert codoh.on_notice == daemon.say_later and codoh.window_open() is True
     daemon._show_codoh("c1")
     assert daemon.bus.pending_events() == [("show", None), ("codoh_open", "c1")]
 
@@ -292,3 +293,12 @@ def test_a_silent_action_reads_well_in_the_window():
 
     actions = [("codoh", "new | pocket calculator |"), ("codoh", "send | fix it")]
     assert _what_was_done(actions) == "Done: started a Codoh chat; told Codoh."
+
+
+def test_telling_a_busy_codoh_queues_it(world):
+    run(world, "new | weather app | build it")
+    result = run(world, "send | and run the tests too")
+    assert result.said == voice.QUEUED and world.engines[0].sent == ["build it"]
+    world.engines[0].on_event({"type": "done", "ok": True, "seconds": 2})
+    assert world.engines[0].sent == ["build it", "and run the tests too"]
+    assert world.said == []  # not done yet: no "Codoh is done"

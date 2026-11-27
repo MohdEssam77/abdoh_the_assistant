@@ -988,7 +988,7 @@ async function poll() {
   } catch (e) {
     console.error("events", e);
   }
-  setTimeout(poll, 150);
+  setTimeout(poll, document.hidden ? 1000 : 150);  // minimized or in the tray: less often
 }
 
 /* ---------- what you do ---------- */

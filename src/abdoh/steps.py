@@ -7,6 +7,11 @@ else stays one request: "play rock and roll", "what's the difference between pyt
 After a verb that takes free text ("remind me to call mom and send the email"), the rest
 belongs to it, and "tell me if..." is about the step before it ("watch me fill this in and tell
 me if I get it wrong" is one request).
+
+A new sentence without "and" or "then" goes on with the same request ("Can you save this as a
+PDF? Save the board." is one thing said twice: done twice, it was saved twice), and only a bare
+name borrows "open" ("open whatsapp and spotify"; not "open the project in Codoh, so the project
+is called Unigo").
 """
 
 import re
@@ -43,6 +48,15 @@ _ABOUT_IT = re.compile(
 )
 # "open whatsapp and spotify": the bare name borrows the verb.
 SHARED = frozenset("open close launch quit".split())
+BARE_WORDS = 4  # a bare name is at most this long ...
+# ... and doesn't start like a clause ("so the project is called Unigo", "which is new")
+NOT_A_NAME = frozenset(
+    "so because since which that who whom whose where when while if but though although it its "
+    "it's this these those the they their there i i'm we you he she my his her our your as or "
+    "nor than like".split()
+)
+_JOIN_WORD = re.compile(rf"\b(?:{_JOINS})\b", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"[.!?]")
 _FILLER = re.compile(
     r"^(?:(?:please|can you|could you|would you|will you|i want you to|i need you to"
     r"|go ahead and|also|and|now|just|then|uh|um|okay|ok) )+"
@@ -52,6 +66,16 @@ _FILLER = re.compile(
 def first_word(text: str) -> str:
     words = _FILLER.sub("", normalize(text) + " ").split()
     return words[0] if words else ""
+
+
+def _goes_on(separator: str) -> bool:
+    """A new sentence without "and", "then", "also" ...: the same request goes on."""
+    return bool(_SENTENCE_END.search(separator)) and not _JOIN_WORD.search(separator)
+
+
+def _bare_name(piece: str) -> bool:
+    words = normalize(piece).split()
+    return 0 < len(words) <= BARE_WORDS and words[0] not in NOT_A_NAME
 
 
 def split_steps(text: str) -> list[str]:
@@ -64,14 +88,14 @@ def split_steps(text: str) -> list[str]:
         if not piece:
             continue
         about_it = verb in OBSERVING and _ABOUT_IT.match(normalize(piece))
-        if steps and (verb in FREE_TEXT or about_it):
+        if steps and (verb in FREE_TEXT or about_it or _goes_on(pieces[i - 1])):
             steps[-1] += pieces[i - 1] + piece  # "remind me to call mom and send the email"
             continue
         word = first_word(piece)
         if word in DOING or word in QUESTIONS or word in FREE_TEXT:
             steps.append(piece)
             verb = word
-        elif steps and verb in SHARED:
+        elif steps and verb in SHARED and _bare_name(piece):
             steps.append(f"{verb} {piece}")  # "open whatsapp and spotify"
         else:
             return []  # not a list of things to do

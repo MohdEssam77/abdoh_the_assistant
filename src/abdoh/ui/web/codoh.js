@@ -549,7 +549,7 @@
       ] }], "down") }, icon("dots")));
     const thread = el("div", { class: "cx-thread", id: "cx-thread" });
     const scroll = el("div", { class: "cx-scroll", id: "cx-scroll" }, thread);
-    return [head, scroll, composer()];
+    return [head, scroll, el("div", { class: "cx-queue", id: "cx-queue", hidden: true }), composer()];
   }
 
   function emptyThread() {
@@ -567,7 +567,7 @@
     const resize = () => { box.style.height = "auto"; box.style.height = `${Math.min(box.scrollHeight, 240)}px`; };
     box.addEventListener("input", () => { resize(); updateSend(); });
     box.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!C.running) send(box.value); }
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(box.value); }  // while it works: queued
       if (e.key === "Escape" && C.running) { e.preventDefault(); stop(); }
     });
     const mode = MODES.find((m) => m[0] === chat.mode) || MODES[0];
@@ -584,19 +584,21 @@
             icon("gauge"), effort[0] ? effort[1] : "Effort", icon("down", "small")),
           el("span", { class: "spacer" }),
           el("span", { class: "cx-hint", id: "cx-hint" }, "Enter to send · Shift+Enter for a new line"),
-          el("button", { class: "cx-send", id: "cx-send", type: "button", title: "Send", onclick: () => (C.running ? stop() : send(box.value)) }, icon("send")))));
+          el("button", { class: "cx-send", id: "cx-send", type: "button", title: "Send", onclick: () => (C.running && !box.value.trim() ? stop() : send(box.value)) }, icon("send")))));
   }
 
   function updateSend() {
     const button = $("#cx-send");
     const box = $("#cx-input");
     if (!button || !box) return;
-    button.classList.toggle("stop", C.running);
-    button.title = C.running ? "Stop (Esc)" : "Send (Enter)";
-    button.replaceChildren(icon(C.running ? "stop" : "send"));
-    button.disabled = !C.running && !box.value.trim();
+    const typed = Boolean(box.value.trim());
+    const stopping = C.running && !typed;  // typed while it works: send it after (queued)
+    button.classList.toggle("stop", stopping);
+    button.title = stopping ? "Stop (Esc)" : C.running ? "Send when this is done (Enter)" : "Send (Enter)";
+    button.replaceChildren(icon(stopping ? "stop" : "send"));
+    button.disabled = !C.running && !typed;
     const hint = $("#cx-hint");
-    if (hint) hint.textContent = C.running ? "Esc to stop" : "Enter to send · Shift+Enter for a new line";
+    if (hint) hint.textContent = C.running ? (typed ? "Enter to send it next · Esc to stop" : "Esc to stop") : "Enter to send · Shift+Enter for a new line";
   }
 
   /* ---------- menus ---------- */
@@ -840,11 +842,22 @@
     if (!C.items.size && !start) thread.append(emptyThread());
     if (C.items.size && start) start.remove();
     working(thread);
+    queueStrip(result.queued || []);
     if (wasRunning !== C.running) {
       updateSend();
       if (!C.running) { refreshState(); folderGit(C.chat.folder); if (C.changesOpen) loadChanges(); }
     }
     if (stick) { const s = $("#cx-scroll"); if (s) s.scrollTop = s.scrollHeight; }
+  }
+
+  /* Messages sent while Codoh works: they wait here, and join the conversation when sent. */
+  function queueStrip(queued) {
+    const strip = $("#cx-queue");
+    if (!strip) return;
+    strip.hidden = !queued.length;
+    strip.replaceChildren(...queued.map((text) => el("div", { class: "cx-queue-item" },
+      icon("send", "kind"), el("span", { class: "cx-queue-text" }, text),
+      el("small", {}, "Next, when this is done"))));
   }
 
   function working(thread) {
@@ -862,7 +875,8 @@
   function schedule() {
     clearTimeout(C.timer);
     if (!C.visible || !C.chatId) return;
-    C.timer = setTimeout(() => poll(), C.running ? 220 : 1500);
+    // minimized: less often (Abdoh says what Codoh needs meanwhile)
+    C.timer = setTimeout(() => poll(), document.hidden ? 2000 : C.running ? 220 : 1500);
   }
 
   async function poll(now = false) {
