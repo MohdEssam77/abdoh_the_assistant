@@ -44,6 +44,13 @@ MAX_TEXT = 2000
 AUDIO_SECONDS = 600.0  # a reply's audio can be fetched for this long
 MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
+# What was said to the phone, for telling its own voice coming back from yours: the phone plays
+# a reply's sentences one after another, well after they were sent.
+SAID_SECONDS = 120.0
+SAID_KEPT = 12
+# What you said over a reply on a call (local_skills.interruption_kind, or "echo") -> what the
+# phone does: the reply goes on, it stops, the call ends, or it stops and this is asked instead.
+OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
      "phone_question", "phone_done"}
@@ -71,6 +78,7 @@ class PhoneHub:
         self._today = today
         self._clock = clock
         self.boot = secrets.token_hex(4)  # a new hub (Abdoh restarted): the page starts over
+        self._said: deque[tuple[float, str]] = deque(maxlen=SAID_KEPT)  # said to the phone
         self._cond = threading.Condition()
         self._events: deque[tuple[int, dict]] = deque(maxlen=MAX_EVENTS)
         self._seq = 0
@@ -145,6 +153,7 @@ class PhoneHub:
         elif kind == "phone_say":
             text = str(value or "")
             if text.strip():
+                self._said.append((self._clock(), text))
                 audio = self._render(text)
                 self._add({"type": "say", "text": text, "audio": audio, "for": self._asker})
         elif kind == "phone_aside":
@@ -210,6 +219,35 @@ class PhoneHub:
 
     def hear(self, audio: bytes, speak: bool = False, phone: str = "") -> str:
         """A spoken request from the phone: what was heard ("" if nothing), then asked."""
+        text = self._transcribe(audio)
+        if text:
+            self.ask(text, speak, phone, spoken=True)
+        return text
+
+    def hear_over(self, audio: bytes, speak: bool = False, phone: str = "") -> dict:
+        """What you said over Abdoh's answer on a call (story 146): {"text", "kind", "heard"}.
+        "kind": "go_on" (no words, "okay", a word or two, or Abdoh's own voice coming back
+        through the phone's microphone: the answer goes on), "stop" ("wait": it stops),
+        "end" ("stop listening": the call ends) or "request" (it stops, and this is asked
+        instead). "heard": how it was taken (local_skills.interruption_kind, or "echo")."""
+        from abdoh.audio.echo_text import own_words
+        from abdoh.local_skills import interruption_kind
+
+        text = self._transcribe(audio)
+        heard = interruption_kind(text)
+        now = self._clock()
+        said = [words for at, words in list(self._said) if now - at < SAID_SECONDS]
+        if heard not in ("nothing", "backchannel") and own_words(text, said):
+            heard = "echo"
+        kind = OVER.get(heard, "go_on")
+        log.info("Heard %r over the reply on the phone (%s)", text, heard)
+        if kind != "go_on":
+            self.stop()
+        if kind == "request":
+            self.ask(text, speak, phone, spoken=True)
+        return {"text": text, "kind": kind, "heard": heard}
+
+    def _transcribe(self, audio: bytes) -> str:
         if self._hear is None:
             raise PhoneError("Speech recognition isn't working on your computer right now.")
         if not audio:
@@ -217,13 +255,10 @@ class PhoneHub:
         if len(audio) % 2:
             raise PhoneError("That recording wasn't readable.")
         try:
-            text = (self._hear(audio) or "").strip()
+            return (self._hear(audio) or "").strip()
         except Exception as e:
             log.exception("Couldn't understand the phone's recording")
             raise PhoneError("Abdoh couldn't understand that recording.") from e
-        if text:
-            self.ask(text, speak, phone, spoken=True)
-        return text
 
     def stop(self) -> None:
         """Stop the reply (the phone's Stop button)."""

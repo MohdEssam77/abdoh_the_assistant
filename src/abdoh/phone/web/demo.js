@@ -36,6 +36,7 @@
       return;
     }
     const sentences = /lamp|light/.test(lower) ? ["The desk lamp is off now."]
+      : /vegetarian/.test(lower) ? ["Good news, it already is.", "Add a handful of spinach at the end if you like."]
       : /dinner|cook/.test(lower) ? ["How about pasta tonight?", "You have spaghetti and garlic, so aglio e olio works.", "Want the steps?"]
         : /steps|quick|yes/.test(lower) ? ["Sure.", "Boil salted water and cook the spaghetti for nine minutes.",
           "Meanwhile, fry sliced garlic in olive oil until it's golden.", "Then toss it all together with a splash of the pasta water."]
@@ -67,6 +68,11 @@
         return { boot: "demo", seq, events: events.filter((e) => e.seq > after) };
       }
       if (path === "/api/text") { answer(body.text); return { ok: true, text: body.text }; }
+      if (path.includes("over=1")) { // talked over the answer on a call: something new
+        const heard = "actually, make it vegetarian";
+        setTimeout(() => answer(heard), 700);
+        return { ok: true, text: heard, kind: "request", heard: "request" };
+      }
       if (path.startsWith("/api/voice")) {
         const heard = SAID[said++ % SAID.length];
         setTimeout(() => answer(heard), 700);

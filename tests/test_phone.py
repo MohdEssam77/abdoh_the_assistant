@@ -347,6 +347,42 @@ def test_asking_through_the_page(tmp_path):
     assert call(app, "POST", "/api/nothing", key=key)[0].status == 404
 
 
+@pytest.mark.parametrize(
+    ("heard", "kind", "how", "requests"),
+    [
+        ("", "go_on", "nothing", []),  # a noise
+        ("okay", "go_on", "backchannel", []),  # listening along: Abdoh goes on
+        ("so aglio e olio works", "go_on", "echo", []),  # Abdoh's own voice, back in the phone
+        ("wait", "stop", "stop", ["stop_speaking"]),
+        ("stop listening", "end", "stop_listening", ["stop_speaking"]),  # the call ends
+        ("actually make it vegetarian", "request", "request", ["stop_speaking", "phone"]),
+    ],
+)
+def test_talking_over_the_answer_on_a_call(tmp_path, heard, kind, how, requests):
+    """Story 146: what you said over Abdoh's answer, sorted on the computer."""
+    bus, hub, phones, app = make_app(tmp_path, hear=FakeTranscriber([heard]).transcribe)
+    key = paired(app, phones)
+    hub.take("phone_say", "You have spaghetti and garlic, so aglio e olio works.")
+    response, data = call(app, "POST", "/api/voice?speak=1&over=1", key=key, body=b"\x00\x01" * 800)
+    assert data == {"ok": True, "text": heard, "kind": kind, "heard": how}
+    asked = []
+    while (request := bus.next_request(0)) is not None:
+        asked.append(request)
+    assert [name for name, _ in asked] == requests
+    if kind == "request":
+        assert asked[1][1] == {"text": heard, "spoken": True}
+        assert hub._speak is True and hub._asker == phones.list()[0]["id"]
+
+
+def test_abdohs_old_words_dont_count_as_its_voice():
+    clock = Clock()
+    bus, hub = make_hub(hear=FakeTranscriber(["so aglio e olio works"] * 2).transcribe, clock=clock)
+    hub.take("phone_say", "You have spaghetti and garlic, so aglio e olio works.")
+    assert hub.hear_over(b"\x00\x01")["heard"] == "echo"
+    clock.now += 121  # said two minutes ago: you saying it now is you
+    assert hub.hear_over(b"\x00\x01")["heard"] == "request"
+
+
 def test_events_and_audio_through_the_page(tmp_path):
     bus, hub, phones, app = make_app(tmp_path, voice=lambda text: b"RIFF....WAVE")
     key = paired(app, phones)
