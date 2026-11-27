@@ -778,7 +778,13 @@ class Daemon:
             self.earcons.start_ticking("thinking")
 
     def handle_text(
-        self, text: str, voice: bool = False, aside: bool = False, woken=False, phone=False
+        self,
+        text: str,
+        voice: bool = False,
+        aside: bool = False,
+        woken=False,
+        phone=False,
+        spoken=False,
     ) -> str:
         """Route one request and speak the reply. Never raises.
 
@@ -787,16 +793,19 @@ class Daemon:
         reply, without the wake word, so it may be meant for someone else in the room. `woken`: it
         came after the wake word, which a video or people talking can set off by mistake (True,
         or how clearly the name was heard: (score, voice check or None)). `phone`: it came from
-        the phone (abdoh/phone): the reply goes there, and nothing is said here.
+        the phone (abdoh/phone): the reply goes there, and nothing is said here. `spoken`: it
+        was said into the phone, not typed (the laptop doesn't listen afterwards).
         """
         with self._handle_lock:
             self._phone_turn = phone
             try:
-                return self._handle_text(text, voice, aside, woken, phone)
+                return self._handle_text(text, voice, aside, woken, phone, spoken)
             finally:
                 self._phone_turn = False
 
-    def _handle_text(self, text: str, voice: bool, aside: bool, woken, phone: bool) -> str:
+    def _handle_text(
+        self, text: str, voice: bool, aside: bool, woken, phone: bool, spoken: bool = False
+    ) -> str:
         self._interrupted.clear()
         self._you_stopped = False
         self._floor.set()
@@ -860,7 +869,7 @@ class Daemon:
             done = getattr(self.voice_watch, "reply_done", None)
             if done is not None:
                 done()  # no false alarm this time: the watch eases off
-        self._keep_exchange(text, kept, typed=not voice)
+        self._keep_exchange(text, kept, typed=not (voice or spoken))
         self.earcons.stop_ticking()
         if not voice:
             self._unduck_unless_listening()  # a typed request: its reply is over
@@ -1187,10 +1196,13 @@ class Daemon:
         if kind == "text":
             if value and value.strip():
                 self.handle_text(value.strip())
-        elif kind == "phone":  # the phone page (abdoh/phone/hub.py): {"text": ...}
+        elif kind == "phone":  # the phone page (abdoh/phone/hub.py): {"text", "spoken"?}
             text = str((value or {}).get("text") or "").strip()
             if text:
-                self.handle_text(text, phone=True)
+                try:
+                    self.handle_text(text, phone=True, spoken=bool(value.get("spoken")))
+                finally:
+                    self.bus.emit("phone_done", None)  # a call on the phone listens again
         elif kind == "phone_control":  # the phone's quick controls: {"kind", "value"}
             self._phone_control(value)
         elif kind == "pause":

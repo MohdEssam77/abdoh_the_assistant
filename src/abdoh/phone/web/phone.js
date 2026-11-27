@@ -20,6 +20,8 @@ const S = {
   final: true, // the reply to the last request is shown in full
   pending: [], // what this phone sent, until the computer shows it: [{node, text}]
   speak: localStorage.getItem(SPEAK) !== "0",
+  asked: 0, answered: 0, // this phone's requests that reached the computer, and those answered
+  cut: 0, // replies to the requests up to this one aren't said (stopped, or the call ended)
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -191,6 +193,7 @@ async function load() {
   S.live = null;
   S.final = true;
   S.pending = [];
+  S.answered = S.asked; // what was being answered is over (or Abdoh restarted)
   $("#messages").replaceChildren();
   for (const line of state.history || []) addLine(line);
   setAi(state.ai || {});
@@ -198,6 +201,7 @@ async function load() {
   S.status = state.status || "";
   online(true);
   scrollDown(true);
+  turnOver();
 }
 
 async function poll() {
@@ -245,6 +249,7 @@ function take(event) {
     case "mode": setMode(event.name || ""); break;
     case "say": addSaid(event); break;
     case "question": askQuestion(event.text || ""); break;
+    case "done": if (event.for === S.me) { S.answered += 1; turnOver(); } break;
     default: break;
   }
 }
@@ -258,6 +263,7 @@ function addLine(line, fresh = false) {
       S.live.querySelector(".text").textContent = text;
       S.live = null;
     } else bubble("abdoh", text);
+    if (call.on && call.state === "thinking") call.abdoh = text; // done without words: shown
     S.final = true;
     S.activity = "";
   } else {
@@ -272,9 +278,11 @@ function addLine(line, fresh = false) {
   scrollDown();
 }
 
-/* A sentence of the reply to this phone: shown, and said if this phone asked and speaks. */
+/* A sentence of the reply to this phone: shown, and said if this phone asked and speaks (on a
+   call, always). Not the rest of a reply that was stopped. */
 function addSaid(event) {
-  if (S.speak && event.for === S.me) play(event);
+  const wanted = call.on ? ["sending", "thinking", "speaking"].includes(call.state) : S.speak;
+  if (wanted && event.for === S.me && S.answered >= S.cut) play(event);
   if (S.final) return; // already shown whole (a short reply comes whole, then is said)
   if (!S.live) S.live = bubble("abdoh", "");
   const text = S.live.querySelector(".text");
@@ -377,6 +385,7 @@ async function send(text) {
   scrollDown(true);
   try {
     await api("POST", "/api/text", { text, speak: S.speak });
+    S.asked += 1;
   } catch (error) {
     S.pending = S.pending.filter((p) => p.node !== node);
     node.classList.remove("pending");
@@ -402,6 +411,7 @@ function hideQuestion() { $("#question").hidden = true; }
 
 async function stop() {
   silence();
+  S.cut = S.asked;
   render();
   try { await api("POST", "/api/stop"); } catch (error) { failed(error); }
 }
@@ -446,9 +456,11 @@ async function next(turn) {
   if (!item || turn !== player.turn) {
     player.playing = false;
     render();
+    turnOver();
     return;
   }
   player.playing = true;
+  if (call.on) callSays(item.text);
   try {
     if (item.sound) await playSound(await item.sound);
     else await speakHere(item.text);
@@ -472,7 +484,8 @@ function playSound(buffer) {
 
 function speakHere(text) {
   return new Promise((resolve) => {
-    if (DEMO || !("speechSynthesis" in window)) return resolve(); // the demo stays quiet
+    if (DEMO) return setTimeout(resolve, 500 + text.length * 40); // the demo stays quiet
+    if (!("speechSynthesis" in window)) return resolve();
     const line = new SpeechSynthesisUtterance(text);
     line.onend = resolve;
     line.onerror = resolve;
@@ -497,20 +510,31 @@ function silence() {
 
 const rec = { on: false, stream: null, source: null, node: null, chunks: [], rate: 48000, started: 0, timer: null, level: 0 };
 const MAX_RECORD_MS = 60000;
+const NO_MIC = { shown: true, message: "The microphone can't be used here. Open Abdoh from your Home Screen (or over https)." };
+
+/* The microphone (null in the demo). Throws a message for people. */
+async function openMic() {
+  if (DEMO) return null;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw NO_MIC;
+  try {
+    return await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  } catch (error) {
+    throw { shown: true, message: error && error.name === "NotAllowedError"
+      ? "Abdoh may not use the microphone. Allow it for Abdoh (Settings → Safari → Microphone on an iPhone), then try again."
+      : "The microphone isn't available right now." };
+  }
+}
+
+const clock = (seconds) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 
 async function startRecording() {
   unlockAudio();
   silence();
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    return failed({ shown: true, message: "The microphone can't be used here. Open Abdoh from your Home Screen (or over https)." });
-  }
   try {
-    rec.stream = DEMO ? null : await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    rec.stream = await openMic();
   } catch (error) {
-    return failed({ shown: true, message: error && error.name === "NotAllowedError"
-      ? "Abdoh may not use the microphone. Allow it for Abdoh (Settings → Safari → Microphone on an iPhone), then try again."
-      : "The microphone isn't available right now." });
+    return failed(error);
   }
   rec.chunks = [];
   if (rec.stream) {
@@ -537,8 +561,7 @@ async function startRecording() {
 
 function showRecording() {
   const ms = Date.now() - rec.started;
-  const seconds = Math.floor(ms / 1000);
-  $("#rec-time").textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  $("#rec-time").textContent = clock(Math.floor(ms / 1000));
   const level = DEMO ? 0.35 + 0.3 * Math.sin(ms / 180) : rec.level;
   [...document.querySelectorAll(".meter i")].forEach((bar, i) => {
     const wave = 0.55 + 0.45 * Math.sin(ms / 120 + i * 1.3);
@@ -581,7 +604,9 @@ function toPcm16k(chunks, rate) {
   return out.buffer;
 }
 
-async function sendVoice(pcm) {
+/* What you said, sent: returns what Abdoh heard ("" if nothing). On a call (`inCall`), the
+   call says what went wrong: errors are thrown. */
+async function sendVoice(pcm, { speak = S.speak, inCall = false } = {}) {
   const node = bubble("you", "…");
   node.classList.add("pending");
   const pending = { node, text: "", voice: true };
@@ -591,21 +616,286 @@ async function sendVoice(pcm) {
   hideQuestion();
   render();
   scrollDown(true);
-  try {
-    const data = await api("POST", `/api/voice${S.speak ? "?speak=1" : ""}`, pcm, { timeout: 60000 });
-    if (!data.text && S.pending.includes(pending)) {
-      S.pending = S.pending.filter((p) => p !== pending);
-      node.remove();
-      S.final = true;
-      note("Abdoh didn't catch that. Try again, a little closer to the phone.");
-      render();
-    }
-  } catch (error) {
+  const drop = () => {
     S.pending = S.pending.filter((p) => p !== pending);
     node.remove();
     S.final = true;
+    render();
+  };
+  let data;
+  try {
+    data = await api("POST", `/api/voice${speak ? "?speak=1" : ""}`, pcm, { timeout: 60000 });
+  } catch (error) {
+    drop();
+    if (inCall) throw error;
     failed(error);
+    return "";
   }
+  if (data.text) S.asked += 1;
+  else if (S.pending.includes(pending)) {
+    drop();
+    if (!inCall) note("Abdoh didn't catch that. Try again, a little closer to the phone.");
+  }
+  return data.text || "";
+}
+
+/* ---------- a call: back and forth by voice, hands-free (story 145) ----------
+   The phone button in the header starts it. Abdoh listens; when you pause, what you said is
+   sent, the reply is said here, and it listens again, until you hang up. The microphone stays
+   open for the whole call (one permission), but what it hears while Abdoh answers is ignored,
+   so its own voice is never taken for yours: tap the circle to talk over it. */
+
+const CALL = {
+  frame: 2048,
+  preRollMs: 350, // kept from just before you started: the first word isn't cut off
+  startMs: 120, // this much sound above the room's hum: you're talking
+  endMs: 1200, // then this long quiet: your turn is over
+  minSpeechMs: 300, // less: a knock or a cough, not words
+  maxTurnMs: 45000,
+  graceMs: 450, // after Abdoh's voice (or the microphone opening): its echo dies away
+  quietEndMs: 5 * 60000, // nobody talked this long: the call ends
+};
+const call = {
+  on: false, state: "", muted: false, stream: null, source: null, node: null, rate: 48000,
+  ear: newEar(), pre: [], chunks: [], level: 0,
+  armed: 0, idle: 0, started: 0, timer: null, demo: null, lock: null, you: "", abdoh: "", hint: "",
+};
+
+/* The call's ear: how loud the room is (`floor`), and your turn so far. */
+function newEar(floor = 0.004) {
+  return { floor, talking: false, loudMs: 0, speechMs: 0, quietMs: 0, totalMs: 0 };
+}
+
+/* One block from the microphone (its loudness and length): "start" when you started talking,
+   "end" when you've stopped, "drop" when it was only a knock or a cough, else null. */
+function earStep(ear, rms, ms) {
+  const loud = Math.max(0.015, ear.floor * 3);
+  if (!ear.talking) {
+    ear.floor += (rms - ear.floor) * (rms < ear.floor ? 0.1 : 0.004); // follows the room's hum
+    ear.loudMs = rms > loud ? ear.loudMs + ms : 0;
+    if (ear.loudMs < CALL.startMs) return null;
+    Object.assign(ear, { talking: true, speechMs: ear.loudMs, quietMs: 0, totalMs: ear.loudMs });
+    return "start";
+  }
+  ear.totalMs += ms;
+  if (rms > loud * 0.55) {
+    ear.quietMs = 0;
+    ear.speechMs += ms;
+  } else ear.quietMs += ms;
+  if (ear.quietMs < CALL.endMs && ear.totalMs < CALL.maxTurnMs) return null;
+  ear.talking = false;
+  ear.loudMs = 0;
+  return ear.speechMs < CALL.minSpeechMs ? "drop" : "end";
+}
+
+async function startCall() {
+  if (call.on) return;
+  unlockAudio(); // a tap: replies may be heard
+  silence();
+  if (rec.on) stopRecording(false);
+  $("#controls").hidden = true;
+  $("#menu").hidden = true;
+  let stream;
+  try {
+    stream = await openMic();
+  } catch (error) {
+    return failed(error);
+  }
+  Object.assign(call, { on: true, muted: false, stream, started: Date.now(), ear: newEar(), you: "", abdoh: "", hint: "" });
+  S.cut = S.asked; // a reply still coming from before the call isn't said in it
+  if (stream) {
+    const ctx = audioContext();
+    call.rate = ctx.sampleRate;
+    call.source = ctx.createMediaStreamSource(stream);
+    call.node = ctx.createScriptProcessor(CALL.frame, 1, 1);
+    call.node.onaudioprocess = (e) => hearFrame(e.inputBuffer.getChannelData(0));
+    call.source.connect(call.node);
+    call.node.connect(ctx.destination); // silent: it only runs while connected
+    for (const track of stream.getTracks()) {
+      track.addEventListener("ended", () => endCall("The call ended: the microphone stopped."));
+    }
+  }
+  $("#call").hidden = false;
+  call.timer = setInterval(showCall, 100);
+  keepAwake(true);
+  listen();
+}
+
+/* Your turn: wait for you to talk (once Abdoh's echo has died away). */
+function listen(grace = CALL.graceMs) {
+  if (!call.on) return;
+  clearTimeout(call.demo);
+  Object.assign(call, { state: "listening", ear: newEar(call.ear.floor), pre: [], chunks: [] });
+  call.armed = Date.now() + grace;
+  call.idle = Date.now();
+  if (DEMO && !call.muted) demoTalk();
+  showCall();
+}
+
+/* Every block from the microphone: did you start talking, and have you stopped? */
+function hearFrame(data) {
+  if (!call.on) return;
+  let sum = 0;
+  for (let i = 0; i < data.length; i += 4) sum += data[i] * data[i];
+  const rms = Math.sqrt(sum / Math.ceil(data.length / 4));
+  call.level = call.muted ? 0 : Math.min(1, rms * 6);
+  if (call.muted || !["listening", "hearing"].includes(call.state)) return;
+  const ear = call.ear;
+  if (Date.now() < call.armed) { // not yet: learn how loud the room is meanwhile
+    if (call.state === "listening") ear.floor += (rms - ear.floor) * 0.2;
+    return;
+  }
+  const ms = (data.length / call.rate) * 1000;
+  const heard = earStep(ear, rms, ms);
+  if (call.state === "listening") {
+    call.pre.push(new Float32Array(data));
+    while (call.pre.length * ms > CALL.preRollMs) call.pre.shift();
+    if (heard === "start") Object.assign(call, { state: "hearing", chunks: call.pre, pre: [], hint: "" });
+    return;
+  }
+  call.chunks.push(new Float32Array(data));
+  if (heard === "drop") return listen(0);
+  if (heard !== "end") return;
+  const extra = Math.floor(Math.max(0, ear.quietMs - 300) / ms); // most of the quiet at the end
+  sendTurn(call.chunks.slice(0, call.chunks.length - extra));
+}
+
+/* What you said goes to your computer; the reply comes as events ("say", then "done"). */
+async function sendTurn(chunks) {
+  clearTimeout(call.demo);
+  Object.assign(call, { state: "sending", chunks: [], hint: "" });
+  showCall();
+  const pcm = DEMO ? new ArrayBuffer(32000) : toPcm16k(chunks, call.rate);
+  let heard;
+  try {
+    heard = await sendVoice(pcm, { speak: true, inCall: true });
+  } catch (error) {
+    if (error instanceof Unpaired) {
+      endCall();
+      return unpaired();
+    }
+    call.hint = error.shown ? error.message : "Couldn't send that: your computer can't be reached. Say it again?";
+    return listen();
+  }
+  if (!call.on) { // hung up meanwhile: its reply isn't said
+    S.cut = S.asked;
+    if (heard) api("POST", "/api/stop").catch(() => {});
+    return;
+  }
+  if (!heard) {
+    call.hint = "Abdoh didn't catch that. Say it again?";
+    return listen(0);
+  }
+  call.you = heard;
+  if (call.state === "sending") {
+    call.state = "thinking";
+    call.abdoh = "";
+  }
+  showCall();
+  turnOver();
+}
+
+/* A sentence of the reply starts. */
+function callSays(text) {
+  if (!["sending", "thinking", "speaking"].includes(call.state)) return;
+  call.state = "speaking";
+  call.abdoh = text;
+  showCall();
+}
+
+/* Abdoh answered everything it was asked, and said it all: your turn again. */
+function turnOver() {
+  if (!call.on || !["thinking", "speaking"].includes(call.state)) return;
+  if (S.answered >= S.asked && !player.playing && !player.queue.length) listen();
+}
+
+/* The circle: talk over Abdoh (it stops), or unmute. */
+function tapOrb() {
+  if (!call.on) return;
+  if (call.muted) return toggleMute();
+  if (!["thinking", "speaking"].includes(call.state)) return;
+  S.cut = S.asked;
+  silence();
+  api("POST", "/api/stop").catch(() => {});
+  call.abdoh = "";
+  listen(250);
+}
+
+function toggleMute() {
+  if (!call.on) return;
+  call.muted = !call.muted;
+  if (call.stream) call.stream.getAudioTracks().forEach((track) => { track.enabled = !call.muted; });
+  if (["listening", "hearing"].includes(call.state)) listen(0); // what you were saying is dropped
+  showCall();
+}
+
+function endCall(why = "") {
+  if (!call.on) return;
+  const busy = S.answered < S.asked || player.playing || call.state === "sending";
+  const seconds = Math.floor((Date.now() - call.started) / 1000);
+  call.on = false;
+  clearInterval(call.timer);
+  clearTimeout(call.demo);
+  if (call.node) { call.node.disconnect(); call.node.onaudioprocess = null; }
+  if (call.source) call.source.disconnect();
+  if (call.stream) call.stream.getTracks().forEach((track) => track.stop()); // the microphone is free
+  call.node = call.source = call.stream = null;
+  call.state = "";
+  keepAwake(false);
+  silence();
+  S.cut = S.asked;
+  if (busy) api("POST", "/api/stop").catch(() => {});
+  $("#call").hidden = true;
+  note(why || `Call with Abdoh · ${clock(seconds)}`);
+  render();
+  scrollDown(true);
+}
+
+/* The screen stays on during a call where the phone allows it (a locked phone ends the call). */
+async function keepAwake(on) {
+  try {
+    if (!on) {
+      if (call.lock) call.lock.release();
+      call.lock = null;
+    } else if (!call.lock && "wakeLock" in navigator) call.lock = await navigator.wakeLock.request("screen");
+  } catch (error) {
+    call.lock = null; // not on this phone: it may dim
+  }
+}
+
+const CALL_STATE = { listening: "Listening…", hearing: "Listening…", sending: "Thinking…", speaking: "Answering", muted: "Muted" };
+const CALL_HINT = { listening: "Talk whenever you like", hearing: "Pause when you're done", thinking: "Tap the circle to stop it",
+  speaking: "Tap the circle to talk", muted: "Abdoh can't hear you" };
+
+function showCall() {
+  if (!call.on) return;
+  const now = Date.now();
+  if (call.state === "listening" && now - call.idle > CALL.quietEndMs) return endCall("The call ended after five quiet minutes.");
+  const state = call.muted && ["listening", "hearing"].includes(call.state) ? "muted" : call.state;
+  $("#call").dataset.state = state;
+  $("#call-time").textContent = clock(Math.floor((now - call.started) / 1000));
+  let level = 0;
+  if (state === "hearing") level = DEMO ? 0.45 + 0.35 * Math.sin(now / 140) : call.level;
+  else if (state === "listening") level = DEMO ? 0.04 : call.level;
+  $("#orb").style.setProperty("--level", level.toFixed(3));
+  const offline = S.online === false;
+  const thinking = S.activity ? `${S.activity}…`.replace(/\.+…$/, "…") : "Thinking…";
+  $("#call-state").textContent = offline ? "Can't reach your computer" : state === "thinking" ? thinking : CALL_STATE[state] || "";
+  $("#call-hint").textContent = offline ? "Trying again…" : call.hint || CALL_HINT[state] || "";
+  $("#call-you").textContent = call.you ? `“${call.you}”` : "";
+  $("#call-abdoh").textContent = call.abdoh;
+  $("#call-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");
+  $("#call-mute-label").textContent = call.muted ? "Unmute" : "Mute";
+  $("#orb").setAttribute("aria-label", call.muted ? "Unmute" : ["thinking", "speaking"].includes(state) ? "Talk now" : "Abdoh is listening");
+}
+
+/* The demo has no microphone: "you" talk a moment after Abdoh starts listening. */
+function demoTalk() {
+  call.demo = setTimeout(() => {
+    if (call.state !== "listening" || call.muted) return;
+    call.state = "hearing";
+    call.demo = setTimeout(() => { if (call.state === "hearing") sendTurn([]); }, 2200);
+  }, 1800);
 }
 
 /* ---------- the page's controls ---------- */
@@ -637,6 +927,10 @@ function setupComposer() {
   $("#mic").addEventListener("click", startRecording);
   $("#rec-send").addEventListener("click", () => stopRecording(true));
   $("#cancel").addEventListener("click", () => stopRecording(false));
+  $("#call-button").addEventListener("click", startCall);
+  $("#orb").addEventListener("click", tapOrb);
+  $("#call-mute").addEventListener("click", toggleMute);
+  $("#hang-up").addEventListener("click", () => endCall());
   for (const button of document.querySelectorAll("[data-answer]")) {
     button.addEventListener("click", () => send(button.dataset.answer === "yes" ? "Yes" : "No"));
   }
@@ -736,6 +1030,7 @@ function fitToScreen() {
 }
 
 document.addEventListener("visibilitychange", () => {
+  if (document.hidden && call.on) endCall("The call ended when Abdoh went to the background.");
   if (!document.hidden && S.wake) S.wake(); // back in the app: try again now
 });
 

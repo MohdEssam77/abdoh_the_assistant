@@ -19,6 +19,8 @@ Events for the page (each with its number, "seq"):
                                           speaks it with its own voice, if it speaks replies
   {"type": "aside", "text": ...}          "One moment" while the AI works
   {"type": "question", "text": ...}       Abdoh asked a yes/no question
+  {"type": "done", "for": ...}            the phone's request is answered (after its last
+                                          "say"): a call listens again (story 145)
 
 Every event goes through one worker thread, in order: the audio of a sentence is made there,
 so a reply's sentences and the line with the whole reply arrive in the order they were said.
@@ -44,7 +46,7 @@ MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
-     "phone_question"}
+     "phone_question", "phone_done"}
 )  # fmt: skip
 
 
@@ -149,6 +151,8 @@ class PhoneHub:
             self._add({"type": "aside", "text": str(value or "")})
         elif kind == "phone_question":
             self._add({"type": "question", "text": str(value or "")})
+        elif kind == "phone_done":
+            self._add({"type": "done", "for": self._asker})
 
     def _new_day(self) -> None:
         today = self._today()
@@ -194,13 +198,14 @@ class PhoneHub:
 
     # ----- what the phone asks -----
 
-    def ask(self, text: str, speak: bool = False, phone: str = "") -> str:
-        """A typed request from the phone (`phone`: its id; its reply is spoken there)."""
+    def ask(self, text: str, speak: bool = False, phone: str = "", spoken: bool = False) -> str:
+        """A request from the phone (`phone`: its id; its reply is spoken there). `spoken`: it
+        was said, not typed (the week's conversations keep which)."""
         text = " ".join(str(text or "").split())[:MAX_TEXT]
         if not text:
             raise PhoneError("Type something to ask Abdoh.")
         self._speak, self._asker = bool(speak), phone
-        self.bus.request("phone", {"text": text})
+        self.bus.request("phone", {"text": text, **({"spoken": True} if spoken else {})})
         return text
 
     def hear(self, audio: bytes, speak: bool = False, phone: str = "") -> str:
@@ -217,7 +222,7 @@ class PhoneHub:
             log.exception("Couldn't understand the phone's recording")
             raise PhoneError("Abdoh couldn't understand that recording.") from e
         if text:
-            self.ask(text, speak, phone)
+            self.ask(text, speak, phone, spoken=True)
         return text
 
     def stop(self) -> None:
