@@ -665,7 +665,8 @@ FEATURES: list[dict] = [
         "icon": "phone",
         "line": "Talk and type to Abdoh from your phone, at home or anywhere, and hear its answers there.",
         "what": "A home-screen app on your phone for the Abdoh on this computer: the conversation, "
-        "a microphone button, and controls for music, volume, your modes and locking the computer. "
+        "a microphone button, a call (talk back and forth, hands-free, until you hang up), and "
+        "controls for music, volume, your modes and locking the computer. "
         "Tailscale (free) connects your phone and this computer privately; nothing is open to the "
         "internet, and only phones you pair can use it. Replies play on the phone; actions happen "
         "on the computer.",
@@ -682,6 +683,7 @@ FEATURES: list[dict] = [
             "The computer must be on and awake: plugged in, let it never sleep.",
             "Remove a phone in Settings → Phone, or “Unpair this phone” in its menu.",
             "“Speak replies” in the phone's menu: off, the answers are only shown.",
+            "For a conversation, tap the phone button: Abdoh listens, answers and listens again.",
         ],
     },
 ]
