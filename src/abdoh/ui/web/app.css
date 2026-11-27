@@ -905,3 +905,8 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
 /* Settings → Updates: the download's progress */
 .update-bar { width: 220px; height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
 .update-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
+
+/* A request from your phone (abdoh/phone): a small tag in its bubble. */
+.from-phone { display: inline-block; margin-right: 8px; padding: 1px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 600; letter-spacing: .02em; vertical-align: 1px;
+  background: color-mix(in srgb, currentColor 16%, transparent); }

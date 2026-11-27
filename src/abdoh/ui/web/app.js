@@ -839,12 +839,15 @@ function avatar() {
 }
 
 function addHistory(line) {
-  const match = /^(You|Abdoh): ([\s\S]*)$/.exec(line);
-  const who = match ? (match[1] === "You" ? "you" : "abdoh") : "note";
+  const match = /^(You|You \(phone\)|Abdoh): ([\s\S]*)$/.exec(line);
+  const who = match ? (match[1] === "Abdoh" ? "abdoh" : "you") : "note";
+  const phone = !!match && match[1] === "You (phone)";  // asked from your phone (abdoh/phone)
   const text = match ? match[2] : line;
   if (!text.trim()) return;
   $("#chat-empty").hidden = true;
-  const message = el("div", { class: `msg ${who}` }, who === "abdoh" ? avatar() : null, el("div", { class: "bubble" }, text));
+  const bubble = el("div", { class: "bubble" }, text);
+  if (phone) bubble.prepend(el("span", { class: "from-phone", title: "Asked from your phone" }, "Phone"));
+  const message = el("div", { class: `msg ${who}` }, who === "abdoh" ? avatar() : null, bubble);
   const inner = $("#chat-inner");
   const typing = $("#typing");
   inner.insertBefore(message, typing || null);
