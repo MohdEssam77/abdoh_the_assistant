@@ -60,8 +60,14 @@ def open_app(name: str) -> None:
             elif lnk := _windows_start_menu_shortcut(name):
                 os.startfile(lnk)  # type: ignore[attr-defined]
             else:
-                # `start` resolves registered app names like "notepad" or "chrome".
-                subprocess.run(["cmd", "/c", "start", "", name], check=True)
+                # `start` resolves registered app names like "notepad" or "chrome". No console
+                # window flashing; never waiting forever (an unknown name shows Windows' dialog).
+                subprocess.run(
+                    ["cmd", "/c", "start", "", name],
+                    check=True,
+                    timeout=15,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
         elif sys.platform == "darwin":
             args = ["open", str(path)] if path.exists() else ["open", "-a", name]
             subprocess.run(args, check=True)
@@ -71,7 +77,7 @@ def open_app(name: str) -> None:
             subprocess.Popen([exe], start_new_session=True)
         else:
             subprocess.Popen(["gtk-launch", name])
-    except (OSError, subprocess.CalledProcessError) as e:
+    except (OSError, subprocess.SubprocessError) as e:  # also a Windows dialog left open
         log.error("Could not open app %r: %s", name, e)
         raise ActionError(f"I couldn't open {name}.") from e
 

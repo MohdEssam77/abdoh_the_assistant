@@ -205,13 +205,16 @@ def shutdown(seconds: int, restart: bool = False) -> None:
         creationflags=NO_WINDOW,
         check=True,
         capture_output=True,
+        timeout=15,
     )
 
 
 def cancel_shutdown() -> bool:
     """False if no shutdown was waiting."""
     _windows()
-    done = subprocess.run(["shutdown", "/a"], creationflags=NO_WINDOW, capture_output=True)
+    done = subprocess.run(
+        ["shutdown", "/a"], creationflags=NO_WINDOW, capture_output=True, timeout=15
+    )
     return done.returncode == 0
 
 
