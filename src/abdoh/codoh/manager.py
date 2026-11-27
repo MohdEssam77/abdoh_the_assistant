@@ -48,8 +48,9 @@ MODE_NAMES = {"ask": "Ask first", "auto_edit": "Auto-edit", "plan": "Plan only",
 # What Abdoh's Claude is told about Codoh while its page is open (ABDOH_EPIC_9.md, story 122).
 BRIEF = """(Codoh, Abdoh's coding page, is open in Abdoh's window. Here is what it's doing, so \
 answer questions about Codoh from this and don't ask to look at the screen for it: Abdoh's \
-pictures of the screen never show Abdoh's own window. What the user tells you for Codoh ("tell \
-it to also run the tests", "allow it", "switch it to Opus") goes to it with ACTION codoh.
+pictures of the screen never show Abdoh's own window. For its other chats, or more than this, \
+write ACTION codoh_state. What the user tells you for Codoh ("tell it to also run the tests", \
+"allow it", "switch it to Opus") goes to it with ACTION codoh.
 {lines}
 )
 """

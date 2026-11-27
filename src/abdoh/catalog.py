@@ -552,6 +552,7 @@ FEATURES: list[dict] = [
             "Tell Codoh to run the tests too",
             "Yes, allow it",
             "What is Codoh doing?",
+            "What's left for Codoh to do?",
         ],
         "steps": [
             "Open Codoh (the </> page).",
@@ -564,8 +565,7 @@ FEATURES: list[dict] = [
         "tips": [
             "“Ask first” asks before every change; “Auto-edit” only before commands; “Plan only” changes nothing.",
             "Codoh's chats are separate from Abdoh's: none of Abdoh's instructions go to them.",
-            "While Codoh's page is open, ask Abdoh “what is Codoh doing?”: it knows, without "
-            "looking at the screen.",
+            "Ask Abdoh “what is Codoh doing?” or “what's left?” any time, also minimized.",
             "Chats you start by voice: Abdoh says when Codoh needs you and when it's done.",
         ],
     },

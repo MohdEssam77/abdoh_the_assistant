@@ -79,6 +79,9 @@ BOARD_PDF = "board_pdf"
 # Codoh, the coding page, by voice: a chat in a folder, a message for it, an answer
 # (abdoh/codoh/voice.py).
 CODOH = "codoh"
+# Claude asks what Codoh is doing (its recent chats: state, to-do list, conversation), whatever
+# the window shows (abdoh/codoh/report.py).
+CODOH_STATE = "codoh_state"
 # While a role is on: keep listening without the wake word (on), or only after it (off).
 LISTEN = "listen"
 # Memory (abdoh/memory.py), while it's on: a fact about the user, a lesson (what works on this

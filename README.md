@@ -456,10 +456,15 @@ each command with its output.
   "no" or the answer to its question) and when it's done ("Codoh is done: Fixed add in
   calc.py."). Checked with real Claude Code both sides: a chat made by voice in a folder named by
   voice, the change allowed by voice, the bug fixed.
-- **Abdoh knows what Codoh is doing** while the Codoh page is open in its window: "Abdoh, what
-  is Codoh doing?", "what did it change?" are answered from the chat (what it's working on, what
-  it's waiting for you to allow, its last steps, git's changed files), without looking at the
-  screen. Minimized or on another page, and Abdoh doesn't know, like the board in a lesson.
+- **Ask Abdoh about Codoh any time**: "what is Codoh doing?", "what's left?", "give me a summary
+  of the portfolio chat", whether you started the chat by voice or on the Codoh page, and while
+  Abdoh is minimized, on another page or you're in another app. Claude asks Abdoh for Codoh's
+  state only then (nothing extra goes with other requests): each recent chat, what it's doing or
+  waiting for (with the change it asks to make, or its question), its own to-do list (done, doing,
+  left), the latest of the conversation, its last steps and git's changed files. While the Codoh
+  page is open, the chat on it is known right away. Checked with real Claude Code: a chat typed
+  on the page, Abdoh's window elsewhere; "what is Codoh doing?" and "what's left?" were answered
+  from its to-do list and the change it waited for.
 - **Separate from Abdoh**: a Claude chat is plain Claude Code started in your folder (its own
   coding prompt and tools, your CLAUDE.md and Claude Code settings), and a ChatGPT chat uses
   Codoh's own tools (list, read, search, write, edit, run a command), which work only inside the

@@ -373,6 +373,18 @@ Code on both sides: "make a new chat in the pocket calculator folder and tell Co
 add function", "Codoh wants to change calc.py. Allow it?", "yes, allow it", "Codoh is done:
 Fixed add in calc.py.", and Abdoh explaining the change; the page in the real window.
 
+### Story 126: Ask Abdoh about Codoh any time (`story/126-codoh-state`)
+The owner: whether a chat was started by voice or on Codoh's page, and with Abdoh minimized or
+the user in another app, Abdoh should answer anything about Codoh: what it's doing, its state,
+what's left, a summary. Rather than sending Codoh's state with every request (200 to 800 tokens
+a chat), Claude asks for it when needed, like the log: `ACTION codoh_state: <what>`, and is asked
+again with `codoh/report.py`: the latest chats (running ones always), each with what it's doing
+or waiting for (the diff, or its question and options), its own to-do list (TodoWrite: done,
+doing, left), the conversation's latest messages (the first chat gets the most), its last steps
+and git's changed files. The page-open brief stays (no round trip for the chat on the page).
+Checked with real Claude Code twice: a chat typed on the page with a to-do list, waiting for an
+OK, the page not showing; "what is Codoh doing right now?" and "what's left?" answered right.
+
 ## 6b. Results (2026-11-26)
 
 All stories are merged on `main` and released in **0.13.0** (2026-11-26, with epic 8 and
