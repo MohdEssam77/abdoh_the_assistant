@@ -13,8 +13,9 @@ Events for the page (each with its number, "seq"):
   {"type": "activity", "text": ...}       "Searching the web"
   {"type": "ai", "name", "label", "status"}
   {"type": "mode", "name": ...}
-  {"type": "say", "text", "audio"}        a sentence of the reply to the phone; "audio" is the
-                                          id of its WAV (/api/audio/<id>) or None: the phone
+  {"type": "say", "text", "audio", "for"} a sentence of the reply to the phone that asked
+                                          ("for": its id; only that phone speaks it); "audio" is
+                                          the id of its WAV (/api/audio/<id>) or None: the phone
                                           speaks it with its own voice, if it speaks replies
   {"type": "aside", "text": ...}          "One moment" while the AI works
   {"type": "question", "text": ...}       Abdoh asked a yes/no question
@@ -74,6 +75,7 @@ class PhoneHub:
         self._ai: dict = {}
         self._mode = ""
         self._speak = False  # the phone that asked last wants the replies spoken
+        self._asker = ""  # ... and its id
         self._audio: OrderedDict[str, tuple[bytes, float]] = OrderedDict()
         self._audio_lock = threading.Lock()
         self._queue: queue.Queue = queue.Queue()
@@ -138,7 +140,8 @@ class PhoneHub:
         elif kind == "phone_say":
             text = str(value or "")
             if text.strip():
-                self._add({"type": "say", "text": text, "audio": self._render(text)})
+                audio = self._render(text)
+                self._add({"type": "say", "text": text, "audio": audio, "for": self._asker})
         elif kind == "phone_aside":
             self._add({"type": "aside", "text": str(value or "")})
         elif kind == "phone_question":
@@ -188,28 +191,30 @@ class PhoneHub:
 
     # ----- what the phone asks -----
 
-    def ask(self, text: str, speak: bool = False) -> str:
-        """A typed request from the phone."""
+    def ask(self, text: str, speak: bool = False, phone: str = "") -> str:
+        """A typed request from the phone (`phone`: its id; its reply is spoken there)."""
         text = " ".join(str(text or "").split())[:MAX_TEXT]
         if not text:
             raise PhoneError("Type something to ask Abdoh.")
-        self._speak = bool(speak)
+        self._speak, self._asker = bool(speak), phone
         self.bus.request("phone", {"text": text})
         return text
 
-    def hear(self, audio: bytes, speak: bool = False) -> str:
+    def hear(self, audio: bytes, speak: bool = False, phone: str = "") -> str:
         """A spoken request from the phone: what was heard ("" if nothing), then asked."""
         if self._hear is None:
             raise PhoneError("Speech recognition isn't working on your computer right now.")
         if not audio:
             return ""
+        if len(audio) % 2:
+            raise PhoneError("That recording wasn't readable.")
         try:
             text = (self._hear(audio) or "").strip()
         except Exception as e:
             log.exception("Couldn't understand the phone's recording")
             raise PhoneError("Abdoh couldn't understand that recording.") from e
         if text:
-            self.ask(text, speak)
+            self.ask(text, speak, phone)
         return text
 
     def stop(self) -> None:

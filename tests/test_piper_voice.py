@@ -323,3 +323,22 @@ def test_the_voice_watch_hears_when_abdoh_starts_and_stops_playing():
     voice.resume()
     talking.join(5)
     assert heard[0] is True and heard[-1] is False and heard.count(True) == 2
+
+
+def test_a_sentence_as_a_wav_file_for_the_phone():
+    import io
+    import wave
+
+    output = Output()
+    voice = speaker(output=output)
+    wav = voice.render("Hello there.")
+    with wave.open(io.BytesIO(wav)) as read:
+        assert (read.getnchannels(), read.getsampwidth(), read.getframerate()) == (1, 2, RATE)
+        assert read.getnframes() == len("Hello there.") * 100
+    assert voice.render("   ") is None
+    assert output.written == []  # nothing on the laptop's speakers
+
+
+def test_no_wav_without_a_natural_voice_yet():
+    voice = speaker(installed=())  # still downloading: the phone's own voice says it
+    assert voice.render("Hello there.") is None

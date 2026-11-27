@@ -116,7 +116,7 @@ class PhoneApp:
 
     def _api(self, method: str, route: str, query: dict, body: bytes, phone: dict) -> Response:
         if method == "GET" and route == "/api/state":
-            return answer({**self.hub.state(), "phone": phone["name"]})
+            return answer({**self.hub.state(), "phone": phone["name"], "phone_id": phone["id"]})
         if method == "GET" and route == "/api/events":
             try:
                 after = int(query.get("after", "0"))
@@ -132,12 +132,12 @@ class PhoneApp:
             return error(405 if route in _ROUTES else 404, "Not found.")
         if route == "/api/text":
             data = _json(body[:MAX_JSON])
-            text = self.hub.ask(str(data.get("text") or ""), bool(data.get("speak")))
+            text = self.hub.ask(str(data.get("text") or ""), bool(data.get("speak")), phone["id"])
             return answer({"ok": True, "text": text})
         if route == "/api/voice":
             if len(body) > MAX_VOICE:
                 raise PhoneError("That recording is too long: a minute at most.")
-            heard = self.hub.hear(body, query.get("speak") == "1")
+            heard = self.hub.hear(body, query.get("speak") == "1", phone["id"])
             return answer({"ok": True, "text": heard})
         if route == "/api/stop":
             self.hub.stop()

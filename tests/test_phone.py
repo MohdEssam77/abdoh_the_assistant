@@ -184,6 +184,8 @@ def test_talking_from_the_phone():
     assert bus.next_request(0) == ("phone", {"text": "turn on the lamp"})
     assert hub.hear(b"\x00\x01" * 100) == ""  # nothing understood: nothing asked
     assert bus.next_request(0) is None
+    with pytest.raises(PhoneError):
+        hub.hear(b"\x00\x01\x02")  # not 16-bit audio
     _, deaf = make_hub()
     with pytest.raises(PhoneError):
         deaf.hear(b"\x00\x01")
@@ -198,14 +200,16 @@ def test_reply_sentences_with_and_without_audio():
         return b"RIFF" + text.encode()
 
     bus, hub = make_hub(voice=voice, clock=clock)
-    hub.ask("hi", speak=False)
+    hub.ask("hi", speak=False, phone="p1")
     hub.take("phone_say", "Hello there.")
     assert hub.events(0, wait=0)["events"][-1] == {
-        "seq": 1, "type": "say", "text": "Hello there.", "audio": None}  # fmt: skip
+        "seq": 1, "type": "say", "text": "Hello there.", "audio": None, "for": "p1"}  # fmt: skip
     assert made == []  # not spoken: no audio made
-    hub.ask("hi", speak=True)
+    hub.ask("hi", speak=True, phone="p2")
     hub.take("phone_say", "Hello again.")
-    audio = hub.events(1, wait=0)["events"][-1]["audio"]
+    said = hub.events(1, wait=0)["events"][-1]
+    assert said["for"] == "p2"  # only the phone that asked speaks it
+    audio = said["audio"]
     assert hub.audio(audio) == b"RIFFHello again."
     clock.now += 601
     assert hub.audio(audio) is None  # kept ten minutes
@@ -292,6 +296,7 @@ def test_pairing_through_the_page(tmp_path):
     assert call(app, "POST", "/api/pair", body=b"[1]")[0].status == 400
     response, data = call(app, "GET", "/api/state", key=key)
     assert response.status == 200 and data["phone"] == "iPhone"
+    assert data["phone_id"] == phones.list()[0]["id"]
     assert response.headers["Cache-Control"] == "no-store"
 
 
@@ -317,6 +322,7 @@ def test_asking_through_the_page(tmp_path):
     response, data = call(app, "POST", "/api/text", key=key, body={"text": "hi", "speak": True})
     assert data == {"ok": True, "text": "hi"}
     assert bus.next_request(0) == ("phone", {"text": "hi"})
+    assert hub._asker == phones.list()[0]["id"] and hub._speak is True
     response, data = call(app, "POST", "/api/text", key=key, body={"text": " "})
     assert response.status == 400 and data["error"]
     response, data = call(app, "POST", "/api/voice?speak=1", key=key, body=b"\x00\x01" * 800)

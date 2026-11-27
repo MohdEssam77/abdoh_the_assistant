@@ -122,6 +122,20 @@ def _synthesize(voice, text: str, length_scale: float) -> tuple[np.ndarray, int]
     return np.frombuffer(audio, dtype=np.int16), chunks[0].sample_rate
 
 
+def wav_bytes(audio: np.ndarray, rate: int) -> bytes:
+    """Mono 16-bit audio as a WAV file."""
+    import io
+    import wave
+
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(2)
+        out.setframerate(int(rate))
+        out.writeframes(np.asarray(audio, dtype="<i2").tobytes())
+    return buffer.getvalue()
+
+
 class SoundOutput:
     """Plays mono 16-bit audio through the default speakers (sounddevice)."""
 
@@ -288,6 +302,19 @@ class PiperSpeaker(Speaker):
                 return
         if self.fallback is not None and not self._stop.is_set():
             self.fallback.say(text)
+
+    def render(self, text: str) -> bytes | None:
+        """The sentence in this voice as a WAV file, for the phone (abdoh/phone), or None if
+        no natural voice can say it yet: the phone's own voice says it then."""
+        if not text.strip():
+            return None
+        voice = self._voice_for(text_language(text, self.language))
+        if voice is None:
+            return None
+        own = getattr(voice, "synthesize_audio", None)  # a Kokoro voice makes its own
+        scale = self._length_scale()
+        audio, rate = own(text, scale) if own else self._synthesize(voice, text, scale)
+        return wav_bytes(audio, rate) if len(audio) else None
 
     def stop(self) -> None:
         self._stop.set()

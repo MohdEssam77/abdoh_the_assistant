@@ -14,7 +14,7 @@ const LINE = /^(You|You \(phone\)|Abdoh): ([\s\S]*)$/;
 const SHARE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
 
 const S = {
-  key: null, boot: "", seq: 0, online: null, polling: false, retry: 0, wake: null,
+  key: null, me: "", boot: "", seq: 0, online: null, polling: false, retry: 0, wake: null,
   status: "", activity: "", busy: false, ai: "Claude",
   live: null, // the bubble a reply to this phone is growing in, sentence by sentence
   final: true, // the reply to the last request is shown in full
@@ -187,6 +187,7 @@ async function load() {
   const state = await api("GET", "/api/state");
   S.boot = state.boot;
   S.seq = state.seq;
+  S.me = state.phone_id || "";
   S.live = null;
   S.final = true;
   S.pending = [];
@@ -271,8 +272,9 @@ function addLine(line, fresh = false) {
   scrollDown();
 }
 
-/* A sentence of the reply to this phone (it may be spoken too: story 142). */
+/* A sentence of the reply to this phone: shown, and said if this phone asked and speaks. */
 function addSaid(event) {
+  if (S.speak && event.for === S.me) play(event);
   if (S.final) return; // already shown whole (a short reply comes whole, then is said)
   if (!S.live) S.live = bubble("abdoh", "");
   const text = S.live.querySelector(".text");
@@ -323,9 +325,12 @@ function render() {
     scrollDown();
   } else if (!waiting && typing) typing.remove();
   const empty = !$("#text").value.trim();
-  $("#stop").hidden = !(S.busy && empty);
-  $("#send").hidden = !$("#stop").hidden;
-  $("#send").disabled = empty;
+  const talking = S.busy || player.playing;
+  $("#form").hidden = rec.on;
+  $("#recording").hidden = !rec.on;
+  $("#stop").hidden = !(talking && empty);
+  $("#mic").hidden = !(empty && !talking);
+  $("#send").hidden = empty;
   updateEmpty();
 }
 
@@ -361,6 +366,7 @@ function scrollDown(now = false) {
 async function send(text) {
   text = text.trim();
   if (!text) return;
+  silence(); // a new question: the last answer stops
   const node = bubble("you", text);
   node.classList.add("pending");
   S.pending.push({ node, text: same(text) });
@@ -395,7 +401,211 @@ function askQuestion(text) {
 function hideQuestion() { $("#question").hidden = true; }
 
 async function stop() {
+  silence();
+  render();
   try { await api("POST", "/api/stop"); } catch (error) { failed(error); }
+}
+
+/* ---------- hearing Abdoh's replies ----------
+   Its own voice (a WAV from your computer) when it has a natural voice, else the phone's.
+   A phone only plays sound after a tap: the first tap (send, talk) unlocks it. */
+
+const player = { ctx: null, queue: [], playing: false, source: null, turn: 0, unlocked: false };
+
+function audioContext() {
+  if (!player.ctx) {
+    const Context = window.AudioContext || window.webkitAudioContext;
+    if (Context) player.ctx = new Context();
+  }
+  return player.ctx;
+}
+
+function unlockAudio() {
+  const ctx = audioContext();
+  if (ctx && ctx.state === "suspended") ctx.resume();
+  if (!player.unlocked && "speechSynthesis" in window && !DEMO) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+  player.unlocked = true;
+}
+
+function play(event) {
+  player.queue.push({ text: event.text, sound: event.audio ? fetchSound(event.audio) : null });
+  if (!player.playing) next(player.turn);
+  render();
+}
+
+async function fetchSound(id) {
+  if (DEMO) throw new Error("no sound in the demo");
+  const response = await fetch(`/api/audio/${id}`, { headers: { Authorization: `Bearer ${S.key}` }, cache: "no-store" });
+  if (!response.ok) throw new Error("the sound is gone");
+  const data = await response.arrayBuffer();
+  return new Promise((resolve, reject) => audioContext().decodeAudioData(data, resolve, reject));
+}
+
+async function next(turn) {
+  const item = player.queue.shift();
+  if (!item || turn !== player.turn) {
+    player.playing = false;
+    render();
+    return;
+  }
+  player.playing = true;
+  try {
+    if (item.sound) await playSound(await item.sound);
+    else await speakHere(item.text);
+  } catch (error) {
+    if (turn === player.turn) await speakHere(item.text); // the sound didn't come: the phone's voice
+  }
+  next(turn);
+}
+
+function playSound(buffer) {
+  return new Promise((resolve) => {
+    const ctx = audioContext();
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.onended = resolve;
+    player.source = source;
+    source.start();
+  });
+}
+
+function speakHere(text) {
+  return new Promise((resolve) => {
+    if (DEMO || !("speechSynthesis" in window)) return resolve(); // the demo stays quiet
+    const line = new SpeechSynthesisUtterance(text);
+    line.onend = resolve;
+    line.onerror = resolve;
+    speechSynthesis.speak(line);
+  });
+}
+
+function silence() {
+  player.turn += 1;
+  player.queue = [];
+  player.playing = false;
+  if (player.source) {
+    try { player.source.stop(); } catch (error) { /* already over */ }
+    player.source = null;
+  }
+  if ("speechSynthesis" in window) speechSynthesis.cancel();
+}
+
+/* ---------- talking: tap the microphone, talk, tap send ----------
+   The phone records, turns it into what your computer's speech recognition reads (16 kHz,
+   mono, 16-bit) and sends it. A minute at most. */
+
+const rec = { on: false, stream: null, source: null, node: null, chunks: [], rate: 48000, started: 0, timer: null, level: 0 };
+const MAX_RECORD_MS = 60000;
+
+async function startRecording() {
+  unlockAudio();
+  silence();
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    return failed({ shown: true, message: "The microphone can't be used here. Open Abdoh from your Home Screen (or over https)." });
+  }
+  try {
+    rec.stream = DEMO ? null : await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  } catch (error) {
+    return failed({ shown: true, message: error && error.name === "NotAllowedError"
+      ? "Abdoh may not use the microphone. Allow it for Abdoh (Settings → Safari → Microphone on an iPhone), then try again."
+      : "The microphone isn't available right now." });
+  }
+  rec.chunks = [];
+  if (rec.stream) {
+    const ctx = audioContext();
+    rec.rate = ctx.sampleRate;
+    rec.source = ctx.createMediaStreamSource(rec.stream);
+    rec.node = ctx.createScriptProcessor(4096, 1, 1);
+    rec.node.onaudioprocess = (e) => {
+      const data = e.inputBuffer.getChannelData(0);
+      rec.chunks.push(new Float32Array(data));
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 16) sum += data[i] * data[i];
+      rec.level = Math.min(1, Math.sqrt(sum / (data.length / 16)) * 6);
+    };
+    rec.source.connect(rec.node);
+    rec.node.connect(ctx.destination); // silent: it only runs while connected
+  }
+  rec.on = true;
+  rec.started = Date.now();
+  rec.timer = setInterval(showRecording, 100);
+  showRecording();
+  render();
+}
+
+function showRecording() {
+  const ms = Date.now() - rec.started;
+  const seconds = Math.floor(ms / 1000);
+  $("#rec-time").textContent = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  const level = DEMO ? 0.35 + 0.3 * Math.sin(ms / 180) : rec.level;
+  [...document.querySelectorAll(".meter i")].forEach((bar, i) => {
+    const wave = 0.55 + 0.45 * Math.sin(ms / 120 + i * 1.3);
+    bar.style.height = `${4 + Math.round(18 * level * wave)}px`;
+  });
+  if (ms >= MAX_RECORD_MS) stopRecording(true);
+}
+
+function stopRecording(sendIt) {
+  if (!rec.on) return;
+  rec.on = false;
+  clearInterval(rec.timer);
+  if (rec.node) { rec.node.disconnect(); rec.node.onaudioprocess = null; }
+  if (rec.source) rec.source.disconnect();
+  if (rec.stream) rec.stream.getTracks().forEach((track) => track.stop()); // the microphone is free again
+  rec.node = rec.source = rec.stream = null;
+  render();
+  if (!sendIt) return;
+  const pcm = DEMO ? new ArrayBuffer(32000) : toPcm16k(rec.chunks, rec.rate);
+  rec.chunks = [];
+  if (pcm.byteLength < 16000 * 2 * 0.4) return note("That was very short. Tap the microphone, talk, then tap send.");
+  sendVoice(pcm);
+}
+
+/* Float samples at the phone's rate -> 16 kHz 16-bit (averaging each step: no aliasing hiss). */
+function toPcm16k(chunks, rate) {
+  const total = chunks.reduce((n, c) => n + c.length, 0);
+  const all = new Float32Array(total);
+  let at = 0;
+  for (const chunk of chunks) { all.set(chunk, at); at += chunk.length; }
+  const step = rate / 16000;
+  const out = new Int16Array(Math.floor(total / step));
+  for (let i = 0; i < out.length; i++) {
+    const from = Math.floor(i * step);
+    const to = Math.max(from + 1, Math.min(total, Math.floor((i + 1) * step)));
+    let sum = 0;
+    for (let j = from; j < to; j++) sum += all[j];
+    out[i] = Math.round(Math.max(-1, Math.min(1, sum / (to - from))) * 32767);
+  }
+  return out.buffer;
+}
+
+async function sendVoice(pcm) {
+  const node = bubble("you", "…");
+  node.classList.add("pending");
+  const pending = { node, text: "", voice: true };
+  S.pending.push(pending);
+  S.final = false;
+  S.live = null;
+  hideQuestion();
+  render();
+  scrollDown(true);
+  try {
+    const data = await api("POST", `/api/voice${S.speak ? "?speak=1" : ""}`, pcm, { timeout: 60000 });
+    if (!data.text && S.pending.includes(pending)) {
+      S.pending = S.pending.filter((p) => p !== pending);
+      node.remove();
+      S.final = true;
+      note("Abdoh didn't catch that. Try again, a little closer to the phone.");
+      render();
+    }
+  } catch (error) {
+    S.pending = S.pending.filter((p) => p !== pending);
+    node.remove();
+    S.final = true;
+    failed(error);
+  }
 }
 
 /* ---------- the page's controls ---------- */
@@ -417,12 +627,16 @@ function setupComposer() {
   });
   $("#form").addEventListener("submit", (e) => {
     e.preventDefault();
+    unlockAudio(); // a tap: the reply may be heard
     const value = text.value;
     text.value = "";
     grow();
     send(value);
   });
   $("#stop").addEventListener("click", stop);
+  $("#mic").addEventListener("click", startRecording);
+  $("#rec-send").addEventListener("click", () => stopRecording(true));
+  $("#cancel").addEventListener("click", () => stopRecording(false));
   for (const button of document.querySelectorAll("[data-answer]")) {
     button.addEventListener("click", () => send(button.dataset.answer === "yes" ? "Yes" : "No"));
   }

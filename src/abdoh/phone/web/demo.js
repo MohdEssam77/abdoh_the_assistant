@@ -29,7 +29,7 @@
     push({ type: "status", text: "Thinking..." });
     if (/shut ?down/.test(lower)) {
       later(500, { type: "history", line: "Abdoh: Shut down the computer now?" });
-      later(520, { type: "say", text: "Shut down the computer now?", audio: null });
+      later(520, { type: "say", text: "Shut down the computer now?", audio: null, for: "demo-phone" });
       later(540, { type: "question", text: "Shut down the computer now?" });
       later(560, { type: "status", text: "Listening" });
       return;
@@ -37,7 +37,7 @@
     const sentences = /lamp|light/.test(lower) ? ["The desk lamp is off now."]
       : ["Here's a quick plan for tonight.", "Start the pasta water now, it takes about ten minutes.", "Then chop the garlic while you wait."];
     later(400, { type: "aside", text: "Searching the web" });
-    sentences.forEach((s, i) => later(1300 + i * 900, { type: "say", text: s, audio: null }));
+    sentences.forEach((s, i) => later(1300 + i * 900, { type: "say", text: s, audio: null, for: "demo-phone" }));
     later(1300 + sentences.length * 900, { type: "history", line: `Abdoh: ${sentences.join(" ")}` });
     later(1400 + sentences.length * 900, { type: "status", text: "Listening" });
   }
@@ -48,7 +48,7 @@
       await new Promise((r) => setTimeout(r, 60));
       if (path === "/api/pair") return { key: "demo-key" };
       if (path === "/api/state") {
-        return { boot: "demo", seq, history, status: "Listening", phone: "iPhone",
+        return { boot: "demo", seq, history, status: "Listening", phone: "iPhone", phone_id: "demo-phone",
           ai: { name: "Claude", label: "Claude", status: "Pro subscription" }, mode: kind === "empty" ? "" : "Work" };
       }
       if (path.startsWith("/api/events")) {
@@ -58,7 +58,7 @@
         return { boot: "demo", seq, events: events.filter((e) => e.seq > after) };
       }
       if (path === "/api/text") { answer(body.text); return { ok: true, text: body.text }; }
-      if (path === "/api/voice") {
+      if (path.startsWith("/api/voice")) {
         const heard = "turn off the desk lamp";
         setTimeout(() => answer(heard), 700);
         return { ok: true, text: heard };

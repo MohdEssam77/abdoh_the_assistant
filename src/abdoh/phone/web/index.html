@@ -62,7 +62,24 @@
       <button class="round stop" id="stop" type="button" aria-label="Stop" hidden>
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>
       </button>
+      <button class="round mic" id="mic" type="button" aria-label="Talk" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3.5"/></svg>
+      </button>
     </form>
+    <div class="recording" id="recording" hidden>
+      <button class="round quiet" id="cancel" type="button" aria-label="Cancel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <div class="listening">
+        <i class="rec-dot"></i>
+        <span id="rec-time">0:00</span>
+        <small>Listening… tap send when you're done</small>
+        <span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <button class="round" id="rec-send" type="button" aria-label="Send what you said">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </div>
   </footer>
 </div>
 
