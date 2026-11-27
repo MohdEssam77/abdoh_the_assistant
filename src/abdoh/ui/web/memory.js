@@ -42,8 +42,8 @@
   function render() {
     const on = App.settings.memory !== false;
     $("#memory-switch").replaceChildren(row("Remember things about me",
-      on ? "Abdoh keeps what you tell it about yourself and what it learns, and Claude gets it with your requests."
-        : "Off: nothing new is kept, and nothing here is sent to Claude. What's below stays until you delete it.",
+      on ? `Abdoh keeps what you tell it about yourself and what it learns, and ${ai()} gets it with your requests.`
+        : `Off: nothing new is kept, and nothing here is sent to ${ai()}. What's below stays until you delete it.`,
       toggle(on, (value, input) => saveSettings({ memory: value }).then((ok) => { if (!ok) input.checked = !value; render(); }), "Remember things about me")),
       keepRow(on));
     $("#memory-error").hidden = !state.error;
@@ -81,7 +81,7 @@
     const keep = App.settings.memory !== false && App.settings.keep_conversations !== false;
     $("#conv-title").textContent = list.length ? `Conversations since ${talks.since}` : "Conversations";
     $("#conv-lead").textContent = list.length || keep
-      ? `Kept on this computer for ${days(talks.keep_days)}, then deleted. Claude sees a part only when you ask about an earlier conversation.`
+      ? `Kept on this computer for ${days(talks.keep_days)}, then deleted. ${Ai()} sees a part only when you ask about an earlier conversation.`
       : "Not kept: switch on “Keep conversations” above.";
     $("#conv-forget").hidden = !list.length;
     $("#conv-list").replaceChildren(...list.map(dayItem));

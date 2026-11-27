@@ -311,8 +311,8 @@
 
   function backendPart(state) {
     const choices = [["auto", "Automatic"], ["code", "Only my Claude account"], ["api", "Only my API key"],
-      ["openrouter", "Only OpenRouter"], ["chatgpt", "Only my ChatGPT plan"], ["off", "Off (no Claude)"]];
-    const select = el("select", { class: "input compact", "aria-label": "How Abdoh connects to Claude" },
+      ["openrouter", "Only OpenRouter"], ["chatgpt", "Only my ChatGPT plan"], ["off", "Off (no AI)"]];
+    const select = el("select", { class: "input compact", "aria-label": "Which AI answers" },
       choices.map(([v, text]) => el("option", { value: v, selected: v === state.backend }, text)));
     select.addEventListener("change", async () => {
       if (await saveSettings({ claude: { backend: select.value } })) refresh(select.closest(".claude-body"));
@@ -387,10 +387,10 @@
   }
 
   function claudeCard() {
-    const body = el("div", { class: "claude-body" }, el("p", { class: "muted" }, "Checking Claude…"));
+    const body = el("div", { class: "claude-body" }, el("p", { class: "muted" }, "Checking the connection…"));
     const card = el("div", { class: "card" },
-      el("h2", {}, el("span", { html: svg("sparkles"), style: "display:contents" }), "Claude", el("span", { class: "spacer" }), el("span", { class: "claude-tag" })),
-      el("p", { class: "lead" }, "Abdoh asks Claude about everything your commands don't cover. Connect your own Claude, billed to your own plan."),
+      el("h2", {}, el("span", { html: svg("sparkles"), style: "display:contents" }), "AI", el("span", { class: "spacer" }), el("span", { class: "claude-tag" })),
+      el("p", { class: "lead" }, "Abdoh asks an AI about everything your commands don't cover: Claude with your own account or an API key, the models on OpenRouter, or your ChatGPT plan. Each is billed to your own plan or key."),
       body);
     refresh(body);
     return card;

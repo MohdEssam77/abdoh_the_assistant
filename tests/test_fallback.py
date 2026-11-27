@@ -118,7 +118,8 @@ def test_status_says_who_answers():
     brain = wrap(claude, Scripted("ChatGPT", "ok"), now)
     assert brain.status() == "Pro subscription (Claude Code)"
     "".join(brain.stream("q"))
-    assert brain.status().startswith("ChatGPT plan (Claude's limit is used up until")
+    assert brain.status().startswith("your plan, while Claude's limit is used up until")
+    assert brain.ai() == "ChatGPT"  # the window says who answers now
 
 
 def test_activity_and_state_reach_both_brains():

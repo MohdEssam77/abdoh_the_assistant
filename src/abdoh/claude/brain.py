@@ -430,6 +430,37 @@ def system_prompt(
     )
 
 
+# OpenRouter's model ids start with their maker: what to call the AI then.
+MAKERS = {
+    "anthropic": "Claude", "openai": "GPT", "google": "Gemini", "meta-llama": "Llama",
+    "mistralai": "Mistral", "deepseek": "DeepSeek", "x-ai": "Grok", "qwen": "Qwen",
+    "cohere": "Command", "amazon": "Nova", "microsoft": "Phi", "moonshotai": "Kimi",
+}  # fmt: skip
+
+
+def maker_name(model: str) -> str:
+    """ "google/gemini-2.5-pro" -> "Gemini"; "" when the maker isn't one Abdoh knows."""
+    return MAKERS.get(str(model).split("/", 1)[0].strip().lower(), "")
+
+
+def ai_info(brain) -> dict:
+    """For the window: {name (in sentences), label (the sidebar's), status}."""
+    if brain is None:
+        return {"name": "the AI", "label": "AI", "status": "not connected"}
+    try:
+        status = brain.status()
+    except Exception:
+        log.exception("Couldn't check the AI's connection")
+        status = getattr(brain, "name", "")
+    return {**ai_names(brain), "status": status}
+
+
+def ai_names(brain) -> dict:
+    """{name, label} of a brain (one that doesn't say is Claude)."""
+    name = getattr(brain, "ai", lambda: "Claude")()
+    return {"name": name, "label": getattr(brain, "label", lambda: name)()}
+
+
 class BrainError(RuntimeError):
     """A Claude request failed; the message is safe to speak. `limit`: the plan's usage limit
     was reached, and `resets_at` is when it resets (epoch seconds), if known."""
@@ -465,6 +496,15 @@ class Brain(ABC):
     @abstractmethod
     def stream(self, prompt: str, image_png: bytes | None = None) -> Iterator[str]:
         """Yield the reply text in chunks as it arrives. Raises BrainError."""
+
+    def ai(self) -> str:
+        """What to call the AI that answers, in the window and in what Abdoh says: "Claude",
+        "ChatGPT", "Gemini" ... ("the AI" when it can't tell)."""
+        return "Claude"
+
+    def label(self) -> str:
+        """The sidebar's name for it ("OpenRouter" when the model's maker is unknown)."""
+        return self.ai()
 
     def status(self) -> str:
         """Short description for the window, e.g. "Pro subscription (Claude Code)".

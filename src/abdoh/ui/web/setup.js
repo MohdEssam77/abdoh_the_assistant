@@ -3,7 +3,7 @@
 "use strict";
 
 (() => {
-  const STEPS = ["Welcome", "Microphone", "Voice", "Claude", "Talk to Abdoh"];
+  const STEPS = ["Welcome", "Microphone", "Voice", "AI", "Talk to Abdoh"];
   let overlay = null;
   let step = 0;
   let data = {};
@@ -24,7 +24,7 @@
       el("div", { class: "points" },
         point("say", "Talk or type", "Ask for anything. Abdoh answers out loud."),
         point("bolt", "Your own commands", "The things you do every day, done instantly."),
-        point("sparkles", "Your own Claude", "Connect your Claude account for everything else.")));
+        point("sparkles", "Your own AI", "Connect Claude, or your ChatGPT plan, for everything else.")));
   }
 
   function microphone() {
@@ -43,7 +43,7 @@
 
   function claude() {
     return el("div", {},
-      el("h2", { class: "step-title" }, "Connect your Claude"),
+      el("h2", { class: "step-title" }, "Connect your AI"),
       el("p", { class: "muted step-lead" }, "Optional. Your commands, timers, apps and music work without it. With it, Abdoh can answer questions, search the web and do more."),
       window.ClaudeCard());
   }

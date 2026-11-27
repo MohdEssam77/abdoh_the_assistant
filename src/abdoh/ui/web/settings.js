@@ -406,14 +406,14 @@
       row("When it does something for you", "“Open Spotify”, “volume 30”, “work mode”: it does it and plays a short sound, or says what it did. It speaks anyway if something goes wrong.",
         select([["sound", "A short sound"], ["words", "Say what it did"]], settings.confirm_actions || "sound",
           (value) => saveSettings({ confirm_actions: value }), "When it does something for you")),
-      row("Keep listening after a reply", "After Claude answers a question, Abdoh listens for a few more seconds, so you can go on without the wake word. Not after it did something for you. Say “thanks” or just stay quiet to end.",
+      row("Keep listening after a reply", `After ${ai()} answers a question, Abdoh listens for a few more seconds, so you can go on without the wake word. Not after it did something for you. Say “thanks” or just stay quiet to end.`,
         toggle(settings.follow_up_seconds > 0, (on, input) => save({ follow_up_seconds: on ? 6 : 0 }, input, on), "Keep listening after a reply")),
       row("Keep listening in a lesson", "While a role (Act as) explains on the board with this window open, just talk: no “Hey Abdoh” needed. It goes back to the wake word after this long without a word from either of you, when you hide the window, or when you tell it to stop listening. Off: always the wake word.",
         lessonListening(settings)),
       row("Watching your screen", "When you ask Abdoh to watch what you do (“watch me fill this in and tell me if I get it wrong”), it looks at your screen when it changes, at most this often, and you can talk without “Hey Abdoh”. Say “stop watching” to end it; it also ends after 20 quiet minutes. Each look uses a little of your plan.",
         select([["3", "Every 3 seconds"], ["5", "Every 5 seconds"], ["10", "Every 10 seconds"], ["20", "Every 20 seconds"]],
           String(Number(settings.watch_seconds ?? 5)), (value) => saveSettings({ watch_seconds: Number(value) }), "How often Abdoh looks while watching")),
-      row("Answer Claude's questions right away", "When Claude asks you something, just answer.",
+      row(`Answer ${ai()}'s questions right away`, `When ${ai()} asks you something, just answer.`,
         toggle(claude.listen_after_question, (on, input) => save({ claude: { listen_after_question: on } }, input, on), "Answer questions right away")),
       row("Stop when I start talking", App.hearing
         ? `Not available on this computer: ${App.hearing}.`
@@ -770,7 +770,7 @@
         el("div", { class: "btn-row" },
           el("button", { class: "btn small", onclick: () => call("open_folder", "data") }, "Open data folder"),
           el("button", { class: "btn small", onclick: () => call("open_folder", "logs") }, "Open logs"))),
-      row("First-start setup", "Check the microphone and the voice, and connect Claude, step by step.",
+      row("First-start setup", "Check the microphone and the voice, and connect your AI, step by step.",
         el("button", { class: "btn small", onclick: () => window.Setup && window.Setup.open() }, "Run setup again")));
   }
 

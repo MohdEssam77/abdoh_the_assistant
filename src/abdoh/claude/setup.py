@@ -64,7 +64,7 @@ def claude_state(cfg: Config, find=find_claude_code, status=auth_status) -> dict
     method = info.get("authMethod") or ""
     via = using(cfg, exe)
     if cfg.claude.backend == "off":
-        summary = "Claude is turned off."
+        summary = "No AI is connected: your commands and Abdoh's own skills still work."
     elif via == "code" and signed_in:
         kind = f"{plan.capitalize()} plan" if plan else "Claude account"
         if method != "claude.ai":

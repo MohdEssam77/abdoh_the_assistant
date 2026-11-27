@@ -213,7 +213,7 @@ def cmd_claude_check(cfg: Config, args: argparse.Namespace) -> int:
     if brain is None:
         print(NOT_CONNECTED)
         return 1
-    print(f"Claude: {brain.status()}")
+    print(f"{brain.label()}: {brain.status()}")
     try:
         reply = "".join(brain.stream("Reply with just the word OK.")).strip()
     except BrainError as e:

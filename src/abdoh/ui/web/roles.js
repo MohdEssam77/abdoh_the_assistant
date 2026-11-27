@@ -142,7 +142,7 @@
       el("div", { class: "field" }, el("label", {}, "Say"), phrases.box,
         el("small", {}, "“Act as my <name>” always works. Stop it in any words.")),
       el("div", { class: "field" }, el("label", {}, "How Abdoh acts"), text,
-        el("small", {}, "Claude follows this while the role is on. It can still look at your screen when you ask.")),
+        el("small", {}, `${Ai()} follows this while the role is on. It can still look at your screen when you ask.`)),
       el("div", { class: "field" }, el("label", {}, "While it's on"),
         el("div", {},
           setRow("Voice", speed),

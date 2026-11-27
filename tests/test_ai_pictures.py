@@ -162,7 +162,7 @@ def test_abdoh_says_why_it_cant(tmp_path):
             break
         time.sleep(0.02)
     assert said == [
-        "I can't make pictures with AI: that needs an OpenRouter key (Settings, Claude card)."
+        "I can't make pictures with AI: that needs an OpenRouter key (Settings, AI card)."
     ]
     assert daemon._ai_pictures_now() == "AI pictures: off (they need an OpenRouter key)"
     daemon.cfg.openrouter_api_key = "sk-or-test"

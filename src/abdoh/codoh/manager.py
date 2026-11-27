@@ -35,10 +35,8 @@ what happened so far, oldest first. The files on disk are as it left them.)
 (End of the summary.)
 
 """
-NO_CLAUDE = (
-    "Claude Code isn't installed. Install it in Settings → Claude, or use your ChatGPT plan."
-)
-NO_CHATGPT = "Your ChatGPT plan isn't connected. Connect it in Settings → Claude."
+NO_CLAUDE = "Claude Code isn't installed. Install it in Settings → AI, or use your ChatGPT plan."
+NO_CHATGPT = "Your ChatGPT plan isn't connected. Connect it in Settings → AI."
 BUSY = "Codoh is still answering. Stop it first, or wait."
 # Tools that ask the user something rather than for permission: never answered by the mode.
 QUESTION = "AskUserQuestion"

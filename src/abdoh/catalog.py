@@ -11,6 +11,7 @@ to try), steps, where ({page, label, anchor}), tips, needs ("claude", "claude_co
 or "follow_up_seconds" for a number that is off at 0), try (a harmless phrase the page may send).
 """
 
+import re
 from pathlib import Path
 
 from abdoh.config import Config
@@ -74,7 +75,7 @@ START = [
         "page": "home",
     },
     {
-        "title": "Connect Claude",
+        "title": "Connect your AI",
         "line": "With your Claude plan (Claude Code), an API key, OpenRouter or your ChatGPT plan, Abdoh answers everything else.",
         "page": "settings",
     },
@@ -287,10 +288,10 @@ FEATURES: list[dict] = [
             "Explain black holes simply",
         ],
         "steps": [
-            "Connect Claude in Settings (your Claude plan, a key, OpenRouter or ChatGPT).",
+            "Connect an AI in Settings (your Claude plan, a key, OpenRouter or ChatGPT).",
             "Ask.",
         ],
-        "where": {"page": "settings", "label": "Settings → Claude"},
+        "where": {"page": "settings", "label": "Settings → AI"},
         "needs": "claude",
         "tips": ["Your own instructions for Claude are on the Permissions page."],
         "try": "What's a good name for a grey cat?",
@@ -305,8 +306,8 @@ FEATURES: list[dict] = [
         "OpenRouter key, or continue with your ChatGPT plan. Abdoh never sees your passwords; "
         "keys and tokens stay on this computer.",
         "say": [],
-        "steps": ["Settings → Claude.", "Pick one, or several: “Use” decides which answers."],
-        "where": {"page": "settings", "label": "Settings → Claude"},
+        "steps": ["Settings → AI.", "Pick one, or several: “Use” decides which answers."],
+        "where": {"page": "settings", "label": "Settings → AI"},
         "tips": ["Test shows which one answered."],
     },
     {
@@ -320,10 +321,10 @@ FEATURES: list[dict] = [
         "Claude comes back by itself. Codoh's chats switch too.",
         "say": [],
         "steps": [
-            "Connect your ChatGPT plan in Settings → Claude.",
+            "Connect your ChatGPT plan in Settings → AI.",
             "Leave “When Claude's limit runs out” on.",
         ],
-        "where": {"page": "settings", "label": "Settings → Claude → When Claude's limit runs out"},
+        "where": {"page": "settings", "label": "Settings → AI → When Claude's limit runs out"},
         "needs": "chatgpt",
         "setting": "claude.fallback",
         "tips": ["ChatGPT has no file tools or Gmail; those wait for Claude."],
@@ -660,7 +661,7 @@ FEATURES: list[dict] = [
 
 # Settings a feature can depend on: off when False, or a number that is off at 0.
 NEEDS_TEXT = {
-    "claude": "Connect Claude",
+    "claude": "Connect an AI",
     "claude_code": "Needs Claude Code",
     "chatgpt": "Connect ChatGPT",
     "openrouter": "Needs an OpenRouter key",
@@ -715,12 +716,62 @@ def status(feature: dict, cfg: Config, ready: dict[str, bool]) -> dict:
     return {"state": "on", "text": "On"}
 
 
+# Features only Claude does (its own limit, its files and mail tools, how to connect it): they
+# say "Claude" whatever AI answers.
+CLAUDE_ONLY = frozenset({"plans", "fallback", "files", "codoh"})
+# "Claude" in these stays: it's Claude itself, not the AI that answers.
+_KEEP = re.compile(r"Claude(?= Code|'s limit|'s usage| plan| account| or ChatGPT|, keys)")
+
+
+def ai_in_use(cfg: Config) -> str:
+    """The name of the AI that answers: "Claude", "ChatGPT", what OpenRouter's model is
+    ("Gemini"), or "Claude" before any is connected (the one Abdoh is made for)."""
+    from abdoh.claude.brain import maker_name
+    from abdoh.claude.code import find_claude_code
+    from abdoh.claude.setup import using
+
+    try:
+        via = using(cfg, find_claude_code(cfg.claude.code_path))
+    except Exception:
+        return "Claude"
+    if via == "chatgpt":
+        return "ChatGPT"
+    if via == "openrouter":
+        return maker_name(cfg.claude.openrouter_model) or "the AI"
+    return "Claude"
+
+
+def named(feature: dict, ai: str) -> dict:
+    """The feature with "Claude" as the AI in use, where it means the AI that answers."""
+    if ai == "Claude" or feature.get("id") in CLAUDE_ONLY:
+        return feature
+
+    def swap(text):
+        if isinstance(text, str):
+            out = re.sub(
+                r"\bClaude\b", lambda m: "\0" if _KEEP.match(text, m.start()) else ai, text
+            )
+            out = out.replace("\0", "Claude")
+            return out[:1].upper() + out[1:] if out.startswith("the AI") else out
+        if isinstance(text, list):
+            return [swap(t) for t in text]
+        if isinstance(text, dict):
+            return {k: swap(v) for k, v in text.items()}
+        return text
+
+    return {k: (v if k in ("id", "section", "icon", "setting", "needs", "page") else swap(v))
+            for k, v in feature.items()}  # fmt: skip
+
+
 def catalog(cfg: Config) -> dict:
     """The Catalog for the page: sections, the start steps, and every feature with whether it
-    is on right now."""
+    is on right now, naming the AI in use."""
     ready = _ready(cfg)
-    features = [{**f, "status": status(f, cfg, ready)} for f in FEATURES]
-    return {"sections": SECTIONS, "start": START, "features": features}
+    ai = ai_in_use(cfg)
+    features = [named({**f, "status": status(f, cfg, ready)}, ai) for f in FEATURES]
+    sections = [named(s, ai) for s in SECTIONS]
+    return {"sections": sections, "start": [named(s, ai) for s in START], "features": features,
+            "ai": ai}  # fmt: skip
 
 
 def for_log(words: list[str], limit: int = 4) -> str:
