@@ -393,6 +393,20 @@ daemon connects Codoh's voice at start (not only after the first ACTION codoh). 
 way: reading what a chat waits for went through the page's `chat()`, which counts as looking at
 it, and silenced its "done".
 
+### Story 129: The overnight review (`story/129-overnight-review`, a pull request)
+The owner (2026-11-27, at night): the webcam still cut Abdoh off sometimes; two things it said
+overlapped (a Codoh notice over a reply; "saved as a PDF" over the reply); and "go through every
+function and feature, check for bugs, make it better, faster, better looking". Done:
+- One voice at a time (a lock), and notices said when Abdoh is free (`say_later`).
+- Abdoh's own words heard back aren't a request (`audio/echo_text.py`), and the voice watch
+  learns from its false alarms; what's heard over a reply may be ignored by Claude.
+- A request said twice in two sentences is done once; "so the project is called ..." no longer
+  borrows "open".
+- Codoh queues a message sent while it works; "open Kodo" opens Codoh at once.
+- The wake word works while the speech model loads (it waited 9 s).
+- Settings' section chips; steady page layout; the window polls less when hidden; quieter,
+  truer logs; programs Abdoh starts can't hang it.
+
 ### Release 0.13.1 (2026-11-27)
 Stories 122 to 127, on the owner's go: the webcam echo, Codoh's Full access and question cards,
 Abdoh knowing Codoh, Codoh by voice, asking about Codoh any time, Codoh speaking up, and the

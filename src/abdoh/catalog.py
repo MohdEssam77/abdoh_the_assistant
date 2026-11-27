@@ -567,6 +567,7 @@ FEATURES: list[dict] = [
             "Codoh's chats are separate from Abdoh's: none of Abdoh's instructions go to them.",
             "Ask Abdoh “what is Codoh doing?” or “what's left?” any time, also minimized.",
             "Abdoh says when Codoh needs you and when it's done, unless you're looking at it.",
+            "Send another message while it works: it goes as soon as the reply ends.",
         ],
     },
     # ----- Abdoh itself -----

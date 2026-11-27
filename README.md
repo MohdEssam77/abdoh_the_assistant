@@ -207,10 +207,17 @@ back to its old, simple window.
   add something while it's still thinking ("What's the weather" ... "in Paris"), both parts are
   one request. Abdoh hears you over its own voice by taking what the speakers play back out of
   the microphone (echo cancellation); that sound is only used in memory, never saved or sent.
-  Works best with headphones or the volume not too loud. Under loud music or a film it may not
-  hear you: use the wake word or the hotkey then. **How easily your voice stops Abdoh** (Low,
+  Works best with headphones or the volume not too loud. If what it hears is just its own words
+  coming back through the microphone ("each one was" while it says "each one flips"), it carries
+  on, and after each such false alarm it asks for a little louder speech (less of that as replies
+  go by without one). Under loud music or a film it may not hear you: use the wake word or the
+  hotkey then. **How easily your voice stops Abdoh** (Low,
   Medium, High) is in Settings → Conversation. Check how well it works in your room with
   `python scripts/echo_check.py` (it speaks two sentences; `--talk` lets you try talking over it).
+- **One voice at a time**: what Abdoh says by itself (Codoh needs you, where the board's PDF
+  went) waits until it's finished talking, you've finished talking, and it isn't waiting for
+  your answer; it's shown in the conversation too, and left out if it's no longer true (you
+  allowed Codoh's command on the page meanwhile).
 - **Interrupt with the wake word**: say "Hey Abdoh" while it's talking (or press the hotkey) to
   stop it and say something new.
 - **Other sounds stay down for the whole conversation**: from the wake word (or whenever Abdoh
@@ -446,6 +453,9 @@ each command with its output.
 - **When the model asks you something** (which project, which approach), a question card shows
   its options: pick one (or several), or write your own answer, then **Send answer** (or
   **Skip**).
+- **Send another message while it works**: press Enter (or tell Abdoh "tell Codoh to also run
+  the tests") and it waits above the box you type in, then goes when the current reply ends;
+  Stop drops it ("Not sent").
 - **Tell Abdoh what Codoh should do**: "make a new chat in my portfolio folder and tell it to
   add a dark mode", "open the weather app folder in Codoh", "make a folder called space game in
   my code folder and have Codoh start a canvas game", "tell Codoh to run the tests too", "switch
@@ -1163,7 +1173,10 @@ Developer scripts:
   end, not its middle. Checked with real recordings of Abdoh's voice on the owner's laptop
   speakers: through the webcam mic, 4 and 6 false stops in 20 s before, none after; a voice
   talking over it is still heard within 0.2 to 0.3 s (also on the laptop mic, unchanged).
-  Not yet checked on a monitor's speakers.
+  The owner's next night (0.13.1) still had a few, with the webcam hearing Abdoh about 25 dB
+  louder than in those recordings: what's heard is now also compared with what Abdoh just said
+  (its own words let the reply go on), and each false alarm makes the watch a little harder to
+  fool. Not yet checked on a monitor's speakers, nor at that volume (it was night).
 
 - **Memory while idle is about 870 MB**: the Parakeet speech model is big. On a graphics card
   with 4 GB or more it's about 360 MB less (see "On a graphics card"); the Lighter quality
