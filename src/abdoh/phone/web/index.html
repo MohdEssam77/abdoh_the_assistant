@@ -26,6 +26,9 @@
       <span class="line"><i class="dot" id="dot"></i><span id="status">Connecting…</span></span>
     </div>
     <span class="mode" id="mode" hidden></span>
+    <button class="icon" id="controls-button" aria-label="Controls" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
+    </button>
     <button class="icon" id="menu-button" aria-label="Menu" aria-haspopup="dialog">
       <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
     </button>
@@ -90,6 +93,37 @@
     <div id="screen-body"></div>
   </div>
 </section>
+
+<div class="sheet-back" id="controls" hidden>
+  <div class="sheet" role="dialog" aria-label="Controls">
+    <div class="grip"></div>
+    <h2 class="sheet-title">On your computer</h2>
+    <div class="control-group">
+      <small>Music</small>
+      <div class="keys">
+        <button class="key" data-media="previous" aria-label="Previous"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 6h2v12H7zM20 6v12l-9-6z"/></svg></button>
+        <button class="key big" data-media="play_pause" aria-label="Play or pause"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 5v14l8-7zM15 5h3v14h-3z"/></svg></button>
+        <button class="key" data-media="next" aria-label="Next"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 6h2v12h-2zM4 6v12l9-6z"/></svg></button>
+      </div>
+    </div>
+    <div class="control-group">
+      <small>Volume</small>
+      <div class="keys">
+        <button class="key" data-media="volume_down" aria-label="Volume down"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 12h4"/></svg></button>
+        <button class="key" data-media="mute" aria-label="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="m17 9 5 6M22 9l-5 6"/></svg></button>
+        <button class="key" data-media="volume_up" aria-label="Volume up"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M17 12h4M19 10v4"/></svg></button>
+      </div>
+    </div>
+    <div class="control-group" id="modes-group">
+      <small>Modes</small>
+      <div class="chips" id="modes"></div>
+    </div>
+    <button class="sheet-button" id="lock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>Lock the computer</button>
+    <button class="sheet-button" id="controls-close">Close</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
 
 <div class="sheet-back" id="menu" hidden>
   <div class="sheet" role="dialog" aria-label="Menu">

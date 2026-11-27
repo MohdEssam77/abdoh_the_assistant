@@ -642,6 +642,65 @@ function setupComposer() {
   }
 }
 
+/* ---------- quick controls: music, volume, modes, locking ---------- */
+
+const MEDIA_DONE = { play_pause: "Play or pause", next: "Next", previous: "Previous", volume_up: "Louder",
+  volume_down: "Quieter", mute: "Mute" };
+
+function toast(text) {
+  const box = $("#toast");
+  box.textContent = text;
+  box.hidden = false;
+  clearTimeout(box.timer);
+  box.timer = setTimeout(() => { box.hidden = true; }, 1600);
+}
+
+async function control(kind, value = "") {
+  try {
+    await api("POST", "/api/control", { kind, value, speak: S.speak });
+    return true;
+  } catch (error) {
+    $("#controls").hidden = true;
+    failed(error);
+    return false;
+  }
+}
+
+async function openControls() {
+  const sheet = $("#controls");
+  sheet.hidden = false;
+  const box = $("#modes");
+  box.replaceChildren(el("span", { class: "muted" }, "…"));
+  let data = { modes: [], mode: "" };
+  try { data = await api("GET", "/api/controls"); } catch (error) { if (error instanceof Unpaired) return unpaired(); }
+  $("#modes-group").hidden = !(data.modes || []).length;
+  const pick = (name) => async () => {
+    if (await control("mode", name)) {
+      sheet.hidden = true;
+      toast(name ? `${name} mode` : "Back to normal");
+    }
+  };
+  box.replaceChildren(
+    el("button", { class: `chip${data.mode ? "" : " on"}`, onclick: pick("") }, "Normal"),
+    ...(data.modes || []).map((name) => el("button", { class: `chip${name === data.mode ? " on" : ""}`, onclick: pick(name) }, name)));
+}
+
+function setupControls() {
+  const sheet = $("#controls");
+  $("#controls-button").addEventListener("click", openControls);
+  $("#controls-close").addEventListener("click", () => { sheet.hidden = true; });
+  sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.hidden = true; });
+  for (const key of document.querySelectorAll("[data-media]")) {
+    key.addEventListener("click", async () => {
+      if (await control("media", key.dataset.media)) toast(MEDIA_DONE[key.dataset.media]);
+    });
+  }
+  $("#lock").addEventListener("click", async () => {
+    if (!confirm("Lock your computer now?")) return;
+    if (await control("lock")) { sheet.hidden = true; toast("Locked"); }
+  });
+}
+
 function setupMenu() {
   const menu = $("#menu");
   const speak = $("#speak");
@@ -681,5 +740,6 @@ document.addEventListener("visibilitychange", () => {
 });
 
 setupComposer();
+setupControls();
 setupMenu();
 start();

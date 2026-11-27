@@ -511,3 +511,118 @@ def test_a_phone_that_hangs_up_is_only_logged(caplog):
     levels = [(r.levelname, r.getMessage()) for r in caplog.records]
     assert levels[0][0] == "DEBUG" and "hung up" in levels[0][1]
     assert levels[1][0] == "ERROR"
+
+
+# ----- quick controls -----
+
+
+def test_the_controls_list_the_modes():
+    bus, hub = make_hub(modes=lambda: ["Work", "Movie night"])
+    hub.take("mode", "Work")
+    assert hub.controls() == {"modes": ["Work", "Movie night"], "mode": "Work"}
+
+    def broken():
+        raise RuntimeError("modes.yaml is broken")
+
+    _, sad = make_hub(modes=broken)
+    assert sad.controls()["modes"] == []
+
+
+def test_the_controls_ask_abdoh():
+    bus, hub = make_hub(modes=lambda: ["Work"])
+    hub.control("media", "next", speak=True, phone="p1")
+    assert bus.next_request(0) == ("phone_control", {"kind": "media", "value": "next"})
+    hub.control("mode", "")
+    hub.control("mode", "Work")
+    hub.control("lock")
+    assert [bus.next_request(0)[1]["kind"] for _ in range(3)] == ["mode", "mode", "lock"]
+    for kind, value in (("media", "format_c"), ("mode", "Gone"), ("shutdown", "")):
+        with pytest.raises(PhoneError):
+            hub.control(kind, value)
+    assert bus.next_request(0) is None
+
+
+def test_the_controls_through_the_page(tmp_path):
+    bus, hub, phones, app = make_app(tmp_path, modes=lambda: ["Work"])
+    key = paired(app, phones)
+    _, data = call(app, "GET", "/api/controls", key=key)
+    assert data == {"modes": ["Work"], "mode": ""}
+    response, data = call(app, "POST", "/api/control", key=key, body={"kind": "lock"})
+    assert data == {"ok": True}
+    assert bus.next_request(0) == ("phone_control", {"kind": "lock", "value": ""})
+    response, data = call(app, "POST", "/api/control", key=key, body={"kind": "nope"})
+    assert response.status == 400
+    assert call(app, "GET", "/api/controls")[0].status == 401
+
+
+class FakeComputer:
+    def __init__(self):
+        self.did = []
+
+    def media(self, key):
+        self.did.append(("media", key))
+
+    def lock(self):
+        self.did.append(("lock", ""))
+
+
+class FakeModes:
+    def __init__(self, reply="Work mode is on."):
+        self.reply = reply
+        self.switched = []
+
+    def activate(self, name):
+        self.switched.append(name)
+        return self.reply
+
+    def deactivate(self):
+        self.switched.append("")
+        return "Back to normal."
+
+    def names(self):
+        return ["Work"]
+
+
+def test_the_daemon_does_what_the_controls_ask():
+    bus = Bus(ui_attached=False)
+    seen = Recorder(bus)
+    router = StubRouter([])
+    router.computer = FakeComputer()
+    daemon = make_daemon(router, bus=bus)
+    daemon.modes = FakeModes()
+    daemon.handle_request("phone_control", {"kind": "media", "value": "play_pause"})
+    daemon.handle_request("phone_control", {"kind": "lock"})
+    daemon.handle_request("phone_control", {"kind": "mode", "value": "Work"})
+    daemon.handle_request("phone_control", {"kind": "mode", "value": ""})
+    assert router.computer.did == [("media", "play_pause"), ("lock", "")]
+    assert daemon.modes.switched == ["Work", ""]
+    assert "Abdoh: Work mode is on." in seen.of("history")
+    assert daemon.speaker.said == [] and daemon._phone_turn is False
+
+
+def test_a_modes_question_goes_to_the_phone():
+    bus = Bus(ui_attached=False)
+    seen = Recorder(bus)
+    daemon = make_daemon(StubRouter([]), bus=bus)
+    daemon.modes = FakeModes(Question("Movie night wants the TV. Use this screen instead?"))
+    daemon.handle_request("phone_control", {"kind": "mode", "value": "Movie night"})
+    assert seen.of("phone_question") == ["Movie night wants the TV. Use this screen instead?"]
+    assert seen.of("phone_say") == ["Movie night wants the TV. Use this screen instead?"]
+    assert daemon.speaker.said == []
+    assert not daemon._take_listen_now()  # the laptop doesn't start listening
+
+
+def test_a_control_that_fails_says_why():
+    from abdoh.commands.actions import ActionError
+
+    class Broken(FakeComputer):
+        def media(self, key):
+            raise ActionError("Media keys only work on Windows for now.")
+
+    bus = Bus(ui_attached=False)
+    seen = Recorder(bus)
+    router = StubRouter([])
+    router.computer = Broken()
+    daemon = make_daemon(router, bus=bus)
+    daemon.handle_request("phone_control", {"kind": "media", "value": "next"})
+    assert seen.of("history") == ["Abdoh: Media keys only work on Windows for now."]

@@ -41,6 +41,7 @@ HISTORY = 200
 MAX_TEXT = 2000
 AUDIO_SECONDS = 600.0  # a reply's audio can be fetched for this long
 MAX_AUDIO = 60
+MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
      "phone_question"}
@@ -57,12 +58,14 @@ class PhoneHub:
         bus,
         hear: Callable[[bytes], str] | None = None,
         voice: Callable[[str], bytes | None] | None = None,
+        modes: Callable[[], list[str]] | None = None,
         today=date.today,
         clock=time.monotonic,
     ):
         self.bus = bus
         self._hear = hear  # 16 kHz mono 16-bit audio -> text
         self._voice = voice  # a sentence -> WAV bytes, or None (the phone's own voice speaks)
+        self._modes = modes  # your modes' names, for the phone's controls
         self._today = today
         self._clock = clock
         self.boot = secrets.token_hex(4)  # a new hub (Abdoh restarted): the page starts over
@@ -220,6 +223,29 @@ class PhoneHub:
     def stop(self) -> None:
         """Stop the reply (the phone's Stop button)."""
         self.bus.request("stop_speaking")
+
+    # ----- the phone's quick controls -----
+
+    def controls(self) -> dict:
+        """What the controls show: your modes and the one that's on."""
+        try:
+            modes = list(self._modes()) if self._modes else []
+        except Exception:
+            log.exception("Couldn't list the modes for the phone")
+            modes = []
+        return {"modes": modes, "mode": self._mode}
+
+    def control(self, kind: str, value: str = "", speak: bool = False, phone: str = "") -> None:
+        """A mode ("" = normal), a media key (MEDIA), or locking the computer."""
+        value = str(value or "")
+        if kind == "media" and value not in MEDIA:
+            raise PhoneError("That button doesn't do anything.")
+        if kind == "mode" and value and value not in self.controls()["modes"]:
+            raise PhoneError("That mode is gone. Open the controls again.")
+        if kind not in ("mode", "media", "lock"):
+            raise PhoneError("That button doesn't do anything.")
+        self._speak, self._asker = bool(speak), phone
+        self.bus.request("phone_control", {"kind": kind, "value": value})
 
     # ----- the replies' audio -----
 
