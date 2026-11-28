@@ -75,9 +75,11 @@ NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
 
-# After the phone asked to open one of these, it gets a picture of the screen this long after.
-PHONE_OPENS = frozenset({"open_app", "open_url", "play_youtube"})
-PHONE_SHOT_SECONDS = 2.5
+# After the phone asked for one of these, it gets a picture of the screen where that app is,
+# and the screen live, once it has opened (seconds) or settled after moving.
+PHONE_SETTLE = {"open_app": 2.5, "open_url": 2.5, "play_youtube": 2.5, "focus_app": 1.0,
+                "window": 1.0}  # fmt: skip
+PHONE_SHOT_SECONDS = 2.5  # (kept for older callers: an opening's wait)
 # What Claude's action is called in "Done: ...", where its own words would read badly.
 DONE_WORDS = {"board_pdf": "saving the board as a PDF"}
 # The window was asked to save the board and didn't answer in this long (the save itself takes
@@ -104,6 +106,17 @@ def _still_true(check: Callable[[], bool]) -> bool:
     except Exception:
         log.debug("Couldn't check a notice", exc_info=True)
         return False
+
+
+def _app_of(kind: str, arg: str) -> str:
+    """The app a phone request opened or moved ("WhatsApp"), or "" for the window in front."""
+    arg = " ".join(str(arg or "").split())
+    if kind in ("open_app", "focus_app"):
+        return arg
+    if kind == "window" and " to " in arg:
+        app = arg.split(" to ", 1)[0].strip()
+        return "" if app.lower() in ("this", "it", "current", "the window") else app
+    return ""
 
 
 def _phone_id(phone) -> str:
@@ -215,6 +228,7 @@ class Daemon:
         self.phone = None
         self.phone_error = ""  # why the phone page couldn't start (its port is taken)
         self._phone_shot = None  # the picture of the screen the phone gets after opening
+        self._phone_app = ""  # ... of where this app is (the latest opened or moved)
         self._phone_turn = False
         if hasattr(speaker, "on_missing_voice"):
             speaker.on_missing_voice = self._missing_voice
@@ -379,29 +393,55 @@ class Daemon:
 
         done = action_step(kind, arg)
         self.bus.emit("phone_step", done)
-        if kind in PHONE_OPENS:
-            self._screen_later(done)
+        if kind in PHONE_SETTLE:
+            self._phone_app = _app_of(kind, arg)  # "" for the browser: the window in front
+            wait = PHONE_SHOT_SECONDS if kind == "open_app" else PHONE_SETTLE[kind]
+            self._screen_later(done, wait)
 
-    def _screen_later(self, caption: str) -> None:
-        """A picture of the screen for the phone once what was opened is up (one per reply:
-        the last opening's wait counts)."""
+    def _screen_later(self, caption: str, seconds: float = 0.0) -> None:
+        """A picture of the screen where the app is, once it's up there, and that screen
+        live on the phone (one per reply: the last opening's or move's wait counts)."""
         old = self._phone_shot
         if old is not None:
             old.cancel()
-        timer = threading.Timer(PHONE_SHOT_SECONDS, self._send_screen, args=(caption,))
+        timer = threading.Timer(
+            seconds or PHONE_SHOT_SECONDS, self._send_screen,
+            args=(caption, self._phone_app, True),
+        )  # fmt: skip
         timer.daemon = True
         self._phone_shot = timer
         timer.start()
 
     def _show_screen(self, why: str) -> None:
         """Claude: ACTION show_screen (only for the phone): a picture of the screen, now (or
-        the one coming after what this reply just opened, once that's up)."""
+        the one coming after what this reply just opened, once that's up). "live": the phone
+        shows it live instead."""
         coming = self._phone_shot
-        if coming is not None and coming.is_alive():
+        waiting = coming is not None and coming.is_alive()
+        if why.strip().lower().startswith("live"):
+            if not waiting:  # (else the screen goes live once what was opened is up)
+                self.bus.emit("phone_live", {"screen": self._live_screen(self._phone_app)})
+            return
+        if waiting:
             return
         threading.Thread(
-            target=self._send_screen, args=("Your screen",), name="abdoh-phone-screen", daemon=True
-        ).start()
+            target=self._send_screen, args=("Your screen", self._phone_app),
+            name="abdoh-phone-screen", daemon=True,
+        ).start()  # fmt: skip
+
+    def _live_screen(self, app: str = "") -> str:
+        """Which screen the phone shows live: where `app` is, else the one in use."""
+        service = self.phone
+        if service is None or service.hub.live is None or not app:
+            return "follow"
+        try:
+            live = service.hub.live
+            point = live._grabber.app_point(app)
+            screen = live.screen_at(point) if point else None
+            return screen.id if screen is not None else "follow"
+        except Exception:
+            log.debug("Couldn't tell which screen %r is on", app, exc_info=True)
+            return "follow"
 
     def _send_file(self, arg: str) -> str:
         """Claude: ACTION send_file (only for the phone): "" when it went, else why not."""
@@ -428,24 +468,44 @@ class Daemon:
             raise RuntimeError("no computer")
         computer.set_clipboard(text)
 
-    def _send_screen(self, caption: str) -> None:
+    def _send_screen(self, caption: str, app: str = "", live: bool = False) -> None:
+        """A picture of the screen where `app` is (else the one in use) to the phone, with
+        which screen it is; `live`: and that screen live (after opening something)."""
         from abdoh.claude.screen import ScreenCaptureError
 
         try:
-            data = self._grab_screen()
+            data, label, screen = self._grab_screen(app)
         except ScreenCaptureError as e:
             self.bus.emit("phone_note", str(e))
             return
         except Exception:
             log.exception("Couldn't send the screen to the phone")
             return
-        log.info("Sent a picture of the screen to the phone (%d KB)", len(data) // 1024)
-        self.bus.emit("phone_image", {"data": data, "caption": caption})
+        size = len(data) // 1024
+        log.info("Sent a picture of %s to the phone (%d KB)", label or "the screen", size)
+        shown = f"{caption} · {label}" if label else caption
+        self.bus.emit("phone_image", {"data": data, "caption": shown})
+        if live:
+            self.bus.emit("phone_live", {"screen": screen})
 
-    def _grab_screen(self) -> bytes:
+    def _grab_screen(self, app: str = "") -> tuple[bytes, str, str]:
+        """(JPEG, the screen's label, its id for the live view) of where `app` is."""
+        service = self.phone
+        live = service.hub.live if service is not None else None
+        if live is not None:
+            data, screen = live.picture(app)
+            return data, screen.label, screen.id
         from abdoh.phone.media import screen_picture
 
-        return screen_picture()
+        return screen_picture(), "", "follow"
+
+    def _screen_names(self) -> list[tuple[int, str, tuple]]:
+        """Abdoh's screens that are on: (number, name, (left, top, width, height))."""
+        computer = getattr(self.router, "computer", None)
+        displays = getattr(computer, "displays", None) if computer is not None else None
+        if displays is None:
+            return []
+        return [(d.number, d.label, d.rect) for d in displays.all() if d.active and d.rect]
 
     def _save_board(self, phone: str | bool = False) -> None:
         """Claude: ACTION board_pdf. The page draws the board and Abdoh prints it; the window
@@ -918,6 +978,8 @@ class Daemon:
         with self._handle_lock:
             self._phone_turn = self.router.phone = phone
             self.router.phone_files = list(files or []) if phone else []
+            if phone:
+                self._phone_app = ""  # a new request: nothing opened for it yet
             try:
                 return self._handle_text(text, voice, aside, woken, phone, spoken)
             finally:
@@ -1427,13 +1489,15 @@ class Daemon:
             self._phone_off()
         if not self.cfg.phone or self.phone is not None:
             return
+        from abdoh.phone.live import LiveScreen
         from abdoh.phone.media import screen_picture
         from abdoh.phone.server import PhoneService
 
         service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice,
                                modes=lambda: self.modes.names() if self.modes else [],
                                screen=screen_picture, clipboard=self._clipboard_text,
-                               set_clipboard=self._set_clipboard, codoh=self._codoh)  # fmt: skip
+                               set_clipboard=self._set_clipboard, codoh=self._codoh,
+                               live=LiveScreen(names=self._screen_names))  # fmt: skip
         try:
             service.start()
         except OSError as e:

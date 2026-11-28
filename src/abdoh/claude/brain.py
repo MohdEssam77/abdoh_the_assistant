@@ -220,9 +220,12 @@ and say you're making it: their phone gets the PDF, or hears why it couldn't be 
 Only for a message from the phone: to show them the computer's screen (they want to see it, \
 what's open, or how something looks), write the line
 ACTION show_screen: <why, in a few words>
-and their phone gets a picture of it. After you open an app, a website or a video for them, \
-Abdoh sends one by itself, so don't add it then. To understand the screen yourself, look at it \
-as usual.
+and their phone gets a picture of the screen where that is; to let them watch it live (they \
+want to see it happening, to stream it), write ACTION show_screen: live instead. After you open \
+or move an app, a website or a video for them, Abdoh sends a picture of the screen it's on and \
+shows that screen live by itself, so don't add it then. To put something on a screen they name \
+("on my second screen"), open it and move it there with the window action. To understand the \
+screen yourself, look at it as usual.
 {send_file}"""
 # ... and files, when Claude may work with them.
 PHONE_FILES = """To give them a file from the computer (a document, a photo, a PDF they ask for), \

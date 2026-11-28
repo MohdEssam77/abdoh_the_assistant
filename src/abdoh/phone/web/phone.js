@@ -275,9 +275,137 @@ function take(event) {
     case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); boardPdfCame(event); } break;
     case "board": takeBoard(event.card || null); break;
     case "codoh": takeCodoh(event); break;
+    case "live": if (event.for === S.me) openLive(event.screen || "follow"); break;
     case "board_picture": takePicture(event.picture || {}); break;
     default: break;
   }
+}
+
+/* ---------- the computer's screen, live (story 155) ----------
+   Frames come when something changes on that screen (about 5 a second at most), asked for one
+   after the other like the conversation's events. "Follow" is the screen of the window you're
+   working in; a chip picks one screen. On a call, the call becomes a bar on top: it goes on
+   (listening, answering), and the bar brings the call back, mutes or ends it. */
+
+const live = { open: false, which: "follow", id: 0, url: "", turn: 0, frames: [], quiet: 0, label: "" };
+
+async function openLive(which = "follow") {
+  $("#controls").hidden = true;
+  $("#viewer").hidden = true;
+  live.open = true;
+  live.which = String(which || "follow");
+  live.id = 0;
+  live.frames = [];
+  $("#live").hidden = false;
+  $("#live-wait").hidden = false;
+  $("#live-wait").textContent = "Connecting to your screen…";
+  $("#live").classList.remove("bare");
+  dockCall(true);
+  showScreens();
+  liveLoop(++live.turn);
+}
+
+function closeLive() {
+  live.open = false;
+  live.turn += 1;
+  $("#live").hidden = true;
+  if (live.url) URL.revokeObjectURL(live.url);
+  live.url = "";
+  $("#live-img").removeAttribute("src");
+  dockCall(false);
+}
+
+async function showScreens() {
+  const box = $("#live-screens");
+  let screens = [];
+  try {
+    screens = (await api("GET", "/api/live/screens")).screens || [];
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+  }
+  const chip = (id, label) => el("button", { class: `chip${live.which === id ? " on" : ""}`, type: "button",
+    onclick: () => { if (live.which !== id) { live.which = id; live.id = 0; showScreens(); liveLoop(++live.turn); } } }, label);
+  box.replaceChildren(chip("follow", "Follow"), ...screens.map((s) => chip(s.id, s.label.replace(/^Screen (\d+) · /, "$1 · "))));
+}
+
+async function liveLoop(turn) {
+  if (DEMO) return demoLive(turn);
+  while (live.open && turn === live.turn) {
+    let response;
+    try {
+      const abort = new AbortController();
+      const timer = setTimeout(() => abort.abort(), 12000);
+      response = await fetch(`/api/live?screen=${encodeURIComponent(live.which)}&after=${live.id}`, {
+        headers: { Authorization: `Bearer ${S.key}` }, cache: "no-store", signal: abort.signal });
+      clearTimeout(timer);
+    } catch (error) {
+      if (turn !== live.turn) return;
+      $("#live-state").textContent = "Can't reach your computer · trying again…";
+      await new Promise((r) => setTimeout(r, 1500));
+      continue;
+    }
+    if (turn !== live.turn) return;
+    if (response.status === 401) return unpaired();
+    if (response.status === 204) { // nothing changed on the screen
+      live.quiet += 1;
+      showLiveState();
+      continue;
+    }
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      $("#live-wait").hidden = false;
+      $("#live-wait").textContent = data.error || "The screen can't be shown right now.";
+      await new Promise((r) => setTimeout(r, 3000));
+      continue;
+    }
+    const blob = await response.blob();
+    if (turn !== live.turn) return;
+    const url = URL.createObjectURL(blob);
+    $("#live-img").src = url;
+    if (live.url) URL.revokeObjectURL(live.url);
+    live.url = url;
+    live.id = Number(response.headers.get("X-Frame")) || live.id + 1;
+    live.label = decodeURIComponent(response.headers.get("X-Screen") || "");
+    live.frames.push(Date.now());
+    live.quiet = 0;
+    $("#live-wait").hidden = true;
+    showLiveState();
+  }
+}
+
+function showLiveState() {
+  const now = Date.now();
+  live.frames = live.frames.filter((t) => now - t < 3000);
+  $("#live-title").textContent = live.label || "Your screen";
+  const fps = Math.round(live.frames.length / 3);
+  $("#live-state").textContent = !live.frames.length ? "Up to date: nothing is moving on this screen"
+    : fps < 1 ? "Up to date" : `${fps} frame${fps === 1 ? "" : "s"} a second`;
+}
+
+/* Picture: this screen now, into the conversation (to keep). */
+async function livePicture() {
+  try {
+    await api("POST", "/api/screen", { screen: live.which });
+    toast("The picture is in the conversation");
+  } catch (error) {
+    toast(error.shown ? error.message : "Can't reach your computer right now.");
+  }
+}
+
+/* The demo: a made-up screen, still. */
+function demoLive(turn) {
+  $("#live-img").src = window.AbdohDemo.picture();
+  live.label = live.which === "follow" ? "Screen 1 · Laptop screen" : `Screen ${live.which} · HP 32f`;
+  $("#live-wait").hidden = true;
+  live.frames = [Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now(), Date.now()];
+  showLiveState();
+}
+
+/* A call while the screen is live: the call is a bar on top, and comes back when it closes. */
+function dockCall(on) {
+  const docked = on && call.on;
+  $("#call").classList.toggle("docked", docked);
+  $("#live-call").hidden = !docked;
 }
 
 /* ---------- pictures and files from the computer (stories 148, 149) ----------
@@ -867,19 +995,6 @@ async function sendClipboard() {
   }
 }
 
-/* "See the screen" in the controls: a picture of it now, not part of the conversation. */
-async function seeScreen() {
-  $("#controls").hidden = true;
-  toast("Taking a picture of the screen…");
-  try {
-    const data = await api("POST", "/api/screen", undefined, { timeout: 30000 });
-    $("#toast").hidden = true;
-    openViewer(DEMO ? window.AbdohDemo.picture() : `/media/${data.id}`, "Your screen now");
-  } catch (error) {
-    $("#toast").hidden = true;
-    failed(error);
-  }
-}
 
 /* What Abdoh is doing for this phone's request, step by step (story 147): live above its
    answer while it works, then folded into "3 steps". */
@@ -1442,6 +1557,7 @@ async function startCall() {
     }
   }
   $("#call").hidden = false;
+  if (live.open) dockCall(true); // the screen is live: the call joins it as a bar
   call.timer = setInterval(showCall, 100);
   keepAwake(true);
   listen();
@@ -1630,6 +1746,7 @@ function endCall(why = "") {
   S.cut = S.asked;
   if (busy) api("POST", "/api/stop").catch(() => {});
   $("#call").hidden = true;
+  dockCall(false);
   note(why || `Call with Abdoh · ${clock(seconds)}`);
   render();
   scrollDown(true);
@@ -1671,6 +1788,10 @@ function showCall() {
   $("#call-hint").textContent = offline ? "Trying again…" : call.hint || hint || "";
   $("#call-you").textContent = call.you ? `“${call.you}”` : "";
   $("#call-abdoh").textContent = call.abdoh;
+  $("#live-call-state").textContent = $("#call-state").textContent;
+  $("#live-call-time").textContent = `On a call · ${$("#call-time").textContent}`;
+  $("#live-call-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");
+  $("#live-call").dataset.state = state;
   $("#call-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");
   $("#call-mute-label").textContent = call.muted ? "Unmute" : "Mute";
   $("#orb").setAttribute("aria-label", call.muted ? "Unmute" : ["thinking", "speaking"].includes(state) ? "Talk now" : "Abdoh is listening");
@@ -1779,7 +1900,14 @@ function setupControls() {
       if (await control("media", key.dataset.media)) toast(MEDIA_DONE[key.dataset.media]);
     });
   }
-  $("#see-screen").addEventListener("click", seeScreen);
+  $("#see-screen").addEventListener("click", () => openLive("follow"));
+  $("#viewer-live").addEventListener("click", () => openLive("follow"));
+  $("#live-close").addEventListener("click", closeLive);
+  $("#live-shot").addEventListener("click", livePicture);
+  $("#live-stage").addEventListener("click", () => $("#live").classList.toggle("bare"));
+  $("#live-call-back").addEventListener("click", closeLive);
+  $("#live-call-mute").addEventListener("click", () => toggleMute());
+  $("#live-call-end").addEventListener("click", () => endCall());
   $("#board-close").addEventListener("click", closeBoard);
   $("#board-pdf").addEventListener("click", boardPdf);
   $("#codoh-close").addEventListener("click", closeCodoh);

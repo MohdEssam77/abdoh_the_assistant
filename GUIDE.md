@@ -889,9 +889,13 @@ tap the circle to cut in (that always works).
 shows up live above its answer ("Searching the web: weather in Berlin", "Reading CV.pdf",
 "Opened Spotify"), then folds into "3 steps"; tap it to see them again.
 
-**The screen.** After Abdoh opens an app, a website or a video for you, the phone gets a picture
-of the computer's screen a moment later, so you see what it opened. Ask "show me my screen" any
-time, or use **See the screen** in the controls. Tap a picture to see it full screen.
+**The screen, live.** After Abdoh opens or moves an app, a website or a video for you ("open
+WhatsApp on my second screen"), the phone shows the screen it's on, live: frames come as it
+changes (a few a second; a still screen costs almost nothing), and a picture of it goes into the
+conversation. Chips pick a screen (by Abdoh's numbers and your names for them) or **Follow** the
+one you're working on; **Picture** keeps one in the conversation; tap the screen to hide the
+buttons. On a call, the call becomes a bar on top while you watch, and goes on (tap the bar to
+bring it back). Ask "show me my screen live" any time, or use **See the screen** in the controls.
 
 **Files, both ways.** "Find my CV and send it to me": Abdoh looks for it and sends it, and the
 phone gets a card with **Open** (the phone's own viewer, with Share and Save to Files) and

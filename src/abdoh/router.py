@@ -332,10 +332,19 @@ class Router:
         self.local = None
         if computer is not None:
             self.local = LocalSkills(
-                StepRecorder(computer, self._done.append),
+                StepRecorder(computer, self._note_done),
                 last_reply=lambda: self.last_reply,
                 allow_power=lambda: self.cfg.allow_power,
             )
+
+    def _note_done(self, step: tuple[str, str]) -> None:
+        """Something Abdoh did by itself (a built-in skill, one of your commands): noted, and
+        reported like Claude's actions (the phone shows it, and the screen after opening)."""
+        self._done.append(step)
+        try:
+            self.on_action(*step)
+        except Exception:
+            log.debug("Couldn't report what Abdoh did", exc_info=True)
 
     @property
     def wake_words(self) -> list[str]:
@@ -500,7 +509,7 @@ class Router:
         if found:
             log.info("Matched command %r (score %.0f)", found.command.name, found.score)
             try:
-                computer = StepRecorder(self.computer, self._done.append) if self.computer else None
+                computer = StepRecorder(self.computer, self._note_done) if self.computer else None
                 spoken = self._run(
                     found.command, self.cfg.allow_run, computer=computer, slots=found.slots
                 )

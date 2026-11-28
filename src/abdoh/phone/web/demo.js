@@ -50,7 +50,8 @@
       later(700, { type: "history", line: "Abdoh: Done: open app Music." });
       later(760, { type: "status", text: "Listening" });
       later(800, { type: "done", for: "demo-phone" });
-      later(1900, { type: "image", id: "demo-shot", src: picture(), caption: "Opened Music", for: "demo-phone" });
+      later(1900, { type: "image", id: "demo-shot", src: picture(), caption: "Opened Music · Screen 2 · HP 32f", for: "demo-phone" });
+      later(1950, { type: "live", screen: "2", for: "demo-phone" });
       return;
     }
     const sentences = /lamp|light/.test(lower) ? ["The desk lamp is off now."]
@@ -175,6 +176,10 @@
         return { ok: true, text: heard };
       }
       if (path === "/api/screen") return { ok: true, id: "demo" };
+      if (path === "/api/live/screens") {
+        return { ok: true, screens: [{ id: "1", label: "Screen 1 · Laptop screen", primary: true },
+          { id: "2", label: "Screen 2 · HP 32f", primary: false }, { id: "3", label: "Screen 3 · LG Ultrawide", primary: false }] };
+      }
       if (path === "/api/board_pdf") {
         later(1600, { type: "file", id: "demo-pdf", src: "#", name: "Board 2026-11-28 21.40.pdf", size: 184320, kind: "pdf", for: "demo-phone" });
         return { ok: true };
