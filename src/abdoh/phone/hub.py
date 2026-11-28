@@ -26,6 +26,8 @@ Events for the page (each with its number, "seq"):
   {"type": "image", "id", "caption", "for"} a picture of the screen: /media/<id>
   {"type": "file", "id", "name", "size", "kind", "for"} a file sent to it: /media/<id>
   {"type": "board", "card": {id, text} | None} the board grew (None: cleared)
+  {"type": "codoh", "chat", "text", "open", "for"} a Codoh chat the phone started needs it or is
+                                          done ("text"), or Abdoh started one for it ("open")
   {"type": "board_picture", "picture"}   a picture on it was found: {what, ok, src, credit}
 
 Every event goes through one worker thread, in order: the audio of a sentence is made there,
@@ -66,7 +68,7 @@ OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
      "phone_question", "phone_done", "phone_step", "phone_image", "phone_note", "phone_file",
-     "board", "board_picture"}
+     "board", "board_picture", "phone_codoh"}
 )  # fmt: skip
 
 
@@ -203,6 +205,11 @@ class PhoneHub:
                 log.warning("A picture for the phone was empty or too big")
                 return
             self._show({"type": "image", "id": key, "caption": str(value.get("caption") or "")})
+        elif kind == "phone_codoh":  # {"chat", "text"?, "open"?}: Codoh, for the phone's chat
+            value = value if isinstance(value, dict) else {}
+            self._add({"type": "codoh", "chat": str(value.get("chat") or ""),
+                       "text": str(value.get("text") or "")[:500], "open": bool(value.get("open")),
+                       "for": self._asker})  # fmt: skip
         elif kind == "board":  # {"id", "text"}: a card grew; None: the board was cleared
             self._take_board(value)
         elif kind == "board_picture":  # {"what", "ok", "src" (a data: URL), "credit", ...}

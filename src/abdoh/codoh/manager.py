@@ -119,6 +119,7 @@ class Chat:
         self.tools: dict[str, str] = {}  # the engine's tool id -> the card's item id
         self.lock = threading.RLock()
         self.voice = False  # the latest message came from Abdoh: it says what happens next
+        self.phone = False  # ... from the phone: its notices go there (ABDOH_EPIC_11.md)
         # Messages sent while a reply runs, sent when it ends: (text, by voice). Shown beside
         # the conversation, and part of it once sent.
         self.queue: list[tuple[str, bool]] = []
@@ -210,6 +211,8 @@ class Codoh:
         # Abdoh says this out loud: a chat needs the user, or is done (a chat sent to by voice
         # always; a chat typed on the page when the user isn't looking at it).
         self.on_notice = None
+        # A chat the phone sent to: (chat id, what to tell) goes to the phone instead.
+        self.on_phone_notice = None
         # Abdoh's window is open (not minimized or hidden): set by the daemon.
         self.window_open = lambda: False
         global _ACTIVE
@@ -394,12 +397,14 @@ class Codoh:
                 chat = self._chats[chat_id] = Chat(data)
             return chat
 
-    def chat(self, chat_id: str, since: int = 0) -> dict:
-        """The chat's items changed since revision `since` (all of them for 0)."""
+    def chat(self, chat_id: str, since: int = 0, look: bool = True) -> dict:
+        """The chat's items changed since revision `since` (all of them for 0). `look`: the
+        page shows it (the phone reading it doesn't count as the window looking)."""
         chat = self._chat(chat_id)
         if chat is None:
             return {"ok": False, "error": "That chat is gone."}
-        self.viewing = chat_id  # the page asks for the chat it shows
+        if look:
+            self.viewing = chat_id  # the page asks for the chat it shows
         with chat.lock:
             items = [i for i in chat.items if since <= 0 or i.get("rev", 0) > since]
             return {
@@ -478,14 +483,16 @@ class Codoh:
             )
         return chat.engine
 
-    def send(self, chat_id: str, text: str, by_voice: bool = False) -> dict:
+    def send(self, chat_id: str, text: str, by_voice: bool = False, by_phone: bool = False) -> dict:
         """A message for the chat: typed on the page, or told to Abdoh (`by_voice`: Abdoh then
-        says when the chat needs the user and when it's done)."""
+        says when the chat needs the user and when it's done), or from the phone (`by_phone`:
+        the phone is told instead)."""
         text = str(text or "").strip()
         chat = self._chat(chat_id)
         if chat is None or not text:
             return {"ok": False, "error": "Nothing to send."}
         with chat.lock:
+            chat.phone = by_phone
             if chat.running:  # it goes next, when this reply ends
                 chat.queue.append((text, by_voice))
                 chat.bump()
@@ -809,7 +816,7 @@ class Codoh:
 
                     question = item.get("tool") == QUESTION
                     said = notice("question" if question else "approval", "", item)
-                    self._tell(said, still=lambda: item.get("state") == "waiting")
+                    self._tell(said, still=lambda: item.get("state") == "waiting", chat=chat)
                 return
             if kind == "done":
                 resend = self._done(chat, event)
@@ -822,7 +829,7 @@ class Codoh:
         if allowed is not None and chat.engine is not None:
             chat.engine.answer(allowed[0], True, data=allowed[1])
         if said and kind == "done":
-            self._tell(said)
+            self._tell(said, chat=chat)
         if resend is not None:
             with chat.lock:
                 self._run(chat, resend)
@@ -870,7 +877,7 @@ class Codoh:
     def _speaks_up(self, chat: Chat) -> bool:
         """Abdoh says when this chat needs the user or is done: always when the voice sent its
         latest message, else when the user isn't looking at it (the card shows it then)."""
-        return chat.voice or not self.seen(chat.data.get("id", ""))
+        return chat.voice or chat.phone or not self.seen(chat.data.get("id", ""))
 
     def _next_queued(self, chat: Chat, stopped: bool) -> str | None:
         """A reply ended: the next queued message, to send now (None if there's none). Stopped:
@@ -897,9 +904,18 @@ class Codoh:
         last = next((i for i in reversed(chat.items) if i.get("kind") == "assistant"), None)
         return notice("done", chat.data.get("title", ""), text=(last or {}).get("text", ""))
 
-    def _tell(self, text: str, still=None) -> None:
+    def _tell(self, text: str, still=None, chat: Chat | None = None) -> None:
         """Abdoh says it when it's free (daemon.say_later: never over a reply), if `still()` is
-        still true then (Codoh still waits for that OK)."""
+        still true then (Codoh still waits for that OK). A chat the phone sent to: the phone
+        is told instead, and nothing is said here."""
+        phone = self.on_phone_notice
+        if chat is not None and chat.phone and phone is not None and text:
+            log.info("Codoh: telling the phone: %s", text)
+            try:
+                phone(chat.data.get("id", ""), text)
+            except Exception:
+                log.exception("Couldn't tell the phone about Codoh")
+            return
         hook = self.on_notice
         if hook is None or not text:
             return

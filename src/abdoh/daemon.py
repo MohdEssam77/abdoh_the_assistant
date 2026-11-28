@@ -1403,7 +1403,7 @@ class Daemon:
         service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice,
                                modes=lambda: self.modes.names() if self.modes else [],
                                screen=screen_picture, clipboard=self._clipboard_text,
-                               set_clipboard=self._set_clipboard)  # fmt: skip
+                               set_clipboard=self._set_clipboard, codoh=self._codoh)  # fmt: skip
         try:
             service.start()
         except OSError as e:
@@ -1719,11 +1719,17 @@ class Daemon:
 
         codoh = shared(self.cfg)
         codoh.on_notice = self.say_later
+        codoh.on_phone_notice = lambda chat, text: self.bus.emit(
+            "phone_codoh", {"chat": chat, "text": text}
+        )
         codoh.window_open = lambda: bool(getattr(self, "_window_open", False))
         return codoh
 
     def _show_codoh(self, chat: str = "") -> None:
-        """The window, on the Codoh page, with this chat."""
+        """The window, on the Codoh page, with this chat; for the phone, its Codoh view."""
+        if getattr(self, "_phone_turn", False):
+            self.bus.emit("phone_codoh", {"chat": chat, "open": True})
+            return
         self.bus.emit("show")
         self.bus.emit("codoh_open", chat)
 

@@ -501,3 +501,68 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .board-chip-about b { font-size: 15px; }
 .board-chip-about small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .board-chip-open { flex: none; font-size: 14px; font-weight: 600; color: var(--accent-text); padding: 0 6px; }
+
+/* ----- Codoh, the coding page (story 151) ----- */
+.codoh-view {
+  position: fixed; inset: 0; z-index: 7; display: flex; flex-direction: column; background: var(--bg);
+  animation: up 0.18s ease-out;
+}
+.codoh-view .board-top { gap: 6px; padding-left: 8px; }
+.board-top .codoh-title { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; padding-left: 6px; color: var(--text); font-size: inherit; }
+.codoh-title b { font-size: 16.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codoh-title small { color: var(--muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codoh-body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.codoh-new { height: 46px; border-radius: 14px; font-weight: 650; color: var(--accent-text); background: var(--accent-soft); }
+.codoh-chat {
+  display: flex; align-items: center; gap: 12px; text-align: left; padding: 12px 14px; border-radius: 14px;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.codoh-chat span { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.codoh-chat b { font-size: 15.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codoh-chat small { color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.codoh-dot { width: 9px; height: 9px; border-radius: 999px; flex: none; background: var(--border-strong); }
+.codoh-dot.on { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.codoh-form { display: flex; flex-direction: column; gap: 12px; }
+.codoh-composer { flex: none; padding: 8px 10px calc(8px + var(--safe-bottom)); border-top: 1px solid var(--border); background: var(--bg); }
+.codoh-composer textarea {
+  flex: 1; min-width: 0; resize: none; max-height: 120px; min-height: 44px; padding: 11px 16px; border-radius: 22px;
+  border: 1px solid var(--border-strong); background: var(--panel); color: var(--text); font: inherit; font-size: 16px; outline: none;
+}
+.codoh-queued { font-size: 12.5px; color: var(--muted); padding: 0 6px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet-button.codoh-open { color: var(--accent-text); background: var(--accent-soft); }
+.cx-answer { font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
+.cx-answer p { margin: 0 0 6px; white-space: pre-wrap; }
+.cx-code, .cx-diff {
+  margin: 6px 0; padding: 10px 12px; border-radius: 10px; overflow: auto; max-height: 320px; font-size: 12.5px; line-height: 1.45;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; background: var(--panel); border: 1px solid var(--border);
+}
+.cx-diff span { display: block; white-space: pre; }
+.cx-diff .add { background: rgba(34, 197, 94, 0.16); }
+.cx-diff .del { background: rgba(239, 68, 68, 0.16); }
+.cx-diff .hunk { color: var(--muted); }
+.cx-tool { border-radius: 12px; background: var(--panel); border: 1px solid var(--border); font-size: 14px; }
+.cx-tool summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 7px; padding: 9px 12px; min-width: 0;
+}
+.cx-tool summary::-webkit-details-marker { display: none; }
+.cx-tool summary code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cx-tool summary small { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-tool summary em { margin-left: auto; font-style: normal; font-size: 12.5px; color: var(--muted); flex: none; }
+.cx-tool.failed summary em { color: var(--danger); }
+.cx-verb { font-weight: 650; flex: none; }
+.cx-tool.running .cx-verb, .cx-tool.waiting .cx-verb { color: var(--accent-text); }
+.cx-tool > .cx-code, .cx-tool > .cx-diff, .cx-tool > .cx-note { margin: 0 10px 10px; }
+.cx-note { margin: 0; color: var(--muted); font-size: 13px; text-align: center; }
+.cx-tool > .cx-note { text-align: left; }
+.cx-error { margin: 0; color: var(--danger); font-size: 14px; }
+.cx-ask {
+  border-radius: 14px; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); font-size: 14.5px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.cx-ask.waiting { border-color: var(--warn); background: var(--warn-soft); }
+.cx-ask p { margin: 0; }
+.cx-ask-what { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 13.5px; overflow-wrap: anywhere; }
+.cx-ask-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.cx-state { color: var(--muted); font-size: 13px; font-weight: 600; }
+.cx-q { display: flex; flex-direction: column; gap: 8px; }
+.cx-own { height: 42px; font-size: 15px; letter-spacing: 0; text-transform: none; text-align: left; padding: 0 12px; font-weight: 400; }

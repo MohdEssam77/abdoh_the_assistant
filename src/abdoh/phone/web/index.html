@@ -181,6 +181,30 @@
   <div class="board" id="board"></div>
 </section>
 
+<!-- Codoh, the coding page, from the phone (story 151). -->
+<section class="codoh-view" id="codoh-view" hidden aria-label="Codoh">
+  <header class="board-top">
+    <button class="icon" id="codoh-back" type="button" aria-label="Back to the chats" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <span class="codoh-title"><b id="codoh-title">Codoh</b><small id="codoh-status"></small></span>
+    <button class="viewer-button" id="codoh-close" type="button">Close</button>
+  </header>
+  <div class="codoh-body" id="codoh-body"></div>
+  <footer class="codoh-composer" id="codoh-composer" hidden>
+    <div class="codoh-queued" id="codoh-queued" hidden></div>
+    <form class="bar" id="codoh-form" autocomplete="off">
+      <textarea id="codoh-text" rows="1" placeholder="Tell Codoh…" aria-label="Tell Codoh" enterkeyhint="send"></textarea>
+      <button class="round stop" id="codoh-stop" type="button" aria-label="Stop Codoh" hidden>
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>
+      </button>
+      <button class="round send" id="codoh-send" type="submit" aria-label="Send to Codoh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+      </button>
+    </form>
+  </footer>
+</section>
+
 <!-- The computer's clipboard, both ways (story 149). -->
 <div class="sheet-back" id="clip" hidden>
   <div class="sheet" role="dialog" aria-label="Clipboard">
@@ -208,6 +232,7 @@
 <div class="sheet-back" id="menu" hidden>
   <div class="sheet" role="dialog" aria-label="Menu">
     <div class="grip"></div>
+    <button class="sheet-button codoh-open" id="open-codoh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>Codoh, the coding page</button>
     <div class="sheet-row" id="speak-row">
       <span><b>Speak replies</b><small>Hear Abdoh's answers on this phone.</small></span>
       <input type="checkbox" class="switch" id="speak" aria-label="Speak replies">

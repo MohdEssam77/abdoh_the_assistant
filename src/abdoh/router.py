@@ -1056,7 +1056,7 @@ class Router:
         from abdoh.codoh.voice import act
 
         log.info("Codoh by voice: %s", arg[:200])
-        result = act(self.codoh(), arg)
+        result = act(self.codoh(), arg, by_phone=self.phone)
         if result.show or result.chat:
             self.on_codoh(result.chat)
         if result.said:
