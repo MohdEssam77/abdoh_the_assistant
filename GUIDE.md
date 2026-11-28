@@ -906,7 +906,10 @@ or paste something there and **Send to the computer**.
 
 **The board.** "Explain merge sort on the board": what Abdoh shows instead of only saying it
 (steps, code, math, tables, drawings, pictures) appears on the phone, written out while it
-explains. It opens by itself; the "On the board" card in the conversation opens it again.
+explains. It opens by itself; the "On the board" card in the conversation opens it again. To
+keep it, tap **Save as PDF** on the board, or just ask ("send me the board as a PDF", "can I
+keep this?"): the computer makes the PDF the way its window does, and it comes as a file card to
+open or download.
 
 **Codoh.** Menu → **Codoh, the coding page**: your coding chats, live, the same as on the
 computer: what Codoh says, the files it reads and changes (with the changes), the commands it

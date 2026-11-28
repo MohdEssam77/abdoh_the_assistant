@@ -455,10 +455,11 @@ class AppApi:
         """While a role is on: listen without the wake word (True), or only after it."""
         self._bus.request("keep_listening", bool(on))
 
-    def board_pdf(self, cards, title, spoken=False) -> dict:
+    def board_pdf(self, cards, title, spoken=False, phone=False) -> dict:
         """Save the board (the page's cards, as it shows them) as a PDF in
         Documents\\Abdoh\\Boards and open it. `spoken`: Claude was asked ("save the board"):
-        Abdoh says where it is, or why not."""
+        Abdoh says where it is, or why not. `phone`: for the phone (ABDOH_EPIC_11.md, story
+        154): it's sent there, not opened or talked about here."""
         from abdoh.board_pdf import BoardPdfError, save
 
         cards = [str(c) for c in cards or []]
@@ -474,9 +475,11 @@ class AppApi:
             log.warning("The board wasn't saved as a PDF: %s", message)
             if spoken:
                 self._bus.request("say", message + (PRINT_INSTEAD if printing else ""))
-            self._bus.request("board_pdf_done", False)
-            return {"ok": False, "error": message, "print": printing}
-        self._bus.request("board_pdf_done", True)
+            self._bus.request("board_pdf_done", {"ok": False, "error": message} if phone else False)
+            return {"ok": False, "error": message, "print": printing and not phone}
+        self._bus.request("board_pdf_done", {"ok": True, "path": str(path)} if phone else True)
+        if phone:
+            return {"ok": True, "path": str(path), "folder": str(path.parent)}
         if spoken:
             self._bus.request(
                 "say", "The board is saved as a PDF in your Documents, Abdoh, Boards."
@@ -487,12 +490,13 @@ class AppApi:
             log.debug("Couldn't open the PDF", exc_info=True)
         return {"ok": True, "path": str(path), "folder": str(path.parent)}
 
-    def board_pdf_failed(self, reason, spoken=False) -> None:
+    def board_pdf_failed(self, reason, spoken=False, phone=False) -> None:
         """The page couldn't even get the board ready (an error drawing it): in the log, said."""
         log.warning("The window couldn't get the board ready for the PDF: %s", str(reason)[:300])
+        failed = "The board couldn't be saved: drawing it for the PDF failed."
         if spoken:
-            self._bus.request("say", "The board couldn't be saved: drawing it for the PDF failed.")
-        self._bus.request("board_pdf_done", False)
+            self._bus.request("say", failed)
+        self._bus.request("board_pdf_done", {"ok": False, "error": failed} if phone else False)
 
     def clear_board(self) -> None:
         self._state.feed("board", None)

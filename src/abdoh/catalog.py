@@ -675,6 +675,7 @@ FEATURES: list[dict] = [
             "Find my CV and send it to me",
             "Show me my screen",
             "Explain merge sort on the board",
+            "Send me the board as a PDF",
             "Tell Codoh to run the tests too",
         ],
         "steps": [

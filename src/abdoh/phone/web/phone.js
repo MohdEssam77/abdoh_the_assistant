@@ -270,9 +270,9 @@ function take(event) {
     case "question": askQuestion(event.text || ""); break;
     case "done": if (event.for === S.me) { S.answered += 1; stepsDone(); turnOver(); } break;
     case "step": if (event.for === S.me) addStep(event.text || ""); break;
-    case "note": if (event.for === S.me) { note(event.text || ""); scrollDown(); } break;
+    case "note": if (event.for === S.me) { note(event.text || ""); scrollDown(); if (board.pdf && /PDF/.test(event.text || "")) board.pdf = false; } break;
     case "image":
-    case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); } break;
+    case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); boardPdfCame(event); } break;
     case "board": takeBoard(event.card || null); break;
     case "codoh": takeCodoh(event); break;
     case "board_picture": takePicture(event.picture || {}); break;
@@ -306,9 +306,11 @@ function fileCard(event) {
   const src = mediaSrc(event);
   return el("div", { class: "file" },
     el("span", { class: `file-icon ${event.kind || "file"}`, "aria-hidden": "true" }, fileLabel(event)),
-    el("span", { class: "file-about" }, el("b", {}, event.name || "A file"), el("small", {}, size(event.size))),
-    el("a", { class: "file-button", href: src, target: "_blank", rel: "noopener" }, "Open"),
-    el("a", { class: "file-button primary", href: `${src}${src.includes("?") ? "&" : "?"}download=1`, download: event.name || "", target: "_blank", rel: "noopener" }, "Download"));
+    el("div", { class: "file-main" },
+      el("span", { class: "file-about" }, el("b", {}, event.name || "A file"), el("small", {}, size(event.size))),
+      el("div", { class: "file-buttons" },
+        el("a", { class: "file-button", href: src, target: "_blank", rel: "noopener" }, "Open"),
+        el("a", { class: "file-button primary", href: `${src}${src.includes("?") ? "&" : "?"}download=1`, download: event.name || "", target: "_blank", rel: "noopener" }, "Download"))));
 }
 
 function fileLabel(event) {
@@ -637,7 +639,7 @@ function takeCodoh(event) {
    KaTeX the first time it's needed; the newest card is written out the way a teacher writes. */
 
 window.App = { boardPictures: {} }; // board.js finds the board's pictures here
-const board = { cards: [], seen: new Set(), typist: null, ready: null, open: false };
+const board = { cards: [], seen: new Set(), typist: null, ready: null, open: false, pdf: false };
 const BOARD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M7 21l3-4M17 21l-3-4M7 9h6M7 12h9"/></svg>';
 
 function loadBoard() {
@@ -683,6 +685,14 @@ function takeBoard(card) {
   }).catch(() => renderBoard());
 }
 
+/* The board's PDF came (a file card in the conversation): the board closes to show it. */
+function boardPdfCame(event) {
+  if (!board.pdf || !/\.pdf$/i.test(event.name || "")) return;
+  board.pdf = false;
+  if (board.open) closeBoard();
+  toast("The board as a PDF: open or download it here");
+}
+
 function takePicture(picture) {
   if (!picture.what) return;
   App.boardPictures = { ...App.boardPictures, [picture.what]: picture };
@@ -724,11 +734,27 @@ function closeBoard() {
   $("#board-view").hidden = true;
 }
 
+/* Save as PDF: the computer makes it the way its window does, and it comes as a file card. */
+async function boardPdf() {
+  const button = $("#board-pdf");
+  button.disabled = true;
+  button.textContent = "Making the PDF…";
+  try {
+    await api("POST", "/api/board_pdf");
+    board.pdf = true; // the next PDF that comes is this one: the board makes way for it
+  } catch (error) {
+    failed(error);
+    toast(error.shown ? error.message : "Can't reach your computer right now.");
+  }
+  setTimeout(() => { button.disabled = false; button.textContent = "Save as PDF"; }, board.pdf ? 2500 : 0);
+}
+
 function renderBoard() {
   if (!board.open) return;
   const list = $("#board");
   const ready = typeof Board !== "undefined" && board.typist;
   $("#board-note").textContent = board.cards.length ? `${board.cards.length} card${board.cards.length === 1 ? "" : "s"}` : "";
+  $("#board-pdf").hidden = !board.cards.length;
   if (!ready) {
     list.replaceChildren(el("p", { class: "board-empty" }, board.ready ? "Getting the board ready…" : "The board couldn't load."));
     return;
@@ -1755,6 +1781,7 @@ function setupControls() {
   }
   $("#see-screen").addEventListener("click", seeScreen);
   $("#board-close").addEventListener("click", closeBoard);
+  $("#board-pdf").addEventListener("click", boardPdf);
   $("#codoh-close").addEventListener("click", closeCodoh);
   $("#codoh-back").addEventListener("click", showChats);
   $("#codoh-form").addEventListener("submit", sendCodoh);

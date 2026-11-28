@@ -134,6 +134,14 @@ the image viewer on the page.
 Read all of `abdoh/phone`, the phone parts of the daemon and the page again, looking for bugs;
 fix what's found, with tests.
 
+### Story 154: The board as a PDF on the phone (`story/154-phone-board-pdf`)
+The owner, after reading the PR: "can the user download the board as a PDF?" A **Save as PDF**
+button on the phone's board, and asking in any words from the phone ("send me the board as a
+PDF", "can I keep this?"), with or without a role: `ACTION board_pdf` is allowed for phone
+requests. The laptop's window makes the PDF as it always does (it works hidden in the tray too:
+closing only hides it), but for the phone it neither opens it nor says where it went; the
+daemon sends it as a file card (`phone_file`), or what went wrong as a note.
+
 ### Story 153: Docs and the PR (`story/153-phone-docs`)
 GUIDE.md, the Catalog, this file's results, screenshots (demo data, light and dark), and one PR
 from `epic/11-phone` to `main` for the owner to merge.
@@ -148,8 +156,9 @@ from `epic/11-phone` to `main` for the owner to merge.
 
 ## 5. Results (2026-11-28)
 
-All seven stories are on `epic/11-phone` (147 to 153), for the owner to merge with one PR; not
-released (still 0.13.3, with stories 135 to 146 also waiting).
+All eight stories are on `epic/11-phone` (147 to 154; 154 was added after the owner read the
+PR), for the owner to merge with one PR; not released (still 0.13.3, with stories 135 to 146 also
+waiting).
 
 - **Built:** 1. to 7. of section 1, as designed in section 2. Claude learns about the phone in
   the system prompt (PHONE, with the file part only when it may work with files) and from the
@@ -158,8 +167,9 @@ released (still 0.13.3, with stories 135 to 146 also waiting).
   streamed to disk and the connection going on after it, byte ranges, the clipboard, a file
   sent with a request, an unpaired upload refused); the real page against the real server and
   its Content-Security-Policy, with the board's Mermaid and Graphviz drawings, KaTeX and a
-  board picture drawn, a picture of the screen and a file card. Everything else in the demo
-  (screenshots in light and dark) and in 2042 tests.
+  board picture drawn, a picture of the screen and a file card; a real board PDF made by Edge
+  for the phone (not opened on the laptop, its path sent on). Everything else in the demo
+  (screenshots in light and dark) and in 2050 tests.
 - **Reviews:** a read of the whole phone feature (stories 139 to 151) found 8 bugs, among them
   Codoh's notices going to the wrong phone (or none), a photo not going with a voice message,
   Yes and No taking a waiting photo along, and the Codoh view polling twice. A second,

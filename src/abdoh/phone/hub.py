@@ -212,8 +212,10 @@ class PhoneHub:
                 self._in_turn = False
         elif kind == "phone_step":
             self._add({"type": "step", "text": str(value or "")[:200], "for": self._asker})
-        elif kind == "phone_note":
-            self._add({"type": "note", "text": str(value or "")[:500], "for": self._asker})
+        elif kind == "phone_note":  # a line, or {"text", "for"}
+            note = value if isinstance(value, dict) else {"text": value}
+            phone = str(note.get("for") or "") or self._asker
+            self._add({"type": "note", "text": str(note.get("text") or "")[:500], "for": phone})
         elif kind == "phone_image":  # {"data": JPEG bytes, "caption"}: a picture of the screen
             value = value if isinstance(value, dict) else {}
             try:
@@ -245,8 +247,9 @@ class PhoneHub:
                 log.warning("The file for the phone is gone: %s", path)
                 return
             found = self.media.get(key)
-            self._show({"type": "file", "id": key, "name": found.name, "size": found.size,
-                        "kind": file_kind(found.type)})  # fmt: skip
+            card = {"type": "file", "id": key, "name": found.name, "size": found.size,
+                    "kind": file_kind(found.type)}  # fmt: skip
+            self._show(card, str((value or {}).get("for") or ""))
 
     def _new_day(self) -> None:
         today = self._today()
@@ -315,11 +318,11 @@ class PhoneHub:
             self._pictures[what] = picture
         return picture
 
-    def _show(self, event: dict) -> None:
-        """A picture or a file for the phone that asked: sent now, and kept with where it falls
-        in the conversation, for a page that opens later."""
+    def _show(self, event: dict, phone: str = "") -> None:
+        """A picture or a file for the phone that asked (or `phone`): sent now, and kept with
+        where it falls in the conversation, for a page that opens later."""
         self._new_day()
-        event = {**event, "for": self._asker}
+        event = {**event, "for": phone or self._asker}
         with self._cond:
             self._shown.append({**event, "line": self._lines})
         self._add(event)
@@ -501,6 +504,14 @@ class PhoneHub:
     def stop(self) -> None:
         """Stop the reply (the phone's Stop button)."""
         self.bus.request("stop_speaking")
+
+    def board_pdf(self, phone: str) -> None:
+        """The board's Save as PDF on the phone: the computer makes it, and it comes as a file."""
+        with self._cond:
+            empty = not self._board
+        if empty:
+            raise PhoneError("There's nothing on the board yet.")
+        self.bus.request("phone_board_pdf", {"phone": phone})
 
     def screen_now(self) -> str:
         """A picture of the computer's screen right now (the controls' "See the screen"): its

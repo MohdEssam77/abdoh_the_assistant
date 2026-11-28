@@ -234,6 +234,9 @@ class PhoneApp:
         if route == "/api/stop":
             self.hub.stop()
             return answer({"ok": True})
+        if route == "/api/board_pdf":  # the board's Save as PDF
+            self.hub.board_pdf(phone["id"])
+            return answer({"ok": True})
         if route == "/api/screen":  # "See the screen" in the controls
             return answer({"ok": True, "id": self.hub.screen_now()})
         if route == "/api/control":
@@ -310,7 +313,7 @@ class PhoneApp:
 
 _ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget",
            "/api/controls", "/api/control", "/api/screen", "/api/clipboard",
-           "/api/upload"}  # fmt: skip
+           "/api/upload", "/api/board_pdf"}  # fmt: skip
 
 
 def _handler(app: PhoneApp):

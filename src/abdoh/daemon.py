@@ -87,6 +87,9 @@ BOARD_PDF_SILENT = (
     "I couldn't save the board: my window didn't answer. Try the Save as PDF button on the "
     "Act as page."
 )
+BOARD_PDF_SILENT_PHONE = (
+    "The board couldn't be made into a PDF: Abdoh's window on the computer didn't answer."
+)
 
 
 # Notices (say_later): said within this long, else left out; looked at this often.
@@ -101,6 +104,11 @@ def _still_true(check: Callable[[], bool]) -> bool:
     except Exception:
         log.debug("Couldn't check a notice", exc_info=True)
         return False
+
+
+def _phone_id(phone) -> str:
+    """Which phone a board PDF is for: its id, or "" (the one whose request it is)."""
+    return phone if isinstance(phone, str) else ""
 
 
 def _what_was_done(actions: list[tuple[str, str]]) -> str:
@@ -439,10 +447,14 @@ class Daemon:
 
         return screen_picture()
 
-    def _save_board(self) -> None:
+    def _save_board(self, phone: str | bool = False) -> None:
         """Claude: ACTION board_pdf. The page draws the board and Abdoh prints it; the window
         answers (board_pdf_done). No answer: Abdoh says so, and it's in the log."""
-        log.info("Asked the window to save the board as a PDF")
+        for_phone = phone or getattr(self, "_phone_turn", False)  # True, or the phone's id
+        self._board_pdf_phone = for_phone
+        log.info(
+            "Asked the window to save the board as a PDF%s", " for the phone" * bool(for_phone)
+        )
         old = getattr(self, "_board_wait", None)
         if old is not None:
             old.cancel()
@@ -450,18 +462,33 @@ class Daemon:
         timer.daemon = True
         self._board_wait = timer
         timer.start()
-        self.bus.emit("save_board", None)
+        self.bus.emit("save_board", {"phone": True} if for_phone else None)
 
     def _board_pdf_silent(self) -> None:
         log.warning("The window didn't answer the request to save the board as a PDF")
         self._board_wait = None
+        phone, self._board_pdf_phone = getattr(self, "_board_pdf_phone", False), False
+        if phone:
+            self.bus.emit("phone_note", {"text": BOARD_PDF_SILENT_PHONE, "for": _phone_id(phone)})
+            return
         self.say_later(BOARD_PDF_SILENT)
 
-    def _board_pdf_done(self, ok: bool) -> None:
+    def _board_pdf_done(self, value) -> None:
+        """The window answered: True or False, or for the phone {"ok", "path" | "error"}, and
+        then the PDF goes to the phone (or why it couldn't be made)."""
         timer = getattr(self, "_board_wait", None)
         self._board_wait = None
         if timer is not None:
             timer.cancel()
+        phone, self._board_pdf_phone = getattr(self, "_board_pdf_phone", False), False
+        if not phone or not isinstance(value, dict):
+            return
+        if value.get("ok") and value.get("path"):
+            log.info("Sending the board as a PDF to the phone")
+            self.bus.emit("phone_file", {"path": str(value["path"]), "for": _phone_id(phone)})
+        else:
+            error = str(value.get("error") or "The board couldn't be made into a PDF.")
+            self.bus.emit("phone_note", {"text": error, "for": _phone_id(phone)})
 
     def _say_aside(self, text: str) -> None:
         """Say a few words that aren't part of the answer (not shown in the conversation)."""
@@ -1337,7 +1364,9 @@ class Daemon:
         elif kind == "say":  # the window: a few words to say (where the PDF went)
             self.say_later(str(value))  # after the reply that's being said
         elif kind == "board_pdf_done":  # the window answered "save the board"
-            self._board_pdf_done(bool(value))
+            self._board_pdf_done(value)
+        elif kind == "phone_board_pdf":  # the phone's Save as PDF on its board: {"phone"}
+            self._save_board(phone=str((value or {}).get("phone") or "") or True)
         elif kind == "board_cleared":  # the Act as page's Clear button
             self._board_shown = False
         elif kind == "keep_listening":  # the Act as page: listen without the wake word or not

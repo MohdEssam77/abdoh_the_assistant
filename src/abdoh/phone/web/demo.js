@@ -175,6 +175,10 @@
         return { ok: true, text: heard };
       }
       if (path === "/api/screen") return { ok: true, id: "demo" };
+      if (path === "/api/board_pdf") {
+        later(1600, { type: "file", id: "demo-pdf", src: "#", name: "Board 2026-11-28 21.40.pdf", size: 184320, kind: "pdf", for: "demo-phone" });
+        return { ok: true };
+      }
       if (path === "/api/codoh") {
         return { ok: true, chats: CHATS, folders: [{ path: "C:/code/portfolio", name: "portfolio" }, { path: "C:/code/notes-app", name: "notes-app" }], limited: "" };
       }
