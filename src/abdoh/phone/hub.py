@@ -69,7 +69,7 @@ OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
      "phone_question", "phone_done", "phone_step", "phone_image", "phone_note", "phone_file",
-     "board", "board_picture", "phone_codoh"}
+     "board", "board_picture", "phone_codoh", "phone_live"}
 )  # fmt: skip
 
 
@@ -95,6 +95,7 @@ class PhoneHub:
         uploads_to: Callable[[], Path] | None = None,
         clipboard: Callable[[], str] | None = None,
         set_clipboard: Callable[[str], None] | None = None,
+        live=None,
         today=date.today,
         clock=time.monotonic,
     ):
@@ -103,6 +104,7 @@ class PhoneHub:
         self._voice = voice  # a sentence -> WAV bytes, or None (the phone's own voice speaks)
         self._modes = modes  # your modes' names, for the phone's controls
         self._screen = screen  # a picture of the screen (JPEG), for "See the screen"
+        self.live = live  # the screens, live (phone/live.py)
         self.media = MediaStore(clock)  # pictures and files behind secret links (media.py)
         self._uploads_to = uploads_to  # where files from the phone go (files.upload_folder)
         self._uploads: dict[str, tuple[Path, float]] = {}  # saved, for the next request
@@ -233,6 +235,10 @@ class PhoneHub:
             phone = self._codoh_phones.get(chat) or self._asker
             self._add({"type": "codoh", "chat": chat, "text": str(value.get("text") or "")[:500],
                        "open": bool(value.get("open")), "for": phone})  # fmt: skip
+        elif kind == "phone_live":  # {"screen"}: the phone shows that screen live
+            value = value if isinstance(value, dict) else {}
+            self._add({"type": "live", "screen": str(value.get("screen") or "follow"),
+                       "for": str(value.get("for") or "") or self._asker})  # fmt: skip
         elif kind == "board":  # {"id", "text"}: a card grew; None: the board was cleared
             self._take_board(value)
         elif kind == "board_picture":  # {"what", "ok", "src" (a data: URL), "credit", ...}
@@ -513,19 +519,27 @@ class PhoneHub:
             raise PhoneError("There's nothing on the board yet.")
         self.bus.request("phone_board_pdf", {"phone": phone})
 
-    def screen_now(self) -> str:
-        """A picture of the computer's screen right now (the controls' "See the screen"): its
-        link's key. Not part of the conversation."""
+    def screen_now(self, which: str = "", phone: str = "") -> str:
+        """A picture of a screen right now (the live view's Picture, "See the screen"): its
+        link's key. With `phone`, it goes into that phone's conversation too."""
         from abdoh.claude.screen import ScreenCaptureError
 
-        if self._screen is None:
+        if self.live is None and self._screen is None:
             raise PhoneError("Abdoh can't take pictures of the screen here.")
         try:
-            return self.media.add_picture(self._screen())
+            if self.live is not None:
+                data, screen = self.live.picture(which=which)
+                label = screen.label
+            else:
+                data, label = self._screen(), ""
+            key = self.media.add_picture(data)
         except ScreenCaptureError as e:
             raise PhoneError(str(e)) from e
         except ValueError as e:
             raise PhoneError("The picture of the screen didn't come out.") from e
+        if phone:
+            self._show({"type": "image", "id": key, "caption": label or "Your screen"}, phone)
+        return key
 
     # ----- the phone's quick controls -----
 

@@ -179,7 +179,7 @@ def test_after_opening_something_the_phone_gets_the_screen(monkeypatch):
     seen = Recorder(bus)
     daemon = make_daemon(StubRouter([]), bus=bus)
     sent = threading.Event()
-    daemon._grab_screen = lambda: (sent.set(), b"JPEG")[1]
+    daemon._grab_screen = lambda app="": (sent.set(), (b"JPEG", "", "follow"))[1]
     daemon._phone_turn = True
     daemon._did("open_app", "Spotify")
     daemon._did("media", "next")  # not an opening: no picture of its own
@@ -196,7 +196,7 @@ def test_a_screen_that_cant_be_seen_is_said_on_the_phone():
     seen = Recorder(bus)
     daemon = make_daemon(StubRouter([]), bus=bus)
 
-    def locked():
+    def locked(app=""):
         raise ScreenCaptureError("The screen is off or locked, so its picture is all black.")
 
     daemon._grab_screen = locked
@@ -237,7 +237,7 @@ def test_show_screen_after_opening_waits_for_what_was_opened(monkeypatch):
     bus = Bus(ui_attached=False)
     seen = Recorder(bus)
     daemon = make_daemon(StubRouter([]), bus=bus)
-    daemon._grab_screen = lambda: b"JPEG"
+    daemon._grab_screen = lambda app="": (b"JPEG", "", "follow")
     daemon._phone_turn = True
     daemon._did("open_app", "Spotify")
     daemon._show_screen("they want to see it")  # the picture after opening covers it

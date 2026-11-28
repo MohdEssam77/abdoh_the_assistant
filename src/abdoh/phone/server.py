@@ -203,6 +203,25 @@ class PhoneApp:
             return answer(self.hub.events(after))
         if method == "GET" and route == "/api/controls":
             return answer(self.hub.controls())
+        if method == "GET" and route == "/api/live/screens":
+            if self.hub.live is None:
+                raise PhoneError("Abdoh can't show the screen here.")
+            screens = [{"id": s.id, "label": s.label, "primary": s.primary}
+                       for s in self.hub.live.screens()]  # fmt: skip
+            return answer({"ok": True, "screens": screens})
+        if method == "GET" and route == "/api/live":  # the next frame (story 155)
+            if self.hub.live is None:
+                raise PhoneError("Abdoh can't show the screen here.")
+            try:
+                after = int(query.get("after", "0"))
+            except ValueError:
+                after = 0
+            found = self.hub.live.frame(str(query.get("screen") or "follow"), after)
+            if found is None:
+                return Response(204, b"", "text/plain", {"Cache-Control": "no-store"})
+            number, jpeg, label = found
+            return Response(200, jpeg, "image/jpeg", {"Cache-Control": "no-store",
+                            "X-Frame": str(number), "X-Screen": quote(label)})  # fmt: skip
         if method == "GET" and route == "/api/clipboard":
             return answer({"ok": True, "text": self.hub.clipboard()})
         if method == "GET" and route.startswith("/api/audio/"):
@@ -237,8 +256,10 @@ class PhoneApp:
         if route == "/api/board_pdf":  # the board's Save as PDF
             self.hub.board_pdf(phone["id"])
             return answer({"ok": True})
-        if route == "/api/screen":  # "See the screen" in the controls
-            return answer({"ok": True, "id": self.hub.screen_now()})
+        if route == "/api/screen":  # the live view's Picture: into the conversation
+            data = _json(body[:MAX_JSON]) if body else {}
+            key = self.hub.screen_now(str(data.get("screen") or ""), phone["id"])
+            return answer({"ok": True, "id": key})
         if route == "/api/control":
             data = _json(body[:MAX_JSON])
             self.hub.control(str(data.get("kind") or ""), str(data.get("value") or ""),
@@ -313,7 +334,7 @@ class PhoneApp:
 
 _ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget",
            "/api/controls", "/api/control", "/api/screen", "/api/clipboard",
-           "/api/upload", "/api/board_pdf"}  # fmt: skip
+           "/api/upload", "/api/board_pdf", "/api/live", "/api/live/screens"}  # fmt: skip
 
 
 def _handler(app: PhoneApp):
@@ -453,14 +474,15 @@ class PhoneService:
     with the Phone switch in Settings."""
 
     def __init__(self, cfg, bus, hear=None, voice=None, modes=None, screen=None,
-                 clipboard=None, set_clipboard=None, codoh=None, server_class=None):  # fmt: skip
+                 clipboard=None, set_clipboard=None, codoh=None, live=None,
+                 server_class=None):  # fmt: skip
         from abdoh.phone.files import upload_folder
 
         self.port = cfg.phone_port
         self.phones = Phones(cfg.app_dir / FILE)
         self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes, screen=screen,
                             uploads_to=lambda: upload_folder(cfg), clipboard=clipboard,
-                            set_clipboard=set_clipboard)  # fmt: skip
+                            set_clipboard=set_clipboard, live=live)  # fmt: skip
         self.app = PhoneApp(self.hub, self.phones, codoh=codoh)
         self.server = (server_class or PhoneServer)(self.app, self.port)
 

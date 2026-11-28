@@ -142,6 +142,29 @@ requests. The laptop's window makes the PDF as it always does (it works hidden i
 closing only hides it), but for the phone it neither opens it nor says where it went; the
 daemon sends it as a file card (`phone_file`), or what went wrong as a note.
 
+### Story 155: The screen live, and the right screen (`story/155-phone-live-screen`)
+After 0.14.0, the owner: pictures came of the main screen, not where WhatsApp was moved ("open
+it on my second screen"), "open WhatsApp" (a built-in skill, no Claude) sent none, and they
+want to watch it live, also on a call ("open the camera and show me": the call to the side, the
+screen live). Now (`phone/live.py`):
+- what the built-in skills and the user's commands do is reported like Claude's actions
+  (`Router._note_done`), so steps and pictures come for them too;
+- a picture is of the screen where the app's window is, once it has opened (2.5 s) or settled
+  after moving (1 s), with which screen it is ("Screen 2 · mid screen", Abdoh's numbers and
+  names from displays.json);
+- the screen live: a thread looks at the chosen screen (or the one in use: "follow") about 5
+  times a second, twice a second while nothing moves, and sends a frame only when it changed
+  (a 48 x 27 grey sketch is compared), stopping 8 s after nobody watches; the phone asks for
+  the next frame after the one it has (`/api/live?screen=&after=`, 204 for "nothing new");
+- after something is opened or moved for a phone request, its screen goes live on the phone
+  by itself; `ACTION show_screen: live`; See the screen is live; the live view's Picture goes
+  into the conversation;
+- on a call, the call becomes a bar on top of the live screen (it goes on; the bar brings it
+  back, mutes or ends it).
+Checked on the owner's three screens: the right numbers and names, frames of 43 to 71 KB in 40
+to 90 ms, VS Code's and Brave's pictures on their screens, and the real page showing it live
+through the real server.
+
 ### Story 153: Docs and the PR (`story/153-phone-docs`)
 GUIDE.md, the Catalog, this file's results, screenshots (demo data, light and dark), and one PR
 from `epic/11-phone` to `main` for the owner to merge.
