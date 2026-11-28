@@ -941,6 +941,12 @@ class Daemon:
         self._interrupted.set()
         self.earcons.stop_ticking()
         self.speaker.stop()
+        stop = getattr(getattr(self.router, "brain", None), "stop_now", None)
+        if stop is not None:  # Claude stops at once, also in the middle of a long search
+            try:
+                stop()
+            except Exception:
+                log.debug("Couldn't stop Claude at once", exc_info=True)
 
     def _stopped_by_you(self) -> None:
         """The window's Stop, the tray or the hotkey: the reply ends, and whatever Abdoh is

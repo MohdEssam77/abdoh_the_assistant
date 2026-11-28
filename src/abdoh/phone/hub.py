@@ -57,6 +57,7 @@ MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
 SHOWN = 30  # pictures and files kept for a page that opens later
 PHONE_LINE = "You (phone): "
+EARLIER_SECONDS = 30 * 60  # a file sent alone is told to Claude with a request this soon after
 BOARD_CARDS = 30  # as many board cards as the window keeps
 MAX_CLIPBOARD = 100_000
 # What was said to the phone, for telling its own voice coming back from yours: the phone plays
@@ -134,6 +135,8 @@ class PhoneHub:
         # with its "You (phone): ..." line, which may come in another order than the asks.
         self._waiting: list[tuple[str, str, bool]] = []
         self._in_turn = False
+        self._earlier: tuple[float, list[Path]] = (0.0, [])  # files sent alone, lately
+        self.quiet = False  # the last ask was only files: nothing will be answered
         self._audio: OrderedDict[str, tuple[bytes, float]] = OrderedDict()
         self._audio_lock = threading.Lock()
         self._queue: queue.Queue = queue.Queue()
@@ -273,8 +276,8 @@ class PhoneHub:
             if asked == text:
                 del self._waiting[i]
                 self._asker, self._speak = phone, speak
+                self._in_turn = True
                 break
-        self._in_turn = True
 
     def codoh_sent(self, chat: str, phone: str) -> None:
         """This phone sent to that Codoh chat: what the chat needs goes to it."""
@@ -391,10 +394,14 @@ class PhoneHub:
         where they are."""
         text = " ".join(str(text or "").split())[:MAX_TEXT]
         sent = self._sent_files(files or [])
+        if sent and not text:  # only a file: it's for using later, nothing to answer
+            return self._keep_sent(sent, phone)
+        earlier = self._earlier_files()  # sent before, alone: the next request may be about it
         if sent:
             text = f"{text} [sent {', '.join(p.name for p in sent)}]".strip()
         if not text:
             raise PhoneError("Type something to ask Abdoh.")
+        sent = [*earlier, *sent]
         with self._cond:
             self._waiting = [*self._waiting, (text, phone, bool(speak))][-20:]
             if not self._in_turn:  # nothing being answered: its events are this phone's
@@ -406,6 +413,27 @@ class PhoneHub:
             request["files"] = [str(p) for p in sent]
         self.bus.request("phone", request)
         return text
+
+    def _keep_sent(self, sent: list[Path], phone: str) -> str:
+        """Files the phone sent without a word: saved, said where, nothing answered."""
+        shown = f"[sent {', '.join(p.name for p in sent)}]"
+        with self._cond:
+            self._earlier = (self._clock(), list(sent))
+        folder = sent[0].parent
+        where = f"{folder.parent.name} › {folder.name}" if folder.parent.name else str(folder)
+        log.info("Kept %d file(s) from the phone without a request", len(sent))
+        self.bus.emit("history", f"{PHONE_LINE}{shown}")  # in the conversation, here and there
+        self.bus.emit("phone_note", {"text": f"Saved on your computer, in {where}.", "for": phone})
+        self.quiet = True
+        return shown
+
+    def _earlier_files(self) -> list[Path]:
+        with self._cond:
+            at, files = self._earlier
+            self._earlier = (0.0, [])
+        if not files or self._clock() - at > EARLIER_SECONDS:
+            return []
+        return [p for p in files if p.is_file()]
 
     def _sent_files(self, ids: list[str]) -> list[Path]:
         now = self._clock()

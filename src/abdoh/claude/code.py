@@ -404,6 +404,8 @@ class ClaudeCodeBrain(Brain):
         self._idle = None  # the timer that retires a session nobody talks to
         self._closed = False
         self._interrupts = 0  # numbers the interrupt requests
+        self._asking: _Session | None = None  # the session a reply is being read from
+        self._stopped_now = False  # stop_now() asked it to stop: its end isn't an error
         self._started_with: tuple | None = None  # see same_setup
         # The screenshot was handed over and Claude hasn't read it yet: that Read is Abdoh
         # looking at the screen (it already said so), not "Looking at a file".
@@ -666,6 +668,8 @@ class ClaudeCodeBrain(Brain):
         timer.daemon = True
         timer.start()
         finished = stopped = False
+        self._stopped_now = False
+        self._asking = session
         try:
             try:
                 yield from read_events(session.proc.stdout, self._on_tool, self._on_step)
@@ -673,6 +677,9 @@ class ClaudeCodeBrain(Brain):
                 stopped = True  # you interrupted: nobody wants the rest
                 raise
             except BrainError as e:
+                if self._stopped_now and not timed_out.is_set():
+                    finished = True  # stopped on purpose (stop_now) before a word: no error
+                    return
                 if timed_out.is_set():
                     raise BrainError(TOO_SLOW) from e
                 if str(e) == FAILED:
@@ -684,6 +691,7 @@ class ClaudeCodeBrain(Brain):
                 raise BrainError(TOO_SLOW)
             finished = True
         finally:
+            self._asking = None
             timer.cancel()
             if finished or (stopped and self._interrupt(session)):
                 self._rest(session)
@@ -691,6 +699,24 @@ class ClaudeCodeBrain(Brain):
                 self._retire(session)
                 if self._keep_warm and not self._closed:
                     self.warm_up()
+
+    def stop_now(self) -> None:
+        """Stop the reply being worked on right away, also in the middle of a long tool (a
+        search through your files): the reading thread then sees its end. Called from another
+        thread (you said stop, or talked over it); nothing happens without a reply."""
+        session = self._asking
+        if session is None:
+            return
+        self._interrupts += 1
+        request = {"type": "control_request", "request_id": f"abdoh-{self._interrupts}"}
+        request["request"] = {"subtype": "interrupt"}
+        self._stopped_now = True
+        try:
+            session.proc.stdin.write(json.dumps(request) + "\n")
+            session.proc.stdin.flush()
+            log.info("Asked Claude Code to stop at once")
+        except (OSError, ValueError):
+            log.debug("Couldn't ask Claude Code to stop", exc_info=True)
 
     def _interrupt(self, session: _Session) -> bool:
         """Ask Claude Code to stop the reply it is writing; the conversation stays open, and

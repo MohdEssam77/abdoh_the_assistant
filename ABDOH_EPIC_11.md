@@ -165,6 +165,24 @@ Checked on the owner's three screens: the right numbers and names, frames of 43 
 to 90 ms, VS Code's and Brave's pictures on their screens, and the real page showing it live
 through the real server.
 
+### Story 156: What the owner found away from home (`story/156-phone-feedback`)
+- "Explain bubble sort on the board" took two minutes: misheard as "the bubble file", Claude
+  searched the user's folders, and what they said over it waited for the search. Stopping
+  (Stop, "wait", a new request said over it) now interrupts Claude Code at once
+  (`ClaudeCode.stop_now`, from `stop_speaking`), also in the middle of a tool; stopped before a
+  word, it isn't an error.
+- The board didn't open over a call. Now it does, and a call goes on as a bar on top of the
+  board, the live screen and Codoh (one bar for all three).
+- Download opened the same viewer as Open, so the file never reached the phone: **Save to
+  phone** gets the file, then opens the phone's share sheet (Save to Files, Photos, an app);
+  without a share sheet, a download.
+- A photo sent with no words was asked about; now it's only kept (said where, nothing
+  answered), and the next request within half an hour gets it for Claude.
+- On the laptop, "[sent IMG_5632.png]" was plain text; now it's a link that opens the file, and
+  Show in folder.
+- The log had errors after each picture of the screen: the bus put the picture's bytes in the
+  window's queue too. Events whose kind starts with "phone_" are now only for the phone's hub.
+
 ### Story 153: Docs and the PR (`story/153-phone-docs`)
 GUIDE.md, the Catalog, this file's results, screenshots (demo data, light and dark), and one PR
 from `epic/11-phone` to `main` for the owner to merge.

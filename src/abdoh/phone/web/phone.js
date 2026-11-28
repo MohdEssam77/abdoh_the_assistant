@@ -300,7 +300,7 @@ async function openLive(which = "follow") {
   $("#live-wait").hidden = false;
   $("#live-wait").textContent = "Connecting to your screen…";
   $("#live").classList.remove("bare");
-  dockCall(true);
+  dockCall();
   showScreens();
   liveLoop(++live.turn);
 }
@@ -312,7 +312,7 @@ function closeLive() {
   if (live.url) URL.revokeObjectURL(live.url);
   live.url = "";
   $("#live-img").removeAttribute("src");
-  dockCall(false);
+  dockCall();
 }
 
 async function showScreens() {
@@ -401,11 +401,20 @@ function demoLive(turn) {
   showLiveState();
 }
 
-/* A call while the screen is live: the call is a bar on top, and comes back when it closes. */
-function dockCall(on) {
-  const docked = on && call.on;
+/* A call while the screen is live, the board is up or Codoh is open: the call is a bar on top
+   (it goes on), and comes back when they close (or with a tap on the bar). */
+function dockCall() {
+  const docked = call.on && (live.open || board.open || codoh.open);
   $("#call").classList.toggle("docked", docked);
-  $("#live-call").hidden = !docked;
+  $("#call-bar").hidden = !docked;
+  document.body.classList.toggle("call-docked", docked);
+}
+
+/* The bar's tap: back to the call (what's up over it closes). */
+function backToCall() {
+  if (live.open) closeLive();
+  if (board.open) closeBoard();
+  if (codoh.open) closeCodoh();
 }
 
 /* ---------- pictures and files from the computer (stories 148, 149) ----------
@@ -438,7 +447,49 @@ function fileCard(event) {
       el("span", { class: "file-about" }, el("b", {}, event.name || "A file"), el("small", {}, size(event.size))),
       el("div", { class: "file-buttons" },
         el("a", { class: "file-button", href: src, target: "_blank", rel: "noopener" }, "Open"),
-        el("a", { class: "file-button primary", href: `${src}${src.includes("?") ? "&" : "?"}download=1`, download: event.name || "", target: "_blank", rel: "noopener" }, "Download"))));
+        el("button", { class: "file-button primary", type: "button", onclick: (e) => saveToPhone(event, e.currentTarget) }, "Save to phone"))));
+}
+
+/* Save to phone: the file comes to the phone first, then the phone's share sheet opens with it
+   (Save to Files, Photos, or an app). The share sheet needs a fresh tap: when getting a big
+   file took too long, the button says to tap again. Without a share sheet: a download. */
+async function saveToPhone(event, button) {
+  const src = mediaSrc(event);
+  const link = `${src}${src.includes("?") ? "&" : "?"}download=1`;
+  const download = (href) => {
+    const a = el("a", { href, download: event.name || "file" });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  };
+  if (DEMO) return toast("The phone's share sheet opens here: Save to Files");
+  if (!navigator.canShare || !window.File) return download(link);
+  if (!button.file) {
+    button.disabled = true;
+    button.textContent = "Getting it…";
+    try {
+      const response = await fetch(link, { cache: "no-store" });
+      if (!response.ok) throw new Error("gone");
+      const blob = await response.blob();
+      button.file = new File([blob], event.name || "file", { type: blob.type || "application/octet-stream" });
+    } catch (error) {
+      toast("The file couldn't come: its link may have expired (an hour).");
+      button.disabled = false;
+      button.textContent = "Save to phone";
+      return;
+    }
+    button.disabled = false;
+  }
+  if (!navigator.canShare({ files: [button.file] })) return download(URL.createObjectURL(button.file));
+  try {
+    await navigator.share({ files: [button.file] });
+    button.textContent = "Save to phone";
+  } catch (error) {
+    if (error && error.name === "NotAllowedError") { // getting it took the tap's moment
+      button.textContent = "Tap to save";
+      toast("It's here: tap Tap to save");
+    } else button.textContent = "Save to phone";
+  }
 }
 
 function fileLabel(event) {
@@ -484,6 +535,7 @@ function openCodoh(chat = "") {
   $("#menu").hidden = true;
   codoh.open = true;
   $("#codoh-view").hidden = false;
+  dockCall();
   if (chat) showChat(chat);
   else showChats();
 }
@@ -492,6 +544,7 @@ function closeCodoh() {
   codoh.open = false;
   clearTimeout(codoh.timer);
   $("#codoh-view").hidden = true;
+  dockCall();
 }
 
 function codohSay(text) {
@@ -805,7 +858,7 @@ function takeBoard(card) {
   if (fresh) {
     boardChip(card.id);
     scrollDown();
-    if (S.answered < S.asked) openBoard(); // the answer to this phone is on it: show it
+    if (call.on || S.answered < S.asked) openBoard(); // the answer to this phone is on it
   }
   loadBoard().then(() => {
     board.typist.set(card);
@@ -818,7 +871,7 @@ function boardPdfCame(event) {
   if (!board.pdf || !/\.pdf$/i.test(event.name || "")) return;
   board.pdf = false;
   if (board.open) closeBoard();
-  toast("The board as a PDF: open or download it here");
+  toast("The board as a PDF: open it, or save it to your phone");
 }
 
 function takePicture(picture) {
@@ -850,6 +903,7 @@ function boardTitle(text) {
 async function openBoard() {
   board.open = true;
   $("#board-view").hidden = false;
+  dockCall(); // on a call: the call goes on as a bar on top, and you watch the board
   renderBoard();
   try {
     await loadBoard();
@@ -860,6 +914,7 @@ async function openBoard() {
 function closeBoard() {
   board.open = false;
   $("#board-view").hidden = true;
+  dockCall();
 }
 
 /* Save as PDF: the computer makes it the way its window does, and it comes as a file card. */
@@ -1182,8 +1237,10 @@ async function send(text, { withFile = true } = {}) {
   render();
   scrollDown(true);
   try {
-    await api("POST", "/api/text", { text, speak: S.speak, files: file ? [file.id] : [] });
-    S.asked += 1;
+    const data = await api("POST", "/api/text", { text, speak: S.speak, files: file ? [file.id] : [] });
+    if (data.quiet) S.final = true; // only a file: kept on the computer, nothing to answer
+    else S.asked += 1;
+    render();
   } catch (error) {
     S.pending = S.pending.filter((p) => p.node !== node);
     node.classList.remove("pending");
@@ -1557,7 +1614,7 @@ async function startCall() {
     }
   }
   $("#call").hidden = false;
-  if (live.open) dockCall(true); // the screen is live: the call joins it as a bar
+  dockCall(); // the screen, the board or Codoh is up: the call joins it as a bar
   call.timer = setInterval(showCall, 100);
   keepAwake(true);
   listen();
@@ -1746,7 +1803,7 @@ function endCall(why = "") {
   S.cut = S.asked;
   if (busy) api("POST", "/api/stop").catch(() => {});
   $("#call").hidden = true;
-  dockCall(false);
+  dockCall();
   note(why || `Call with Abdoh · ${clock(seconds)}`);
   render();
   scrollDown(true);
@@ -1788,10 +1845,10 @@ function showCall() {
   $("#call-hint").textContent = offline ? "Trying again…" : call.hint || hint || "";
   $("#call-you").textContent = call.you ? `“${call.you}”` : "";
   $("#call-abdoh").textContent = call.abdoh;
-  $("#live-call-state").textContent = $("#call-state").textContent;
-  $("#live-call-time").textContent = `On a call · ${$("#call-time").textContent}`;
-  $("#live-call-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");
-  $("#live-call").dataset.state = state;
+  $("#call-bar-state").textContent = $("#call-state").textContent;
+  $("#call-bar-time").textContent = `On a call · ${$("#call-time").textContent}`;
+  $("#call-bar-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");
+  $("#call-bar").dataset.state = state;
   $("#call-mute").setAttribute("aria-pressed", call.muted ? "true" : "false");
   $("#call-mute-label").textContent = call.muted ? "Unmute" : "Mute";
   $("#orb").setAttribute("aria-label", call.muted ? "Unmute" : ["thinking", "speaking"].includes(state) ? "Talk now" : "Abdoh is listening");
@@ -1905,9 +1962,9 @@ function setupControls() {
   $("#live-close").addEventListener("click", closeLive);
   $("#live-shot").addEventListener("click", livePicture);
   $("#live-stage").addEventListener("click", () => $("#live").classList.toggle("bare"));
-  $("#live-call-back").addEventListener("click", closeLive);
-  $("#live-call-mute").addEventListener("click", () => toggleMute());
-  $("#live-call-end").addEventListener("click", () => endCall());
+  $("#call-bar-back").addEventListener("click", backToCall);
+  $("#call-bar-mute").addEventListener("click", () => toggleMute());
+  $("#call-bar-end").addEventListener("click", () => endCall());
   $("#board-close").addEventListener("click", closeBoard);
   $("#board-pdf").addEventListener("click", boardPdf);
   $("#codoh-close").addEventListener("click", closeCodoh);

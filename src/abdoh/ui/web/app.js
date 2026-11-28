@@ -846,7 +846,14 @@ function addHistory(line) {
   const text = match ? match[2] : line;
   if (!text.trim()) return;
   $("#chat-empty").hidden = true;
-  const bubble = el("div", { class: "bubble" }, text);
+  // "... [sent IMG_5632.png]": files the phone sent, on this computer now: open them from here
+  const sent = phone ? /^([\s\S]*?)\s*\[sent (.+)\]$/.exec(text) : null;
+  const bubble = el("div", { class: "bubble" }, sent ? sent[1] : text);
+  if (sent) {
+    bubble.append(el("div", { class: "sent-files" }, sent[2].split(", ").map((name) => el("span", { class: "sent-file" },
+      el("button", { class: "sent-open", type: "button", title: "Open it", onclick: () => phoneFile("open_phone_file", name) }, `📎 ${name}`),
+      el("button", { class: "sent-folder", type: "button", onclick: () => phoneFile("show_phone_file", name) }, "Show in folder")))));
+  }
   if (phone) bubble.prepend(el("span", { class: "from-phone", title: "Asked from your phone" }, "Phone"));
   const message = el("div", { class: `msg ${who}` }, who === "abdoh" ? avatar() : null, bubble);
   const inner = $("#chat-inner");
@@ -855,6 +862,12 @@ function addHistory(line) {
   const messages = $$(".msg:not(#typing)", inner);
   if (messages.length > MAX_MESSAGES) messages[0].remove();
   scrollChat();
+}
+
+/* A file the phone sent: open it, or show it in its folder. */
+async function phoneFile(how, name) {
+  const result = await call(how, name);
+  if (result && !result.ok) toast(result.error, true);
 }
 
 /* A new day: the conversation starts empty (only today's is kept). */

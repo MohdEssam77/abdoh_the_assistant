@@ -591,6 +591,8 @@ const Bridge = (() => {
       update_status: async () => ({ state: "idle" }),
       // Settings → Phone: ?phone=off | install | signin | share | https | ready (the default)
       phone_state: async () => demoPhone.state(),
+      open_phone_file: async () => ({ ok: true }),
+      show_phone_file: async () => ({ ok: true }),
       phone_share: async () => demoPhone.share(),
       phone_unshare: async () => ({ ok: true }),
       phone_pair: async () => ({ ok: true, url: "https://laptop.tail1234.ts.net/#pair=K7MX-2Q9P", code: "K7MX-2Q9P", minutes: 30,

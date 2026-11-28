@@ -331,7 +331,7 @@ def test_asking_through_the_page(tmp_path):
     bus, hub, phones, app = make_app(tmp_path, hear=heard.transcribe)
     key = paired(app, phones)
     response, data = call(app, "POST", "/api/text", key=key, body={"text": "hi", "speak": True})
-    assert data == {"ok": True, "text": "hi"}
+    assert data == {"ok": True, "text": "hi", "quiet": False}
     assert bus.next_request(0) == ("phone", {"text": "hi"})
     assert hub._asker == phones.list()[0]["id"] and hub._speak is True
     response, data = call(app, "POST", "/api/text", key=key, body={"text": " "})
