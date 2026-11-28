@@ -38,8 +38,9 @@ import time
 from collections import OrderedDict, deque
 from collections.abc import Callable
 from datetime import date
+from pathlib import Path
 
-from abdoh.phone.media import MediaStore
+from abdoh.phone.media import KEEP_SECONDS, MediaStore, file_kind, file_type
 
 log = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ AUDIO_SECONDS = 600.0  # a reply's audio can be fetched for this long
 MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
 SHOWN = 30  # pictures and files kept for a page that opens later
+MAX_CLIPBOARD = 100_000
 # What was said to the phone, for telling its own voice coming back from yours: the phone plays
 # a reply's sentences one after another, well after they were sent.
 SAID_SECONDS = 120.0
@@ -60,7 +62,7 @@ SAID_KEPT = 12
 OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
-     "phone_question", "phone_done", "phone_step", "phone_image", "phone_note"}
+     "phone_question", "phone_done", "phone_step", "phone_image", "phone_note", "phone_file"}
 )  # fmt: skip
 
 
@@ -76,6 +78,9 @@ class PhoneHub:
         voice: Callable[[str], bytes | None] | None = None,
         modes: Callable[[], list[str]] | None = None,
         screen: Callable[[], bytes] | None = None,
+        uploads_to: Callable[[], Path] | None = None,
+        clipboard: Callable[[], str] | None = None,
+        set_clipboard: Callable[[str], None] | None = None,
         today=date.today,
         clock=time.monotonic,
     ):
@@ -85,6 +90,10 @@ class PhoneHub:
         self._modes = modes  # your modes' names, for the phone's controls
         self._screen = screen  # a picture of the screen (JPEG), for "See the screen"
         self.media = MediaStore(clock)  # pictures and files behind secret links (media.py)
+        self._uploads_to = uploads_to  # where files from the phone go (files.upload_folder)
+        self._uploads: dict[str, tuple[Path, float]] = {}  # saved, for the next request
+        self._clipboard = clipboard  # the computer's clipboard: read...
+        self._set_clipboard = set_clipboard  # ... and written
         self._today = today
         self._clock = clock
         self.boot = secrets.token_hex(4)  # a new hub (Abdoh restarted): the page starts over
@@ -188,6 +197,16 @@ class PhoneHub:
                 log.warning("A picture for the phone was empty or too big")
                 return
             self._show({"type": "image", "id": key, "caption": str(value.get("caption") or "")})
+        elif kind == "phone_file":  # {"path"}: a file Claude sent (ACTION send_file), checked
+            path = Path(str((value or {}).get("path") or ""))
+            try:
+                key = self.media.add_file(path)
+            except OSError:
+                log.warning("The file for the phone is gone: %s", path)
+                return
+            found = self.media.get(key)
+            self._show({"type": "file", "id": key, "name": found.name, "size": found.size,
+                        "kind": file_kind(found.type)})  # fmt: skip
 
     def _new_day(self) -> None:
         today = self._today()
@@ -246,15 +265,83 @@ class PhoneHub:
 
     # ----- what the phone asks -----
 
-    def ask(self, text: str, speak: bool = False, phone: str = "", spoken: bool = False) -> str:
+    def ask(
+        self,
+        text: str,
+        speak: bool = False,
+        phone: str = "",
+        spoken: bool = False,
+        files: list[str] | None = None,
+    ) -> str:
         """A request from the phone (`phone`: its id; its reply is spoken there). `spoken`: it
-        was said, not typed (the week's conversations keep which)."""
+        was said, not typed (the week's conversations keep which). `files`: the ids of files
+        it sent first (save); the request names them ("[sent photo.jpg]"), and Claude gets
+        where they are."""
         text = " ".join(str(text or "").split())[:MAX_TEXT]
+        sent = self._sent_files(files or [])
+        if sent:
+            text = f"{text} [sent {', '.join(p.name for p in sent)}]".strip()
         if not text:
             raise PhoneError("Type something to ask Abdoh.")
         self._speak, self._asker = bool(speak), phone
-        self.bus.request("phone", {"text": text, **({"spoken": True} if spoken else {})})
+        request = {"text": text}
+        if spoken:
+            request["spoken"] = True
+        if sent:
+            request["files"] = [str(p) for p in sent]
+        self.bus.request("phone", request)
         return text
+
+    def _sent_files(self, ids: list[str]) -> list[Path]:
+        now = self._clock()
+        with self._audio_lock:
+            for old in [k for k, (_, at) in self._uploads.items() if now - at > KEEP_SECONDS]:
+                del self._uploads[old]
+            found = [self._uploads.pop(str(i), None) for i in ids[:10]]
+        return [path for path, _ in filter(None, found) if path.is_file()]
+
+    # ----- files from the phone, and the clipboard -----
+
+    def save(self, name: str, reader, length: int) -> dict:
+        """A file from the phone, saved on the computer (files.save_upload): its id for the
+        request that comes with it."""
+        from abdoh.phone.files import FileProblem, save_upload
+
+        if self._uploads_to is None:
+            raise PhoneError("Abdoh can't take files from the phone here.")
+        try:
+            path = save_upload(self._uploads_to(), name, reader, length)
+        except FileProblem as e:
+            raise PhoneError(str(e)) from e
+        except OSError as e:
+            log.exception("Couldn't save a file from the phone")
+            raise PhoneError("Abdoh couldn't save that file on the computer.") from e
+        key = secrets.token_hex(8)
+        with self._audio_lock:
+            self._uploads[key] = (path, self._clock())
+        size = path.stat().st_size
+        return {"id": key, "name": path.name, "size": size, "kind": file_kind(file_type(path.name))}
+
+    def clipboard(self) -> str:
+        if self._clipboard is None:
+            raise PhoneError("Abdoh can't reach the clipboard here.")
+        try:
+            return str(self._clipboard() or "")[:MAX_CLIPBOARD]
+        except Exception as e:
+            log.exception("Couldn't read the clipboard for the phone")
+            raise PhoneError("Abdoh couldn't read the computer's clipboard.") from e
+
+    def put_clipboard(self, text: str) -> None:
+        if self._set_clipboard is None:
+            raise PhoneError("Abdoh can't reach the clipboard here.")
+        text = str(text or "")
+        if len(text) > MAX_CLIPBOARD:
+            raise PhoneError("That's too much text for the clipboard.")
+        try:
+            self._set_clipboard(text)
+        except Exception as e:
+            log.exception("Couldn't set the clipboard from the phone")
+            raise PhoneError("Abdoh couldn't set the computer's clipboard.") from e
 
     def hear(self, audio: bytes, speak: bool = False, phone: str = "") -> str:
         """A spoken request from the phone: what was heard ("" if nothing), then asked."""

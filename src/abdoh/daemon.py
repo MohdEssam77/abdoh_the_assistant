@@ -235,6 +235,7 @@ class Daemon:
         router.on_activity = self._activity
         router.on_action = self._did
         router.on_show_screen = self._show_screen
+        router.on_send_file = self._send_file
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
@@ -392,6 +393,31 @@ class Daemon:
         threading.Thread(
             target=self._send_screen, args=("Your screen",), name="abdoh-phone-screen", daemon=True
         ).start()
+
+    def _send_file(self, arg: str) -> str:
+        """Claude: ACTION send_file (only for the phone): "" when it went, else why not."""
+        from abdoh.phone.files import FileProblem, file_to_send
+
+        try:
+            path = file_to_send(arg, self.cfg)
+        except FileProblem as e:
+            log.info("Didn't send %r to the phone: %s", arg, e)
+            return str(e)
+        log.info("Sending a file to the phone: %s", path.name)
+        self.bus.emit("phone_file", {"path": str(path)})
+        return ""
+
+    def _clipboard_text(self) -> str:
+        computer = getattr(self.router, "computer", None)
+        if computer is None:
+            raise RuntimeError("no computer")
+        return computer.clipboard()
+
+    def _set_clipboard(self, text: str) -> None:
+        computer = getattr(self.router, "computer", None)
+        if computer is None:
+            raise RuntimeError("no computer")
+        computer.set_clipboard(text)
 
     def _send_screen(self, caption: str) -> None:
         from abdoh.claude.screen import ScreenCaptureError
@@ -848,6 +874,7 @@ class Daemon:
         woken=False,
         phone=False,
         spoken=False,
+        files=None,
     ) -> str:
         """Route one request and speak the reply. Never raises.
 
@@ -857,14 +884,17 @@ class Daemon:
         came after the wake word, which a video or people talking can set off by mistake (True,
         or how clearly the name was heard: (score, voice check or None)). `phone`: it came from
         the phone (abdoh/phone): the reply goes there, and nothing is said here. `spoken`: it
-        was said into the phone, not typed (the laptop doesn't listen afterwards).
+        was said into the phone, not typed (the laptop doesn't listen afterwards). `files`:
+        what the phone sent with it (full paths on this computer), for Claude.
         """
         with self._handle_lock:
             self._phone_turn = self.router.phone = phone
+            self.router.phone_files = list(files or []) if phone else []
             try:
                 return self._handle_text(text, voice, aside, woken, phone, spoken)
             finally:
                 self._phone_turn = self.router.phone = False
+                self.router.phone_files = []
 
     def _handle_text(
         self, text: str, voice: bool, aside: bool, woken, phone: bool, spoken: bool = False
@@ -1259,11 +1289,12 @@ class Daemon:
         if kind == "text":
             if value and value.strip():
                 self.handle_text(value.strip())
-        elif kind == "phone":  # the phone page (abdoh/phone/hub.py): {"text", "spoken"?}
+        elif kind == "phone":  # the phone page (phone/hub.py): {"text", "spoken"?, "files"?}
             text = str((value or {}).get("text") or "").strip()
             if text:
                 try:
-                    self.handle_text(text, phone=True, spoken=bool(value.get("spoken")))
+                    self.handle_text(text, phone=True, spoken=bool(value.get("spoken")),
+                                     files=value.get("files"))  # fmt: skip
                 finally:
                     self.bus.emit("phone_done", None)  # a call on the phone listens again
         elif kind == "phone_control":  # the phone's quick controls: {"kind", "value"}
@@ -1371,7 +1402,8 @@ class Daemon:
 
         service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice,
                                modes=lambda: self.modes.names() if self.modes else [],
-                               screen=screen_picture)  # fmt: skip
+                               screen=screen_picture, clipboard=self._clipboard_text,
+                               set_clipboard=self._set_clipboard)  # fmt: skip
         try:
             service.start()
         except OSError as e:

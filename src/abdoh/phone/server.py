@@ -17,7 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 from abdoh.phone.devices import FILE, Phones, phone_name
-from abdoh.phone.hub import PhoneError, PhoneHub
+from abdoh.phone.hub import MAX_CLIPBOARD, PhoneError, PhoneHub
 from abdoh.phone.media import SHOWN
 
 log = logging.getLogger(__name__)
@@ -141,6 +141,8 @@ class PhoneApp:
             return answer(self.hub.events(after))
         if method == "GET" and route == "/api/controls":
             return answer(self.hub.controls())
+        if method == "GET" and route == "/api/clipboard":
+            return answer({"ok": True, "text": self.hub.clipboard()})
         if method == "GET" and route.startswith("/api/audio/"):
             wav = self.hub.audio(route.rsplit("/", 1)[-1])
             if wav is None:
@@ -150,8 +152,14 @@ class PhoneApp:
             return error(405 if route in _ROUTES else 404, "Not found.")
         if route == "/api/text":
             data = _json(body[:MAX_JSON])
-            text = self.hub.ask(str(data.get("text") or ""), bool(data.get("speak")), phone["id"])
+            files = [str(f) for f in data.get("files") or [] if isinstance(f, str)]
+            text = self.hub.ask(str(data.get("text") or ""), bool(data.get("speak")), phone["id"],
+                                files=files)  # fmt: skip
             return answer({"ok": True, "text": text})
+        if route == "/api/clipboard":
+            data = _json(body[: MAX_JSON + MAX_CLIPBOARD * 4])
+            self.hub.put_clipboard(str(data.get("text") or ""))
+            return answer({"ok": True})
         if route == "/api/voice":
             if len(body) > MAX_VOICE:
                 raise PhoneError("That recording is too long: a minute at most.")
@@ -174,6 +182,17 @@ class PhoneApp:
             self.phones.remove(phone["id"])
             return answer({"ok": True})
         return error(404, "Not found.")
+
+    def upload(self, headers: dict, path: str, reader, length: int) -> Response:
+        """POST /api/upload?name=...: a file from the phone, its bytes read from `reader` a
+        piece at a time (never all in memory). Checked before any of it is read."""
+        if self.phones.check(_bearer(headers)) is None:
+            return error(401, NOT_PAIRED)
+        query = {k: v[-1] for k, v in parse_qs(urlsplit(path).query).items()}
+        try:
+            return answer({"ok": True, **self.hub.save(query.get("name", ""), reader, length)})
+        except PhoneError as e:
+            return error(400, str(e))
 
     def _media(self, method: str, key: str, query: dict, headers: dict) -> Response:
         """A picture or a file behind its secret link (media.py). ?download=1: saved, not
@@ -221,7 +240,8 @@ class PhoneApp:
 
 
 _ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget",
-           "/api/controls", "/api/control", "/api/screen"}  # fmt: skip
+           "/api/controls", "/api/control", "/api/screen", "/api/clipboard",
+           "/api/upload"}  # fmt: skip
 
 
 def _handler(app: PhoneApp):
@@ -238,6 +258,9 @@ def _handler(app: PhoneApp):
                 length = int(self.headers.get("Content-Length") or 0)
             except ValueError:
                 length = -1
+            if method == "POST" and urlsplit(self.path).path == "/api/upload" and length >= 0:
+                self._upload(length)
+                return
             if length < 0 or length > MAX_VOICE + MAX_JSON:
                 self.close_connection = True
                 self._send(error(413, "That's too big."), method)
@@ -250,6 +273,17 @@ def _handler(app: PhoneApp):
                 log.exception("The phone page's request failed: %s %s", method, self.path)
                 response = error(500, "Something went wrong on your computer.")
             self._send(response, method)
+
+        def _upload(self, length: int) -> None:
+            headers = {k.lower(): v for k, v in self.headers.items()}
+            try:
+                response = app.upload(headers, self.path, self.rfile, length)
+            except Exception:
+                log.exception("A file from the phone couldn't be saved")
+                response = error(500, "Something went wrong on your computer.")
+            if response.status != 200:
+                self.close_connection = True  # what's left of the file isn't read
+            self._send(response, "POST")
 
         def _send(self, response: Response, method: str) -> None:
             self.send_response(response.status)
@@ -329,10 +363,14 @@ class PhoneService:
     with the Phone switch in Settings."""
 
     def __init__(self, cfg, bus, hear=None, voice=None, modes=None, screen=None,
-                 server_class=None):  # fmt: skip
+                 clipboard=None, set_clipboard=None, server_class=None):  # fmt: skip
+        from abdoh.phone.files import upload_folder
+
         self.port = cfg.phone_port
         self.phones = Phones(cfg.app_dir / FILE)
-        self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes, screen=screen)
+        self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes, screen=screen,
+                            uploads_to=lambda: upload_folder(cfg), clipboard=clipboard,
+                            set_clipboard=set_clipboard)  # fmt: skip
         self.app = PhoneApp(self.hub, self.phones)
         self.server = (server_class or PhoneServer)(self.app, self.port)
 

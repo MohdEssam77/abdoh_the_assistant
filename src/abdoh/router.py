@@ -10,6 +10,7 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
@@ -30,6 +31,7 @@ from abdoh.claude.reply import (
     SAVE_ITEM,
     SAVE_STEPS,
     SELF_EDIT_ACTIONS,
+    SEND_FILE,
     SHOW_SCREEN,
     UNDO_CHANGE,
     WATCH,
@@ -98,6 +100,16 @@ WATCH_WHEN = {
 }
 # A request from the phone (claude/brain.py PHONE says what that means for Claude).
 FROM_PHONE = "(From the phone) "
+PHONE_FILES = (
+    "(They sent this from the phone; it's on the computer now: {files}. Read, open or use it "
+    "as they ask: you can read pictures too.) "
+)
+
+
+def _size(n: int) -> str:
+    return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{max(1, n // 1024)} KB"
+
+
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -266,6 +278,9 @@ class Router:
         self.on_action: Callable[[str, str], None] = lambda kind, arg: None
         self.phone = False  # the request being handled came from the phone (abdoh/phone)
         self.on_show_screen: Callable[[str], None] = lambda why: None  # ACTION show_screen
+        # ACTION send_file: "" when it went to the phone, else what to say (why it couldn't).
+        self.on_send_file: Callable[[str], str] = lambda path: "Files only go to the phone."
+        self.phone_files: list[str] = []  # files the phone sent with the request (full paths)
         self.on_memory: Callable[[], None] = lambda: None  # the memory changed (the page)
         # Claude changed a command, mode or role ("command", "mode", "role"): the pages refresh.
         self.on_self_edit: Callable[[str], None] = lambda kind: None
@@ -437,7 +452,7 @@ class Router:
             prompt = self._with_context(original) + self._clipboard(request)
             prompt = self._codoh() + prompt
             if self.phone:
-                prompt = FROM_PHONE + prompt  # brain.PHONE: what's different there
+                prompt = FROM_PHONE + self._phone_files_note() + prompt  # brain.PHONE
             if self.watching and self.cfg.claude.allow_screen:
                 # Watching the screen: what they say comes with a picture of it
                 note = self._watching_note() if aside else ""
@@ -684,6 +699,13 @@ class Router:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
+            if kind == SEND_FILE:
+                problem = self.on_send_file(arg)
+                if problem:
+                    problems.append(problem)  # why it couldn't go
+                else:
+                    turn.actions.append((SEND_FILE, arg))
+                return
             if kind == SHOW_SCREEN:
                 self.on_show_screen(arg)
                 turn.actions.append((SHOW_SCREEN, arg))
@@ -764,6 +786,8 @@ class Router:
             allowed.append(WATCH)
         if self.phone:
             allowed.append(SHOW_SCREEN)  # only the phone gets pictures of the screen
+            if self.cfg.claude.allow_files:
+                allowed.append(SEND_FILE)  # ... and files from where Claude may work
         if self.codoh is not None:
             allowed.append(CODOH)
             if not screen:
@@ -1055,6 +1079,21 @@ class Router:
         except (ActionError, AttributeError):
             return ""
         return CLIPBOARD_NOTE.format(text=text[:CLIPBOARD_LIMIT]) if text else ""
+
+    def _phone_files_note(self) -> str:
+        """Where the files the phone sent with this request are, for Claude."""
+        if not self.phone_files:
+            return ""
+        from abdoh.phone.media import file_kind, file_type
+
+        described = []
+        for path in self.phone_files:
+            try:
+                size = Path(path).stat().st_size
+            except OSError:
+                continue
+            described.append(f"{path} ({file_kind(file_type(path))}, {_size(size)})")
+        return PHONE_FILES.format(files="; ".join(described)) if described else ""
 
     def _with_context(self, text: str) -> str:
         if getattr(self.brain, "remembers", False):

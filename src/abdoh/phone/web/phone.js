@@ -19,6 +19,7 @@ const S = {
   live: null, // the bubble a reply to this phone is growing in, sentence by sentence
   final: true, // the reply to the last request is shown in full
   pending: [], // what this phone sent, until the computer shows it: [{node, text}]
+  attached: null, // a file for the next message: {name, size, id (once on the computer), progress, failed, xhr}
   speak: localStorage.getItem(SPEAK) !== "0",
   steps: null, // the steps of the request being answered: {node, box, title, list, count, done}
   asked: 0, answered: 0, // this phone's requests that reached the computer, and those answered
@@ -327,6 +328,101 @@ function closeViewer() {
   $("#viewer-img").removeAttribute("src");
 }
 
+/* ---------- a photo or a file for the computer (story 149) ----------
+   Sent as soon as it's picked (with progress), then goes with the next message. */
+
+function pickFile() {
+  const input = $("#attach-input");
+  input.value = "";
+  input.click();
+}
+
+function attach(file) {
+  if (!file) return;
+  if (S.attached && S.attached.xhr) S.attached.xhr.abort();
+  const item = { name: file.name || "file", size: file.size, id: null, progress: 0, failed: "", xhr: null };
+  S.attached = item;
+  showAttached();
+  if (DEMO) {
+    setTimeout(() => { item.progress = 1; item.id = "demo-file"; showAttached(); }, 900);
+    return;
+  }
+  const xhr = new XMLHttpRequest();
+  item.xhr = xhr;
+  xhr.open("POST", `/api/upload?name=${encodeURIComponent(item.name)}`);
+  xhr.setRequestHeader("Authorization", `Bearer ${S.key}`);
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) { item.progress = e.loaded / e.total; showAttached(); } };
+  xhr.onload = () => {
+    let data = {};
+    try { data = JSON.parse(xhr.responseText || "{}"); } catch (error) { /* not JSON */ }
+    if (xhr.status === 401) return unpaired();
+    if (xhr.status === 200 && data.id) Object.assign(item, { id: data.id, name: data.name || item.name, progress: 1 });
+    else item.failed = data.error || "Your computer couldn't take that file.";
+    item.xhr = null;
+    showAttached();
+  };
+  xhr.onerror = () => { item.failed = "Your computer can't be reached right now."; item.xhr = null; showAttached(); };
+  xhr.send(file);
+}
+
+function showAttached() {
+  const item = S.attached;
+  $("#attached").hidden = !item;
+  if (item) {
+    $("#attached-name").textContent = item.name;
+    $("#attached-icon").textContent = fileLabel(item);
+    $("#attached-state").textContent = item.failed || (item.id ? `${size(item.size)} · ready to send`
+      : `Sending to the computer… ${Math.round(item.progress * 100)}%`);
+    $("#attached").classList.toggle("failed", !!item.failed);
+  }
+  render();
+}
+
+function dropAttached() {
+  if (S.attached && S.attached.xhr) S.attached.xhr.abort();
+  S.attached = null;
+  showAttached();
+}
+
+/* ---------- the computer's clipboard (story 149) ---------- */
+
+async function openClipboard() {
+  $("#controls").hidden = true;
+  const box = $("#clip-text");
+  box.value = "";
+  box.placeholder = "Getting the computer's clipboard…";
+  $("#clip").hidden = false;
+  try {
+    const data = await api("GET", "/api/clipboard");
+    box.value = data.text || "";
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+  }
+  box.placeholder = "Nothing copied on the computer. Paste here to send it there.";
+}
+
+async function copyHere() {
+  const text = $("#clip-text").value;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) { // older phones: the selection
+    $("#clip-text").select();
+    document.execCommand("copy");
+  }
+  toast("Copied to this phone");
+}
+
+async function sendClipboard() {
+  try {
+    await api("POST", "/api/clipboard", { text: $("#clip-text").value });
+    $("#clip").hidden = true;
+    toast("On the computer's clipboard");
+  } catch (error) {
+    $("#clip").hidden = true;
+    failed(error);
+  }
+}
+
 /* "See the screen" in the controls: a picture of it now, not part of the conversation. */
 async function seeScreen() {
   $("#controls").hidden = true;
@@ -415,8 +511,17 @@ function addSaid(event) {
 }
 
 function bubble(who, text, label = null) {
+  const [words, file] = who === "you" ? withFile(text) : [text, ""];
   return place(el("div", { class: "bubble" }, label ? el("span", { class: "from" }, label) : null,
-    el("span", { class: "text" }, text)), `msg ${who}`);
+    file ? el("span", { class: "sent-file" }, `📎 ${file}`) : null,
+    el("span", { class: "text" }, words)), `msg ${who}`);
+}
+
+/* "explain this [sent photo.jpg]" -> ["explain this", "photo.jpg"]: what the phone sent with
+   a message, shown as a file line above it. */
+function withFile(text) {
+  const sent = /^([\s\S]*?)\s*\[sent ([^\]]+)\]$/.exec(text || "");
+  return sent ? [sent[1], sent[2]] : [text, ""];
 }
 
 /* A new message at the end of the conversation (above the typing dots). */
@@ -441,7 +546,7 @@ function takePending(text) {
   if (at < 0) return null;
   const [found] = S.pending.splice(at, 1);
   found.node.classList.remove("pending");
-  found.node.querySelector(".text").textContent = text;
+  found.node.querySelector(".text").textContent = withFile(text)[0];
   return found.node;
 }
 
@@ -459,7 +564,7 @@ function render() {
     $("#messages").append(el("div", { class: "msg abdoh typing", id: "typing" }, el("div", { class: "bubble" }, el("i"), el("i"), el("i"))));
     scrollDown();
   } else if (!waiting && typing) typing.remove();
-  const empty = !$("#text").value.trim();
+  const empty = !$("#text").value.trim() && !S.attached;
   const talking = S.busy || player.playing;
   $("#form").hidden = rec.on;
   $("#recording").hidden = !rec.on;
@@ -499,19 +604,24 @@ function scrollDown(now = false) {
 /* ---------- asking ---------- */
 
 async function send(text) {
-  text = text.trim();
-  if (!text) return;
+  text = text.trim().replace(/\s+/g, " ");
+  const file = S.attached;
+  if (file && !file.id) return toast(file.failed ? "That file didn't go: remove it or pick it again." : "The file is still on its way…");
+  if (!text && !file) return;
+  S.attached = null;
+  showAttached();
+  const shown = file ? `${text} [sent ${file.name}]`.trim() : text; // as the computer shows it
   silence(); // a new question: the last answer stops
-  const node = bubble("you", text);
+  const node = bubble("you", shown);
   node.classList.add("pending");
-  S.pending.push({ node, text: same(text) });
+  S.pending.push({ node, text: same(shown) });
   S.final = false;
   S.live = null;
   hideQuestion();
   render();
   scrollDown(true);
   try {
-    await api("POST", "/api/text", { text, speak: S.speak });
+    await api("POST", "/api/text", { text, speak: S.speak, files: file ? [file.id] : [] });
     S.asked += 1;
   } catch (error) {
     S.pending = S.pending.filter((p) => p.node !== node);
@@ -1143,6 +1253,9 @@ function setupComposer() {
   $("#mic").addEventListener("click", startRecording);
   $("#rec-send").addEventListener("click", () => stopRecording(true));
   $("#cancel").addEventListener("click", () => stopRecording(false));
+  $("#attach").addEventListener("click", pickFile);
+  $("#attach-input").addEventListener("change", (e) => attach(e.target.files && e.target.files[0]));
+  $("#attached-remove").addEventListener("click", dropAttached);
   $("#call-button").addEventListener("click", startCall);
   $("#orb").addEventListener("click", tapOrb);
   $("#call-mute").addEventListener("click", toggleMute);
@@ -1206,6 +1319,11 @@ function setupControls() {
     });
   }
   $("#see-screen").addEventListener("click", seeScreen);
+  $("#clipboard").addEventListener("click", openClipboard);
+  $("#clip-copy").addEventListener("click", copyHere);
+  $("#clip-send").addEventListener("click", sendClipboard);
+  $("#clip-close").addEventListener("click", () => { $("#clip").hidden = true; });
+  $("#clip").addEventListener("click", (e) => { if (e.target.id === "clip") $("#clip").hidden = true; });
   $("#viewer-close").addEventListener("click", closeViewer);
   $("#viewer").addEventListener("click", (e) => { if (e.target.id === "viewer") closeViewer(); });
   $("#lock").addEventListener("click", async () => {
