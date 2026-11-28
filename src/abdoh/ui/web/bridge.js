@@ -241,7 +241,7 @@ const Bridge = (() => {
       { time: "09:37:58", day: "today", level: "INFO", part: "Claude", text: "Claude is using WebSearch", details: "" },
       { time: "09:37:55", day: "today", level: "INFO", part: "Abdoh", text: "You: What's the weather like tomorrow?", details: "" },
       { time: "09:12:40", day: "today", level: "ERROR", part: "Abdoh", text: "Error handling 'turn on the desk lamp'", details: "Traceback (most recent call last):\n  File \"lights.py\", line 212, in send\nTimeoutError: the lamp didn't answer" },
-      { time: "09:02:11", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh 0.14.0 started", details: "" },
+      { time: "09:02:11", day: "today", level: "INFO", part: "Abdoh", text: "Abdoh 0.14.1 started", details: "" },
       { time: "20:27:04", day: "yesterday", level: "WARNING", part: "Claude", text: "Claude Code reported an error: You've hit your usage limit. It resets at 8:50 PM.", details: "" },
       { time: "20:27:03", day: "yesterday", level: "INFO", part: "Abdoh", text: "You: Uh okay you can stop now", details: "" },
     ];
@@ -273,7 +273,7 @@ const Bridge = (() => {
     return {
       demo: true,
       boot: async () => ({
-        version: "0.14.0", platform: "win32", demo: true, settings,
+        version: "0.14.1", platform: "win32", demo: true, settings,
         state: { status: "Starting...", claude: "", wake: "", hearing: "", mode: currentMode, role: currentRole, listening: { on: !!currentRole, now: !!currentRole }, voice: true, history, board: currentRole ? demoBoard : [], gpu: "Speech recognition runs on your NVIDIA GeForce RTX 3050 6GB Laptop GPU (6 GB): about twice as fast, with less memory." },
       }),
       events: async () => queue.splice(0),
@@ -576,17 +576,17 @@ const Bridge = (() => {
       claude_test: async () => ({ ok: true, reply: "OK", via: settings.claude.backend === "chatgpt" ? "ChatGPT" : "Claude Code" }),
       refresh_claude: async () => {},
       check_update: async () => (params.get("update")
-        ? { available: true, current: "0.14.0", version: "0.14.1", url: "https://github.com", download: "https://github.com/Abdoh-Setup.exe" }
-        : { available: false, current: "0.14.0" }),
+        ? { available: true, current: "0.14.1", version: "0.14.2", url: "https://github.com", download: "https://github.com/Abdoh-Setup.exe" }
+        : { available: false, current: "0.14.1" }),
       install_update: async () => {  // a download that goes up, then "installing"
         let percent = 0;
         const step = () => {
           percent = Math.min(100, percent + 17);
-          push("update", percent < 100 ? { state: "downloading", version: "0.14.1", percent } : { state: "installing", version: "0.14.1", percent: 100 });
+          push("update", percent < 100 ? { state: "downloading", version: "0.14.2", percent } : { state: "installing", version: "0.14.2", percent: 100 });
           if (percent < 100) setTimeout(step, 600);
         };
         setTimeout(step, 300);
-        return { state: "downloading", version: "0.14.1", percent: 0 };
+        return { state: "downloading", version: "0.14.2", percent: 0 };
       },
       update_status: async () => ({ state: "idle" }),
       // Settings → Phone: ?phone=off | install | signin | share | https | ready (the default)
