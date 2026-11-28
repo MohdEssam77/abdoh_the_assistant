@@ -103,10 +103,16 @@ def _json(body: bytes) -> dict:
 
 class PhoneApp:
     def __init__(
-        self, hub: PhoneHub, phones: Phones, web: Path = WEB_DIR, shared: Path = SHARED_DIR
+        self,
+        hub: PhoneHub,
+        phones: Phones,
+        web: Path = WEB_DIR,
+        shared: Path = SHARED_DIR,
+        codoh=None,
     ):
         self.hub = hub
         self.phones = phones
+        self.codoh = codoh  # the app's Codoh, when it's there (a function: made when needed)
         self.web = Path(web)
         self.shared = Path(shared)
 
@@ -140,7 +146,47 @@ class PhoneApp:
             return error(403, OLD_CODE)
         return answer({"key": key})
 
+    def _codoh(self, method: str, route: str, query: dict, body: bytes) -> Response:
+        """Codoh from the phone (phone/codoh.py)."""
+        from abdoh.phone import codoh as desk
+
+        try:
+            codoh = self.codoh() if self.codoh is not None else None
+        except Exception:
+            log.exception("Codoh isn't there for the phone")
+            codoh = None
+        if codoh is None:
+            raise PhoneError(desk.NO_CODOH)
+        if method == "GET" and route == "/api/codoh":
+            return answer({"ok": True, **desk.chats(codoh.state())})
+        if method == "GET" and route == "/api/codoh/chat":
+            try:
+                since = int(query.get("since", "0"))
+            except ValueError:
+                since = 0
+            return answer(desk.chat(codoh, str(query.get("id", "")), since))
+        if method != "POST":
+            return error(405, "Not allowed.")
+        data = _json(body[: MAX_JSON + desk.TEXT * 4])
+        chat_id = str(data.get("id") or "")
+        if route == "/api/codoh/send":
+            return answer(codoh.send(chat_id, str(data.get("text") or ""), by_phone=True))
+        if route == "/api/codoh/stop":
+            return answer(codoh.stop(chat_id))
+        if route == "/api/codoh/answer":
+            answers = data.get("answers") if isinstance(data.get("answers"), dict) else None
+            decision = str(data.get("decision") or "")
+            if decision not in ("allow", "always", "deny"):
+                raise PhoneError("That answer isn't one Codoh knows.")
+            return answer(codoh.answer(chat_id, str(data.get("item") or ""), decision, answers))
+        if route == "/api/codoh/new":
+            return answer(desk.new_chat(codoh, str(data.get("folder") or ""),
+                                        str(data.get("text") or "")))  # fmt: skip
+        return error(404, "Not found.")
+
     def _api(self, method: str, route: str, query: dict, body: bytes, phone: dict) -> Response:
+        if route == "/api/codoh" or route.startswith("/api/codoh/"):
+            return self._codoh(method, route, query, body)
         if method == "GET" and route == "/api/state":
             return answer({**self.hub.state(), "phone": phone["name"], "phone_id": phone["id"]})
         if method == "GET" and route == "/api/events":
@@ -379,7 +425,7 @@ class PhoneService:
     with the Phone switch in Settings."""
 
     def __init__(self, cfg, bus, hear=None, voice=None, modes=None, screen=None,
-                 clipboard=None, set_clipboard=None, server_class=None):  # fmt: skip
+                 clipboard=None, set_clipboard=None, codoh=None, server_class=None):  # fmt: skip
         from abdoh.phone.files import upload_folder
 
         self.port = cfg.phone_port
@@ -387,7 +433,7 @@ class PhoneService:
         self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes, screen=screen,
                             uploads_to=lambda: upload_folder(cfg), clipboard=clipboard,
                             set_clipboard=set_clipboard)  # fmt: skip
-        self.app = PhoneApp(self.hub, self.phones)
+        self.app = PhoneApp(self.hub, self.phones, codoh=codoh)
         self.server = (server_class or PhoneServer)(self.app, self.port)
 
     def start(self) -> None:

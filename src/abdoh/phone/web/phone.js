@@ -273,6 +273,7 @@ function take(event) {
     case "image":
     case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); } break;
     case "board": takeBoard(event.card || null); break;
+    case "codoh": takeCodoh(event); break;
     case "board_picture": takePicture(event.picture || {}); break;
     default: break;
   }
@@ -333,6 +334,298 @@ function openViewer(src, caption) {
 function closeViewer() {
   $("#viewer").hidden = true;
   $("#viewer-img").removeAttribute("src");
+}
+
+/* ---------- Codoh, the coding page, from the phone (story 151) ----------
+   The same chats as the window's Codoh page: a chat's messages, tool cards and questions live
+   (asked again every 0.8 s while it works), instructions for it (queued while it works),
+   Stop, Allow / Always / Deny, answers to its questions, and a new chat in one of its folders. */
+
+const codoh = { open: false, chatId: "", rev: 0, nodes: new Map(), timer: null, running: false, folders: [] };
+const CODOH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>';
+const DID = { read: "Read", search: "Searched", list: "Looked in", edit: "Edited", write: "Wrote", command: "Ran",
+  web: "Looked up", task: "Worked on", todo: "Planned", other: "Used" };
+const DOING_NOW = { read: "Reading", search: "Searching", list: "Looking in", edit: "Editing", write: "Writing",
+  command: "Running", web: "Looking up", task: "Working on", todo: "Planning", other: "Using" };
+const ASKS = { edit: "change", write: "write", command: "run", web: "look up", read: "read", other: "use" };
+
+function openCodoh(chat = "") {
+  $("#menu").hidden = true;
+  codoh.open = true;
+  $("#codoh-view").hidden = false;
+  if (chat) showChat(chat);
+  else showChats();
+}
+
+function closeCodoh() {
+  codoh.open = false;
+  clearTimeout(codoh.timer);
+  $("#codoh-view").hidden = true;
+}
+
+function codohSay(text) {
+  $("#codoh-body").replaceChildren(el("p", { class: "board-empty" }, text));
+}
+
+async function showChats() {
+  clearTimeout(codoh.timer);
+  codoh.chatId = "";
+  $("#codoh-title").textContent = "Codoh";
+  $("#codoh-status").textContent = "Your coding chats on the computer";
+  $("#codoh-back").hidden = true;
+  $("#codoh-composer").hidden = true;
+  if (!$("#codoh-body").children.length) codohSay("…");
+  let data;
+  try {
+    data = await api("GET", "/api/codoh");
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+    return codohSay(error.shown ? error.message : "Can't reach your computer right now.");
+  }
+  if (!codoh.open || codoh.chatId) return;
+  codoh.folders = data.folders || [];
+  $("#codoh-body").replaceChildren(...[
+    data.limited ? el("p", { class: "cx-note" }, `Claude's limit is used up ${data.limited}.`) : null,
+    el("button", { class: "codoh-new", type: "button", onclick: newChat }, "+ New chat"),
+    ...((data.chats || []).length ? data.chats.map(chatRow) : [el("p", { class: "board-empty" }, "No chats yet: start one in a folder Codoh knows.")]),
+  ].filter(Boolean));
+  if ((data.chats || []).some((c) => c.running)) codoh.timer = setTimeout(() => { if (codoh.open && !codoh.chatId) showChats(); }, 4000);
+}
+
+function chatRow(chat) {
+  const engine = chat.engine === "chatgpt" ? "ChatGPT" : "Claude";
+  return el("button", { class: "codoh-chat", type: "button", onclick: () => showChat(chat.id) },
+    el("i", { class: `codoh-dot${chat.running ? " on" : ""}` }),
+    el("span", {}, el("b", {}, chat.title || "New chat"),
+      el("small", {}, [chat.where, chat.model ? `${engine} ${chat.model}` : engine, ago(chat.updated)].filter(Boolean).join(" · "))));
+}
+
+function ago(seconds) {
+  const s = Math.max(0, Date.now() / 1000 - (Number(seconds) || 0));
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+}
+
+/* A new chat: one of Codoh's folders, and what it should do. */
+function newChat() {
+  clearTimeout(codoh.timer);
+  $("#codoh-title").textContent = "New chat";
+  $("#codoh-status").textContent = "In which folder?";
+  $("#codoh-back").hidden = false;
+  if (!codoh.folders.length) return codohSay("Codoh doesn't know any folders yet: open one on its page on the computer, or ask Abdoh (“open my portfolio folder in Codoh”).");
+  let picked = codoh.folders[0].path;
+  const chips = codoh.folders.map((f) => el("button", { class: `chip${f.path === picked ? " on" : ""}`, type: "button", title: f.path,
+    onclick: (e) => { picked = f.path; chips.forEach((c) => c.classList.remove("on")); e.currentTarget.classList.add("on"); } }, f.name || f.path));
+  const words = el("textarea", { class: "clip-text", rows: 4, placeholder: "What should Codoh do?", "aria-label": "What should Codoh do?" });
+  const start = el("button", { class: "sheet-button primary", type: "button" }, "Start");
+  start.addEventListener("click", async () => {
+    start.disabled = true;
+    try {
+      const data = await api("POST", "/api/codoh/new", { folder: picked, text: words.value });
+      if (data.ok) return showChat(data.chat);
+      toast(data.error || "Codoh couldn't start that chat.");
+    } catch (error) {
+      failed(error);
+    }
+    start.disabled = false;
+  });
+  $("#codoh-body").replaceChildren(el("div", { class: "codoh-form" }, el("div", { class: "chips" }, chips), words, start));
+}
+
+async function showChat(id) {
+  clearTimeout(codoh.timer);
+  Object.assign(codoh, { chatId: id, rev: 0, nodes: new Map(), running: false });
+  $("#codoh-back").hidden = false;
+  $("#codoh-composer").hidden = false;
+  $("#codoh-status").textContent = "";
+  codohSay("…");
+  await pollChat();
+}
+
+async function pollChat() {
+  clearTimeout(codoh.timer);
+  const id = codoh.chatId;
+  if (!codoh.open || !id) return;
+  let data;
+  try {
+    data = await api("GET", `/api/codoh/chat?id=${encodeURIComponent(id)}&since=${codoh.rev}`);
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+    codoh.timer = setTimeout(pollChat, 4000);
+    return;
+  }
+  if (id !== codoh.chatId || !codoh.open) return;
+  if (!data.ok) return codohSay(data.error || "That chat is gone.");
+  const body = $("#codoh-body");
+  const near = body.scrollHeight - body.scrollTop - body.clientHeight < 200 || codoh.rev === 0;
+  if (codoh.rev === 0) body.replaceChildren();
+  for (const item of data.items || []) putItem(item);
+  codoh.rev = data.rev;
+  codoh.running = !!data.running;
+  $("#codoh-title").textContent = (data.chat || {}).title || "New chat";
+  $("#codoh-status").textContent = data.running ? `${data.status || "Working"} · ${Math.round(data.seconds || 0)} s` : "Ready";
+  $("#codoh-stop").hidden = !data.running;
+  const queued = data.queued || [];
+  $("#codoh-queued").hidden = !queued.length;
+  $("#codoh-queued").textContent = queued.length ? `Next: ${queued.join(" · ")}` : "";
+  if (near && (data.items || []).length) requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+  codoh.timer = setTimeout(pollChat, data.running ? 800 : 3000);
+}
+
+function putItem(item) {
+  const node = codohItem(item);
+  const old = codoh.nodes.get(item.id);
+  if (old) {
+    if (old.open) node.open = true; // a card you opened stays open
+    old.replaceWith(node);
+  } else $("#codoh-body").append(node);
+  codoh.nodes.set(item.id, node);
+}
+
+function codohItem(item) {
+  switch (item.kind) {
+    case "user": return el("div", { class: "msg you" }, el("div", { class: "bubble" }, el("span", { class: "text" }, item.text || "")));
+    case "assistant": return el("div", { class: "cx-answer" }, codeText(item.text || ""));
+    case "tool": return toolCard(item);
+    case "approval": return askCard(item);
+    case "error": return el("p", { class: "cx-error" }, item.text || "Something went wrong.");
+    case "done": return el("p", { class: "cx-note" }, `Done in ${Math.round(item.seconds || 0)} s`);
+    default: return el("p", { class: "cx-note" }, item.text || "");
+  }
+}
+
+/* An answer: its words, and its code blocks as code. */
+function codeText(text) {
+  return text.split(/(```[^\n]*\n[\s\S]*?(?:```|$))/).filter(Boolean).map((part) => {
+    const code = /^```[^\n]*\n([\s\S]*?)(?:```)?$/.exec(part);
+    return code ? el("pre", { class: "cx-code" }, code[1]) : el("p", {}, part.trim());
+  });
+}
+
+function diffView(diff) {
+  return el("pre", { class: "cx-diff" }, diff.split("\n").map((line) => el("span", {
+    class: line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : line.startsWith("@@") ? "hunk" : "",
+  }, `${line}\n`)));
+}
+
+function toolCard(item) {
+  const kind = item.kind_of || "other";
+  const busy = !item.status || item.status === "waiting";
+  const badge = item.status === "failed" ? "Failed" : item.status === "stopped" ? "Stopped" : busy ? "…" : "";
+  const card = el("details", { class: `cx-tool ${item.status || "running"}` },
+    el("summary", {}, el("span", { class: "cx-verb" }, busy ? DOING_NOW[kind] || "Using" : DID[kind] || "Used"),
+      el("code", {}, item.title || ""), item.detail ? el("small", {}, item.detail) : null,
+      badge ? el("em", {}, badge) : null));
+  if (item.diff) card.append(diffView(item.diff));
+  if (item.output) card.append(el("pre", { class: "cx-code" }, item.output));
+  if (!item.diff && !item.output) card.append(el("p", { class: "cx-note" }, busy ? "Working on it…" : "Nothing more to show."));
+  return card;
+}
+
+/* Codoh asks first (to run, change or write something), or asks the user a question. */
+function askCard(item) {
+  const waiting = item.state === "waiting";
+  const box = el("div", { class: `cx-ask${waiting ? " waiting" : ""}` });
+  if ((item.questions || []).length) return questionCard(item, box, waiting);
+  box.append(el("b", {}, `Codoh asks to ${ASKS[item.kind_of] || "use"}:`), el("code", { class: "cx-ask-what" }, item.title || item.tool || ""));
+  if (item.description) box.append(el("p", {}, item.description));
+  if (item.diff) box.append(diffView(item.diff));
+  else if (item.detail) box.append(el("p", { class: "cx-note" }, item.detail));
+  if (!waiting) {
+    box.append(el("p", { class: "cx-state" }, { allowed: "Allowed", always: "Allowed for this chat", denied: "Said no", expired: "Not needed any more" }[item.state] || item.state));
+    return box;
+  }
+  const answer = (decision) => async (e) => {
+    box.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+    try {
+      const data = await api("POST", "/api/codoh/answer", { id: codoh.chatId, item: item.id, decision });
+      if (!data.ok) toast(data.error || "That was already answered.");
+    } catch (error) { failed(error); }
+    pollChat();
+  };
+  box.append(el("div", { class: "cx-ask-buttons" },
+    el("button", { class: "pill primary", type: "button", onclick: answer("allow") }, "Allow"),
+    item.suggestions ? el("button", { class: "pill", type: "button", onclick: answer("always") }, "Always") : null,
+    el("button", { class: "pill", type: "button", onclick: answer("deny") }, "Deny")));
+  return box;
+}
+
+function questionCard(item, box, waiting) {
+  const picked = new Map(item.questions.map((q) => [q.question, new Set()]));
+  const own = new Map();
+  box.append(el("b", {}, "Codoh asks you:"));
+  for (const q of item.questions) {
+    const block = el("div", { class: "cx-q" }, el("p", {}, q.question));
+    if (!waiting) {
+      block.append(el("p", { class: "cx-state" }, (item.answers || {})[q.question] || "No answer"));
+      box.append(block);
+      continue;
+    }
+    const options = q.options.map((o) => el("button", { class: "chip", type: "button", title: o.about || "",
+      onclick: (e) => {
+        const set = picked.get(q.question);
+        if (!q.multi) { set.clear(); options.forEach((b) => b.classList.remove("on")); }
+        if (set.has(o.label)) { set.delete(o.label); e.currentTarget.classList.remove("on"); }
+        else { set.add(o.label); e.currentTarget.classList.add("on"); }
+      } }, o.label));
+    const words = el("input", { class: "code-input cx-own", placeholder: "Or your own answer…", "aria-label": `Your own answer to: ${q.question}` });
+    words.addEventListener("input", () => own.set(q.question, words.value));
+    block.append(el("div", { class: "chips" }, options), words);
+    box.append(block);
+  }
+  if (!waiting) return box;
+  const reply = (decision) => async () => {
+    const answers = {};
+    for (const q of item.questions) {
+      const words = (own.get(q.question) || "").trim();
+      answers[q.question] = [...picked.get(q.question), ...(words ? [words] : [])].join(", ");
+    }
+    if (decision === "allow" && !Object.values(answers).some(Boolean)) return toast("Pick an answer first.");
+    try {
+      const data = await api("POST", "/api/codoh/answer", { id: codoh.chatId, item: item.id, decision, answers: decision === "deny" ? {} : answers });
+      if (!data.ok) toast(data.error || "That was already answered.");
+    } catch (error) { failed(error); }
+    pollChat();
+  };
+  box.append(el("div", { class: "cx-ask-buttons" },
+    el("button", { class: "pill primary", type: "button", onclick: reply("allow") }, "Send answer"),
+    el("button", { class: "pill", type: "button", onclick: reply("deny") }, "Skip")));
+  return box;
+}
+
+async function sendCodoh(e) {
+  e.preventDefault();
+  const box = $("#codoh-text");
+  const text = box.value.trim();
+  if (!text || !codoh.chatId) return;
+  box.value = "";
+  try {
+    const data = await api("POST", "/api/codoh/send", { id: codoh.chatId, text });
+    if (!data.ok) toast(data.error || "Codoh couldn't take that.");
+    else if (data.queued) toast("Codoh gets that when it's done");
+  } catch (error) { failed(error); }
+  pollChat();
+}
+
+async function stopCodoh() {
+  try { await api("POST", "/api/codoh/stop", { id: codoh.chatId }); } catch (error) { failed(error); }
+  pollChat();
+}
+
+/* Codoh, for this phone: a chat Abdoh started for it ("open"), or what one needs ("text"). */
+function takeCodoh(event) {
+  if (event.for !== S.me) return;
+  const chip = el("button", { class: "board-chip", type: "button", onclick: () => openCodoh(event.chat) },
+    el("span", { class: "board-chip-icon", html: CODOH_ICON }),
+    el("span", { class: "board-chip-about" }, el("b", {}, "Codoh"), el("small", {}, event.text || "Working on it on the computer")),
+    el("span", { class: "board-chip-open" }, "Open"));
+  place(chip, "msg abdoh media");
+  scrollDown();
+  if (event.text) toast(`Codoh: ${event.text}`);
+  if (codoh.open && codoh.chatId === event.chat) pollChat();
+  else if (event.open && S.answered < S.asked) openCodoh(event.chat);
 }
 
 /* ---------- the board (story 150) ----------
@@ -1438,6 +1731,13 @@ function setupControls() {
   }
   $("#see-screen").addEventListener("click", seeScreen);
   $("#board-close").addEventListener("click", closeBoard);
+  $("#codoh-close").addEventListener("click", closeCodoh);
+  $("#codoh-back").addEventListener("click", showChats);
+  $("#codoh-form").addEventListener("submit", sendCodoh);
+  $("#codoh-stop").addEventListener("click", stopCodoh);
+  $("#codoh-text").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#codoh-form").requestSubmit(); }
+  });
   $("#clipboard").addEventListener("click", openClipboard);
   $("#clip-copy").addEventListener("click", copyHere);
   $("#clip-send").addEventListener("click", sendClipboard);
@@ -1460,6 +1760,7 @@ function setupMenu() {
     localStorage.setItem(SPEAK, S.speak ? "1" : "0");
   });
   $("#menu-button").addEventListener("click", () => { menu.hidden = false; });
+  $("#open-codoh").addEventListener("click", () => openCodoh());
   $("#menu-close").addEventListener("click", () => { menu.hidden = true; });
   menu.addEventListener("click", (e) => { if (e.target === menu) menu.hidden = true; });
   $("#unpair").addEventListener("click", async () => {

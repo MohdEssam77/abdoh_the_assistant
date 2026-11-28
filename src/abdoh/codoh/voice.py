@@ -105,15 +105,16 @@ def find_folder(name: str, known: list[Path], roots: list[Path]) -> Path | None:
     return best if best is not None and score >= MATCH else None
 
 
-def act(codoh, arg: str, roots: list[Path] | None = None) -> Result:
-    """Do what Claude's `ACTION codoh` line asks."""
+def act(codoh, arg: str, roots: list[Path] | None = None, by_phone: bool = False) -> Result:
+    """Do what Claude's `ACTION codoh` line asks (`by_phone`: for a request from the phone,
+    which then hears what the chat needs and when it's done)."""
     parts = [p.strip() for p in str(arg or "").split("|")]
     verb = parts[0].lower().replace(" ", "_") if parts else ""
     try:
         if verb in ("new", "create", "open"):
-            return _folder_verb(codoh, verb, parts, roots)
+            return _folder_verb(codoh, verb, parts, roots, by_phone)
         if verb == "send":
-            return _send(codoh, "|".join(parts[1:]).strip())
+            return _send(codoh, "|".join(parts[1:]).strip(), by_phone=by_phone)
         if verb == "set":
             return _set(codoh, " ".join(parts[1:]))
         if verb in ("allow", "always", "deny"):
@@ -139,7 +140,7 @@ def current(codoh) -> str:
     return chats[0]["id"] if chats else ""
 
 
-def _folder_verb(codoh, verb: str, parts: list[str], roots) -> Result:
+def _folder_verb(codoh, verb: str, parts: list[str], roots, by_phone: bool = False) -> Result:
     name = parts[1] if len(parts) > 1 else ""
     message = "|".join(parts[2:]).strip()
     known = [Path(f["path"]) for f in codoh.store.folders()]
@@ -166,17 +167,17 @@ def _folder_verb(codoh, verb: str, parts: list[str], roots) -> Result:
     codoh.viewing = chat
     log.info("Codoh: a new chat in %s by voice", folder)
     if message:
-        return _send(codoh, message, chat)
+        return _send(codoh, message, chat, by_phone)
     return Result(chat=chat, show=True)
 
 
-def _send(codoh, message: str, chat: str = "") -> Result:
+def _send(codoh, message: str, chat: str = "", by_phone: bool = False) -> Result:
     chat = chat or current(codoh)
     if not chat:
         return Result(NO_CHAT)
     if not message:
         return Result(chat=chat, show=True)
-    sent = codoh.send(chat, message, by_voice=True)
+    sent = codoh.send(chat, message, by_voice=not by_phone, by_phone=by_phone)
     if not sent.get("ok"):
         return Result(sent.get("error") or "Codoh couldn't take that.", chat=chat, show=True)
     if sent.get("queued"):
