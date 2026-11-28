@@ -301,11 +301,11 @@ function actionRows(actions, canBeEmpty = false) {
 /* The board as the page shows it (drawings drawn, pictures in) -> a PDF in
    Documents\Abdoh\Boards (Abdoh prints it with Edge, in the background). `spoken`: asked by
    voice, so Abdoh says where it went. Without Edge, the print dialog. */
-async function saveBoardPdf(spoken = false, button = null) {
+async function saveBoardPdf(spoken = false, button = null, phone = false) {
   const items = App.board || [];
   const title = App.role ? `${App.role} board` : "Board";
   // Abdoh always hears back (an empty board, or what went wrong): it says so, and logs it.
-  if (!items.length) { if (spoken) await call("board_pdf", [], title, true); return; }
+  if (!items.length) { if (spoken || phone) await call("board_pdf", [], title, spoken, phone); return; }
   let html;
   try {
     const cards = items.map((card) => {
@@ -320,14 +320,14 @@ async function saveBoardPdf(spoken = false, button = null) {
     html = cards.map((node) => new XMLSerializer().serializeToString(node));
     host.remove();
   } catch (e) {
-    await call("board_pdf_failed", String((e && e.stack) || e), spoken);
-    toast("The board couldn't be saved.", true);
+    await call("board_pdf_failed", String((e && e.stack) || e), spoken, phone);
+    if (!phone) toast("The board couldn't be saved.", true);
     return;
   }
   if (button) { button.disabled = true; button.textContent = "Saving…"; }
-  const result = await call("board_pdf", html, title, spoken);
+  const result = await call("board_pdf", html, title, spoken, phone);
   if (button) { button.disabled = false; button.textContent = "Save as PDF"; }
-  if (!result) return;
+  if (!result || phone) return; // for the phone: it gets the PDF (or hears why), nothing here
   if (result.ok) toast("Saved as a PDF in Documents → Abdoh → Boards.");
   else if (result.print) window.print();
   else toast(result.error, true);
@@ -975,7 +975,7 @@ const HANDLERS = {
   watch: setWatch,
   listening: setListening,
   board: addToBoard,
-  save_board: () => saveBoardPdf(true),
+  save_board: (asked) => (asked && asked.phone ? saveBoardPdf(false, null, true) : saveBoardPdf(true)),
   board_picture: (picture) => {
     App.boardPictures = { ...(App.boardPictures || {}), [picture.what]: picture };
     for (const figure of document.querySelectorAll(".board-picture")) {

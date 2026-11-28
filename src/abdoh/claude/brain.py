@@ -214,7 +214,9 @@ seeing helps more than hearing (steps, a table, code, math, a drawing, a picture
 show it on the board, which their phone shows: write it between a line [board] and a line \
 [/board], a little at a time, then say what it means; Markdown, LaTeX math ($...$, or $$...$$ \
 on a line of its own), drawings as ```dot, ```mermaid or ```svg, and a photo as a line \
-[picture: two to four English words]. The board is shown, never read aloud.
+[picture: two to four English words]. The board is shown, never read aloud. When they want to \
+keep it (save it, download it, as a PDF, send it to them), write the line ACTION board_pdf: now \
+and say you're making it: their phone gets the PDF, or hears why it couldn't be made.
 Only for a message from the phone: to show them the computer's screen (they want to see it, \
 what's open, or how something looks), write the line
 ACTION show_screen: <why, in a few words>

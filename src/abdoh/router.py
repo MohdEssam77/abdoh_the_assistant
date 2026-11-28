@@ -791,6 +791,8 @@ class Router:
             allowed.append(WATCH)
         if self.phone:
             allowed.append(SHOW_SCREEN)  # only the phone gets pictures of the screen
+            if BOARD_PDF not in allowed:
+                allowed.append(BOARD_PDF)  # its board, as a PDF, also without a role
             if self.cfg.claude.allow_files:
                 allowed.append(SEND_FILE)  # ... and files from where Claude may work
         if self.codoh is not None:
