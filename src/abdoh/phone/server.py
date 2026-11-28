@@ -23,6 +23,9 @@ from abdoh.phone.media import SHOWN
 log = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
+# The window's board (board.js and the libraries it draws with): the phone draws the same board.
+SHARED_DIR = Path(__file__).resolve().parents[1] / "ui" / "web"
+_PART = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 HOST = "127.0.0.1"
 MAX_JSON = 64 * 1024
 MAX_VOICE = 60 * 16000 * 2  # a minute of 16 kHz 16-bit audio
@@ -34,11 +37,15 @@ TYPES = {
     ".json": "application/json",
     ".png": "image/png",
     ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+    ".ttf": "font/ttf",
 }
 SECURITY = {
     "Content-Security-Policy": (
         "default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; "
-        "style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; "
+        "connect-src 'self'; "
         "base-uri 'none'; frame-ancestors 'none'; form-action 'none'"
     ),
     "X-Content-Type-Options": "nosniff",
@@ -95,10 +102,13 @@ def _json(body: bytes) -> dict:
 
 
 class PhoneApp:
-    def __init__(self, hub: PhoneHub, phones: Phones, web: Path = WEB_DIR):
+    def __init__(
+        self, hub: PhoneHub, phones: Phones, web: Path = WEB_DIR, shared: Path = SHARED_DIR
+    ):
         self.hub = hub
         self.phones = phones
         self.web = Path(web)
+        self.shared = Path(shared)
 
     def handle(self, method: str, path: str, headers: dict, body: bytes = b"") -> Response:
         """One request. `headers` with lowercase names."""
@@ -230,9 +240,15 @@ class PhoneApp:
         if method not in ("GET", "HEAD"):
             return error(405, "Not allowed.")
         name = "index.html" if route in ("", "/") else route.lstrip("/")
-        path = self.web / name
-        if not _NAME.fullmatch(name) or not path.is_file():
-            return Response(404, b"Not found.", "text/plain; charset=utf-8")
+        if name == "board.js" or name.startswith("vendor/"):  # the window's own (story 150)
+            parts = name.split("/")
+            path = self.shared.joinpath(*parts)
+            if not all(_PART.fullmatch(p) for p in parts) or not path.is_file():
+                return Response(404, b"Not found.", "text/plain; charset=utf-8")
+        else:
+            path = self.web / name
+            if not _NAME.fullmatch(name) or not path.is_file():
+                return Response(404, b"Not found.", "text/plain; charset=utf-8")
         kind = TYPES.get(path.suffix)
         if kind is None:
             return Response(404, b"Not found.", "text/plain; charset=utf-8")

@@ -25,6 +25,8 @@ Events for the page (each with its number, "seq"):
   {"type": "note", "text", "for"}         a line for it that isn't Abdoh's answer
   {"type": "image", "id", "caption", "for"} a picture of the screen: /media/<id>
   {"type": "file", "id", "name", "size", "kind", "for"} a file sent to it: /media/<id>
+  {"type": "board", "card": {id, text} | None} the board grew (None: cleared)
+  {"type": "board_picture", "picture"}   a picture on it was found: {what, ok, src, credit}
 
 Every event goes through one worker thread, in order: the audio of a sentence is made there,
 so a reply's sentences and the line with the whole reply arrive in the order they were said.
@@ -52,6 +54,7 @@ AUDIO_SECONDS = 600.0  # a reply's audio can be fetched for this long
 MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
 SHOWN = 30  # pictures and files kept for a page that opens later
+BOARD_CARDS = 30  # as many board cards as the window keeps
 MAX_CLIPBOARD = 100_000
 # What was said to the phone, for telling its own voice coming back from yours: the phone plays
 # a reply's sentences one after another, well after they were sent.
@@ -62,7 +65,8 @@ SAID_KEPT = 12
 OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
-     "phone_question", "phone_done", "phone_step", "phone_image", "phone_note", "phone_file"}
+     "phone_question", "phone_done", "phone_step", "phone_image", "phone_note", "phone_file",
+     "board", "board_picture"}
 )  # fmt: skip
 
 
@@ -104,6 +108,8 @@ class PhoneHub:
         self._history: deque[str] = deque(maxlen=HISTORY)
         self._lines = 0  # today's conversation lines so far: where a picture or file falls
         self._shown: deque[dict] = deque(maxlen=SHOWN)  # pictures and files sent today
+        self._board: list[dict] = []  # the board's cards: {id, text} (story 150)
+        self._pictures: dict[str, dict] = {}  # its pictures, by what they show
         self._day = today()
         self._status = ""
         self._ai: dict = {}
@@ -197,6 +203,12 @@ class PhoneHub:
                 log.warning("A picture for the phone was empty or too big")
                 return
             self._show({"type": "image", "id": key, "caption": str(value.get("caption") or "")})
+        elif kind == "board":  # {"id", "text"}: a card grew; None: the board was cleared
+            self._take_board(value)
+        elif kind == "board_picture":  # {"what", "ok", "src" (a data: URL), "credit", ...}
+            picture = self._board_picture(value if isinstance(value, dict) else {})
+            if picture:
+                self._add({"type": "board_picture", "picture": picture})
         elif kind == "phone_file":  # {"path"}: a file Claude sent (ACTION send_file), checked
             path = Path(str((value or {}).get("path") or ""))
             try:
@@ -217,6 +229,45 @@ class PhoneHub:
                 self._lines = 0
                 self._shown.clear()
             self._add({"type": "clear"})
+
+    def _take_board(self, card) -> None:
+        with self._cond:
+            if not isinstance(card, dict):
+                self._board, self._pictures = [], {}
+                card = None
+            else:
+                card = {"id": card.get("id"), "text": str(card.get("text") or "")}
+                if self._board and self._board[-1]["id"] == card["id"]:
+                    self._board[-1] = card
+                else:  # a new card: it has its place in the conversation, for everyone
+                    self._board = [*self._board, card][-BOARD_CARDS:]
+                    self._shown.append({"type": "board", "id": card["id"], "for": "",
+                                        "line": self._lines})  # fmt: skip
+        self._add({"type": "board", "card": card})
+
+    def _board_picture(self, value: dict) -> dict | None:
+        """A board picture, its data: URL swapped for a link (a few MB in every page's state
+        and event otherwise)."""
+        import base64
+        import binascii
+
+        what = str(value.get("what") or "")
+        if not what:
+            return None
+        picture = {k: value.get(k) for k in ("what", "ok", "credit", "title", "ai", "error")}
+        src = str(value.get("src") or "")
+        head, _, data = src.partition(",")
+        if head.startswith("data:image/") and head.endswith(";base64"):
+            try:
+                key = self.media.add_picture(base64.b64decode(data), head[5:-7])
+                src = f"/media/{key}"
+            except (binascii.Error, ValueError):
+                log.warning("A board picture for the phone couldn't be read")
+                src = ""
+        picture["src"] = src
+        with self._cond:
+            self._pictures[what] = picture
+        return picture
 
     def _show(self, event: dict) -> None:
         """A picture or a file for the phone that asked: sent now, and kept with where it falls
@@ -242,7 +293,13 @@ class PhoneHub:
                 "seq": self._seq,
                 "history": list(self._history),
                 "first_line": self._lines - len(self._history),  # the first one's number
-                "media": [dict(m) for m in self._shown if self.media.get(m["id"]) is not None],
+                "media": [
+                    dict(m)
+                    for m in self._shown
+                    if m["type"] == "board" or self.media.get(m["id"]) is not None
+                ],
+                "board": [dict(c) for c in self._board],
+                "pictures": dict(self._pictures),
                 "status": self._status,
                 "ai": dict(self._ai),
                 "mode": self._mode,

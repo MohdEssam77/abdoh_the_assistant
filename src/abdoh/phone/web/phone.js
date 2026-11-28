@@ -200,7 +200,11 @@ async function load() {
   $("#messages").replaceChildren();
   // Pictures and files sent to this phone, each where it fell in the conversation ("line":
   // how many lines came before it today; the first line shown is number first_line).
-  const media = (state.media || []).filter((m) => m.for === S.me);
+  const media = (state.media || []).filter((m) => m.for === S.me || m.type === "board");
+  board.cards = state.board || [];
+  board.seen = new Set(board.cards.map((c) => c.id));
+  App.boardPictures = state.pictures || {};
+  if (board.typist && board.cards.length) board.typist.set(board.cards[board.cards.length - 1], false);
   const first = state.first_line || 0;
   let next = 0;
   (state.history || []).forEach((line, i) => {
@@ -268,6 +272,8 @@ function take(event) {
     case "note": if (event.for === S.me) { note(event.text || ""); scrollDown(); } break;
     case "image":
     case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); } break;
+    case "board": takeBoard(event.card || null); break;
+    case "board_picture": takePicture(event.picture || {}); break;
     default: break;
   }
 }
@@ -282,6 +288,7 @@ function mediaSrc(event) {
 
 function addMedia(event) {
   if (event.type === "file") return place(fileCard(event), "msg abdoh media");
+  if (event.type === "board") return boardChip(event.id);
   const src = mediaSrc(event);
   const figure = el("figure", { class: "shot", onclick: () => openViewer(src, event.caption || "") });
   const img = el("img", { src, alt: event.caption || "The computer's screen", loading: "lazy" });
@@ -326,6 +333,117 @@ function openViewer(src, caption) {
 function closeViewer() {
   $("#viewer").hidden = true;
   $("#viewer-img").removeAttribute("src");
+}
+
+/* ---------- the board (story 150) ----------
+   The window's own board.js draws it (code, math, tables, drawings, pictures), loaded with
+   KaTeX the first time it's needed; the newest card is written out the way a teacher writes. */
+
+window.App = { boardPictures: {} }; // board.js finds the board's pictures here
+const board = { cards: [], seen: new Set(), typist: null, ready: null, open: false };
+const BOARD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M7 21l3-4M17 21l-3-4M7 9h6M7 12h9"/></svg>';
+
+function loadBoard() {
+  board.ready = board.ready || (async () => {
+    document.head.append(el("link", { rel: "stylesheet", href: "vendor/katex/katex.min.css" }));
+    await loadScript("vendor/katex/katex.min.js");
+    await loadScript("vendor/katex/contrib/mhchem.min.js");
+    await loadScript("board.js");
+    if (typeof Board === "undefined") throw new Error("The board couldn't load."); // a const, not on window
+    board.typist = new Board.Typist((text) => {
+      const list = $("#board");
+      if (!board.open || !list.lastElementChild || !list.lastElementChild.classList.contains("board-item")) return;
+      list.lastElementChild.replaceWith(Board.render(text));
+      follow();
+    });
+    const last = board.cards[board.cards.length - 1];
+    if (last) board.typist.set(last, false); // what was there before: whole
+  })();
+  return board.ready;
+}
+
+/* A card grew (or the board was cleared: null). */
+function takeBoard(card) {
+  if (!card) {
+    board.cards = [];
+    App.boardPictures = {};
+    if (board.typist) board.typist.set(null);
+    return renderBoard();
+  }
+  const last = board.cards[board.cards.length - 1];
+  if (last && last.id === card.id) board.cards[board.cards.length - 1] = card;
+  else board.cards = [...board.cards, card].slice(-30);
+  const fresh = !board.seen.has(card.id);
+  board.seen.add(card.id);
+  if (fresh) {
+    boardChip(card.id);
+    scrollDown();
+    if (S.answered < S.asked) openBoard(); // the answer to this phone is on it: show it
+  }
+  loadBoard().then(() => {
+    board.typist.set(card);
+    renderBoard();
+  }).catch(() => renderBoard());
+}
+
+function takePicture(picture) {
+  if (!picture.what) return;
+  App.boardPictures = { ...App.boardPictures, [picture.what]: picture };
+  for (const figure of document.querySelectorAll(".board-picture")) {
+    if (figure.dataset.what === picture.what && figure.fill) figure.fill(picture);
+  }
+}
+
+/* In the conversation: "On the board", with its first line, opens it. */
+function boardChip(id) {
+  const card = board.cards.find((c) => c.id === id);
+  if (!card) return null;
+  const title = el("small", {}, boardTitle(card.text));
+  const chip = el("button", { class: "board-chip", type: "button", onclick: openBoard },
+    el("span", { class: "board-chip-icon", html: BOARD_ICON }), el("span", { class: "board-chip-about" }, el("b", {}, "On the board"), title),
+    el("span", { class: "board-chip-open" }, "Open"));
+  chip.dataset.card = id;
+  return place(chip, "msg abdoh media");
+}
+
+function boardTitle(text) {
+  const line = String(text || "").split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("```")) || "";
+  const plain = line.replace(/^#+\s*|^[-*•]\s+|^\d+[.)]\s+|[*`$|]/g, "").trim();
+  return plain.length > 60 ? `${plain.slice(0, 59)}…` : plain || "A drawing";
+}
+
+async function openBoard() {
+  board.open = true;
+  $("#board-view").hidden = false;
+  renderBoard();
+  try {
+    await loadBoard();
+  } catch (error) { /* said on the board */ }
+  renderBoard();
+}
+
+function closeBoard() {
+  board.open = false;
+  $("#board-view").hidden = true;
+}
+
+function renderBoard() {
+  if (!board.open) return;
+  const list = $("#board");
+  const ready = typeof Board !== "undefined" && board.typist;
+  $("#board-note").textContent = board.cards.length ? `${board.cards.length} card${board.cards.length === 1 ? "" : "s"}` : "";
+  if (!ready) {
+    list.replaceChildren(el("p", { class: "board-empty" }, board.ready ? "Getting the board ready…" : "The board couldn't load."));
+    return;
+  }
+  list.replaceChildren(...(board.cards.length ? board.cards.map((card) => Board.render(board.typist.shown(card)))
+    : [el("p", { class: "board-empty" }, "Nothing on the board yet. Ask Abdoh to explain something on the board.")]));
+  follow();
+}
+
+function follow() {
+  const list = $("#board");
+  requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
 }
 
 /* ---------- a photo or a file for the computer (story 149) ----------
@@ -1319,6 +1437,7 @@ function setupControls() {
     });
   }
   $("#see-screen").addEventListener("click", seeScreen);
+  $("#board-close").addEventListener("click", closeBoard);
   $("#clipboard").addEventListener("click", openClipboard);
   $("#clip-copy").addEventListener("click", copyHere);
   $("#clip-send").addEventListener("click", sendClipboard);

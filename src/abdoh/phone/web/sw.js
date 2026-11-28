@@ -3,7 +3,7 @@
    error page. Always asks the computer first, so a new Abdoh's page is used right away. */
 "use strict";
 
-const CACHE = "abdoh-phone-1";
+const CACHE = "abdoh-phone-2";
 const PAGE = ["./", "index.html", "phone.css", "phone.js", "manifest.webmanifest", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -18,7 +18,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== "GET" || url.origin !== location.origin || url.pathname.startsWith("/api/")) return;
+  if (event.request.method !== "GET" || url.origin !== location.origin) return;
+  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/media/")) return; // never kept
   event.respondWith(fetch(event.request)
     .then((response) => {
       if (response.ok) {
