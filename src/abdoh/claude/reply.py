@@ -95,6 +95,8 @@ SELF_EDIT_ACTIONS = (SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE)
 SAVE_STEPS = "save_steps"
 # Only for requests from the phone (ABDOH_EPIC_11.md): a picture of the screen goes to it.
 SHOW_SCREEN = "show_screen"
+# ... and a file from the computer goes to it (abdoh/phone/files.py checks it).
+SEND_FILE = "send_file"
 
 _ACTION = re.compile(r"^ACTION\s+([A-Za-z_]+)\s*:\s*(.+)$")
 # What a role shows instead of saying (code, equations, steps): between these, never spoken.

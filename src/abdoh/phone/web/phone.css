@@ -425,3 +425,27 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
   font-size: 14px; font-weight: 600; text-decoration: none; color: var(--text); background: var(--panel-2); border: 1px solid var(--border);
 }
 .file-button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+/* ----- a photo or a file for the computer, and the clipboard (story 149) ----- */
+.round.attach { background: transparent; color: var(--muted); width: 38px; margin-right: -4px; }
+.round.attach:active { background: var(--panel-2); }
+.attached {
+  display: flex; align-items: center; gap: 10px; margin: 0 2px 8px; padding: 7px 4px 7px 8px; border-radius: 14px;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.attached.failed { border-color: var(--danger); }
+.attached.failed small { color: var(--danger); }
+.file-icon.small { width: 30px; height: 34px; border-radius: 6px; font-size: 8.5px; padding-bottom: 4px; background: var(--accent); }
+.attached-about { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.attached-about b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attached-about small { font-size: 12.5px; color: var(--muted); }
+.sent-file { display: block; font-size: 13.5px; font-weight: 600; opacity: 0.92; margin-bottom: 2px; overflow-wrap: anywhere; }
+.bubble .sent-file + .text:empty { display: none; }
+.clip-text {
+  width: 100%; resize: vertical; min-height: 120px; max-height: 40vh; padding: 10px 12px; border-radius: 12px;
+  border: 1px solid var(--border-strong); background: var(--bg); color: var(--text); font: inherit; font-size: 15px; outline: none;
+}
+.clip-text:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.clip-buttons { display: flex; gap: 10px; }
+.clip-buttons .sheet-button { flex: 1; }
+.sheet-button.primary { background: var(--accent); color: var(--on-accent); }

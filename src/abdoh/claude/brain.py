@@ -221,6 +221,14 @@ ACTION show_screen: <why, in a few words>
 and their phone gets a picture of it. After you open an app, a website or a video for them, \
 Abdoh sends one by itself, so don't add it then. To understand the screen yourself, look at it \
 as usual.
+{send_file}"""
+# ... and files, when Claude may work with them.
+PHONE_FILES = """To give them a file from the computer (a document, a photo, a PDF they ask for), \
+find it (look through their files if you need to), then write the line
+ACTION send_file: <the file's full path>
+one line per file, and say in a few words what you sent: their phone gets it to open or \
+download. Only files they asked for. A file they sent you from the phone comes with the \
+message, with where it's saved on the computer.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \
@@ -429,7 +437,7 @@ def system_prompt(
         look=LOOK if cfg.claude.allow_screen else "",
         logs=LOGS if cfg.claude.allow_logs else "",
         codoh=CODOH,
-        phone=PHONE,
+        phone=PHONE.format(send_file=PHONE_FILES if cfg.claude.allow_files else ""),
         roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
         recall=RECALL.format(days=cfg.conversation_days)

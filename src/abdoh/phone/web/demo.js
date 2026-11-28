@@ -95,7 +95,12 @@
         if (!events.some((e) => e.seq > after)) await new Promise((r) => { waiting = r; setTimeout(r, 25000); });
         return { boot: "demo", seq, events: events.filter((e) => e.seq > after) };
       }
-      if (path === "/api/text") { answer(body.text); return { ok: true, text: body.text }; }
+      if (path === "/api/text") {
+        const text = (body.files || []).length ? `${body.text} [sent homework.jpg]`.trim() : body.text;
+        answer(text);
+        return { ok: true, text };
+      }
+      if (path === "/api/clipboard") return { ok: true, text: method === "GET" ? "Meeting moved to 3 pm, room 2.14" : "" };
       if (path.includes("over=1")) { // talked over the answer on a call: something new
         const heard = "actually, make it vegetarian";
         setTimeout(() => answer(heard), 700);
