@@ -25,7 +25,7 @@ the user speaks to you. The user's words reach you through speech recognition, s
 wrong, go by what they most likely meant; ask only when you really can't tell.
 
 {actions}
-{look}{logs}{codoh}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}\
+{look}{logs}{codoh}{phone}{roles}{memory}{recall}{save_steps}{self_edit}{files}{web}{tools}\
 If you need more information, ask one short question. Don't end with a question otherwise.
 {clock}{about}{instructions}"""
 
@@ -205,6 +205,32 @@ guess and don't ask to look at the screen: write only the line
 ACTION codoh_state: <what they want to know>
 Abdoh then sends you Codoh's recent chats (what each is doing or waiting for, its to-do list, \
 the latest of the conversation, git's changes), and you answer.
+"""
+# The user's phone (abdoh/phone, ABDOH_EPIC_11.md 2.1): what's different for its requests.
+PHONE = """The user can also talk to you from their phone, wherever they are. A message that \
+starts with (From the phone) comes from there: they read and hear your answer on the phone, \
+they can't see the computer's screen, and what you do still happens on the computer. When \
+seeing helps more than hearing (steps, a table, code, math, a drawing, a picture of something), \
+show it on the board, which their phone shows: write it between a line [board] and a line \
+[/board], a little at a time, then say what it means; Markdown, LaTeX math ($...$, or $$...$$ \
+on a line of its own), drawings as ```dot, ```mermaid or ```svg, and a photo as a line \
+[picture: two to four English words]. The board is shown, never read aloud. When they want to \
+keep it (save it, download it, as a PDF, send it to them), write the line ACTION board_pdf: now \
+and say you're making it: their phone gets the PDF, or hears why it couldn't be made.
+Only for a message from the phone: to show them the computer's screen (they want to see it, \
+what's open, or how something looks), write the line
+ACTION show_screen: <why, in a few words>
+and their phone gets a picture of it. After you open an app, a website or a video for them, \
+Abdoh sends one by itself, so don't add it then. To understand the screen yourself, look at it \
+as usual.
+{send_file}"""
+# ... and files, when Claude may work with them.
+PHONE_FILES = """To give them a file from the computer (a document, a photo, a PDF they ask for), \
+find it (look through their files if you need to), then write the line
+ACTION send_file: <the file's full path>
+one line per file, and say in a few words what you sent: their phone gets it to open or \
+download. Only files they asked for. A file they sent you from the phone comes with the \
+message, with where it's saved on the computer.
 """
 # Claude reads Abdoh's own log when asked what happened (abdoh/logs.py).
 LOGS = """You can read your own log, Abdoh's record of what it heard, did and why. When the user \
@@ -413,6 +439,7 @@ def system_prompt(
         look=LOOK if cfg.claude.allow_screen else "",
         logs=LOGS if cfg.claude.allow_logs else "",
         codoh=CODOH,
+        phone=PHONE.format(send_file=PHONE_FILES if cfg.claude.allow_files else ""),
         roles=ROLES.format(names=_role_names(cfg), lamps=_role_lamps(cfg)),
         memory=_memory(cfg),
         recall=RECALL.format(days=cfg.conversation_days)
@@ -477,6 +504,8 @@ class Brain(ABC):
     remembers = False
     # Called with a few words when Claude starts something slow ("Searching the web").
     on_activity = None
+    # Called with each step's details ("Searching the web: weather in Berlin"; the phone).
+    on_step = None
     # How Abdoh is right now ("mode on: Work; voice replies on"), sent with every message.
     state = None
 

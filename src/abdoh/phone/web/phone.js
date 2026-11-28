@@ -19,7 +19,9 @@ const S = {
   live: null, // the bubble a reply to this phone is growing in, sentence by sentence
   final: true, // the reply to the last request is shown in full
   pending: [], // what this phone sent, until the computer shows it: [{node, text}]
+  attached: null, // a file for the next message: {name, size, id (once on the computer), progress, failed, xhr}
   speak: localStorage.getItem(SPEAK) !== "0",
+  steps: null, // the steps of the request being answered: {node, box, title, list, count, done}
   asked: 0, answered: 0, // this phone's requests that reached the computer, and those answered
   cut: 0, // replies to the requests up to this one aren't said (stopped, or the call ended)
 };
@@ -65,6 +67,7 @@ async function api(method, path, body, { timeout = 20000 } = {}) {
   if (!response.ok) {
     const error = new Error(data.error || `Your computer answered ${response.status}.`);
     error.shown = true; // a message for people
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -193,9 +196,25 @@ async function load() {
   S.live = null;
   S.final = true;
   S.pending = [];
+  S.steps = null;
   S.answered = S.asked; // what was being answered is over (or Abdoh restarted)
   $("#messages").replaceChildren();
-  for (const line of state.history || []) addLine(line);
+  // Pictures and files sent to this phone, each where it fell in the conversation ("line":
+  // how many lines came before it today; the first line shown is number first_line).
+  const media = (state.media || []).filter((m) => m.for === S.me || m.type === "board");
+  board.cards = state.board || [];
+  board.seen = new Set(board.cards.map((c) => c.id));
+  App.boardPictures = state.pictures || {};
+  if (board.typist && board.cards.length) board.typist.set(board.cards[board.cards.length - 1], false);
+  const first = state.first_line || 0;
+  let next = 0;
+  (state.history || []).forEach((line, i) => {
+    for (; next < media.length && media[next].line <= first + i; next += 1) {
+      if (media[next].line >= first) addMedia(media[next]);
+    }
+    addLine(line);
+  });
+  media.slice(next).forEach((m) => addMedia(m));
   setAi(state.ai || {});
   setMode(state.mode || "");
   S.status = state.status || "";
@@ -241,7 +260,7 @@ function rest(ms) {
 function take(event) {
   switch (event.type) {
     case "history": addLine(event.line, true); break;
-    case "clear": $("#messages").replaceChildren(); S.live = null; updateEmpty(); break;
+    case "clear": $("#messages").replaceChildren(); S.live = null; S.steps = null; updateEmpty(); break;
     case "status": S.status = event.text || ""; S.activity = ""; render(); break;
     case "activity":
     case "aside": S.activity = event.text || ""; render(); break;
@@ -249,9 +268,650 @@ function take(event) {
     case "mode": setMode(event.name || ""); break;
     case "say": addSaid(event); break;
     case "question": askQuestion(event.text || ""); break;
-    case "done": if (event.for === S.me) { S.answered += 1; turnOver(); } break;
+    case "done": if (event.for === S.me) { S.answered += 1; stepsDone(); turnOver(); } break;
+    case "step": if (event.for === S.me) addStep(event.text || ""); break;
+    case "note": if (event.for === S.me) { note(event.text || ""); scrollDown(); if (board.pdf && /PDF/.test(event.text || "")) board.pdf = false; } break;
+    case "image":
+    case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); boardPdfCame(event); } break;
+    case "board": takeBoard(event.card || null); break;
+    case "codoh": takeCodoh(event); break;
+    case "board_picture": takePicture(event.picture || {}); break;
     default: break;
   }
+}
+
+/* ---------- pictures and files from the computer (stories 148, 149) ----------
+   Behind secret links (/media/<id>, an hour): an <img> and the phone's own viewer can't send
+   the phone's key. */
+
+function mediaSrc(event) {
+  return event.src || `/media/${event.id}`; // the demo draws its own
+}
+
+function addMedia(event) {
+  if (event.type === "file") return place(fileCard(event), "msg abdoh media");
+  if (event.type === "board") return boardChip(event.id);
+  const src = mediaSrc(event);
+  const figure = el("figure", { class: "shot", onclick: () => openViewer(src, event.caption || "") });
+  const img = el("img", { src, alt: event.caption || "The computer's screen", loading: "lazy" });
+  img.addEventListener("error", () => figure.replaceChildren(el("span", { class: "gone" }, "This picture has expired.")));
+  img.addEventListener("load", () => scrollDown()); // its height is known now
+  figure.append(img);
+  if (event.caption) figure.append(el("figcaption", {}, event.caption));
+  return place(figure, "msg abdoh media");
+}
+
+/* A file card: its name, size and kind; Open (the phone's own viewer) and Download. */
+function fileCard(event) {
+  const src = mediaSrc(event);
+  return el("div", { class: "file" },
+    el("span", { class: `file-icon ${event.kind || "file"}`, "aria-hidden": "true" }, fileLabel(event)),
+    el("div", { class: "file-main" },
+      el("span", { class: "file-about" }, el("b", {}, event.name || "A file"), el("small", {}, size(event.size))),
+      el("div", { class: "file-buttons" },
+        el("a", { class: "file-button", href: src, target: "_blank", rel: "noopener" }, "Open"),
+        el("a", { class: "file-button primary", href: `${src}${src.includes("?") ? "&" : "?"}download=1`, download: event.name || "", target: "_blank", rel: "noopener" }, "Download"))));
+}
+
+function fileLabel(event) {
+  const dot = String(event.name || "").lastIndexOf(".");
+  return dot > 0 ? String(event.name).slice(dot + 1, dot + 5).toUpperCase() : "FILE";
+}
+
+function size(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} bytes`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  if (n < 1024 ** 3) return `${(n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0)} MB`;
+  return `${(n / 1024 ** 3).toFixed(1)} GB`;
+}
+
+function openViewer(src, caption) {
+  $("#viewer-img").src = src;
+  $("#viewer-caption").textContent = caption;
+  $("#viewer-open").href = src;
+  $("#viewer-open").hidden = src.startsWith("data:");
+  $("#viewer").hidden = false;
+}
+
+function closeViewer() {
+  $("#viewer").hidden = true;
+  $("#viewer-img").removeAttribute("src");
+}
+
+/* ---------- Codoh, the coding page, from the phone (story 151) ----------
+   The same chats as the window's Codoh page: a chat's messages, tool cards and questions live
+   (asked again every 0.8 s while it works), instructions for it (queued while it works),
+   Stop, Allow / Always / Deny, answers to its questions, and a new chat in one of its folders. */
+
+const codoh = { open: false, chatId: "", rev: 0, nodes: new Map(), timer: null, running: false, folders: [], asking: 0 };
+const CODOH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>';
+const DID = { read: "Read", search: "Searched", list: "Looked in", edit: "Edited", write: "Wrote", command: "Ran",
+  web: "Looked up", task: "Worked on", todo: "Planned", other: "Used" };
+const DOING_NOW = { read: "Reading", search: "Searching", list: "Looking in", edit: "Editing", write: "Writing",
+  command: "Running", web: "Looking up", task: "Working on", todo: "Planning", other: "Using" };
+const ASKS = { edit: "change", write: "write", command: "run", web: "look up", read: "read", other: "use" };
+
+function openCodoh(chat = "") {
+  $("#menu").hidden = true;
+  codoh.open = true;
+  $("#codoh-view").hidden = false;
+  if (chat) showChat(chat);
+  else showChats();
+}
+
+function closeCodoh() {
+  codoh.open = false;
+  clearTimeout(codoh.timer);
+  $("#codoh-view").hidden = true;
+}
+
+function codohSay(text) {
+  $("#codoh-body").replaceChildren(el("p", { class: "board-empty" }, text));
+}
+
+async function showChats() {
+  clearTimeout(codoh.timer);
+  codoh.chatId = "";
+  const asking = ++codoh.asking;
+  $("#codoh-title").textContent = "Codoh";
+  $("#codoh-status").textContent = "Your coding chats on the computer";
+  $("#codoh-back").hidden = true;
+  $("#codoh-composer").hidden = true;
+  if (!$("#codoh-body").children.length) codohSay("…");
+  let data;
+  try {
+    data = await api("GET", "/api/codoh");
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+    return codohSay(error.shown ? error.message : "Can't reach your computer right now.");
+  }
+  if (!codoh.open || codoh.chatId || asking !== codoh.asking) return;
+  codoh.folders = data.folders || [];
+  $("#codoh-body").replaceChildren(...[
+    data.limited ? el("p", { class: "cx-note" }, `Claude's limit is used up ${data.limited}.`) : null,
+    el("button", { class: "codoh-new", type: "button", onclick: newChat }, "+ New chat"),
+    ...((data.chats || []).length ? data.chats.map(chatRow) : [el("p", { class: "board-empty" }, "No chats yet: start one in a folder Codoh knows.")]),
+  ].filter(Boolean));
+  if ((data.chats || []).some((c) => c.running)) codoh.timer = setTimeout(() => { if (codoh.open && !codoh.chatId) showChats(); }, 4000);
+}
+
+function chatRow(chat) {
+  const engine = chat.engine === "chatgpt" ? "ChatGPT" : "Claude";
+  return el("button", { class: "codoh-chat", type: "button", onclick: () => showChat(chat.id) },
+    el("i", { class: `codoh-dot${chat.running ? " on" : ""}` }),
+    el("span", {}, el("b", {}, chat.title || "New chat"),
+      el("small", {}, [chat.where, chat.model ? `${engine} ${chat.model}` : engine, ago(chat.updated)].filter(Boolean).join(" · "))));
+}
+
+function ago(seconds) {
+  const s = Math.max(0, Date.now() / 1000 - (Number(seconds) || 0));
+  if (s < 90) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)} min ago`;
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`;
+  return `${Math.round(s / 86400)} d ago`;
+}
+
+/* A new chat: one of Codoh's folders, and what it should do. */
+function newChat() {
+  clearTimeout(codoh.timer);
+  codoh.asking += 1; // a list refresh on its way doesn't replace the form
+  $("#codoh-title").textContent = "New chat";
+  $("#codoh-status").textContent = "In which folder?";
+  $("#codoh-back").hidden = false;
+  if (!codoh.folders.length) return codohSay("Codoh doesn't know any folders yet: open one on its page on the computer, or ask Abdoh (“open my portfolio folder in Codoh”).");
+  let picked = codoh.folders[0].path;
+  const chips = codoh.folders.map((f) => el("button", { class: `chip${f.path === picked ? " on" : ""}`, type: "button", title: f.path,
+    onclick: (e) => { picked = f.path; chips.forEach((c) => c.classList.remove("on")); e.currentTarget.classList.add("on"); } }, f.name || f.path));
+  const words = el("textarea", { class: "clip-text", rows: 4, placeholder: "What should Codoh do?", "aria-label": "What should Codoh do?" });
+  const start = el("button", { class: "sheet-button primary", type: "button" }, "Start");
+  start.addEventListener("click", async () => {
+    start.disabled = true;
+    try {
+      const data = await api("POST", "/api/codoh/new", { folder: picked, text: words.value });
+      if (data.ok) return showChat(data.chat);
+      toast(data.error || "Codoh couldn't start that chat.");
+    } catch (error) {
+      failed(error);
+    }
+    start.disabled = false;
+  });
+  $("#codoh-body").replaceChildren(el("div", { class: "codoh-form" }, el("div", { class: "chips" }, chips), words, start));
+}
+
+async function showChat(id) {
+  clearTimeout(codoh.timer);
+  Object.assign(codoh, { chatId: id, rev: 0, nodes: new Map(), running: false });
+  $("#codoh-back").hidden = false;
+  $("#codoh-composer").hidden = false;
+  $("#codoh-status").textContent = "";
+  codohSay("…");
+  await pollChat();
+}
+
+async function pollChat() {
+  clearTimeout(codoh.timer);
+  const id = codoh.chatId;
+  if (!codoh.open || !id) return;
+  const asking = ++codoh.asking; // only the newest ask goes on (one loop, never two)
+  let data;
+  try {
+    data = await api("GET", `/api/codoh/chat?id=${encodeURIComponent(id)}&since=${codoh.rev}`);
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+    if (asking === codoh.asking) codoh.timer = setTimeout(pollChat, 4000);
+    return;
+  }
+  if (asking !== codoh.asking || id !== codoh.chatId || !codoh.open) return;
+  if (!data.ok) return codohSay(data.error || "That chat is gone.");
+  const body = $("#codoh-body");
+  const near = body.scrollHeight - body.scrollTop - body.clientHeight < 200 || codoh.rev === 0;
+  if (codoh.rev === 0) body.replaceChildren();
+  for (const item of data.items || []) putItem(item);
+  codoh.rev = data.rev;
+  codoh.running = !!data.running;
+  $("#codoh-title").textContent = (data.chat || {}).title || "New chat";
+  $("#codoh-status").textContent = data.running ? `${data.status || "Working"} · ${Math.round(data.seconds || 0)} s` : "Ready";
+  $("#codoh-stop").hidden = !data.running;
+  const queued = data.queued || [];
+  $("#codoh-queued").hidden = !queued.length;
+  $("#codoh-queued").textContent = queued.length ? `Next: ${queued.join(" · ")}` : "";
+  if (near && (data.items || []).length) requestAnimationFrame(() => { body.scrollTop = body.scrollHeight; });
+  codoh.timer = setTimeout(pollChat, data.running ? 800 : 3000);
+}
+
+function putItem(item) {
+  const node = codohItem(item);
+  const old = codoh.nodes.get(item.id);
+  if (old) {
+    if (old.open) node.open = true; // a card you opened stays open
+    old.replaceWith(node);
+  } else $("#codoh-body").append(node);
+  codoh.nodes.set(item.id, node);
+}
+
+function codohItem(item) {
+  switch (item.kind) {
+    case "user": return el("div", { class: "msg you" }, el("div", { class: "bubble" }, el("span", { class: "text" }, item.text || "")));
+    case "assistant": return el("div", { class: "cx-answer" }, codeText(item.text || ""));
+    case "tool": return toolCard(item);
+    case "approval": return askCard(item);
+    case "error": return el("p", { class: "cx-error" }, item.text || "Something went wrong.");
+    case "done": return el("p", { class: "cx-note" }, `Done in ${Math.round(item.seconds || 0)} s`);
+    default: return el("p", { class: "cx-note" }, item.text || "");
+  }
+}
+
+/* An answer: its words, and its code blocks as code. */
+function codeText(text) {
+  return text.split(/(```[^\n]*\n[\s\S]*?(?:```|$))/).filter(Boolean).map((part) => {
+    const code = /^```[^\n]*\n([\s\S]*?)(?:```)?$/.exec(part);
+    return code ? el("pre", { class: "cx-code" }, code[1]) : el("p", {}, part.trim());
+  });
+}
+
+function diffView(diff) {
+  return el("pre", { class: "cx-diff" }, diff.split("\n").map((line) => el("span", {
+    class: line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : line.startsWith("@@") ? "hunk" : "",
+  }, `${line}\n`)));
+}
+
+function toolCard(item) {
+  const kind = item.kind_of || "other";
+  const busy = !item.status || item.status === "waiting";
+  const badge = item.status === "failed" ? "Failed" : item.status === "stopped" ? "Stopped" : busy ? "…" : "";
+  const card = el("details", { class: `cx-tool ${item.status || "running"}` },
+    el("summary", {}, el("span", { class: "cx-verb" }, busy ? DOING_NOW[kind] || "Using" : DID[kind] || "Used"),
+      el("code", {}, item.title || ""), item.detail ? el("small", {}, item.detail) : null,
+      badge ? el("em", {}, badge) : null));
+  if (item.diff) card.append(diffView(item.diff));
+  if (item.output) card.append(el("pre", { class: "cx-code" }, item.output));
+  if (!item.diff && !item.output) card.append(el("p", { class: "cx-note" }, busy ? "Working on it…" : "Nothing more to show."));
+  return card;
+}
+
+/* Codoh asks first (to run, change or write something), or asks the user a question. */
+function askCard(item) {
+  const waiting = item.state === "waiting";
+  const box = el("div", { class: `cx-ask${waiting ? " waiting" : ""}` });
+  if ((item.questions || []).length) return questionCard(item, box, waiting);
+  box.append(el("b", {}, `Codoh asks to ${ASKS[item.kind_of] || "use"}:`), el("code", { class: "cx-ask-what" }, item.title || item.tool || ""));
+  if (item.description) box.append(el("p", {}, item.description));
+  if (item.diff) box.append(diffView(item.diff));
+  else if (item.detail) box.append(el("p", { class: "cx-note" }, item.detail));
+  if (!waiting) {
+    box.append(el("p", { class: "cx-state" }, { allowed: "Allowed", always: "Allowed for this chat", denied: "Said no", expired: "Not needed any more" }[item.state] || item.state));
+    return box;
+  }
+  const answer = (decision) => async (e) => {
+    box.querySelectorAll("button").forEach((b) => { b.disabled = true; });
+    try {
+      const data = await api("POST", "/api/codoh/answer", { id: codoh.chatId, item: item.id, decision });
+      if (!data.ok) toast(data.error || "That was already answered.");
+    } catch (error) { failed(error); }
+    pollChat();
+  };
+  box.append(el("div", { class: "cx-ask-buttons" },
+    el("button", { class: "pill primary", type: "button", onclick: answer("allow") }, "Allow"),
+    item.suggestions ? el("button", { class: "pill", type: "button", onclick: answer("always") }, "Always") : null,
+    el("button", { class: "pill", type: "button", onclick: answer("deny") }, "Deny")));
+  return box;
+}
+
+function questionCard(item, box, waiting) {
+  const picked = new Map(item.questions.map((q) => [q.question, new Set()]));
+  const own = new Map();
+  box.append(el("b", {}, "Codoh asks you:"));
+  for (const q of item.questions) {
+    const block = el("div", { class: "cx-q" }, el("p", {}, q.question));
+    if (!waiting) {
+      block.append(el("p", { class: "cx-state" }, (item.answers || {})[q.question] || "No answer"));
+      box.append(block);
+      continue;
+    }
+    const options = q.options.map((o) => el("button", { class: "chip", type: "button", title: o.about || "",
+      onclick: (e) => {
+        const set = picked.get(q.question);
+        if (!q.multi) { set.clear(); options.forEach((b) => b.classList.remove("on")); }
+        if (set.has(o.label)) { set.delete(o.label); e.currentTarget.classList.remove("on"); }
+        else { set.add(o.label); e.currentTarget.classList.add("on"); }
+      } }, o.label));
+    const words = el("input", { class: "code-input cx-own", placeholder: "Or your own answer…", "aria-label": `Your own answer to: ${q.question}` });
+    words.addEventListener("input", () => own.set(q.question, words.value));
+    block.append(el("div", { class: "chips" }, options), words);
+    box.append(block);
+  }
+  if (!waiting) return box;
+  const reply = (decision) => async () => {
+    const answers = {};
+    for (const q of item.questions) {
+      const words = (own.get(q.question) || "").trim();
+      answers[q.question] = [...picked.get(q.question), ...(words ? [words] : [])].join(", ");
+    }
+    if (decision === "allow" && !Object.values(answers).some(Boolean)) return toast("Pick an answer first.");
+    try {
+      const data = await api("POST", "/api/codoh/answer", { id: codoh.chatId, item: item.id, decision, answers: decision === "deny" ? {} : answers });
+      if (!data.ok) toast(data.error || "That was already answered.");
+    } catch (error) { failed(error); }
+    pollChat();
+  };
+  box.append(el("div", { class: "cx-ask-buttons" },
+    el("button", { class: "pill primary", type: "button", onclick: reply("allow") }, "Send answer"),
+    el("button", { class: "pill", type: "button", onclick: reply("deny") }, "Skip")));
+  return box;
+}
+
+async function sendCodoh(e) {
+  e.preventDefault();
+  const box = $("#codoh-text");
+  const text = box.value.trim();
+  if (!text || !codoh.chatId) return;
+  box.value = "";
+  try {
+    const data = await api("POST", "/api/codoh/send", { id: codoh.chatId, text });
+    if (!data.ok) toast(data.error || "Codoh couldn't take that.");
+    else if (data.queued) toast("Codoh gets that when it's done");
+  } catch (error) { failed(error); }
+  pollChat();
+}
+
+async function stopCodoh() {
+  try { await api("POST", "/api/codoh/stop", { id: codoh.chatId }); } catch (error) { failed(error); }
+  pollChat();
+}
+
+/* Codoh, for this phone: a chat Abdoh started for it ("open"), or what one needs ("text"). */
+function takeCodoh(event) {
+  if (event.for !== S.me) return;
+  const chip = el("button", { class: "board-chip", type: "button", onclick: () => openCodoh(event.chat) },
+    el("span", { class: "board-chip-icon", html: CODOH_ICON }),
+    el("span", { class: "board-chip-about" }, el("b", {}, "Codoh"), el("small", {}, event.text || "Working on it on the computer")),
+    el("span", { class: "board-chip-open" }, "Open"));
+  place(chip, "msg abdoh media");
+  scrollDown();
+  if (event.text) toast(`Codoh: ${event.text}`);
+  if (codoh.open && codoh.chatId === event.chat) pollChat();
+  else if (event.open && S.answered < S.asked) openCodoh(event.chat);
+}
+
+/* ---------- the board (story 150) ----------
+   The window's own board.js draws it (code, math, tables, drawings, pictures), loaded with
+   KaTeX the first time it's needed; the newest card is written out the way a teacher writes. */
+
+window.App = { boardPictures: {} }; // board.js finds the board's pictures here
+const board = { cards: [], seen: new Set(), typist: null, ready: null, open: false, pdf: false };
+const BOARD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M7 21l3-4M17 21l-3-4M7 9h6M7 12h9"/></svg>';
+
+function loadBoard() {
+  board.ready = board.ready || (async () => {
+    document.head.append(el("link", { rel: "stylesheet", href: "vendor/katex/katex.min.css" }));
+    await loadScript("vendor/katex/katex.min.js");
+    await loadScript("vendor/katex/contrib/mhchem.min.js");
+    await loadScript("board.js");
+    if (typeof Board === "undefined") throw new Error("The board couldn't load."); // a const, not on window
+    board.typist = new Board.Typist((text) => {
+      const list = $("#board");
+      if (!board.open || !list.lastElementChild || !list.lastElementChild.classList.contains("board-item")) return;
+      list.lastElementChild.replaceWith(Board.render(text));
+      follow();
+    });
+    const last = board.cards[board.cards.length - 1];
+    if (last) board.typist.set(last, false); // what was there before: whole
+  })();
+  return board.ready;
+}
+
+/* A card grew (or the board was cleared: null). */
+function takeBoard(card) {
+  if (!card) {
+    board.cards = [];
+    App.boardPictures = {};
+    if (board.typist) board.typist.set(null);
+    return renderBoard();
+  }
+  const last = board.cards[board.cards.length - 1];
+  if (last && last.id === card.id) board.cards[board.cards.length - 1] = card;
+  else board.cards = [...board.cards, card].slice(-30);
+  const fresh = !board.seen.has(card.id);
+  board.seen.add(card.id);
+  if (fresh) {
+    boardChip(card.id);
+    scrollDown();
+    if (S.answered < S.asked) openBoard(); // the answer to this phone is on it: show it
+  }
+  loadBoard().then(() => {
+    board.typist.set(card);
+    renderBoard();
+  }).catch(() => renderBoard());
+}
+
+/* The board's PDF came (a file card in the conversation): the board closes to show it. */
+function boardPdfCame(event) {
+  if (!board.pdf || !/\.pdf$/i.test(event.name || "")) return;
+  board.pdf = false;
+  if (board.open) closeBoard();
+  toast("The board as a PDF: open or download it here");
+}
+
+function takePicture(picture) {
+  if (!picture.what) return;
+  App.boardPictures = { ...App.boardPictures, [picture.what]: picture };
+  for (const figure of document.querySelectorAll(".board-picture")) {
+    if (figure.dataset.what === picture.what && figure.fill) figure.fill(picture);
+  }
+}
+
+/* In the conversation: "On the board", with its first line, opens it. */
+function boardChip(id) {
+  const card = board.cards.find((c) => c.id === id);
+  if (!card) return null;
+  const title = el("small", {}, boardTitle(card.text));
+  const chip = el("button", { class: "board-chip", type: "button", onclick: openBoard },
+    el("span", { class: "board-chip-icon", html: BOARD_ICON }), el("span", { class: "board-chip-about" }, el("b", {}, "On the board"), title),
+    el("span", { class: "board-chip-open" }, "Open"));
+  chip.dataset.card = id;
+  return place(chip, "msg abdoh media");
+}
+
+function boardTitle(text) {
+  const line = String(text || "").split("\n").map((l) => l.trim()).find((l) => l && !l.startsWith("```")) || "";
+  const plain = line.replace(/^#+\s*|^[-*•]\s+|^\d+[.)]\s+|[*`$|]/g, "").trim();
+  return plain.length > 60 ? `${plain.slice(0, 59)}…` : plain || "A drawing";
+}
+
+async function openBoard() {
+  board.open = true;
+  $("#board-view").hidden = false;
+  renderBoard();
+  try {
+    await loadBoard();
+  } catch (error) { /* said on the board */ }
+  renderBoard();
+}
+
+function closeBoard() {
+  board.open = false;
+  $("#board-view").hidden = true;
+}
+
+/* Save as PDF: the computer makes it the way its window does, and it comes as a file card. */
+async function boardPdf() {
+  const button = $("#board-pdf");
+  button.disabled = true;
+  button.textContent = "Making the PDF…";
+  try {
+    await api("POST", "/api/board_pdf");
+    board.pdf = true; // the next PDF that comes is this one: the board makes way for it
+  } catch (error) {
+    failed(error);
+    toast(error.shown ? error.message : "Can't reach your computer right now.");
+  }
+  setTimeout(() => { button.disabled = false; button.textContent = "Save as PDF"; }, board.pdf ? 2500 : 0);
+}
+
+function renderBoard() {
+  if (!board.open) return;
+  const list = $("#board");
+  const ready = typeof Board !== "undefined" && board.typist;
+  $("#board-note").textContent = board.cards.length ? `${board.cards.length} card${board.cards.length === 1 ? "" : "s"}` : "";
+  $("#board-pdf").hidden = !board.cards.length;
+  if (!ready) {
+    list.replaceChildren(el("p", { class: "board-empty" }, board.ready ? "Getting the board ready…" : "The board couldn't load."));
+    return;
+  }
+  list.replaceChildren(...(board.cards.length ? board.cards.map((card) => Board.render(board.typist.shown(card)))
+    : [el("p", { class: "board-empty" }, "Nothing on the board yet. Ask Abdoh to explain something on the board.")]));
+  follow();
+}
+
+function follow() {
+  const list = $("#board");
+  requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+}
+
+/* ---------- a photo or a file for the computer (story 149) ----------
+   Sent as soon as it's picked (with progress), then goes with the next message. */
+
+function pickFile() {
+  const input = $("#attach-input");
+  input.value = "";
+  input.click();
+}
+
+function attach(file) {
+  if (!file) return;
+  if (S.attached && S.attached.xhr) S.attached.xhr.abort();
+  const item = { name: file.name || "file", size: file.size, id: null, progress: 0, failed: "", xhr: null };
+  S.attached = item;
+  if (file.size > 100 * 1024 * 1024) item.failed = "That file is too big for the computer (100 MB at most).";
+  if (!file.size) item.failed = "That file is empty.";
+  showAttached();
+  if (item.failed) return;
+  if (DEMO) {
+    setTimeout(() => { item.progress = 1; item.id = "demo-file"; showAttached(); }, 900);
+    return;
+  }
+  const xhr = new XMLHttpRequest();
+  item.xhr = xhr;
+  xhr.open("POST", `/api/upload?name=${encodeURIComponent(item.name)}`);
+  xhr.setRequestHeader("Authorization", `Bearer ${S.key}`);
+  xhr.upload.onprogress = (e) => { if (e.lengthComputable) { item.progress = e.loaded / e.total; showAttached(); } };
+  xhr.onload = () => {
+    let data = {};
+    try { data = JSON.parse(xhr.responseText || "{}"); } catch (error) { /* not JSON */ }
+    if (xhr.status === 401) return unpaired();
+    if (xhr.status === 200 && data.id) Object.assign(item, { id: data.id, name: data.name || item.name, progress: 1 });
+    else item.failed = data.error || "Your computer couldn't take that file.";
+    item.xhr = null;
+    showAttached();
+  };
+  xhr.onerror = () => { item.failed = "Your computer can't be reached right now."; item.xhr = null; showAttached(); };
+  xhr.send(file);
+}
+
+function showAttached() {
+  const item = S.attached;
+  $("#attached").hidden = !item;
+  if (item) {
+    $("#attached-name").textContent = item.name;
+    $("#attached-icon").textContent = fileLabel(item);
+    $("#attached-state").textContent = item.failed || (item.id ? `${size(item.size)} · ready to send`
+      : `Sending to the computer… ${Math.round(item.progress * 100)}%`);
+    $("#attached").classList.toggle("failed", !!item.failed);
+  }
+  render();
+}
+
+function dropAttached() {
+  if (S.attached && S.attached.xhr) S.attached.xhr.abort();
+  S.attached = null;
+  showAttached();
+}
+
+/* ---------- the computer's clipboard (story 149) ---------- */
+
+async function openClipboard() {
+  $("#controls").hidden = true;
+  const box = $("#clip-text");
+  box.value = "";
+  box.placeholder = "Getting the computer's clipboard…";
+  $("#clip").hidden = false;
+  try {
+    const data = await api("GET", "/api/clipboard");
+    box.value = data.text || "";
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+  }
+  box.placeholder = "Nothing copied on the computer. Paste here to send it there.";
+}
+
+async function copyHere() {
+  const text = $("#clip-text").value;
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (error) { // older phones: the selection
+    $("#clip-text").select();
+    document.execCommand("copy");
+  }
+  toast("Copied to this phone");
+}
+
+async function sendClipboard() {
+  try {
+    await api("POST", "/api/clipboard", { text: $("#clip-text").value });
+    $("#clip").hidden = true;
+    toast("On the computer's clipboard");
+  } catch (error) {
+    $("#clip").hidden = true;
+    failed(error);
+  }
+}
+
+/* "See the screen" in the controls: a picture of it now, not part of the conversation. */
+async function seeScreen() {
+  $("#controls").hidden = true;
+  toast("Taking a picture of the screen…");
+  try {
+    const data = await api("POST", "/api/screen", undefined, { timeout: 30000 });
+    $("#toast").hidden = true;
+    openViewer(DEMO ? window.AbdohDemo.picture() : `/media/${data.id}`, "Your screen now");
+  } catch (error) {
+    $("#toast").hidden = true;
+    failed(error);
+  }
+}
+
+/* What Abdoh is doing for this phone's request, step by step (story 147): live above its
+   answer while it works, then folded into "3 steps". */
+function addStep(text) {
+  if (!text) return;
+  if (!S.steps) {
+    const title = el("span", { class: "work-title" });
+    const list = el("ol", { class: "work-list" });
+    const box = el("details", { class: "work", open: true }, el("summary", {}, el("i", { class: "spin" }), title), list);
+    const node = el("div", { class: "msg abdoh work-msg" }, box);
+    $("#messages").insertBefore(node, S.live || $("#typing"));
+    S.steps = { node, box, title, list, count: 0, done: false };
+  }
+  S.steps.count += 1;
+  S.steps.list.append(el("li", {}, text));
+  showSteps();
+  scrollDown();
+}
+
+function showSteps() {
+  const steps = S.steps;
+  if (!steps) return;
+  const count = `${steps.count} step${steps.count === 1 ? "" : "s"}`;
+  steps.title.textContent = steps.done ? count : `Working on it · ${count}`;
+  steps.box.classList.toggle("done", steps.done);
+}
+
+function stepsDone() {
+  if (!S.steps || S.steps.done) return;
+  S.steps.done = true;
+  S.steps.box.open = false;
+  showSteps();
 }
 
 function addLine(line, fresh = false) {
@@ -272,6 +932,8 @@ function addLine(line, fresh = false) {
     if (!sent) bubble("you", text, fromPhone ? null : "On the computer");
     S.live = null;
     S.final = false;
+    if (S.steps) stepsDone();
+    S.steps = null; // a new request: its own steps
     hideQuestion();
   }
   render();
@@ -293,8 +955,22 @@ function addSaid(event) {
 }
 
 function bubble(who, text, label = null) {
-  const node = el("div", { class: `msg ${who}` },
-    el("div", { class: "bubble" }, label ? el("span", { class: "from" }, label) : null, el("span", { class: "text" }, text)));
+  const [words, file] = who === "you" ? withFile(text) : [text, ""];
+  return place(el("div", { class: "bubble" }, label ? el("span", { class: "from" }, label) : null,
+    file ? el("span", { class: "sent-file" }, `📎 ${file}`) : null,
+    el("span", { class: "text" }, words)), `msg ${who}`);
+}
+
+/* "explain this [sent photo.jpg]" -> ["explain this", "photo.jpg"]: what the phone sent with
+   a message, shown as a file line above it. */
+function withFile(text) {
+  const sent = /^([\s\S]*?)\s*\[sent (.+)\]$/.exec(text || "");
+  return sent ? [sent[1], sent[2]] : [text, ""];
+}
+
+/* A new message at the end of the conversation (above the typing dots). */
+function place(content, classes) {
+  const node = el("div", { class: classes }, content);
   const list = $("#messages");
   list.insertBefore(node, $("#typing"));
   while (list.children.length > MAX_MESSAGES) list.firstElementChild.remove();
@@ -314,7 +990,9 @@ function takePending(text) {
   if (at < 0) return null;
   const [found] = S.pending.splice(at, 1);
   found.node.classList.remove("pending");
-  found.node.querySelector(".text").textContent = text;
+  const [words, file] = withFile(text);
+  found.node.querySelector(".text").textContent = words;
+  if (file && !found.node.querySelector(".sent-file")) found.node.querySelector(".bubble").prepend(el("span", { class: "sent-file" }, `📎 ${file}`));
   return found.node;
 }
 
@@ -332,13 +1010,13 @@ function render() {
     $("#messages").append(el("div", { class: "msg abdoh typing", id: "typing" }, el("div", { class: "bubble" }, el("i"), el("i"), el("i"))));
     scrollDown();
   } else if (!waiting && typing) typing.remove();
-  const empty = !$("#text").value.trim();
+  const typed = !!$("#text").value.trim();
   const talking = S.busy || player.playing;
   $("#form").hidden = rec.on;
   $("#recording").hidden = !rec.on;
-  $("#stop").hidden = !(talking && empty);
-  $("#mic").hidden = !(empty && !talking);
-  $("#send").hidden = empty;
+  $("#stop").hidden = !(talking && !typed && !S.attached);
+  $("#mic").hidden = typed || talking; // with a photo waiting: say what to do with it, or type
+  $("#send").hidden = !typed && !S.attached;
   updateEmpty();
 }
 
@@ -371,25 +1049,35 @@ function scrollDown(now = false) {
 
 /* ---------- asking ---------- */
 
-async function send(text) {
-  text = text.trim();
-  if (!text) return;
+async function send(text, { withFile = true } = {}) {
+  text = text.trim().replace(/\s+/g, " ");
+  const file = withFile ? S.attached : null;
+  if (file && !file.id) return toast(file.failed ? "That file didn't go: remove it or pick it again." : "The file is still on its way…");
+  if (!text && !file) return;
+  S.attached = null;
+  showAttached();
+  const shown = file ? `${text} [sent ${file.name}]`.trim() : text; // as the computer shows it
   silence(); // a new question: the last answer stops
-  const node = bubble("you", text);
+  const node = bubble("you", shown);
   node.classList.add("pending");
-  S.pending.push({ node, text: same(text) });
+  S.pending.push({ node, text: same(shown) });
   S.final = false;
   S.live = null;
   hideQuestion();
   render();
   scrollDown(true);
   try {
-    await api("POST", "/api/text", { text, speak: S.speak });
+    await api("POST", "/api/text", { text, speak: S.speak, files: file ? [file.id] : [] });
     S.asked += 1;
   } catch (error) {
     S.pending = S.pending.filter((p) => p.node !== node);
     node.classList.remove("pending");
     S.final = true;
+    if (file && !S.attached) { // it didn't go: the file waits for the next message again
+      S.attached = file;
+      if (error.status === 410) file.failed = error.message; // gone: pick it again
+      showAttached();
+    }
     failed(error);
   }
 }
@@ -623,7 +1311,12 @@ function toPcm16k(chunks, rate) {
 /* What you said, sent: returns what Abdoh heard ("" if nothing). On a call (`inCall`), the
    call says what went wrong: errors are thrown. */
 async function sendVoice(pcm, { speak = S.speak, inCall = false } = {}) {
-  const node = bubble("you", "…");
+  const file = !inCall && S.attached && S.attached.id ? S.attached : null;
+  if (file) {
+    S.attached = null;
+    showAttached();
+  }
+  const node = bubble("you", file ? `… [sent ${file.name}]` : "…");
   node.classList.add("pending");
   const pending = { node, text: "", voice: true };
   S.pending.push(pending);
@@ -636,11 +1329,16 @@ async function sendVoice(pcm, { speak = S.speak, inCall = false } = {}) {
     S.pending = S.pending.filter((p) => p !== pending);
     node.remove();
     S.final = true;
+    if (file && !S.attached) { // it didn't go: the file waits for the next message again
+      S.attached = file;
+      showAttached();
+    }
     render();
   };
   let data;
   try {
-    data = await api("POST", `/api/voice${speak ? "?speak=1" : ""}`, pcm, { timeout: 60000 });
+    const query = [speak ? "speak=1" : "", file ? `files=${encodeURIComponent(file.id)}` : ""].filter(Boolean).join("&");
+    data = await api("POST", `/api/voice${query ? `?${query}` : ""}`, pcm, { timeout: 60000 });
   } catch (error) {
     drop();
     if (inCall) throw error;
@@ -1016,12 +1714,15 @@ function setupComposer() {
   $("#mic").addEventListener("click", startRecording);
   $("#rec-send").addEventListener("click", () => stopRecording(true));
   $("#cancel").addEventListener("click", () => stopRecording(false));
+  $("#attach").addEventListener("click", pickFile);
+  $("#attach-input").addEventListener("change", (e) => attach(e.target.files && e.target.files[0]));
+  $("#attached-remove").addEventListener("click", dropAttached);
   $("#call-button").addEventListener("click", startCall);
   $("#orb").addEventListener("click", tapOrb);
   $("#call-mute").addEventListener("click", toggleMute);
   $("#hang-up").addEventListener("click", () => endCall());
   for (const button of document.querySelectorAll("[data-answer]")) {
-    button.addEventListener("click", () => send(button.dataset.answer === "yes" ? "Yes" : "No"));
+    button.addEventListener("click", () => send(button.dataset.answer === "yes" ? "Yes" : "No", { withFile: false }));
   }
 }
 
@@ -1078,6 +1779,23 @@ function setupControls() {
       if (await control("media", key.dataset.media)) toast(MEDIA_DONE[key.dataset.media]);
     });
   }
+  $("#see-screen").addEventListener("click", seeScreen);
+  $("#board-close").addEventListener("click", closeBoard);
+  $("#board-pdf").addEventListener("click", boardPdf);
+  $("#codoh-close").addEventListener("click", closeCodoh);
+  $("#codoh-back").addEventListener("click", showChats);
+  $("#codoh-form").addEventListener("submit", sendCodoh);
+  $("#codoh-stop").addEventListener("click", stopCodoh);
+  $("#codoh-text").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#codoh-form").requestSubmit(); }
+  });
+  $("#clipboard").addEventListener("click", openClipboard);
+  $("#clip-copy").addEventListener("click", copyHere);
+  $("#clip-send").addEventListener("click", sendClipboard);
+  $("#clip-close").addEventListener("click", () => { $("#clip").hidden = true; });
+  $("#clip").addEventListener("click", (e) => { if (e.target.id === "clip") $("#clip").hidden = true; });
+  $("#viewer-close").addEventListener("click", closeViewer);
+  $("#viewer").addEventListener("click", (e) => { if (e.target.id === "viewer") closeViewer(); });
   $("#lock").addEventListener("click", async () => {
     if (!confirm("Lock your computer now?")) return;
     if (await control("lock")) { sheet.hidden = true; toast("Locked"); }
@@ -1093,6 +1811,7 @@ function setupMenu() {
     localStorage.setItem(SPEAK, S.speak ? "1" : "0");
   });
   $("#menu-button").addEventListener("click", () => { menu.hidden = false; });
+  $("#open-codoh").addEventListener("click", () => openCodoh());
   $("#menu-close").addEventListener("click", () => { menu.hidden = true; });
   menu.addEventListener("click", (e) => { if (e.target === menu) menu.hidden = true; });
   $("#unpair").addEventListener("click", async () => {

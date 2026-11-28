@@ -48,6 +48,7 @@ class FallbackBrain(Brain):
         self._known = False  # ... and Claude said when
         self._lock = threading.Lock()
         self._on_activity = None
+        self._on_step = None
         self._state = None
         self.on_switch: Callable[[bool], None] | None = None  # the window shows who answers
 
@@ -63,6 +64,17 @@ class FallbackBrain(Brain):
         for brain in (self.primary, self._backup):
             if brain is not None:
                 brain.on_activity = value
+
+    @property
+    def on_step(self):
+        return self._on_step
+
+    @on_step.setter
+    def on_step(self, value) -> None:
+        self._on_step = value
+        for brain in (self.primary, self._backup):
+            if brain is not None:
+                brain.on_step = value
 
     @property
     def state(self):
@@ -114,6 +126,7 @@ class FallbackBrain(Brain):
                 self._backup = None
             if self._backup is not None:
                 self._backup.on_activity = self._on_activity
+                self._backup.on_step = self._on_step
                 self._backup.state = self._state
         return self._backup
 

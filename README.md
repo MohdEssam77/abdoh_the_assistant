@@ -22,7 +22,8 @@ your own Claude account (or your ChatGPT plan, or an API key).
 - **Modes and lamps**: "movie mode" switches screens, volume and your WiZ lamps at once.
 - **Memory**: it remembers what you tell it, and the week's conversations.
 - **Talk naturally**: interrupt it, keep talking without the wake word, "stop listening".
-- **On your phone**: talk or type to it from anywhere, privately through Tailscale.
+- **On your phone**: talk, type or call it from anywhere, privately through Tailscale; see its
+  steps, the screen, the board and Codoh there, and send files both ways.
 
 The app's **Catalog** page lists every feature with what to say. [GUIDE.md](GUIDE.md) explains
 everything in detail: each feature, configuration, troubleshooting and known issues.
@@ -55,7 +56,7 @@ ruff check . --fix && ruff format . && pytest -q
 ```
 
 Tests never need a microphone, speakers, network, API key or Claude Code. `CLAUDE.md` has the
-working rules and `ABDOH_EPIC_10.md` the current plan. `scripts/build_installer.py` builds
+working rules and `ABDOH_EPIC_11.md` the current plan. `scripts/build_installer.py` builds
 `Abdoh-Setup.exe`; pushing a `v*` tag builds and publishes a release (see
 [GUIDE.md](GUIDE.md#6-install-it-like-an-app)).
 

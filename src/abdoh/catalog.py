@@ -665,12 +665,19 @@ FEATURES: list[dict] = [
         "icon": "phone",
         "line": "Talk and type to Abdoh from your phone, at home or anywhere, and hear its answers there.",
         "what": "A home-screen app on your phone for the Abdoh on this computer: the conversation, "
-        "a microphone button, a call (talk back and forth, hands-free, until you hang up), and "
-        "controls for music, volume, your modes and locking the computer. "
+        "a microphone button, a call (talk back and forth, hands-free, until you hang up), "
+        "Abdoh's steps live, pictures of the screen, files both ways, the clipboard, the board "
+        "and Codoh, and controls for music, volume, your modes and locking the computer. "
         "Tailscale (free) connects your phone and this computer privately; nothing is open to the "
         "internet, and only phones you pair can use it. Replies play on the phone; actions happen "
         "on the computer.",
-        "say": [],
+        "say": [
+            "Find my CV and send it to me",
+            "Show me my screen",
+            "Explain merge sort on the board",
+            "Send me the board as a PDF",
+            "Tell Codoh to run the tests too",
+        ],
         "steps": [
             "Settings → Phone: turn on “Use Abdoh from your phone”.",
             "Install Tailscale on this computer and your phone, signed in with the same account.",
@@ -685,6 +692,8 @@ FEATURES: list[dict] = [
             "“Speak replies” in the phone's menu: off, the answers are only shown.",
             "For a conversation, tap the phone button: Abdoh listens, answers and listens again.",
             "On a call, just talk to cut in: “okay” lets Abdoh go on, “wait” stops it.",
+            "The paperclip sends a photo or a file to the computer with your next message.",
+            "Menu → Codoh: your coding chats, live; answer and instruct them from the phone.",
         ],
     },
 ]

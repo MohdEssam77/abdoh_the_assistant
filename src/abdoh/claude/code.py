@@ -260,13 +260,14 @@ def error_message(detail: str) -> str:
     return FAILED
 
 
-def read_events(lines: Iterable[str], on_tool=None) -> Iterator[str]:
+def read_events(lines: Iterable[str], on_tool=None, on_step=None) -> Iterator[str]:
     """Yield one reply's text from Claude Code's `--output-format stream-json` lines, up to its
     "result" line (the lines after it belong to the next reply).
 
     Uses the streamed text deltas (--include-partial-messages); a new line separates text from
     different messages (e.g. before and after a web search). `on_tool(name)` is called when
-    Claude starts using a tool. Raises BrainError for errors and usage limits.
+    Claude starts using a tool, and `on_step(name, input)` once its input is complete (the
+    message with it arrives). Raises BrainError for errors and usage limits.
     """
     said = False
     new_message = False
@@ -298,6 +299,10 @@ def read_events(lines: Iterable[str], on_tool=None) -> Iterator[str]:
                         text, new_message = "\n" + text, False
                     said = True
                     yield text
+        elif kind == "assistant" and on_step:
+            for block in (event.get("message") or {}).get("content") or []:
+                if isinstance(block, dict) and block.get("type") in ("tool_use", "server_tool_use"):
+                    on_step(str(block.get("name") or ""), block.get("input") or {})
         elif kind == "rate_limit_event":
             info = event.get("rate_limit_info") or {}
             if info.get("status") == "rejected":
@@ -663,7 +668,7 @@ class ClaudeCodeBrain(Brain):
         finished = stopped = False
         try:
             try:
-                yield from read_events(session.proc.stdout, self._on_tool)
+                yield from read_events(session.proc.stdout, self._on_tool, self._on_step)
             except GeneratorExit:
                 stopped = True  # you interrupted: nobody wants the rest
                 raise
@@ -727,6 +732,21 @@ class ClaudeCodeBrain(Brain):
             return False
         finally:
             timer.cancel()
+
+    def _on_step(self, tool: str, data: dict) -> None:
+        """A tool's details (the phone shows them as steps: abdoh/doing.py)."""
+        notify = self.on_step
+        if not notify:
+            return
+        path = str((data or {}).get("file_path") or "") if isinstance(data, dict) else ""
+        if tool == "Read" and path.replace("\\", "/").rsplit("/", 1)[-1] == SCREENSHOT:
+            return  # the screenshot Abdoh handed over, not one of the user's files
+        try:
+            from abdoh.doing import tool_step
+
+            notify(tool_step(tool, data))
+        except Exception:
+            log.debug("Couldn't report Claude's step", exc_info=True)
 
     def _on_tool(self, tool: str) -> None:
         if tool == "Read" and self._screenshot_unread:

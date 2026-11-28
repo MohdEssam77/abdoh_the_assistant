@@ -75,6 +75,9 @@ NO_SPEAKER_TAP = "Abdoh can't hear what your speakers play"
 SPEECH_MODEL_FAILED = "the speech recognition model couldn't be loaded"
 
 
+# After the phone asked to open one of these, it gets a picture of the screen this long after.
+PHONE_OPENS = frozenset({"open_app", "open_url", "play_youtube"})
+PHONE_SHOT_SECONDS = 2.5
 # What Claude's action is called in "Done: ...", where its own words would read badly.
 DONE_WORDS = {"board_pdf": "saving the board as a PDF"}
 # The window was asked to save the board and didn't answer in this long (the save itself takes
@@ -83,6 +86,9 @@ BOARD_PDF_SECONDS = 45.0
 BOARD_PDF_SILENT = (
     "I couldn't save the board: my window didn't answer. Try the Save as PDF button on the "
     "Act as page."
+)
+BOARD_PDF_SILENT_PHONE = (
+    "The board couldn't be made into a PDF: Abdoh's window on the computer didn't answer."
 )
 
 
@@ -98,6 +104,11 @@ def _still_true(check: Callable[[], bool]) -> bool:
     except Exception:
         log.debug("Couldn't check a notice", exc_info=True)
         return False
+
+
+def _phone_id(phone) -> str:
+    """Which phone a board PDF is for: its id, or "" (the one whose request it is)."""
+    return phone if isinstance(phone, str) else ""
 
 
 def _what_was_done(actions: list[tuple[str, str]]) -> str:
@@ -203,6 +214,7 @@ class Daemon:
         # whether the request being answered came from the phone (its reply goes there).
         self.phone = None
         self.phone_error = ""  # why the phone page couldn't start (its port is taken)
+        self._phone_shot = None  # the picture of the screen the phone gets after opening
         self._phone_turn = False
         if hasattr(speaker, "on_missing_voice"):
             speaker.on_missing_voice = self._missing_voice
@@ -229,6 +241,9 @@ class Daemon:
         self._quiet_since = 0.0  # when Abdoh's voice last stopped (time.monotonic)
         router.on_thinking = self._thinking
         router.on_activity = self._activity
+        router.on_action = self._did
+        router.on_show_screen = self._show_screen
+        router.on_send_file = self._send_file
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
@@ -295,6 +310,7 @@ class Daemon:
         if brain is None:
             return
         brain.on_activity = self._activity
+        brain.on_step = self._step  # the phone shows each step
         brain.state = self._state_line  # the mode that's on, with every message
         if hasattr(brain, "on_switch"):  # ChatGPT answers while Claude's limit is used up
             brain.on_switch = self._claude_switched
@@ -349,10 +365,96 @@ class Daemon:
         if not self._spoke and not self._phone_turn:  # the phone shows it as its status
             self._say_aside(f"{text}.")
 
-    def _save_board(self) -> None:
+    def _step(self, text: str) -> None:
+        """One of Claude's steps ("Reading CV.pdf"): the phone shows it, for its requests."""
+        if self._phone_turn and text:
+            self.bus.emit("phone_step", text)
+
+    def _did(self, kind: str, arg: str) -> None:
+        """An action of Claude's answer was done ("Opened Spotify"): a step on the phone, and
+        after opening something, a picture of the screen a moment later."""
+        if not self._phone_turn:
+            return
+        from abdoh.doing import action_step
+
+        done = action_step(kind, arg)
+        self.bus.emit("phone_step", done)
+        if kind in PHONE_OPENS:
+            self._screen_later(done)
+
+    def _screen_later(self, caption: str) -> None:
+        """A picture of the screen for the phone once what was opened is up (one per reply:
+        the last opening's wait counts)."""
+        old = self._phone_shot
+        if old is not None:
+            old.cancel()
+        timer = threading.Timer(PHONE_SHOT_SECONDS, self._send_screen, args=(caption,))
+        timer.daemon = True
+        self._phone_shot = timer
+        timer.start()
+
+    def _show_screen(self, why: str) -> None:
+        """Claude: ACTION show_screen (only for the phone): a picture of the screen, now (or
+        the one coming after what this reply just opened, once that's up)."""
+        coming = self._phone_shot
+        if coming is not None and coming.is_alive():
+            return
+        threading.Thread(
+            target=self._send_screen, args=("Your screen",), name="abdoh-phone-screen", daemon=True
+        ).start()
+
+    def _send_file(self, arg: str) -> str:
+        """Claude: ACTION send_file (only for the phone): "" when it went, else why not."""
+        from abdoh.phone.files import FileProblem, file_to_send
+
+        try:
+            path = file_to_send(arg, self.cfg)
+        except FileProblem as e:
+            log.info("Didn't send %r to the phone: %s", arg, e)
+            return str(e)
+        log.info("Sending a file to the phone: %s", path.name)
+        self.bus.emit("phone_file", {"path": str(path)})
+        return ""
+
+    def _clipboard_text(self) -> str:
+        computer = getattr(self.router, "computer", None)
+        if computer is None:
+            raise RuntimeError("no computer")
+        return computer.clipboard()
+
+    def _set_clipboard(self, text: str) -> None:
+        computer = getattr(self.router, "computer", None)
+        if computer is None:
+            raise RuntimeError("no computer")
+        computer.set_clipboard(text)
+
+    def _send_screen(self, caption: str) -> None:
+        from abdoh.claude.screen import ScreenCaptureError
+
+        try:
+            data = self._grab_screen()
+        except ScreenCaptureError as e:
+            self.bus.emit("phone_note", str(e))
+            return
+        except Exception:
+            log.exception("Couldn't send the screen to the phone")
+            return
+        log.info("Sent a picture of the screen to the phone (%d KB)", len(data) // 1024)
+        self.bus.emit("phone_image", {"data": data, "caption": caption})
+
+    def _grab_screen(self) -> bytes:
+        from abdoh.phone.media import screen_picture
+
+        return screen_picture()
+
+    def _save_board(self, phone: str | bool = False) -> None:
         """Claude: ACTION board_pdf. The page draws the board and Abdoh prints it; the window
         answers (board_pdf_done). No answer: Abdoh says so, and it's in the log."""
-        log.info("Asked the window to save the board as a PDF")
+        for_phone = phone or getattr(self, "_phone_turn", False)  # True, or the phone's id
+        self._board_pdf_phone = for_phone
+        log.info(
+            "Asked the window to save the board as a PDF%s", " for the phone" * bool(for_phone)
+        )
         old = getattr(self, "_board_wait", None)
         if old is not None:
             old.cancel()
@@ -360,18 +462,33 @@ class Daemon:
         timer.daemon = True
         self._board_wait = timer
         timer.start()
-        self.bus.emit("save_board", None)
+        self.bus.emit("save_board", {"phone": True} if for_phone else None)
 
     def _board_pdf_silent(self) -> None:
         log.warning("The window didn't answer the request to save the board as a PDF")
         self._board_wait = None
+        phone, self._board_pdf_phone = getattr(self, "_board_pdf_phone", False), False
+        if phone:
+            self.bus.emit("phone_note", {"text": BOARD_PDF_SILENT_PHONE, "for": _phone_id(phone)})
+            return
         self.say_later(BOARD_PDF_SILENT)
 
-    def _board_pdf_done(self, ok: bool) -> None:
+    def _board_pdf_done(self, value) -> None:
+        """The window answered: True or False, or for the phone {"ok", "path" | "error"}, and
+        then the PDF goes to the phone (or why it couldn't be made)."""
         timer = getattr(self, "_board_wait", None)
         self._board_wait = None
         if timer is not None:
             timer.cancel()
+        phone, self._board_pdf_phone = getattr(self, "_board_pdf_phone", False), False
+        if not phone or not isinstance(value, dict):
+            return
+        if value.get("ok") and value.get("path"):
+            log.info("Sending the board as a PDF to the phone")
+            self.bus.emit("phone_file", {"path": str(value["path"]), "for": _phone_id(phone)})
+        else:
+            error = str(value.get("error") or "The board couldn't be made into a PDF.")
+            self.bus.emit("phone_note", {"text": error, "for": _phone_id(phone)})
 
     def _say_aside(self, text: str) -> None:
         """Say a few words that aren't part of the answer (not shown in the conversation)."""
@@ -785,6 +902,7 @@ class Daemon:
         woken=False,
         phone=False,
         spoken=False,
+        files=None,
     ) -> str:
         """Route one request and speak the reply. Never raises.
 
@@ -794,14 +912,17 @@ class Daemon:
         came after the wake word, which a video or people talking can set off by mistake (True,
         or how clearly the name was heard: (score, voice check or None)). `phone`: it came from
         the phone (abdoh/phone): the reply goes there, and nothing is said here. `spoken`: it
-        was said into the phone, not typed (the laptop doesn't listen afterwards).
+        was said into the phone, not typed (the laptop doesn't listen afterwards). `files`:
+        what the phone sent with it (full paths on this computer), for Claude.
         """
         with self._handle_lock:
-            self._phone_turn = phone
+            self._phone_turn = self.router.phone = phone
+            self.router.phone_files = list(files or []) if phone else []
             try:
                 return self._handle_text(text, voice, aside, woken, phone, spoken)
             finally:
-                self._phone_turn = False
+                self._phone_turn = self.router.phone = False
+                self.router.phone_files = []
 
     def _handle_text(
         self, text: str, voice: bool, aside: bool, woken, phone: bool, spoken: bool = False
@@ -1196,11 +1317,12 @@ class Daemon:
         if kind == "text":
             if value and value.strip():
                 self.handle_text(value.strip())
-        elif kind == "phone":  # the phone page (abdoh/phone/hub.py): {"text", "spoken"?}
+        elif kind == "phone":  # the phone page (phone/hub.py): {"text", "spoken"?, "files"?}
             text = str((value or {}).get("text") or "").strip()
             if text:
                 try:
-                    self.handle_text(text, phone=True, spoken=bool(value.get("spoken")))
+                    self.handle_text(text, phone=True, spoken=bool(value.get("spoken")),
+                                     files=value.get("files"))  # fmt: skip
                 finally:
                     self.bus.emit("phone_done", None)  # a call on the phone listens again
         elif kind == "phone_control":  # the phone's quick controls: {"kind", "value"}
@@ -1242,7 +1364,9 @@ class Daemon:
         elif kind == "say":  # the window: a few words to say (where the PDF went)
             self.say_later(str(value))  # after the reply that's being said
         elif kind == "board_pdf_done":  # the window answered "save the board"
-            self._board_pdf_done(bool(value))
+            self._board_pdf_done(value)
+        elif kind == "phone_board_pdf":  # the phone's Save as PDF on its board: {"phone"}
+            self._save_board(phone=str((value or {}).get("phone") or "") or True)
         elif kind == "board_cleared":  # the Act as page's Clear button
             self._board_shown = False
         elif kind == "keep_listening":  # the Act as page: listen without the wake word or not
@@ -1303,10 +1427,13 @@ class Daemon:
             self._phone_off()
         if not self.cfg.phone or self.phone is not None:
             return
+        from abdoh.phone.media import screen_picture
         from abdoh.phone.server import PhoneService
 
         service = PhoneService(self.cfg, self.bus, hear=self._phone_hear, voice=self._phone_voice,
-                               modes=lambda: self.modes.names() if self.modes else [])  # fmt: skip
+                               modes=lambda: self.modes.names() if self.modes else [],
+                               screen=screen_picture, clipboard=self._clipboard_text,
+                               set_clipboard=self._set_clipboard, codoh=self._codoh)  # fmt: skip
         try:
             service.start()
         except OSError as e:
@@ -1532,8 +1659,9 @@ class Daemon:
         self.bus.emit("board", {"id": card, "text": text})
         if card != self._board_card:
             self._board_card = card
-            self.bus.emit("show")
-            self.bus.emit("page", "roles")
+            if not self._phone_turn:  # from the phone: shown there, the laptop stays as it is
+                self.bus.emit("show")
+                self.bus.emit("page", "roles")
         self._board_text = text
         self._turn_board[card] = text
         self._board_shown = True
@@ -1621,11 +1749,17 @@ class Daemon:
 
         codoh = shared(self.cfg)
         codoh.on_notice = self.say_later
+        codoh.on_phone_notice = lambda chat, text: self.bus.emit(
+            "phone_codoh", {"chat": chat, "text": text}
+        )
         codoh.window_open = lambda: bool(getattr(self, "_window_open", False))
         return codoh
 
     def _show_codoh(self, chat: str = "") -> None:
-        """The window, on the Codoh page, with this chat."""
+        """The window, on the Codoh page, with this chat; for the phone, its Codoh view."""
+        if getattr(self, "_phone_turn", False):
+            self.bus.emit("phone_codoh", {"chat": chat, "open": True})
+            return
         self.bus.emit("show")
         self.bus.emit("codoh_open", chat)
 

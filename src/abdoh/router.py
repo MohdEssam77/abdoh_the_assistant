@@ -10,6 +10,7 @@ import re
 import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from abdoh.claude import skills
 from abdoh.claude.brain import NOT_CONNECTED, BrainError
@@ -30,6 +31,8 @@ from abdoh.claude.reply import (
     SAVE_ITEM,
     SAVE_STEPS,
     SELF_EDIT_ACTIONS,
+    SEND_FILE,
+    SHOW_SCREEN,
     UNDO_CHANGE,
     WATCH,
     speakable,
@@ -95,6 +98,18 @@ WATCH_WHEN = {
     "tip), say it in one or two short spoken sentences. Otherwise, and that's most of the time, "
     "write only the line ACTION ignore: fine.",
 }
+# A request from the phone (claude/brain.py PHONE says what that means for Claude).
+FROM_PHONE = "(From the phone) "
+PHONE_FILES = (
+    "(They sent this from the phone; it's on the computer now: {files}. Read, open or use it "
+    "as they ask: you can read pictures too.) "
+)
+
+
+def _size(n: int) -> str:
+    return f"{n / 1024 / 1024:.1f} MB" if n >= 1024 * 1024 else f"{max(1, n // 1024)} KB"
+
+
 # Claude gets your clipboard only when you mention it.
 _CLIPBOARD = re.compile(r"\bclipboard\b|\b(?:what|the text|the thing|that) i (?:just )?copied\b")
 CLIPBOARD_LIMIT = 4000
@@ -211,6 +226,21 @@ def woken_note(wake: Wake) -> str:
     return WOKEN.format(heard=heard)
 
 
+class _Reported(list):
+    """A turn's actions: each is reported as it's done (the phone shows it as a step)."""
+
+    def __init__(self, report: Callable[[str, str], None]):
+        super().__init__()
+        self._report = report
+
+    def append(self, item) -> None:
+        super().append(item)
+        try:
+            self._report(*item)
+        except Exception:
+            log.debug("Couldn't report an action", exc_info=True)
+
+
 @dataclass
 class ClaudeTurn:
     """The last request Claude handled, for "remember that" and follow-up questions."""
@@ -244,6 +274,13 @@ class Router:
         self.computer = computer  # media keys, timers, apps (abdoh.computer.Computer)
         self.on_thinking = on_thinking  # called when a slow (Claude) request starts
         self.on_activity: Callable[[str], None] = lambda text: None  # "Looking at your screen"
+        # Each action Claude's answer did, as it's done: (kind, arg). The phone shows them.
+        self.on_action: Callable[[str, str], None] = lambda kind, arg: None
+        self.phone = False  # the request being handled came from the phone (abdoh/phone)
+        self.on_show_screen: Callable[[str], None] = lambda why: None  # ACTION show_screen
+        # ACTION send_file: "" when it went to the phone, else what to say (why it couldn't).
+        self.on_send_file: Callable[[str], str] = lambda path: "Files only go to the phone."
+        self.phone_files: list[str] = []  # files the phone sent with the request (full paths)
         self.on_memory: Callable[[], None] = lambda: None  # the memory changed (the page)
         # Claude changed a command, mode or role ("command", "mode", "role"): the pages refresh.
         self.on_self_edit: Callable[[str], None] = lambda kind: None
@@ -350,7 +387,7 @@ class Router:
         self._done.clear()
         offered = self._answering = self._open_offer()
         exact = match_command(request, self.registry.commands, 100)  # one of yours, as it is
-        steps = [] if exact or offered else split_steps(original)
+        steps = [] if exact or offered or self.phone_files else split_steps(original)
         if offered is not None and self.brain is not None:
             reply = self._answer_offer(offered, original)
         elif steps:
@@ -394,6 +431,11 @@ class Router:
     ) -> Reply:
         # "Remember that" is Claude's to understand: what it just did becomes a command
         # (ACTION save_steps), something you told it goes to memory, or it asks which.
+        if self.phone and self.phone_files and self.brain is not None:
+            # it came with a file from the phone: "translate this" is about the file, not the
+            # screen, and no shortcut knows the file
+            prompt = self._unclear_note() + self._with_context(original)
+            return self._ask(prompt, original)
         reply = self._route_local(request, original)
         if reply is not None:
             return reply
@@ -606,6 +648,8 @@ class Router:
     def _ask(self, prompt: str, request: str, screen: bool = False, aside: bool = False) -> Reply:
         if self.brain is None:
             return NOT_CONNECTED
+        if self.phone:  # every prompt for a phone request (brain.PHONE says what that means)
+            prompt = FROM_PHONE + self._phone_files_note() + prompt
         question = self.modes.open_question() if self.modes is not None else None
         if question:
             prompt = ANSWER_NOTE.format(question=question) + prompt
@@ -630,6 +674,7 @@ class Router:
     ) -> Iterator[str]:
         """Claude's answer as sentences; runs the actions it asks for along the way."""
         turn = ClaudeTurn(request)
+        turn.actions = _Reported(lambda kind, arg: self.on_action(kind, arg))
         problems: list[str] = []
         spoken: list[str] = []
 
@@ -658,6 +703,17 @@ class Router:
             if kind == IGNORE:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
+                return
+            if kind == SEND_FILE:
+                problem = self.on_send_file(arg)
+                if problem:
+                    problems.append(problem)  # why it couldn't go
+                else:
+                    turn.actions.append((SEND_FILE, arg))
+                return
+            if kind == SHOW_SCREEN:
+                self.on_show_screen(arg)
+                turn.actions.append((SHOW_SCREEN, arg))
                 return
             if kind == BOARD_PDF:
                 self.on_board_pdf()
@@ -733,6 +789,12 @@ class Router:
             allowed.append(LOGS)  # once, like recall
         if self.cfg.claude.allow_screen:
             allowed.append(WATCH)
+        if self.phone:
+            allowed.append(SHOW_SCREEN)  # only the phone gets pictures of the screen
+            if BOARD_PDF not in allowed:
+                allowed.append(BOARD_PDF)  # its board, as a PDF, also without a role
+            if self.cfg.claude.allow_files:
+                allowed.append(SEND_FILE)  # ... and files from where Claude may work
         if self.codoh is not None:
             allowed.append(CODOH)
             if not screen:
@@ -778,7 +840,8 @@ class Router:
                 image = self._capture()
                 follow_up = skills.look_follow_up(request, window.title, window.program)
                 chunks = brain.stream(follow_up, image)
-                allowed = self.cfg.claude.actions
+                phone = [a for a in (SHOW_SCREEN, SEND_FILE) if a in allowed]
+                allowed = [*self.cfg.claude.actions, *phone]
                 for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
                     yield from _drain(problems)
                     spoken.append(sentence)
@@ -1001,7 +1064,7 @@ class Router:
         from abdoh.codoh.voice import act
 
         log.info("Codoh by voice: %s", arg[:200])
-        result = act(self.codoh(), arg)
+        result = act(self.codoh(), arg, by_phone=self.phone)
         if result.show or result.chat:
             self.on_codoh(result.chat)
         if result.said:
@@ -1024,6 +1087,21 @@ class Router:
         except (ActionError, AttributeError):
             return ""
         return CLIPBOARD_NOTE.format(text=text[:CLIPBOARD_LIMIT]) if text else ""
+
+    def _phone_files_note(self) -> str:
+        """Where the files the phone sent with this request are, for Claude."""
+        if not self.phone_files:
+            return ""
+        from abdoh.phone.media import file_kind, file_type
+
+        described = []
+        for path in self.phone_files:
+            try:
+                size = Path(path).stat().st_size
+            except OSError:
+                continue
+            described.append(f"{path} ({file_kind(file_type(path))}, {_size(size)})")
+        return PHONE_FILES.format(files="; ".join(described)) if described else ""
 
     def _with_context(self, text: str) -> str:
         if getattr(self.brain, "remembers", False):

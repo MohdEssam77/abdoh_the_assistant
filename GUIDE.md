@@ -885,6 +885,40 @@ listening" ends the call; anything else, and it stops and answers that instead. 
 three times in one call (a noisy street), it stops listening while it talks and says so: then
 tap the circle to cut in (that always works).
 
+**What Abdoh is doing.** While Abdoh works on something you asked from the phone, each step
+shows up live above its answer ("Searching the web: weather in Berlin", "Reading CV.pdf",
+"Opened Spotify"), then folds into "3 steps"; tap it to see them again.
+
+**The screen.** After Abdoh opens an app, a website or a video for you, the phone gets a picture
+of the computer's screen a moment later, so you see what it opened. Ask "show me my screen" any
+time, or use **See the screen** in the controls. Tap a picture to see it full screen.
+
+**Files, both ways.** "Find my CV and send it to me": Abdoh looks for it and sends it, and the
+phone gets a card with **Open** (the phone's own viewer, with Share and Save to Files) and
+**Download**. It only sends files from the folders it may work in (Settings → AI), never Abdoh's
+own, at most 1 GB; the link works for an hour. The other way, the paperclip next to the text box
+sends a photo or a file to the computer (into `Downloads\From your phone`, 100 MB at most). It
+goes with your next message, typed or said: "what's in this photo?", "put this on the board and
+explain it", "save it to my desktop".
+
+**The clipboard.** Controls → **Clipboard**: what's copied on the computer, to copy to the phone,
+or paste something there and **Send to the computer**.
+
+**The board.** "Explain merge sort on the board": what Abdoh shows instead of only saying it
+(steps, code, math, tables, drawings, pictures) appears on the phone, written out while it
+explains. It opens by itself; the "On the board" card in the conversation opens it again. To
+keep it, tap **Save as PDF** on the board, or just ask ("send me the board as a PDF", "can I
+keep this?"): the computer makes the PDF the way its window does, and it comes as a file card to
+open or download.
+
+**Codoh.** Menu → **Codoh, the coding page**: your coding chats, live, the same as on the
+computer: what Codoh says, the files it reads and changes (with the changes), the commands it
+runs. Tell it more (it waits its turn while Codoh works), stop it, and answer when it asks:
+**Allow**, **Always**, **Deny**, or its questions. **New chat** starts one in a folder Codoh
+knows. You can also just tell Abdoh ("tell Codoh to run the tests too"). When the phone sent a
+chat's last message, what it needs and when it's done come to the phone, not out loud on the
+computer.
+
 **Good to know.**
 - The computer must be on and awake. When it's plugged in, let it never sleep (**Power
   settings** in the card). A sleeping computer can't answer; the phone says so and tries again
@@ -893,8 +927,11 @@ tap the circle to cut in (that always works).
   Demand). An iPhone runs one VPN at a time.
 - Remove a phone in **Settings → Phone** (or **Unpair this phone** in its menu): it can't reach
   Abdoh any more. Turning the switch off also stops sharing the page in Tailscale.
-- The phone can ask Abdoh things and use the controls, nothing more: it can't change settings,
-  see keys, or edit memory. Claude's permissions apply as on the computer.
+- The phone can ask Abdoh things, use the controls and Codoh, nothing more: it can't change
+  settings, see keys, or edit memory. Claude's permissions apply as on the computer.
+- Pictures and files reach the phone through links with a secret in them, each valid for an
+  hour (a picture on the board: as long as the board shows it), and only inside your Tailscale
+  network. A web page or a drawing file is only downloaded, never opened as a page.
 - Settings: `phone` (off by default) and `phone_port` (47811, on 127.0.0.1 only). Paired phones
   are in `phones.json` in Abdoh's data folder (only a fingerprint of each phone's key).
 
@@ -1204,10 +1241,13 @@ Developer scripts:
 ## Known issues
 
 - **Abdoh on your phone is not tried with a real iPhone and Tailscale yet.** The page, pairing,
-  talking and the controls are checked in a browser and against Abdoh's real server, speech
+  talking, the call, the controls, steps, pictures of the screen, files both ways, the board and
+  Codoh are checked in a browser and against Abdoh's real server over a real connection (an
+  upload, byte ranges, the board's drawings under the page's security rules), with speech
   recognition and voice on this computer; Tailscale's `serve` is tested with a stand-in. On an
   iPhone, the Home Screen app may ask for the microphone each time it starts (Apple's rule for
-  web apps). No notifications on the phone yet (timers and reminders are said on the computer).
+  web apps). How loud you must be for a call (and to talk over Abdoh) is a first guess. No
+  notifications on the phone yet (timers and reminders are said on the computer).
 
 - **Codoh and the switch to ChatGPT are not tried with a real ChatGPT account yet.** Codoh's
   ChatGPT chats (OpenAI's Responses API with Codoh's own tools) and ChatGPT taking over when
