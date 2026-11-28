@@ -806,6 +806,23 @@ command Good evening.") and the page shows it at once.
 - Permissions → **Change its own commands, modes and roles** (`claude.allow_self_edit`) turns it
   off.
 
+### Abdoh changes its own settings
+
+Ask, on the computer or the phone: "talk a bit faster", "just play a sound when you do
+something", "give me longer answers", "keep listening a bit longer after you answer", "stop
+remembering things". Abdoh changes it at once and says what it changed ("Changed Speed: 195
+words a minute"). Asked on the computer, its window comes up on the Settings page, on that
+setting, lit for a moment; asked on the phone, the window only shows the new value.
+
+- Only everyday settings: the voice (speed, voices), how it answers and listens, interrupting
+  it, lowering other sounds, the wake word's sensitivity, memory and conversations, updates.
+  Never the permissions, folders, keys, your instructions for Claude, the phone switch or the
+  speech models: for those it tells you where they are. "A bit more" or "less" changes a number
+  by a step; a value out of range is named back ("Speed goes from 120 to 260 words a minute").
+- The kind of voice (natural or Windows) is used once Abdoh restarts; it says so.
+- It goes through the same checks as the Settings page. **Change its own commands, modes and
+  roles** (`claude.allow_self_edit`) off turns this off too.
+
 ### Memory
 
 Abdoh remembers things about you across conversations. Tell it ("my sister is called Lina",
@@ -926,6 +943,11 @@ knows. You can also just tell Abdoh ("tell Codoh to run the tests too"). When th
 chat's last message, what it needs and when it's done come to the phone, not out loud on the
 computer.
 
+**Abdoh's settings.** Menu → **Abdoh's settings**: the same everyday settings Abdoh may change
+itself (see "Abdoh changes its own settings"), as switches, lists and sliders. A change is saved
+on the computer and used at once; the computer's Settings page shows it too. Or just ask Abdoh
+from the phone ("talk slower").
+
 **Good to know.**
 - The computer must be on and awake. When it's plugged in, let it never sleep (**Power
   settings** in the card). A sleeping computer can't answer; the phone says so and tries again
@@ -934,8 +956,9 @@ computer.
   Demand). An iPhone runs one VPN at a time.
 - Remove a phone in **Settings → Phone** (or **Unpair this phone** in its menu): it can't reach
   Abdoh any more. Turning the switch off also stops sharing the page in Tailscale.
-- The phone can ask Abdoh things, use the controls and Codoh, nothing more: it can't change
-  settings, see keys, or edit memory. Claude's permissions apply as on the computer.
+- The phone can ask Abdoh things, use the controls and Codoh, and change the everyday
+  settings, nothing more: it can't change permissions, see keys, or edit memory. Claude's
+  permissions apply as on the computer.
 - Pictures and files reach the phone through links with a secret in them, each valid for an
   hour (a picture on the board: as long as the board shows it), and only inside your Tailscale
   network. A web page or a drawing file is only downloaded, never opened as a page.

@@ -619,3 +619,20 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .call-bar-key.end { background: #e5484d; }
 .call-docked .live { padding-top: calc(66px + var(--safe-top)); }
 .call-docked .board-view, .call-docked .codoh-view { padding-top: 58px; }
+
+/* ----- Abdoh's own settings (story 157) ----- */
+.prefs-group { display: flex; flex-direction: column; border-radius: 14px; background: var(--panel); border: 1px solid var(--border); }
+.prefs-group h3 { margin: 0; padding: 12px 14px 4px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.prefs-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.prefs-group h3 + .prefs-row { border-top: 0; }
+.prefs-row.stacked { flex-direction: column; align-items: stretch; gap: 8px; }
+.prefs-label { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.3; }
+.prefs-label b { font-size: 15px; font-weight: 600; }
+.prefs-label small { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+.prefs-select {
+  flex: none; max-width: 52%; height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-strong);
+  background: var(--bg); color: var(--text); font: inherit; font-size: 14px;
+}
+.prefs-number { display: flex; align-items: center; gap: 12px; }
+.prefs-range { flex: 1; accent-color: var(--accent); }
+.prefs-value { flex: none; min-width: 64px; text-align: right; font-size: 14px; font-weight: 600; color: var(--accent-text); font-variant-numeric: tabular-nums; }

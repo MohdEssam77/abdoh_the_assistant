@@ -258,6 +258,7 @@ class Daemon:
         router.on_action = self._did
         router.on_show_screen = self._show_screen
         router.on_send_file = self._send_file
+        router.on_setting = self._claude_setting
         router.on_board = self._on_board
         router.on_memory = lambda: self.bus.emit("memory", None)  # the Memory page refreshes
         router.on_self_edit = self._self_edited
@@ -392,6 +393,8 @@ class Daemon:
         from abdoh.doing import action_step
 
         done = action_step(kind, arg)
+        if kind == "setting" and getattr(self, "_setting_text", ""):
+            done, self._setting_text = f"Changed {self._setting_text}", ""
         self.bus.emit("phone_step", done)
         if kind in PHONE_SETTLE:
             self._phone_app = _app_of(kind, arg)  # "" for the browser: the window in front
@@ -442,6 +445,51 @@ class Daemon:
         except Exception:
             log.debug("Couldn't tell which screen %r is on", app, exc_info=True)
             return "follow"
+
+    def _settings_view(self) -> list[dict]:
+        from abdoh.config import load_config
+        from abdoh.self_settings import view
+
+        return view(load_config(self.cfg.app_dir))
+
+    def _claude_setting(self, arg: str) -> str:
+        """Claude: ACTION setting (story 157): "" when it's changed, else what to say."""
+        from abdoh.self_settings import SettingError, parse
+
+        try:
+            knob, value = parse(arg, self.cfg)
+        except SettingError as e:
+            return str(e)
+        result = self.change_setting(knob.key, value, show=not self._phone_turn)
+        if not result["ok"]:
+            return result["error"]
+        self._setting_text = result["text"]  # the phone's step says what it is now
+        return "It takes effect once Abdoh restarts." if result["restart"] else ""
+
+    def change_setting(self, key: str, value, show: bool = False) -> dict:
+        """Change one of the settings Abdoh may change itself (abdoh/self_settings.py), use it
+        at once, and show it: on the laptop's Settings page (`show`: the window comes up there,
+        on that setting), or just refreshed. {"ok", "text", "restart"} or {"ok": False,
+        "error"}."""
+        from abdoh.config import load_config
+        from abdoh.self_settings import SettingError, changes, find, shown, value_of
+        from abdoh.settings import SettingsError, save_settings
+
+        try:
+            knob = find(key)
+            value = value_of(knob, value, load_config(self.cfg.app_dir))
+            new = save_settings(self.cfg.app_dir, changes(knob, value))
+        except (SettingError, SettingsError) as e:
+            return {"ok": False, "error": str(e)}
+        self.apply_settings(new)
+        text = shown(knob, value)
+        log.info("Changed a setting: %s", text)
+        if show:
+            self.bus.emit("show")
+        self.bus.emit("setting_changed", {"key": knob.key, "label": knob.label,
+                                          "section": knob.section, "page": knob.page,
+                                          "text": text, "show": bool(show)})  # fmt: skip
+        return {"ok": True, "text": text, "restart": knob.restart}
 
     def _send_file(self, arg: str) -> str:
         """Claude: ACTION send_file (only for the phone): "" when it went, else why not."""
@@ -1503,7 +1551,8 @@ class Daemon:
                                modes=lambda: self.modes.names() if self.modes else [],
                                screen=screen_picture, clipboard=self._clipboard_text,
                                set_clipboard=self._set_clipboard, codoh=self._codoh,
-                               live=LiveScreen(names=self._screen_names))  # fmt: skip
+                               live=LiveScreen(names=self._screen_names),
+                               settings=(self._settings_view, self.change_setting))  # fmt: skip
         try:
             service.start()
         except OSError as e:

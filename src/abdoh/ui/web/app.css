@@ -907,6 +907,8 @@ details.card.advanced[open] > summary .chev svg { transform: rotate(180deg); }
 .update-bar i { display: block; height: 100%; background: var(--accent); transition: width 0.3s; }
 
 /* A request from your phone (abdoh/phone): a small tag in its bubble. */
+.lit { animation: lit 2.6s ease-out; border-radius: 12px; outline-offset: 8px; }
+@keyframes lit { 0%, 45% { outline: 3px solid var(--accent); } 100% { outline: 3px solid transparent; } }
 .sent-files { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
 .sent-file { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .sent-open, .sent-folder { background: none; border: 0; padding: 0; color: inherit; cursor: pointer; box-shadow: none; }

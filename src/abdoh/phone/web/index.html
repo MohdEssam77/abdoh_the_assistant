@@ -206,6 +206,15 @@
   </footer>
 </section>
 
+<!-- Abdoh's own everyday settings (story 157): the same as on the computer. -->
+<section class="codoh-view settings-view" id="settings-view" hidden aria-label="Abdoh's settings">
+  <header class="board-top">
+    <span class="codoh-title"><b>Abdoh's settings</b><small>The same as on your computer · changes count at once</small></span>
+    <button class="viewer-button" id="settings-close" type="button">Close</button>
+  </header>
+  <div class="codoh-body" id="settings-body"></div>
+</section>
+
 <!-- The computer's clipboard, both ways (story 149). -->
 <div class="sheet-back" id="clip" hidden>
   <div class="sheet" role="dialog" aria-label="Clipboard">
@@ -265,6 +274,7 @@
   <div class="sheet" role="dialog" aria-label="Menu">
     <div class="grip"></div>
     <button class="sheet-button codoh-open" id="open-codoh"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>Codoh, the coding page</button>
+    <button class="sheet-button" id="open-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>Abdoh's settings</button>
     <div class="sheet-row" id="speak-row">
       <span><b>Speak replies</b><small>Hear Abdoh's answers on this phone.</small></span>
       <input type="checkbox" class="switch" id="speak" aria-label="Speak replies">

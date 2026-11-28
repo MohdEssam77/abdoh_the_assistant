@@ -110,9 +110,11 @@ class PhoneApp:
         web: Path = WEB_DIR,
         shared: Path = SHARED_DIR,
         codoh=None,
+        settings=None,
     ):
         self.hub = hub
         self.phones = phones
+        self.settings = settings  # (view(), change(key, value)): Abdoh's own settings
         self.codoh = codoh  # the app's Codoh, when it's there (a function: made when needed)
         self.web = Path(web)
         self.shared = Path(shared)
@@ -203,6 +205,16 @@ class PhoneApp:
             return answer(self.hub.events(after))
         if method == "GET" and route == "/api/controls":
             return answer(self.hub.controls())
+        if route == "/api/settings":  # the phone's Settings (story 157)
+            if self.settings is None:
+                raise PhoneError("Abdoh's settings can't be changed from here.")
+            view, change = self.settings
+            if method == "GET":
+                return answer({"ok": True, "sections": view()})
+            if method != "POST":
+                return error(405, "Not allowed.")
+            data = _json(body[:MAX_JSON])
+            return answer(change(str(data.get("key") or ""), data.get("value")))
         if method == "GET" and route == "/api/live/screens":
             if self.hub.live is None:
                 raise PhoneError("Abdoh can't show the screen here.")
@@ -335,7 +347,8 @@ class PhoneApp:
 
 _ROUTES = {"/api/state", "/api/events", "/api/text", "/api/voice", "/api/stop", "/api/forget",
            "/api/controls", "/api/control", "/api/screen", "/api/clipboard",
-           "/api/upload", "/api/board_pdf", "/api/live", "/api/live/screens"}  # fmt: skip
+           "/api/upload", "/api/board_pdf", "/api/live", "/api/live/screens",
+           "/api/settings"}  # fmt: skip
 
 
 def _handler(app: PhoneApp):
@@ -475,7 +488,7 @@ class PhoneService:
     with the Phone switch in Settings."""
 
     def __init__(self, cfg, bus, hear=None, voice=None, modes=None, screen=None,
-                 clipboard=None, set_clipboard=None, codoh=None, live=None,
+                 clipboard=None, set_clipboard=None, codoh=None, live=None, settings=None,
                  server_class=None):  # fmt: skip
         from abdoh.phone.files import upload_folder
 
@@ -484,7 +497,7 @@ class PhoneService:
         self.hub = PhoneHub(bus, hear=hear, voice=voice, modes=modes, screen=screen,
                             uploads_to=lambda: upload_folder(cfg), clipboard=clipboard,
                             set_clipboard=set_clipboard, live=live)  # fmt: skip
-        self.app = PhoneApp(self.hub, self.phones, codoh=codoh)
+        self.app = PhoneApp(self.hub, self.phones, codoh=codoh, settings=settings)
         self.server = (server_class or PhoneServer)(self.app, self.port)
 
     def start(self) -> None:

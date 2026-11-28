@@ -183,6 +183,21 @@ through the real server.
 - The log had errors after each picture of the screen: the bus put the picture's bytes in the
   window's queue too. Events whose kind starts with "phone_" are now only for the phone's hub.
 
+### Story 157: Abdoh changes its own settings (`story/157-own-settings`)
+The owner: "if I ask Abdoh to change something in its own settings it should be able to ...
+it opens its own app and goes to the thing I want to change, or the phone app itself has access
+to those as well; both options ... also from the laptop".
+- `abdoh/self_settings.py`: the everyday settings Abdoh may change (voice, conversation, wake
+  word sensitivity, memory, updates), each with its name on the Settings page, its card, its
+  range or choices. Never permissions, folders, keys, instructions, the phone switch, models.
+- Claude: `ACTION setting: <key> | <value>` (`+N` / `-N` for more or less; a choice by its value
+  or name), only with `claude.allow_self_edit`. It goes through `save_settings`, is used at
+  once (`apply_settings`), and the turn's "done" says the new value; what it can't do is said.
+- Asked on the laptop: the window comes up on Settings (or Memory), scrolls to the row and
+  lights it. Asked on the phone: the window only refreshes.
+- The phone: Menu → Abdoh's settings (`GET`/`POST /api/settings`): switches, lists, sliders; the
+  hub's "setting" event refreshes it when the change came from elsewhere.
+
 ### Story 153: Docs and the PR (`story/153-phone-docs`)
 GUIDE.md, the Catalog, this file's results, screenshots (demo data, light and dark), and one PR
 from `epic/11-phone` to `main` for the owner to merge.

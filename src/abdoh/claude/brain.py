@@ -128,6 +128,17 @@ SAVE_STEPS_NO_MEMORY = """If they mean something they told you rather than somet
 say that memory is switched off on Abdoh's Memory page."""
 
 # Abdoh changes its own commands, modes and roles (abdoh/self_edit.py): how, and what's there.
+# Abdoh's own everyday settings, changed when the user asks (abdoh/self_settings.py).
+SETTINGS = """You can also change Abdoh's own settings when the user asks ("talk a bit faster", \
+"just play a sound when you do something", "give me longer answers", "stop remembering things"), \
+from the computer or the phone: write the line
+ACTION setting: <one of the names below> | <its new value>
+For a number, +N or -N changes it by that much ("a bit faster": +20). Abdoh changes it at once, \
+shows it on its Settings page, and says if it couldn't; say in a few words what you changed. Only \
+these, never permissions, keys, folders or your instructions (if they ask for one of those, tell \
+them where it is: Settings or Permissions in Abdoh's window):
+{settings}
+"""
 SELF_EDIT = """You can make, change and delete the user's own commands, modes and roles (the \
 Commands, Modes and Act as pages) when they ask. Write one line, with the item as JSON on that \
 same line:
@@ -366,6 +377,7 @@ def _self_edit(cfg: Config) -> str:
     from abdoh.commands.registry import ACTION_TYPES
     from abdoh.modes.model import ICONS, POWER_MODES
     from abdoh.self_edit import current_items
+    from abdoh.self_settings import for_claude
 
     actions = [kind for kind in ACTION_TYPES if kind != "run" or cfg.allow_run]
     return SELF_EDIT.format(
@@ -373,7 +385,7 @@ def _self_edit(cfg: Config) -> str:
         power=", ".join(POWER_MODES),
         icons=", ".join(ICONS),
         items=current_items(cfg),
-    )
+    ) + SETTINGS.format(settings=for_claude())
 
 
 def _screen_names(path: Path) -> str:

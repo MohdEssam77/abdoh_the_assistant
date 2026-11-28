@@ -109,6 +109,10 @@ def action_step(kind: str, arg: str) -> str:
     arg = " ".join(str(arg or "").split())
     if kind == "open_url":
         return f"Opened {_cut(_site(arg) or arg)}"
+    if kind == "setting":
+        from abdoh.self_settings import describe_arg
+
+        return _cut(describe_arg(arg), 90)
     if kind == "codoh":
         from abdoh.codoh.voice import done_words
 
