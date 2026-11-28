@@ -35,6 +35,16 @@
       later(580, { type: "done", for: "demo-phone" });
       return;
     }
+    if (/board|explain/.test(lower)) { // shown on the board, written out while it's said
+      BOARD.forEach((_, i) => later(600 + i * 1500, { type: "board", card: { id: 7, text: BOARD.slice(0, i + 1).join("\n\n") } }));
+      ["Merge sort splits the list in half until each piece has one number.", "Then it merges the pieces back, in order.",
+        "Each level of merging touches every number once, so it's n log n."]
+        .forEach((t, i) => later(900 + i * 1600, { type: "say", text: t, audio: null, for: "demo-phone" }));
+      later(5600, { type: "history", line: "Abdoh: Merge sort splits the list in half until each piece has one number. Then it merges the pieces back, in order. Each level of merging touches every number once, so it's n log n." });
+      later(5700, { type: "status", text: "Listening" });
+      later(5750, { type: "done", for: "demo-phone" });
+      return;
+    }
     if (/^open/.test(lower)) { // opened on the computer: the screen comes a moment later
       later(300, { type: "step", text: "Opened Music", for: "demo-phone" });
       later(700, { type: "history", line: "Abdoh: Done: open app Music." });
@@ -58,6 +68,15 @@
     later(1400 + sentences.length * 900, { type: "status", text: "Listening" });
     later(1450 + sentences.length * 900, { type: "done", for: "demo-phone" });
   }
+
+  // What the demo puts on the board, a part at a time.
+  const BOARD = [
+    "## Merge sort",
+    "Split the list in half, sort each half, then **merge** the two sorted halves.",
+    ["```mermaid", "graph TD", "  A[8 3 5 1] --> B[8 3]", "  A --> C[5 1]", "  B --> D[3 8]", "  C --> E[1 5]",
+      "  D --> F[1 3 5 8]", "  E --> F", "```"].join("\n"),
+    "Time: $O(n \\log n)$, because there are $\\log_2 n$ levels and each one does $n$ work.",
+  ];
 
   // A made-up picture of the computer's screen: a desktop with a music app open.
   function picture() {
