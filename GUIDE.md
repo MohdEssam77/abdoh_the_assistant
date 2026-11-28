@@ -898,19 +898,22 @@ buttons. On a call, the call becomes a bar on top while you watch, and goes on (
 bring it back). Ask "show me my screen live" any time, or use **See the screen** in the controls.
 
 **Files, both ways.** "Find my CV and send it to me": Abdoh looks for it and sends it, and the
-phone gets a card with **Open** (the phone's own viewer, with Share and Save to Files) and
-**Download**. It only sends files from the folders it may work in (Settings → AI), never Abdoh's
+phone gets a card with **Open** (the phone's own viewer) and **Save to phone** (the phone's
+share sheet: **Save to Files**, Photos, or an app). It only sends files from the folders it may work in (Settings → AI), never Abdoh's
 own, at most 1 GB; the link works for an hour. The other way, the paperclip next to the text box
 sends a photo or a file to the computer (into `Downloads\From your phone`, 100 MB at most). It
 goes with your next message, typed or said: "what's in this photo?", "put this on the board and
-explain it", "save it to my desktop".
+explain it", "save it to my desktop". Sent with no words, it's only kept there (Abdoh says where,
+and stays quiet); your next message in the half hour after it can still be about it. On the
+computer, the conversation shows it as a link: click to open it, or **Show in folder**.
 
 **The clipboard.** Controls → **Clipboard**: what's copied on the computer, to copy to the phone,
 or paste something there and **Send to the computer**.
 
 **The board.** "Explain merge sort on the board": what Abdoh shows instead of only saying it
 (steps, code, math, tables, drawings, pictures) appears on the phone, written out while it
-explains. It opens by itself; the "On the board" card in the conversation opens it again. To
+explains. It opens by itself (on a call too: the call goes on as a bar on top); the "On the
+board" card in the conversation opens it again. To
 keep it, tap **Save as PDF** on the board, or just ask ("send me the board as a PDF", "can I
 keep this?"): the computer makes the PDF the way its window does, and it comes as a file card to
 open or download.

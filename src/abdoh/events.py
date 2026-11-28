@@ -8,7 +8,9 @@ daemon → UI events:   ("status", str), ("claude", str), ("wake", str), ("voice
                       ("phone_say", str): a sentence of a reply to the phone (not spoken here),
                       ("phone_aside", str), ("phone_question", str): see abdoh/phone/hub.py,
                       ("quit", None)
-Listeners (Bus.listen) get every event too, also without a window: the phone's hub.
+Listeners (Bus.listen) get every event too, also without a window: the phone's hub. Events
+whose kind starts with "phone_" are only for listeners (the phone's hub): the window never
+gets them (a picture's bytes can't go to it, and broke the window's events once).
 UI → daemon requests: ("text", str), ("listen", None), ("pause", None), ("resume", None),
                       ("reload", None), ("edit_commands", None), ("voice", bool),
                       ("set_key", str), ("stop_speaking", None), ("quit", None)
@@ -23,6 +25,7 @@ from typing import Any
 log = logging.getLogger(__name__)
 
 Message = tuple[str, Any]
+LISTENERS_ONLY = "phone_"  # events for the phone's hub alone
 
 
 class Bus:
@@ -36,7 +39,7 @@ class Bus:
 
     def emit(self, kind: str, value: Any = None) -> None:
         """Daemon side: send an event to the UI (and to the listeners)."""
-        if self.ui_attached:
+        if self.ui_attached and not kind.startswith(LISTENERS_ONLY):
             self.to_ui.put((kind, value))
         with self._lock:
             listeners = list(self._listeners)

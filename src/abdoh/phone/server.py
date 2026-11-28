@@ -234,9 +234,10 @@ class PhoneApp:
         if route == "/api/text":
             data = _json(body[:MAX_JSON])
             files = [str(f) for f in data.get("files") or [] if isinstance(f, str)]
+            self.hub.quiet = False
             text = self.hub.ask(str(data.get("text") or ""), bool(data.get("speak")), phone["id"],
                                 files=files)  # fmt: skip
-            return answer({"ok": True, "text": text})
+            return answer({"ok": True, "text": text, "quiet": self.hub.quiet})
         if route == "/api/clipboard":
             data = _json(body[: MAX_JSON + MAX_CLIPBOARD * 4])
             self.hub.put_clipboard(str(data.get("text") or ""))

@@ -163,6 +163,7 @@ def _open_path(target) -> None:
 
 # Installing an update: the window says so for this long, then Abdoh closes for the installer.
 UPDATE_CLOSE_SECONDS = 2.0
+PHONE_FILE_GONE = "That file isn't in Downloads › From your phone any more."
 # Edge made no PDF: the page opens the print dialog instead.
 PRINT_INSTEAD = " I opened the print dialog instead: pick Microsoft Print to PDF."
 
@@ -750,6 +751,37 @@ class AppApi:
         if self._window is None:
             return None
         return self._window.pick_folder()
+
+    def _phone_file(self, name) -> Path | None:
+        """A file the phone sent (in Downloads › From your phone), by its name, or None."""
+        from abdoh.phone.files import clean_name, upload_folder
+
+        name = str(name or "")
+        if not name or clean_name(name) != name:
+            return None
+        path = upload_folder(self._config()) / name
+        return path if path.is_file() else None
+
+    def open_phone_file(self, name) -> dict:
+        """Open a file the phone sent (the conversation's file chip)."""
+        path = self._phone_file(name)
+        if path is None:
+            return {"ok": False, "error": PHONE_FILE_GONE}
+        self._open_path(str(path))
+        return {"ok": True}
+
+    def show_phone_file(self, name) -> dict:
+        """Show a file the phone sent in its folder, selected."""
+        path = self._phone_file(name)
+        if path is None:
+            return {"ok": False, "error": PHONE_FILE_GONE}
+        if sys.platform == "win32":
+            import subprocess
+
+            subprocess.Popen(["explorer", f"/select,{path}"])  # noqa: S603, S607
+        else:
+            self._open_path(str(path.parent))
+        return {"ok": True}
 
     def open_folder(self, which) -> bool:
         """Open Abdoh's data folder ("data": settings and commands) or its log folder."""

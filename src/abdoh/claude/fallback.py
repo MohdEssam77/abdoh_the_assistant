@@ -113,6 +113,13 @@ class FallbackBrain(Brain):
     def remembers(self) -> bool:
         return getattr(self.current, "remembers", False)
 
+    def stop_now(self) -> None:
+        """Stop the reply being worked on right away (whichever brain is answering)."""
+        for brain in (self.primary, self._backup):
+            stop = getattr(brain, "stop_now", None) if brain is not None else None
+            if stop is not None:
+                stop()
+
     def until(self) -> float:
         """When Claude's limit resets, while ChatGPT answers for it (0 otherwise)."""
         return self._until if self.switched() else 0.0
