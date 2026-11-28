@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 from abdoh.phone.devices import FILE, Phones, phone_name
+from abdoh.phone.files import MAX_UPLOAD
 from abdoh.phone.hub import MAX_CLIPBOARD, PhoneError, PhoneHub
 from abdoh.phone.media import SHOWN
 
@@ -146,7 +147,7 @@ class PhoneApp:
             return error(403, OLD_CODE)
         return answer({"key": key})
 
-    def _codoh(self, method: str, route: str, query: dict, body: bytes) -> Response:
+    def _codoh(self, method: str, route: str, query: dict, body: bytes, phone: dict) -> Response:
         """Codoh from the phone (phone/codoh.py)."""
         from abdoh.phone import codoh as desk
 
@@ -169,6 +170,8 @@ class PhoneApp:
             return error(405, "Not allowed.")
         data = _json(body[: MAX_JSON + desk.TEXT * 4])
         chat_id = str(data.get("id") or "")
+        if route in ("/api/codoh/send", "/api/codoh/answer"):
+            self.hub.codoh_sent(chat_id, phone["id"])  # what the chat needs goes to this phone
         if route == "/api/codoh/send":
             return answer(codoh.send(chat_id, str(data.get("text") or ""), by_phone=True))
         if route == "/api/codoh/stop":
@@ -180,13 +183,14 @@ class PhoneApp:
                 raise PhoneError("That answer isn't one Codoh knows.")
             return answer(codoh.answer(chat_id, str(data.get("item") or ""), decision, answers))
         if route == "/api/codoh/new":
-            return answer(desk.new_chat(codoh, str(data.get("folder") or ""),
-                                        str(data.get("text") or "")))  # fmt: skip
+            made = desk.new_chat(codoh, str(data.get("folder") or ""), str(data.get("text") or ""))
+            self.hub.codoh_sent(str(made.get("chat") or ""), phone["id"])
+            return answer(made)
         return error(404, "Not found.")
 
     def _api(self, method: str, route: str, query: dict, body: bytes, phone: dict) -> Response:
         if route == "/api/codoh" or route.startswith("/api/codoh/"):
-            return self._codoh(method, route, query, body)
+            return self._codoh(method, route, query, body, phone)
         if method == "GET" and route == "/api/state":
             return answer({**self.hub.state(), "phone": phone["name"], "phone_id": phone["id"]})
         if method == "GET" and route == "/api/events":
@@ -222,7 +226,8 @@ class PhoneApp:
             speak = query.get("speak") == "1"
             if query.get("over") == "1":  # said over Abdoh's answer on a call (story 146)
                 return answer({"ok": True, **self.hub.hear_over(body, speak, phone["id"])})
-            heard = self.hub.hear(body, speak, phone["id"])
+            files = [f for f in str(query.get("files") or "").split(",") if f]
+            heard = self.hub.hear(body, speak, phone["id"], files=files)
             return answer({"ok": True, "text": heard})
         if route == "/api/stop":
             self.hub.stop()
@@ -338,13 +343,18 @@ def _handler(app: PhoneApp):
 
         def _upload(self, length: int) -> None:
             headers = {k.lower(): v for k, v in self.headers.items()}
+            reader = _Counted(self.rfile)
             try:
-                response = app.upload(headers, self.path, self.rfile, length)
+                response = app.upload(headers, self.path, reader, length)
             except Exception:
                 log.exception("A file from the phone couldn't be saved")
                 response = error(500, "Something went wrong on your computer.")
             if response.status != 200:
-                self.close_connection = True  # what's left of the file isn't read
+                left = length - reader.count
+                if 0 < left <= MAX_UPLOAD:  # read the rest, so the phone hears why (not a cut)
+                    while left > 0 and (piece := self.rfile.read(min(CHUNK, left))):
+                        left -= len(piece)
+                self.close_connection = True
             self._send(response, "POST")
 
         def _send(self, response: Response, method: str) -> None:
@@ -380,6 +390,19 @@ def _handler(app: PhoneApp):
             self._serve("POST")
 
     return Handler
+
+
+class _Counted:
+    """A reader that counts what was read (an upload: what's left of it)."""
+
+    def __init__(self, raw):
+        self.raw = raw
+        self.count = 0
+
+    def read(self, size: int = -1) -> bytes:
+        piece = self.raw.read(size)
+        self.count += len(piece)
+        return piece
 
 
 class _Server(ThreadingHTTPServer):

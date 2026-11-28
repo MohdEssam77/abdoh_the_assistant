@@ -386,10 +386,11 @@ class Daemon:
         timer.start()
 
     def _show_screen(self, why: str) -> None:
-        """Claude: ACTION show_screen (only for the phone): a picture of the screen, now."""
-        old, self._phone_shot = self._phone_shot, None
-        if old is not None:
-            old.cancel()
+        """Claude: ACTION show_screen (only for the phone): a picture of the screen, now (or
+        the one coming after what this reply just opened, once that's up)."""
+        coming = self._phone_shot
+        if coming is not None and coming.is_alive():
+            return
         threading.Thread(
             target=self._send_screen, args=("Your screen",), name="abdoh-phone-screen", daemon=True
         ).start()

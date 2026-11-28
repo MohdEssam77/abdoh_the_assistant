@@ -110,6 +110,7 @@ class PhoneHub:
         self._history: deque[str] = deque(maxlen=HISTORY)
         self._lines = 0  # today's conversation lines so far: where a picture or file falls
         self._shown: deque[dict] = deque(maxlen=SHOWN)  # pictures and files sent today
+        self._codoh_phones: dict[str, str] = {}  # a Codoh chat -> the phone that sent to it
         self._board: list[dict] = []  # the board's cards: {id, text} (story 150)
         self._pictures: dict[str, dict] = {}  # its pictures, by what they show
         self._day = today()
@@ -199,17 +200,20 @@ class PhoneHub:
         elif kind == "phone_image":  # {"data": JPEG bytes, "caption"}: a picture of the screen
             value = value if isinstance(value, dict) else {}
             try:
-                data, kind = value.get("data") or b"", value.get("type", "image/jpeg")
-                key = self.media.add_picture(data, kind)
+                data, picture_type = value.get("data") or b"", value.get("type", "image/jpeg")
+                key = self.media.add_picture(data, picture_type)
             except ValueError:
                 log.warning("A picture for the phone was empty or too big")
                 return
             self._show({"type": "image", "id": key, "caption": str(value.get("caption") or "")})
         elif kind == "phone_codoh":  # {"chat", "text"?, "open"?}: Codoh, for the phone's chat
             value = value if isinstance(value, dict) else {}
-            self._add({"type": "codoh", "chat": str(value.get("chat") or ""),
-                       "text": str(value.get("text") or "")[:500], "open": bool(value.get("open")),
-                       "for": self._asker})  # fmt: skip
+            chat = str(value.get("chat") or "")
+            if value.get("open"):  # Abdoh started it for the phone that's asking
+                self.codoh_sent(chat, self._asker)
+            phone = self._codoh_phones.get(chat) or self._asker
+            self._add({"type": "codoh", "chat": chat, "text": str(value.get("text") or "")[:500],
+                       "open": bool(value.get("open")), "for": phone})  # fmt: skip
         elif kind == "board":  # {"id", "text"}: a card grew; None: the board was cleared
             self._take_board(value)
         elif kind == "board_picture":  # {"what", "ok", "src" (a data: URL), "credit", ...}
@@ -237,7 +241,13 @@ class PhoneHub:
                 self._shown.clear()
             self._add({"type": "clear"})
 
+    def codoh_sent(self, chat: str, phone: str) -> None:
+        """This phone sent to that Codoh chat: what the chat needs goes to it."""
+        if chat and phone:
+            self._codoh_phones[chat] = phone
+
     def _take_board(self, card) -> None:
+        self._new_day()
         with self._cond:
             if not isinstance(card, dict):
                 self._board, self._pictures = [], {}
@@ -407,11 +417,14 @@ class PhoneHub:
             log.exception("Couldn't set the clipboard from the phone")
             raise PhoneError("Abdoh couldn't set the computer's clipboard.") from e
 
-    def hear(self, audio: bytes, speak: bool = False, phone: str = "") -> str:
-        """A spoken request from the phone: what was heard ("" if nothing), then asked."""
+    def hear(
+        self, audio: bytes, speak: bool = False, phone: str = "", files: list[str] | None = None
+    ) -> str:
+        """A spoken request from the phone: what was heard ("" if nothing), then asked (with
+        the files it sent first, like a typed one)."""
         text = self._transcribe(audio)
         if text:
-            self.ask(text, speak, phone, spoken=True)
+            return self.ask(text, speak, phone, spoken=True, files=files)
         return text
 
     def hear_over(self, audio: bytes, speak: bool = False, phone: str = "") -> dict:
