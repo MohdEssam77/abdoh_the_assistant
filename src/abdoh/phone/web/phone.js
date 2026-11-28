@@ -67,6 +67,7 @@ async function api(method, path, body, { timeout = 20000 } = {}) {
   if (!response.ok) {
     const error = new Error(data.error || `Your computer answered ${response.status}.`);
     error.shown = true; // a message for people
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -341,7 +342,7 @@ function closeViewer() {
    (asked again every 0.8 s while it works), instructions for it (queued while it works),
    Stop, Allow / Always / Deny, answers to its questions, and a new chat in one of its folders. */
 
-const codoh = { open: false, chatId: "", rev: 0, nodes: new Map(), timer: null, running: false, folders: [] };
+const codoh = { open: false, chatId: "", rev: 0, nodes: new Map(), timer: null, running: false, folders: [], asking: 0 };
 const CODOH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/></svg>';
 const DID = { read: "Read", search: "Searched", list: "Looked in", edit: "Edited", write: "Wrote", command: "Ran",
   web: "Looked up", task: "Worked on", todo: "Planned", other: "Used" };
@@ -370,6 +371,7 @@ function codohSay(text) {
 async function showChats() {
   clearTimeout(codoh.timer);
   codoh.chatId = "";
+  const asking = ++codoh.asking;
   $("#codoh-title").textContent = "Codoh";
   $("#codoh-status").textContent = "Your coding chats on the computer";
   $("#codoh-back").hidden = true;
@@ -382,7 +384,7 @@ async function showChats() {
     if (error instanceof Unpaired) return unpaired();
     return codohSay(error.shown ? error.message : "Can't reach your computer right now.");
   }
-  if (!codoh.open || codoh.chatId) return;
+  if (!codoh.open || codoh.chatId || asking !== codoh.asking) return;
   codoh.folders = data.folders || [];
   $("#codoh-body").replaceChildren(...[
     data.limited ? el("p", { class: "cx-note" }, `Claude's limit is used up ${data.limited}.`) : null,
@@ -411,6 +413,7 @@ function ago(seconds) {
 /* A new chat: one of Codoh's folders, and what it should do. */
 function newChat() {
   clearTimeout(codoh.timer);
+  codoh.asking += 1; // a list refresh on its way doesn't replace the form
   $("#codoh-title").textContent = "New chat";
   $("#codoh-status").textContent = "In which folder?";
   $("#codoh-back").hidden = false;
@@ -448,15 +451,16 @@ async function pollChat() {
   clearTimeout(codoh.timer);
   const id = codoh.chatId;
   if (!codoh.open || !id) return;
+  const asking = ++codoh.asking; // only the newest ask goes on (one loop, never two)
   let data;
   try {
     data = await api("GET", `/api/codoh/chat?id=${encodeURIComponent(id)}&since=${codoh.rev}`);
   } catch (error) {
     if (error instanceof Unpaired) return unpaired();
-    codoh.timer = setTimeout(pollChat, 4000);
+    if (asking === codoh.asking) codoh.timer = setTimeout(pollChat, 4000);
     return;
   }
-  if (id !== codoh.chatId || !codoh.open) return;
+  if (asking !== codoh.asking || id !== codoh.chatId || !codoh.open) return;
   if (!data.ok) return codohSay(data.error || "That chat is gone.");
   const body = $("#codoh-body");
   const near = body.scrollHeight - body.scrollTop - body.clientHeight < 200 || codoh.rev === 0;
@@ -753,7 +757,10 @@ function attach(file) {
   if (S.attached && S.attached.xhr) S.attached.xhr.abort();
   const item = { name: file.name || "file", size: file.size, id: null, progress: 0, failed: "", xhr: null };
   S.attached = item;
+  if (file.size > 100 * 1024 * 1024) item.failed = "That file is too big for the computer (100 MB at most).";
+  if (!file.size) item.failed = "That file is empty.";
   showAttached();
+  if (item.failed) return;
   if (DEMO) {
     setTimeout(() => { item.progress = 1; item.id = "demo-file"; showAttached(); }, 900);
     return;
@@ -931,7 +938,7 @@ function bubble(who, text, label = null) {
 /* "explain this [sent photo.jpg]" -> ["explain this", "photo.jpg"]: what the phone sent with
    a message, shown as a file line above it. */
 function withFile(text) {
-  const sent = /^([\s\S]*?)\s*\[sent ([^\]]+)\]$/.exec(text || "");
+  const sent = /^([\s\S]*?)\s*\[sent (.+)\]$/.exec(text || "");
   return sent ? [sent[1], sent[2]] : [text, ""];
 }
 
@@ -957,7 +964,9 @@ function takePending(text) {
   if (at < 0) return null;
   const [found] = S.pending.splice(at, 1);
   found.node.classList.remove("pending");
-  found.node.querySelector(".text").textContent = withFile(text)[0];
+  const [words, file] = withFile(text);
+  found.node.querySelector(".text").textContent = words;
+  if (file && !found.node.querySelector(".sent-file")) found.node.querySelector(".bubble").prepend(el("span", { class: "sent-file" }, `📎 ${file}`));
   return found.node;
 }
 
@@ -975,13 +984,13 @@ function render() {
     $("#messages").append(el("div", { class: "msg abdoh typing", id: "typing" }, el("div", { class: "bubble" }, el("i"), el("i"), el("i"))));
     scrollDown();
   } else if (!waiting && typing) typing.remove();
-  const empty = !$("#text").value.trim() && !S.attached;
+  const typed = !!$("#text").value.trim();
   const talking = S.busy || player.playing;
   $("#form").hidden = rec.on;
   $("#recording").hidden = !rec.on;
-  $("#stop").hidden = !(talking && empty);
-  $("#mic").hidden = !(empty && !talking);
-  $("#send").hidden = empty;
+  $("#stop").hidden = !(talking && !typed && !S.attached);
+  $("#mic").hidden = typed || talking; // with a photo waiting: say what to do with it, or type
+  $("#send").hidden = !typed && !S.attached;
   updateEmpty();
 }
 
@@ -1014,9 +1023,9 @@ function scrollDown(now = false) {
 
 /* ---------- asking ---------- */
 
-async function send(text) {
+async function send(text, { withFile = true } = {}) {
   text = text.trim().replace(/\s+/g, " ");
-  const file = S.attached;
+  const file = withFile ? S.attached : null;
   if (file && !file.id) return toast(file.failed ? "That file didn't go: remove it or pick it again." : "The file is still on its way…");
   if (!text && !file) return;
   S.attached = null;
@@ -1038,6 +1047,11 @@ async function send(text) {
     S.pending = S.pending.filter((p) => p.node !== node);
     node.classList.remove("pending");
     S.final = true;
+    if (file && !S.attached) { // it didn't go: the file waits for the next message again
+      S.attached = file;
+      if (error.status === 410) file.failed = error.message; // gone: pick it again
+      showAttached();
+    }
     failed(error);
   }
 }
@@ -1271,7 +1285,12 @@ function toPcm16k(chunks, rate) {
 /* What you said, sent: returns what Abdoh heard ("" if nothing). On a call (`inCall`), the
    call says what went wrong: errors are thrown. */
 async function sendVoice(pcm, { speak = S.speak, inCall = false } = {}) {
-  const node = bubble("you", "…");
+  const file = !inCall && S.attached && S.attached.id ? S.attached : null;
+  if (file) {
+    S.attached = null;
+    showAttached();
+  }
+  const node = bubble("you", file ? `… [sent ${file.name}]` : "…");
   node.classList.add("pending");
   const pending = { node, text: "", voice: true };
   S.pending.push(pending);
@@ -1284,11 +1303,16 @@ async function sendVoice(pcm, { speak = S.speak, inCall = false } = {}) {
     S.pending = S.pending.filter((p) => p !== pending);
     node.remove();
     S.final = true;
+    if (file && !S.attached) { // it didn't go: the file waits for the next message again
+      S.attached = file;
+      showAttached();
+    }
     render();
   };
   let data;
   try {
-    data = await api("POST", `/api/voice${speak ? "?speak=1" : ""}`, pcm, { timeout: 60000 });
+    const query = [speak ? "speak=1" : "", file ? `files=${encodeURIComponent(file.id)}` : ""].filter(Boolean).join("&");
+    data = await api("POST", `/api/voice${query ? `?${query}` : ""}`, pcm, { timeout: 60000 });
   } catch (error) {
     drop();
     if (inCall) throw error;
@@ -1672,7 +1696,7 @@ function setupComposer() {
   $("#call-mute").addEventListener("click", toggleMute);
   $("#hang-up").addEventListener("click", () => endCall());
   for (const button of document.querySelectorAll("[data-answer]")) {
-    button.addEventListener("click", () => send(button.dataset.answer === "yes" ? "Yes" : "No"));
+    button.addEventListener("click", () => send(button.dataset.answer === "yes" ? "Yes" : "No", { withFile: false }));
   }
 }
 

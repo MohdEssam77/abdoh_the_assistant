@@ -23,6 +23,7 @@ from abdoh.phone.files import (
     save_upload,
     upload_folder,
 )
+from abdoh.phone.hub import PhoneGone
 from abdoh.router import FROM_PHONE, Router
 
 
@@ -133,7 +134,8 @@ def test_a_file_sent_from_the_phone_goes_with_the_next_request(tmp_path):
     assert text == "explain this on the board [sent homework.jpg]"
     kind, request = bus.next_request(0)
     assert request["files"] == [str(tmp_path / "in" / "homework.jpg")]
-    assert hub.ask("and again", files=[saved["id"]]) == "and again"  # each file goes once
+    with pytest.raises(PhoneGone):  # each file goes once: after that it's gone (and said)
+        hub.ask("and again", files=[saved["id"]])
     photo = hub.save("photo.jpg", io.BytesIO(b"JPEG"), 4)
     assert hub.ask("", files=[photo["id"]]) == "[sent photo.jpg]"  # a file alone is a request
 
@@ -252,3 +254,49 @@ def test_files_are_kept_where_claude_handles_requests(tmp_path):
     daemon.handle_request("phone", {"text": "look [sent a.jpg]", "files": ["C:/in/a.jpg"]})
     daemon.handle_text("hello")
     assert seen_files == [["C:/in/a.jpg"], []]
+
+
+def test_a_file_goes_with_a_voice_message_too(tmp_path):
+    """A photo, then "what's in this?" said instead of typed: the photo goes with it."""
+    from fakes import FakeTranscriber
+
+    heard = FakeTranscriber(["what's in this photo"])
+    bus, hub, phones, app = make_app(tmp_path, hear=heard.transcribe, uploads_to=lambda: tmp_path)
+    key = paired(app, phones)
+    saved = hub.save("photo.jpg", io.BytesIO(b"JPEG"), 4)
+    path = f"/api/voice?speak=1&files={saved['id']}"
+    _, data = call(app, "POST", path, key=key, body=b"\x00\x01" * 800)
+    assert data["text"] == "what's in this photo [sent photo.jpg]"
+    assert bus.next_request(0)[1]["files"] == [str(tmp_path / "photo.jpg")]
+
+
+def upload_through_the_handler(app, body, key=None):
+    from email.message import Message
+
+    from abdoh.phone.server import _handler
+
+    handler = _handler(app).__new__(_handler(app))
+    handler.rfile = io.BytesIO(body)
+    handler.wfile = io.BytesIO()
+    handler.headers = Message()
+    if key:
+        handler.headers["Authorization"] = f"Bearer {key}"
+    handler.path = "/api/upload?name=x.bin"
+    handler.request_version = "HTTP/1.1"
+    handler.requestline = "POST /api/upload HTTP/1.1"
+    handler.command = "POST"
+    handler.client_address = ("127.0.0.1", 0)
+    handler._upload(len(body))
+    return handler
+
+
+def test_a_refused_upload_is_read_to_the_end_so_the_phone_hears_why(tmp_path):
+    """Answered before its file was read, the phone saw a cut connection, not why."""
+    bus, hub, phones, app = make_app(tmp_path)  # this computer takes no files
+    body = b"x" * 300_000
+    handler = upload_through_the_handler(app, body, key=paired(app, phones))
+    assert handler.wfile.getvalue().split(b"\r\n")[0].endswith(b"400 Bad Request")
+    assert handler.rfile.tell() == len(body) and handler.close_connection
+    stranger = upload_through_the_handler(app, body)  # not paired: not read at all
+    assert stranger.wfile.getvalue().split(b"\r\n")[0].endswith(b"401 Unauthorized")
+    assert stranger.rfile.tell() == 0 and stranger.close_connection

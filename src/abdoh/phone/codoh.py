@@ -14,7 +14,7 @@ DIFF = 12000  # the start of a change
 TEXT = 30000  # an answer or a message
 CHATS = 30
 NO_CODOH = "Codoh isn't available on the computer right now."
-NO_FOLDER = "That folder isn't there any more."
+NO_FOLDER = "That folder isn't one of Codoh's (or isn't there any more)."
 KEEP = {
     "user": ("text",),
     "assistant": ("text", "engine", "model"),
@@ -106,7 +106,9 @@ def chat(codoh, chat_id: str, since: int) -> dict:
 
 
 def new_chat(codoh, folder: str, text: str) -> dict:
-    if not Path(str(folder or "")).is_dir():
+    """A new chat, only in one of the folders Codoh already knows (the phone offers those)."""
+    known = {str(Path(f.get("path", ""))) for f in codoh.state().get("folders") or []}
+    if not Path(str(folder or "")).is_dir() or str(Path(str(folder))) not in known:
         return {"ok": False, "error": NO_FOLDER}
     made = codoh.new_chat(str(folder))
     if not made.get("ok"):

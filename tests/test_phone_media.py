@@ -228,3 +228,22 @@ def _wait_for(check, seconds=2.0):
     while not check() and time.monotonic() < end:
         time.sleep(0.01)
     assert check()
+
+
+def test_show_screen_after_opening_waits_for_what_was_opened(monkeypatch):
+    import abdoh.daemon as daemon_module
+
+    monkeypatch.setattr(daemon_module, "PHONE_SHOT_SECONDS", 0.2)
+    bus = Bus(ui_attached=False)
+    seen = Recorder(bus)
+    daemon = make_daemon(StubRouter([]), bus=bus)
+    daemon._grab_screen = lambda: b"JPEG"
+    daemon._phone_turn = True
+    daemon._did("open_app", "Spotify")
+    daemon._show_screen("they want to see it")  # the picture after opening covers it
+    _wait_for(lambda: seen.of("phone_image"))
+    import time
+
+    time.sleep(0.3)
+    pictures = seen.of("phone_image")
+    assert len(pictures) == 1 and pictures[0]["caption"] == "Opened Spotify"

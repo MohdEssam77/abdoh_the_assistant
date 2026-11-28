@@ -21,6 +21,7 @@ log = logging.getLogger(__name__)
 
 KEEP_SECONDS = 3600.0
 MAX_PICTURES = 40
+MAX_LASTING = 60  # board pictures
 MAX_PICTURE_BYTES = 8_000_000
 SCREEN_SIDE = 1600  # a screenshot's long side, in pixels, at most
 SCREEN_QUALITY = 80
@@ -42,6 +43,7 @@ class Media:
     path: Path | None = None  # a file on disk
     size: int = 0
     at: float = 0.0
+    lasting: bool = False  # a board picture: kept while the board has it (forget() ends it)
 
 
 def file_type(name: str) -> str:
@@ -65,10 +67,17 @@ class MediaStore:
         self._items: OrderedDict[str, Media] = OrderedDict()
         self._lock = threading.Lock()
 
-    def add_picture(self, data: bytes, kind: str = "image/jpeg") -> str:
+    def add_picture(self, data: bytes, kind: str = "image/jpeg", lasting: bool = False) -> str:
+        """`lasting`: no hour's limit, and not pushed out by newer pictures (the board's, for
+        as long as it shows them)."""
         if not data or len(data) > MAX_PICTURE_BYTES:
             raise ValueError("no picture, or too big")
-        return self._add(Media(kind, data=bytes(data), size=len(data)))
+        return self._add(Media(kind, data=bytes(data), size=len(data), lasting=lasting))
+
+    def forget(self, keys) -> None:
+        with self._lock:
+            for key in keys:
+                self._items.pop(key, None)
 
     def add_file(self, path: Path) -> str:
         path = Path(path)
@@ -81,9 +90,12 @@ class MediaStore:
         with self._lock:
             self._forget_old()
             self._items[key] = media
-            pictures = [k for k, m in self._items.items() if m.data is not None]
-            for old in pictures[: max(0, len(pictures) - MAX_PICTURES)]:
-                del self._items[old]
+            for lasting, most in ((False, MAX_PICTURES), (True, MAX_LASTING)):
+                kept = [
+                    k for k, m in self._items.items() if m.data is not None and m.lasting == lasting
+                ]
+                for old in kept[: max(0, len(kept) - most)]:
+                    del self._items[old]
         return key
 
     def get(self, key: str) -> Media | None:
@@ -93,7 +105,7 @@ class MediaStore:
 
     def _forget_old(self) -> None:
         now = self._clock()
-        for key in [k for k, m in self._items.items() if now - m.at > self._keep]:
+        for key in [k for k, m in self._items.items() if not m.lasting and now - m.at > self._keep]:
             del self._items[key]
 
 

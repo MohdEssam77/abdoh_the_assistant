@@ -129,9 +129,11 @@ def save_upload(folder: Path, name: str, reader, length: int, limit: int = MAX_U
         raise FileProblem("That file is too big to send to the computer (100 MB at most).")
     if length <= 0:
         raise FileProblem("That file is empty.")
+    import secrets
+
     folder.mkdir(parents=True, exist_ok=True)
     path = free_path(folder, clean_name(name))
-    part = path.with_name(path.name + ".part")
+    part = folder / f".{secrets.token_hex(8)}.part"  # its own, even when two have one name
     left = length
     try:
         with open(part, "wb") as out:

@@ -120,9 +120,9 @@ class Chat:
         self.lock = threading.RLock()
         self.voice = False  # the latest message came from Abdoh: it says what happens next
         self.phone = False  # ... from the phone: its notices go there (ABDOH_EPIC_11.md)
-        # Messages sent while a reply runs, sent when it ends: (text, by voice). Shown beside
-        # the conversation, and part of it once sent.
-        self.queue: list[tuple[str, bool]] = []
+        # Messages sent while a reply runs, sent when it ends: (text, by voice, by phone).
+        # Shown beside the conversation, and part of it once sent.
+        self.queue: list[tuple[str, bool, bool]] = []
 
     def bump(self, item: dict | None = None) -> None:
         self.rev += 1
@@ -415,7 +415,7 @@ class Codoh:
                 "running": chat.running,
                 "status": chat.status,
                 "seconds": round(self._now() - chat.started, 1) if chat.running else 0,
-                "queued": [text for text, _ in chat.queue],
+                "queued": [text for text, *_ in chat.queue],
             }
 
     def rename(self, chat_id: str, title: str) -> dict:
@@ -492,13 +492,12 @@ class Codoh:
         if chat is None or not text:
             return {"ok": False, "error": "Nothing to send."}
         with chat.lock:
-            chat.phone = by_phone
-            if chat.running:  # it goes next, when this reply ends
-                chat.queue.append((text, by_voice))
+            if chat.running:  # it goes next, when this reply ends (and then it's its own)
+                chat.queue.append((text, by_voice, by_phone))
                 chat.bump()
                 log.info("Codoh: a message queued in %s", Path(chat.data["folder"]).name)
                 return {"ok": True, "queued": True}
-            chat.voice = by_voice
+            chat.voice, chat.phone = by_voice, by_phone
             if not Path(chat.data["folder"]).is_dir():
                 return {"ok": False, "error": "The chat's folder doesn't exist anymore."}
             if chat.data["engine"] == "claude" and self.claude_limited() and self._fallback():
@@ -885,15 +884,15 @@ class Codoh:
         if not chat.queue:
             return None
         if stopped:
-            for text, _ in chat.queue:
+            for text, *_ in chat.queue:
                 chat.add("note", text=f"Not sent: {text}")
             chat.queue.clear()
             self._save(chat)
             return None
-        text, by_voice = chat.queue.pop(0)
+        text, by_voice, by_phone = chat.queue.pop(0)
         chat.add("user", text=text)
         self._save(chat)
-        chat.voice = by_voice
+        chat.voice, chat.phone = by_voice, by_phone
         return text
 
     def _done_notice(self, chat: Chat, event: dict) -> str:

@@ -87,6 +87,11 @@ def test_a_new_chat_from_the_phone(tmp_path):
     world = World(tmp_path)
     bus, hub, phones, app = make_app_with(tmp_path, world.codoh)
     key = paired(app, phones)
+    other = tmp_path / "not-codohs"
+    other.mkdir()
+    _, data = call(app, "POST", "/api/codoh/new", key=key, body={"folder": str(other)})
+    assert data == {"ok": False, "error": NO_FOLDER}  # only a folder Codoh knows
+    world.codoh.open_folder(str(world.folder))
     _, data = call(app, "POST", "/api/codoh/new", key=key,
                    body={"folder": str(world.folder), "text": "Make a README"})  # fmt: skip
     assert data["ok"] and world.engines[0].sent == ["Make a README"]
@@ -154,3 +159,16 @@ def test_abdoh_opens_codoh_on_the_phone_for_a_phone_request():
     event = hub.events(0, wait=0)["events"][-1]
     assert (event["type"], event["chat"], event["text"], event["for"]) == (
         "codoh", "c1", "Codoh is done.", "p1")  # fmt: skip
+
+
+def test_a_codoh_notice_goes_to_the_phone_that_sent_to_the_chat(tmp_path):
+    """Not to whichever phone asked Abdoh something last (or to none at all)."""
+    world = World(tmp_path)
+    bus, hub, phones, app = make_app_with(tmp_path, world.codoh)
+    key = paired(app, phones)
+    me = phones.list()[0]["id"]
+    chat_id = world.chat()
+    call(app, "POST", "/api/codoh/send", key=key, body={"id": chat_id, "text": "Add tests"})
+    hub.ask("what time is it", phone="another-phone")  # someone else asks Abdoh meanwhile
+    hub.take("phone_codoh", {"chat": chat_id, "text": "Codoh is done."})
+    assert hub.events(0, wait=0)["events"][-1]["for"] == me
