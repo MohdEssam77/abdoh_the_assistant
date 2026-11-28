@@ -32,6 +32,7 @@ from abdoh.claude.reply import (
     SAVE_STEPS,
     SELF_EDIT_ACTIONS,
     SEND_FILE,
+    SETTING,
     SHOW_SCREEN,
     UNDO_CHANGE,
     WATCH,
@@ -278,6 +279,8 @@ class Router:
         self.on_action: Callable[[str, str], None] = lambda kind, arg: None
         self.phone = False  # the request being handled came from the phone (abdoh/phone)
         self.on_show_screen: Callable[[str], None] = lambda why: None  # ACTION show_screen
+        # ACTION setting: "" when it was changed, else what to say (why it couldn't).
+        self.on_setting: Callable[[str], str] = lambda arg: "I can't change my settings here."
         # ACTION send_file: "" when it went to the phone, else what to say (why it couldn't).
         self.on_send_file: Callable[[str], str] = lambda path: "Files only go to the phone."
         self.phone_files: list[str] = []  # files the phone sent with the request (full paths)
@@ -713,6 +716,13 @@ class Router:
                 log.info("Not meant for Abdoh: staying quiet")
                 turn.ignored = True
                 return
+            if kind == SETTING:
+                problem = self.on_setting(arg)
+                if problem:
+                    problems.append(problem)  # why it couldn't (or that it needs a restart)
+                else:
+                    turn.actions.append((SETTING, arg))
+                return
             if kind == SEND_FILE:
                 problem = self.on_send_file(arg)
                 if problem:
@@ -810,6 +820,7 @@ class Router:
                 allowed.append(CODOH_STATE)  # once, like the log
         if self.cfg.claude.allow_self_edit:
             allowed.extend(SELF_EDIT_ACTIONS)
+            allowed.append(SETTING)
         if self.acting is not None:
             allowed.append(ROLE)
             if self.acting.current is not None and self.cfg.lesson_listen_seconds > 0:

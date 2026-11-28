@@ -90,6 +90,8 @@ REMEMBER, LESSON, FORGET = "remember", "lesson", "forget"
 MEMORY_ACTIONS = (REMEMBER, LESSON, FORGET)
 # Abdoh changes its own commands, modes and roles (abdoh/self_edit.py, claude.allow_self_edit).
 SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE = "save_item", "delete_item", "undo_change"
+# ... and its own everyday settings (abdoh/self_settings.py): never permissions or keys.
+SETTING = "setting"
 SELF_EDIT_ACTIONS = (SAVE_ITEM, DELETE_ITEM, UNDO_CHANGE)
 # "Remember that" after Claude did something: those steps become one of the user's commands.
 SAVE_STEPS = "save_steps"

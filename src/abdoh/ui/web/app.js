@@ -864,6 +864,31 @@ function addHistory(line) {
   scrollChat();
 }
 
+/* Abdoh changed one of its own settings (you asked it, here or on the phone, or the phone's
+   Settings): the page shows the new value, and when you asked here, goes to it and lights it. */
+async function settingChanged(info) {
+  const result = await call("settings");
+  if (result) {
+    App.settings = result.settings;
+    App.restart = result.restart || [];
+    for (const page of Object.values(App.pages)) if (page.settingsChanged) page.settingsChanged();
+  }
+  if (!info || !info.show) return;
+  showPage(info.page || "settings");
+  setTimeout(() => {
+    const cards = [...document.querySelectorAll(".page.active .card, .page.active details")];
+    const card = cards.find((c) => (c.querySelector("h2") || {}).textContent === info.section);
+    const row = card && [...card.querySelectorAll(".row")].find((r) => (r.querySelector(".label b") || {}).textContent === info.label);
+    const target = row || card;
+    if (!target) return;
+    if (target.tagName === "DETAILS") target.open = true;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.classList.add("lit");
+    setTimeout(() => target.classList.remove("lit"), 2600);
+  }, 250);
+  toast(info.text);
+}
+
 /* A file the phone sent: open it, or show it in its folder. */
 async function phoneFile(how, name) {
   const result = await call(how, name);
@@ -988,6 +1013,7 @@ const HANDLERS = {
   watch: setWatch,
   listening: setListening,
   board: addToBoard,
+  setting_changed: settingChanged,  // Abdoh changed one of its settings (asked, or the phone)
   save_board: (asked) => (asked && asked.phone ? saveBoardPdf(false, null, true) : saveBoardPdf(true)),
   board_picture: (picture) => {
     App.boardPictures = { ...(App.boardPictures || {}), [picture.what]: picture };

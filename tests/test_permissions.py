@@ -78,6 +78,7 @@ def test_prompt_without_any_actions():
     kept += ("ACTION logs:",)  # reading its own log isn't done on the computer either
     kept += ("ACTION codoh:", "ACTION codoh_state:")  # Codoh works in its own page
     kept += ("ACTION show_screen:", "ACTION send_file:")  # to the owner's own phone
+    kept += ("ACTION setting:",)  # Abdoh's own settings (never permissions)
     assert all(line.startswith(kept) for line in lines)
     assert NO_ACTIONS.split(":")[0] in text  # roles aren't things done on the computer
 
