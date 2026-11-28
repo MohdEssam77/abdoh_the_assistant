@@ -275,6 +275,7 @@ function take(event) {
     case "file": if (event.for === S.me) { addMedia(event); scrollDown(true); boardPdfCame(event); } break;
     case "board": takeBoard(event.card || null); break;
     case "codoh": takeCodoh(event); break;
+    case "setting": if (prefs.open) showSettings(); break;
     case "live": if (event.for === S.me) openLive(event.screen || "follow"); break;
     case "board_picture": takePicture(event.picture || {}); break;
     default: break;
@@ -404,7 +405,7 @@ function demoLive(turn) {
 /* A call while the screen is live, the board is up or Codoh is open: the call is a bar on top
    (it goes on), and comes back when they close (or with a tap on the bar). */
 function dockCall() {
-  const docked = call.on && (live.open || board.open || codoh.open);
+  const docked = call.on && (live.open || board.open || codoh.open || prefs.open);
   $("#call").classList.toggle("docked", docked);
   $("#call-bar").hidden = !docked;
   document.body.classList.toggle("call-docked", docked);
@@ -415,6 +416,7 @@ function backToCall() {
   if (live.open) closeLive();
   if (board.open) closeBoard();
   if (codoh.open) closeCodoh();
+  if (prefs.open) closeSettings();
 }
 
 /* ---------- pictures and files from the computer (stories 148, 149) ----------
@@ -813,6 +815,77 @@ function takeCodoh(event) {
   if (event.text) toast(`Codoh: ${event.text}`);
   if (codoh.open && codoh.chatId === event.chat) pollChat();
   else if (event.open && S.answered < S.asked) openCodoh(event.chat);
+}
+
+/* ---------- Abdoh's own settings (story 157) ----------
+   The everyday ones (voice, how it listens and talks, memory), the same as on the computer:
+   a change counts at once there. Never permissions or keys (they stay on the computer). */
+
+const prefs = { open: false };
+
+async function openSettings() {
+  $("#menu").hidden = true;
+  prefs.open = true;
+  $("#settings-view").hidden = false;
+  dockCall();
+  await showSettings();
+}
+
+function closeSettings() {
+  prefs.open = false;
+  $("#settings-view").hidden = true;
+  dockCall();
+}
+
+async function showSettings() {
+  const body = $("#settings-body");
+  if (!body.children.length) body.replaceChildren(el("p", { class: "board-empty" }, "…"));
+  let data;
+  try {
+    data = await api("GET", "/api/settings");
+  } catch (error) {
+    if (error instanceof Unpaired) return unpaired();
+    return body.replaceChildren(el("p", { class: "board-empty" }, error.shown ? error.message : "Can't reach your computer right now."));
+  }
+  const scroll = body.scrollTop;
+  body.replaceChildren(...(data.sections || []).map((section) => el("div", { class: "prefs-group" },
+    el("h3", {}, section.title), ...section.settings.map(settingRow))));
+  body.scrollTop = scroll;
+}
+
+function settingRow(s) {
+  const save = async (value, undo) => {
+    try {
+      const result = await api("POST", "/api/settings", { key: s.key, value });
+      if (!result.ok) { toast(result.error || "That can't be changed."); undo(); return; }
+      toast(result.restart ? `${result.text} · after a restart` : result.text);
+    } catch (error) {
+      toast(error.shown ? error.message : "Can't reach your computer right now.");
+      undo();
+    }
+  };
+  let control;
+  if (s.kind === "bool") {
+    control = el("input", { type: "checkbox", class: "switch", checked: !!s.value, "aria-label": s.label });
+    control.addEventListener("change", () => save(control.checked, () => { control.checked = !control.checked; }));
+  } else if (s.kind === "choice") {
+    control = el("select", { class: "prefs-select", "aria-label": s.label },
+      s.choices.map(([value, name]) => el("option", { value, selected: value === s.value }, name)));
+    const was = s.value;
+    control.addEventListener("change", () => save(control.value, () => { control.value = was; }));
+  } else {
+    const shown = el("span", { class: "prefs-value" });
+    const show = (v) => { shown.textContent = s.unit === "%" ? `${v}%` : `${v}${s.unit ? ` ${s.unit}` : ""}`; };
+    const slider = el("input", { type: "range", class: "prefs-range", min: s.low, max: s.high, step: s.step, value: s.value, "aria-label": s.label });
+    show(s.value);
+    const was = s.value;
+    slider.addEventListener("input", () => show(slider.value));
+    slider.addEventListener("change", () => save(Number(slider.value), () => { slider.value = was; show(was); }));
+    control = el("div", { class: "prefs-number" }, slider, shown);
+  }
+  const wide = s.kind === "number";
+  return el("div", { class: `prefs-row${wide ? " stacked" : ""}` },
+    el("span", { class: "prefs-label" }, el("b", {}, s.label), s.help ? el("small", {}, s.help) : null), control);
 }
 
 /* ---------- the board (story 150) ----------
@@ -1997,6 +2070,8 @@ function setupMenu() {
   });
   $("#menu-button").addEventListener("click", () => { menu.hidden = false; });
   $("#open-codoh").addEventListener("click", () => openCodoh());
+  $("#open-settings").addEventListener("click", openSettings);
+  $("#settings-close").addEventListener("click", closeSettings);
   $("#menu-close").addEventListener("click", () => { menu.hidden = true; });
   menu.addEventListener("click", (e) => { if (e.target === menu) menu.hidden = true; });
   $("#unpair").addEventListener("click", async () => {

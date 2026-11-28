@@ -70,7 +70,7 @@ OVER = {"stop": "stop", "stop_listening": "end", "request": "request"}
 KINDS = frozenset(
     {"history", "status", "activity", "claude", "mode", "phone_say", "phone_aside",
      "phone_question", "phone_done", "phone_step", "phone_image", "phone_note", "phone_file",
-     "board", "board_picture", "phone_codoh", "phone_live"}
+     "board", "board_picture", "phone_codoh", "phone_live", "setting_changed"}
 )  # fmt: skip
 
 
@@ -238,6 +238,10 @@ class PhoneHub:
             phone = self._codoh_phones.get(chat) or self._asker
             self._add({"type": "codoh", "chat": chat, "text": str(value.get("text") or "")[:500],
                        "open": bool(value.get("open")), "for": phone})  # fmt: skip
+        elif kind == "setting_changed":  # {"key", "text", ...}: the phone's Settings refresh
+            value = value if isinstance(value, dict) else {}
+            self._add({"type": "setting", "key": str(value.get("key") or ""),
+                       "text": str(value.get("text") or "")})  # fmt: skip
         elif kind == "phone_live":  # {"screen"}: the phone shows that screen live
             value = value if isinstance(value, dict) else {}
             self._add({"type": "live", "screen": str(value.get("screen") or "follow"),

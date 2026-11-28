@@ -139,6 +139,21 @@
     return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   }
 
+  // Abdoh's own settings, as the computer would send them.
+  const n = (key, label, value, low, high, step, unit, help = "") => ({ key, label, value, low, high, step, unit, help, kind: "number", choices: [] });
+  const b = (key, label, value, help = "") => ({ key, label, value, help, kind: "bool", choices: [] });
+  const c = (key, label, value, choices, help = "") => ({ key, label, value, help, kind: "choice", choices });
+  const SETTINGS = [
+    { title: "Voice", settings: [n("tts_rate", "Speed", 175, 120, 260, 5, "words a minute", "How fast Abdoh talks."),
+      c("piper_voice_en", "English voice", "en_US-lessac-medium", [["en_US-lessac-medium", "Lessac (American)"], ["en_GB-jenny_dioco-medium", "Jenny Dioco (British)"]], "Abdoh's voice in English.")] },
+    { title: "Conversation", settings: [c("confirm_actions", "When it does something for you", "sound", [["sound", "A short sound"], ["words", "Say what it did"]], "After “open Spotify”: a short sound, or it says what it did."),
+      n("claude.voice_reply_max_sentences", "Longest spoken answer", 4, 1, 20, 1, "sentences", "How many sentences an answer may have, at most."),
+      b("voice_interrupts", "Stop when I start talking", true, "Abdoh goes quiet as soon as it hears you."),
+      c("voice_interrupt_sensitivity", "How easily your voice stops Abdoh", "medium", [["low", "Low"], ["medium", "Medium"], ["high", "High"]], "Higher reacts sooner; lower is for loud rooms."),
+      b("duck_others", "Lower other sounds while I talk to Abdoh", true, "Music and videos go quieter while Abdoh listens and answers.")] },
+    { title: "Memory", settings: [b("memory", "Remember things about me", true, "Abdoh remembers what you tell it."), n("conversation_days", "How long conversations are kept", 7, 1, 30, 1, "days")] },
+  ];
+
   // What "you" say into the demo's microphone, in turn (a call goes on with the next).
   const SAID = ["help me plan dinner tonight", "yes, the quick steps please", "turn off the desk lamp"];
   let said = 0;
@@ -176,6 +191,8 @@
         return { ok: true, text: heard };
       }
       if (path === "/api/screen") return { ok: true, id: "demo" };
+      if (path === "/api/settings" && method === "GET") return { ok: true, sections: SETTINGS };
+      if (path === "/api/settings") return { ok: true, text: `${body.key}: ${body.value}`, restart: false };
       if (path === "/api/live/screens") {
         return { ok: true, screens: [{ id: "1", label: "Screen 1 · Laptop screen", primary: true },
           { id: "2", label: "Screen 2 · HP 32f", primary: false }, { id: "3", label: "Screen 3 · LG Ultrawide", primary: false }] };
