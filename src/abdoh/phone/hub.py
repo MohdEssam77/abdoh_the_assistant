@@ -56,6 +56,7 @@ AUDIO_SECONDS = 600.0  # a reply's audio can be fetched for this long
 MAX_AUDIO = 60
 MEDIA = ("play_pause", "next", "previous", "volume_up", "volume_down", "mute")
 SHOWN = 30  # pictures and files kept for a page that opens later
+PHONE_LINE = "You (phone): "
 BOARD_CARDS = 30  # as many board cards as the window keeps
 MAX_CLIPBOARD = 100_000
 # What was said to the phone, for telling its own voice coming back from yours: the phone plays
@@ -74,6 +75,13 @@ KINDS = frozenset(
 
 class PhoneError(Exception):
     """Something the phone asked for can't be done; the message is safe to show."""
+
+
+class PhoneGone(PhoneError):
+    """What the phone refers to isn't there any more (a file it sent an hour ago)."""
+
+
+FILE_GONE = "That file isn't on the computer any more (an hour at most): pick it again."
 
 
 class PhoneHub:
@@ -112,13 +120,18 @@ class PhoneHub:
         self._shown: deque[dict] = deque(maxlen=SHOWN)  # pictures and files sent today
         self._codoh_phones: dict[str, str] = {}  # a Codoh chat -> the phone that sent to it
         self._board: list[dict] = []  # the board's cards: {id, text} (story 150)
+        self._board_keys: list[str] = []  # its pictures' links (kept as long as it is)
         self._pictures: dict[str, dict] = {}  # its pictures, by what they show
         self._day = today()
         self._status = ""
         self._ai: dict = {}
         self._mode = ""
-        self._speak = False  # the phone that asked last wants the replies spoken
-        self._asker = ""  # ... and its id
+        self._speak = False  # the phone whose request is being answered speaks replies
+        self._asker = ""  # ... and its id: the events of that answer are for it
+        # Requests waiting for their turn: (their text, phone, speak). Each one's turn starts
+        # with its "You (phone): ..." line, which may come in another order than the asks.
+        self._waiting: list[tuple[str, str, bool]] = []
+        self._in_turn = False
         self._audio: OrderedDict[str, tuple[bytes, float]] = OrderedDict()
         self._audio_lock = threading.Lock()
         self._queue: queue.Queue = queue.Queue()
@@ -164,6 +177,8 @@ class PhoneHub:
             with self._cond:
                 self._history.append(line)
                 self._lines += 1
+                if line.startswith(PHONE_LINE):  # a phone's request: its turn starts
+                    self._turn_starts(line[len(PHONE_LINE) :])
             self._add({"type": "history", "line": line})
         elif kind == "status":
             self._status = str(value or "")
@@ -193,6 +208,8 @@ class PhoneHub:
             self._add({"type": "question", "text": str(value or "")})
         elif kind == "phone_done":
             self._add({"type": "done", "for": self._asker})
+            with self._cond:
+                self._in_turn = False
         elif kind == "phone_step":
             self._add({"type": "step", "text": str(value or "")[:200], "for": self._asker})
         elif kind == "phone_note":
@@ -241,6 +258,15 @@ class PhoneHub:
                 self._shown.clear()
             self._add({"type": "clear"})
 
+    def _turn_starts(self, text: str) -> None:
+        """The request with this text is being answered now (under self._cond)."""
+        for i, (asked, phone, speak) in enumerate(self._waiting):
+            if asked == text:
+                del self._waiting[i]
+                self._asker, self._speak = phone, speak
+                break
+        self._in_turn = True
+
     def codoh_sent(self, chat: str, phone: str) -> None:
         """This phone sent to that Codoh chat: what the chat needs goes to it."""
         if chat and phone:
@@ -251,6 +277,8 @@ class PhoneHub:
         with self._cond:
             if not isinstance(card, dict):
                 self._board, self._pictures = [], {}
+                self.media.forget(self._board_keys)
+                self._board_keys = []
                 card = None
             else:
                 card = {"id": card.get("id"), "text": str(card.get("text") or "")}
@@ -276,7 +304,8 @@ class PhoneHub:
         head, _, data = src.partition(",")
         if head.startswith("data:image/") and head.endswith(";base64"):
             try:
-                key = self.media.add_picture(base64.b64decode(data), head[5:-7])
+                key = self.media.add_picture(base64.b64decode(data), head[5:-7], lasting=True)
+                self._board_keys.append(key)
                 src = f"/media/{key}"
             except (binascii.Error, ValueError):
                 log.warning("A board picture for the phone couldn't be read")
@@ -357,7 +386,10 @@ class PhoneHub:
             text = f"{text} [sent {', '.join(p.name for p in sent)}]".strip()
         if not text:
             raise PhoneError("Type something to ask Abdoh.")
-        self._speak, self._asker = bool(speak), phone
+        with self._cond:
+            self._waiting = [*self._waiting, (text, phone, bool(speak))][-20:]
+            if not self._in_turn:  # nothing being answered: its events are this phone's
+                self._speak, self._asker = bool(speak), phone
         request = {"text": text}
         if spoken:
             request["spoken"] = True
@@ -372,7 +404,10 @@ class PhoneHub:
             for old in [k for k, (_, at) in self._uploads.items() if now - at > KEEP_SECONDS]:
                 del self._uploads[old]
             found = [self._uploads.pop(str(i), None) for i in ids[:10]]
-        return [path for path, _ in filter(None, found) if path.is_file()]
+        paths = [path for path, _ in filter(None, found) if path.is_file()]
+        if len(paths) < len(ids[:10]):
+            raise PhoneGone(FILE_GONE)
+        return paths
 
     # ----- files from the phone, and the clipboard -----
 

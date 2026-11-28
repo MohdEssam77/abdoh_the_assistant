@@ -387,7 +387,7 @@ class Router:
         self._done.clear()
         offered = self._answering = self._open_offer()
         exact = match_command(request, self.registry.commands, 100)  # one of yours, as it is
-        steps = [] if exact or offered else split_steps(original)
+        steps = [] if exact or offered or self.phone_files else split_steps(original)
         if offered is not None and self.brain is not None:
             reply = self._answer_offer(offered, original)
         elif steps:
@@ -431,6 +431,11 @@ class Router:
     ) -> Reply:
         # "Remember that" is Claude's to understand: what it just did becomes a command
         # (ACTION save_steps), something you told it goes to memory, or it asks which.
+        if self.phone and self.phone_files and self.brain is not None:
+            # it came with a file from the phone: "translate this" is about the file, not the
+            # screen, and no shortcut knows the file
+            prompt = self._unclear_note() + self._with_context(original)
+            return self._ask(prompt, original)
         reply = self._route_local(request, original)
         if reply is not None:
             return reply
@@ -451,8 +456,6 @@ class Router:
         if self.brain is not None:
             prompt = self._with_context(original) + self._clipboard(request)
             prompt = self._codoh() + prompt
-            if self.phone:
-                prompt = FROM_PHONE + self._phone_files_note() + prompt  # brain.PHONE
             if self.watching and self.cfg.claude.allow_screen:
                 # Watching the screen: what they say comes with a picture of it
                 note = self._watching_note() if aside else ""
@@ -645,6 +648,8 @@ class Router:
     def _ask(self, prompt: str, request: str, screen: bool = False, aside: bool = False) -> Reply:
         if self.brain is None:
             return NOT_CONNECTED
+        if self.phone:  # every prompt for a phone request (brain.PHONE says what that means)
+            prompt = FROM_PHONE + self._phone_files_note() + prompt
         question = self.modes.open_question() if self.modes is not None else None
         if question:
             prompt = ANSWER_NOTE.format(question=question) + prompt
@@ -833,7 +838,8 @@ class Router:
                 image = self._capture()
                 follow_up = skills.look_follow_up(request, window.title, window.program)
                 chunks = brain.stream(follow_up, image)
-                allowed = self.cfg.claude.actions
+                phone = [a for a in (SHOW_SCREEN, SEND_FILE) if a in allowed]
+                allowed = [*self.cfg.claude.actions, *phone]
                 for sentence in speakable(chunks, act, allowed=allowed, on_board=self._board()):
                     yield from _drain(problems)
                     spoken.append(sentence)

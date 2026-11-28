@@ -67,6 +67,7 @@ async function api(method, path, body, { timeout = 20000 } = {}) {
   if (!response.ok) {
     const error = new Error(data.error || `Your computer answered ${response.status}.`);
     error.shown = true; // a message for people
+    error.status = response.status;
     throw error;
   }
   return data;
@@ -412,6 +413,7 @@ function ago(seconds) {
 /* A new chat: one of Codoh's folders, and what it should do. */
 function newChat() {
   clearTimeout(codoh.timer);
+  codoh.asking += 1; // a list refresh on its way doesn't replace the form
   $("#codoh-title").textContent = "New chat";
   $("#codoh-status").textContent = "In which folder?";
   $("#codoh-back").hidden = false;
@@ -936,7 +938,7 @@ function bubble(who, text, label = null) {
 /* "explain this [sent photo.jpg]" -> ["explain this", "photo.jpg"]: what the phone sent with
    a message, shown as a file line above it. */
 function withFile(text) {
-  const sent = /^([\s\S]*?)\s*\[sent ([^\]]+)\]$/.exec(text || "");
+  const sent = /^([\s\S]*?)\s*\[sent (.+)\]$/.exec(text || "");
   return sent ? [sent[1], sent[2]] : [text, ""];
 }
 
@@ -1047,6 +1049,7 @@ async function send(text, { withFile = true } = {}) {
     S.final = true;
     if (file && !S.attached) { // it didn't go: the file waits for the next message again
       S.attached = file;
+      if (error.status === 410) file.failed = error.message; // gone: pick it again
       showAttached();
     }
     failed(error);

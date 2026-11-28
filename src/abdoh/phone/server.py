@@ -18,7 +18,7 @@ from urllib.parse import parse_qs, quote, urlsplit
 
 from abdoh.phone.devices import FILE, Phones, phone_name
 from abdoh.phone.files import MAX_UPLOAD
-from abdoh.phone.hub import MAX_CLIPBOARD, PhoneError, PhoneHub
+from abdoh.phone.hub import MAX_CLIPBOARD, PhoneError, PhoneGone, PhoneHub
 from abdoh.phone.media import SHOWN
 
 log = logging.getLogger(__name__)
@@ -136,6 +136,8 @@ class PhoneApp:
             if phone is None:
                 return error(401, NOT_PAIRED)
             return self._api(method, route, query, body, phone)
+        except PhoneGone as e:
+            return error(410, str(e))
         except PhoneError as e:
             return error(400, str(e))
 
@@ -351,7 +353,7 @@ def _handler(app: PhoneApp):
                 response = error(500, "Something went wrong on your computer.")
             if response.status != 200:
                 left = length - reader.count
-                if 0 < left <= MAX_UPLOAD:  # read the rest, so the phone hears why (not a cut)
+                if response.status != 401 and 0 < left <= MAX_UPLOAD:  # so the phone hears why
                     while left > 0 and (piece := self.rfile.read(min(CHUNK, left))):
                         left -= len(piece)
                 self.close_connection = True
