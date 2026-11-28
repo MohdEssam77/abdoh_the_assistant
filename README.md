@@ -22,7 +22,8 @@ your own Claude account (or your ChatGPT plan, or an API key).
 - **Modes and lamps**: "movie mode" switches screens, volume and your WiZ lamps at once.
 - **Memory**: it remembers what you tell it, and the week's conversations.
 - **Talk naturally**: interrupt it, keep talking without the wake word, "stop listening".
-- **On your phone**: talk or type to it from anywhere, privately through Tailscale.
+- **On your phone**: talk, type or call it from anywhere, privately through Tailscale; see its
+  steps, the screen, the board and Codoh there, and send files both ways.
 
 The app's **Catalog** page lists every feature with what to say. [GUIDE.md](GUIDE.md) explains
 everything in detail: each feature, configuration, troubleshooting and known issues.

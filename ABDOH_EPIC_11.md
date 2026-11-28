@@ -145,3 +145,28 @@ from `epic/11-phone` to `main` for the owner to merge.
   already has).
 - Tests never need a microphone, speakers, network, a screen or Tailscale: screenshots, files
   and Codoh are faked.
+
+## 5. Results (2026-11-28)
+
+All seven stories are on `epic/11-phone` (147 to 153), for the owner to merge with one PR; not
+released (still 0.13.3, with stories 135 to 146 also waiting).
+
+- **Built:** 1. to 7. of section 1, as designed in section 2. Claude learns about the phone in
+  the system prompt (PHONE, with the file part only when it may work with files) and from the
+  `(From the phone)` tag on every prompt of a phone request.
+- **Checked here, for real:** the real phone server over a real local connection (a 3 MB upload
+  streamed to disk and the connection going on after it, byte ranges, the clipboard, a file
+  sent with a request, an unpaired upload refused); the real page against the real server and
+  its Content-Security-Policy, with the board's Mermaid and Graphviz drawings, KaTeX and a
+  board picture drawn, a picture of the screen and a file card. Everything else in the demo
+  (screenshots in light and dark) and in 2042 tests.
+- **Reviews:** a read of the whole phone feature (stories 139 to 151) found 8 bugs, among them
+  Codoh's notices going to the wrong phone (or none), a photo not going with a voice message,
+  Yes and No taking a waiting photo along, and the Codoh view polling twice. A second,
+  independent review of the epic found 10 more, among them a phone request losing its context
+  outside the plain way to Claude ("translate this" with a photo translated the screen), the
+  phone's actions dropped after looking at the screen, board pictures expiring after an hour,
+  two phones getting each other's events, and two uploads with one name sharing a temporary
+  file. All are fixed, each with a test.
+- **Not tried:** a real iPhone and a real Tailscale network (none here), so not: the phone's
+  microphone, its viewer for files, Share to Files, Wake Lock, how loud a call needs you to be.
